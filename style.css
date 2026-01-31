@@ -56,18 +56,11 @@ header {
 }
 
 .logo {
-    font-family: 'Outfit', sans-serif;
-    font-size: 1.75rem;
-    font-weight: 700;
-    color: var(--primary);
+    height: 240px;
+    width: auto;
+    max-width: 100%;
     margin-bottom: 0.5rem;
-    letter-spacing: -0.5px;
-    display: inline-flex;
-    align-items: center;
-}
-
-.logo span {
-    color: var(--text-main);
+    display: inline-block;
 }
 
 header h1 {
@@ -494,23 +487,33 @@ textarea:focus {
 }
 
 .sidebar .logo {
-    margin-bottom: 3rem;
+    margin-bottom: 1.5rem;
+    max-height: 160px;
+    max-width: 90%;
+    margin-left: auto;
+    margin-right: auto;
+    display: block;
+    object-fit: contain;
 }
 
 .sidebar nav {
     flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
 }
 
 .sidebar nav a {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
-    padding: 0.75rem 1rem;
+    gap: 1rem;
+    padding: 1rem 1.25rem;
     text-decoration: none;
     color: var(--text-muted);
     font-weight: 500;
-    border-radius: var(--radius);
+    border-radius: var(--radius-md);
     transition: all 0.2s;
+    font-size: 0.95rem;
 }
 
 .sidebar nav a:hover {
@@ -528,7 +531,8 @@ textarea:focus {
 
 .sidebar-footer {
     border-top: 1px solid var(--border);
-    padding-top: 1.5rem;
+    padding-top: 2rem;
+    margin-top: 1rem;
 }
 
 .staff-info {
@@ -705,18 +709,21 @@ table {
 
 th {
     background: #f1f5f9;
-    padding: 1.25rem 1.5rem;
-    font-size: 0.8rem;
+    padding: 1rem;
+    font-size: 0.85rem;
     text-transform: uppercase;
-    letter-spacing: 0.1em;
+    letter-spacing: 0.05em;
     color: var(--text-muted);
     border: none;
+    white-space: nowrap;
 }
 
 td {
-    padding: 1.25rem 1.5rem;
-    font-size: 0.9rem;
+    padding: 1rem;
+    font-size: 0.95rem;
     border-bottom: 1px solid #f1f5f9;
+    vertical-align: middle;
+    white-space: nowrap;
 }
 
 tr:hover td {
