@@ -12,154 +12,6 @@
     <link
         href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&family=Sarabun:wght@300;400;500;600;700&family=Outfit:wght@400;600;700&display=swap"
         rel="stylesheet">
-    <style>
-        :root {
-            --thai-font-title: 'Kanit', sans-serif;
-            --thai-font-body: 'Sarabun', sans-serif;
-            --main-font: 'Outfit', sans-serif;
-        }
-
-        body {
-            font-family: var(--thai-font-body);
-        }
-
-        .logo-text,
-        h1,
-        h2,
-        h3,
-        .submit-btn,
-        .add-btn,
-        .sidebar nav a {
-            font-family: var(--thai-font-title);
-            font-weight: 500;
-        }
-
-
-        .payment-status-section {
-            margin-top: 2rem;
-            padding-top: 2rem;
-            border-top: 2px dashed #e2e8f0;
-        }
-
-        .paid-row {
-            background-color: #f0fdf4 !important;
-        }
-
-        .overdue-row {
-            background-color: #fef2f2 !important;
-        }
-
-        .status-paid {
-            color: #166534;
-            font-weight: 600;
-        }
-
-        .status-pending {
-            color: #991b1b;
-            font-weight: 600;
-        }
-
-        .receive-btn {
-            padding: 8px 16px;
-            background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
-            color: white;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 0.85rem;
-            font-weight: 500;
-            transition: all 0.3s ease;
-            box-shadow: 0 4px 6px -1px rgba(99, 102, 241, 0.2);
-        }
-
-        .receive-btn:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 6px 12px -1px rgba(99, 102, 241, 0.3);
-        }
-
-        .payment-info-card {
-            background: white;
-            padding: 1.5rem;
-            border-radius: 16px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border: 1px solid #e2e8f0;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
-        }
-
-        /* Filter Bar Styles */
-        .filter-bar {
-            background: white;
-            padding: 1.25rem;
-            border-radius: 16px;
-            margin-bottom: 1.5rem;
-            display: flex;
-            flex-wrap: wrap;
-            gap: 1rem;
-            align-items: center;
-            border: 1px solid #e2e8f0;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
-        }
-
-        .search-container {
-            flex-grow: 1;
-            min-width: 250px;
-            position: relative;
-        }
-
-        .search-container input {
-            width: 100%;
-            padding: 10px 15px 10px 40px;
-            border: 1.5px solid #e2e8f0;
-            border-radius: 10px;
-            font-size: 0.95rem;
-            outline: none;
-            transition: all 0.3s ease;
-        }
-
-        .search-container input:focus {
-            border-color: #6366f1;
-            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
-        }
-
-        .search-icon {
-            position: absolute;
-            left: 14px;
-            top: 50%;
-            transform: translateY(-50%);
-            color: #94a3b8;
-        }
-
-        .filter-group {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .filter-group label {
-            font-size: 0.9rem;
-            font-weight: 500;
-            color: #64748b;
-            white-space: nowrap;
-        }
-
-        .filter-select {
-            padding: 8px 12px;
-            border: 1.5px solid #e2e8f0;
-            border-radius: 10px;
-            font-size: 0.9rem;
-            color: #1e293b;
-            outline: none;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            background-color: white;
-        }
-
-        .filter-select:focus {
-            border-color: #6366f1;
-        }
-    </style>
 </head>
 
 <body>
@@ -332,18 +184,45 @@
 
                     <div class="stats-overview">
                         <div class="stat-card">
-                            <div class="stat-icon purple"><svg width="24" height="24" viewBox="0 0 24 24" fill="none"
-                                    stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                    stroke-linejoin="round">
+                            <div class="stat-icon purple">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
                                     <polyline points="14 2 14 8 20 8"></polyline>
-                                    <line x1="16" y1="13" x2="8" y2="13"></line>
-                                    <line x1="16" y1="17" x2="8" y2="17"></line>
-                                    <polyline points="10 9 9 9 8 9"></polyline>
-                                </svg></div>
+                                </svg>
+                            </div>
                             <div class="stat-content">
                                 <h3 id="totalRecords">0</h3>
-                                <p>จำนวนรายการทั้งหมด</p>
+                                <p>ทั้งหมด (Total)</p>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon green">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                                    <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                                </svg>
+                            </div>
+                            <div class="stat-content">
+                                <h3 id="activeRecords">0</h3>
+                                <p>ปกติ (Active)</p>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon orange">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path
+                                        d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z">
+                                    </path>
+                                    <line x1="12" y1="9" x2="12" y2="13"></line>
+                                    <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                                </svg>
+                            </div>
+                            <div class="stat-content">
+                                <h3 id="expiringSoon">0</h3>
+                                <p>ใกล้หมดอายุ</p>
                             </div>
                         </div>
                     </div>
@@ -790,22 +669,16 @@
                         บาท</span>
                 </div>
 
-                <div class="payment-tabs" style="display: flex; gap: 5px; margin-bottom: 1rem;">
-                    <button type="button" class="pay-tab-btn active" data-method="Cash"
-                        style="flex: 1; padding: 0.8rem; border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; cursor: pointer; transition: all 0.2s;">💵
-                        เงินสด</button>
-                    <button type="button" class="pay-tab-btn" data-method="Transfer"
-                        style="flex: 1; padding: 0.8rem; border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; cursor: pointer; transition: all 0.2s;">📱
-                        โอนเงิน</button>
-                    <button type="button" class="pay-tab-btn" data-method="Split"
-                        style="flex: 1; padding: 0.8rem; border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; cursor: pointer; transition: all 0.2s;">⚖️
-                        แบ่งจ่าย</button>
+                <div class="payment-tabs">
+                    <button type="button" class="pay-tab-btn active" data-method="Cash">💵 เงินสด</button>
+                    <button type="button" class="pay-tab-btn" data-method="Transfer">📱 โอนเงิน</button>
+                    <button type="button" class="pay-tab-btn" data-method="Split">⚖️ แบ่งจ่าย</button>
                 </div>
 
                 <div id="cashInputGroup" class="payment-group">
-                    <label style="display: block; margin-bottom: 5px; font-size: 0.9rem;">รับเงินสดมา (บาท)</label>
+                    <label>รับเงินสดมา (บาท)</label>
                     <input type="number" id="cashReceivedInput" placeholder="0.00" class="full-width"
-                        style="font-size: 1.2rem; padding: 0.8rem; border-radius: 8px; border: 1px solid #cbd5e1;">
+                        style="font-size: 1.2rem;">
                     <div style="margin-top: 10px; display: flex; justify-content: space-between; font-weight: 600;">
                         <span>เงินทอน:</span>
                         <span id="cashChangeAmount" style="color: #ef4444; font-size: 1.2rem;">0.00 บาท</span>
@@ -813,42 +686,34 @@
                 </div>
 
                 <div id="transferInputGroup" class="payment-group" style="display: none;">
-                    <label style="display: block; margin-bottom: 5px; font-size: 0.9rem;">ยอดโอน (บาท)</label>
+                    <label>ยอดโอน (บาท)</label>
                     <input type="number" id="transferAmountInput" placeholder="0.00" class="full-width"
-                        style="font-size: 1.2rem; padding: 0.8rem; border-radius: 8px; border: 1px solid #cbd5e1;">
-                    <label
-                        style="display: block; margin-top: 10px; margin-bottom: 5px; font-size: 0.9rem;">เลขที่อ้างอิง /
-                        Slip ID (ถ้ามี)</label>
-                    <input type="text" id="transferRefInput" placeholder="Ref ID..." class="full-width"
-                        style="padding: 0.8rem; border-radius: 8px; border: 1px solid #cbd5e1;">
+                        style="font-size: 1.2rem;">
+                    <label style="margin-top: 10px;">เลขที่อ้างอิง / Slip ID (ถ้ามี)</label>
+                    <input type="text" id="transferRefInput" placeholder="Ref ID..." class="full-width">
                 </div>
 
                 <div id="splitInputGroup" class="payment-group" style="display: none;">
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                    <div class="grid-row" style="gap: 10px;">
                         <div>
-                            <label style="display: block; margin-bottom: 5px; font-size: 0.9rem;">ส่วนเงินสด
-                                (บาท)</label>
-                            <input type="number" id="splitCashInput" placeholder="0.00" class="full-width"
-                                style="padding: 0.8rem; border-radius: 8px; border: 1px solid #cbd5e1;">
+                            <label>ส่วนเงินสด (บาท)</label>
+                            <input type="number" id="splitCashInput" placeholder="0.00" class="full-width">
                         </div>
                         <div>
-                            <label style="display: block; margin-bottom: 5px; font-size: 0.9rem;">ส่วนโอน (บาท)</label>
-                            <input type="number" id="splitTransferInput" placeholder="0.00" class="full-width"
-                                style="padding: 0.8rem; border-radius: 8px; border: 1px solid #cbd5e1;">
+                            <label>ส่วนโอน (บาท)</label>
+                            <input type="number" id="splitTransferInput" placeholder="0.00" class="full-width">
                         </div>
                     </div>
-                    <div
-                        style="margin-top: 10px; padding: 0.8rem; background: #fffbeb; border-radius: 8px; border: 1px solid #fde68a;">
-                        <div style="display: flex; justify-content: space-between; font-size: 0.9rem;">
+                    <div class="payment-summary-box" style="margin-top: 1rem; padding: 1rem;">
+                        <div class="summary-row">
                             <span>รวมจ่าย:</span>
                             <span id="splitTotalPaid" style="font-weight: 600;">0.00 บาท</span>
                         </div>
-                        <div style="display: flex; justify-content: space-between; margin-top: 5px; font-size: 0.9rem;">
+                        <div class="summary-row">
                             <span>ส่วนต่าง:</span>
                             <span id="splitBalance" style="font-weight: 600; color: #ef4444;">-0.00 บาท</span>
                         </div>
-                        <div id="splitChangeRow"
-                            style="display: none; justify-content: space-between; margin-top: 5px; font-size: 0.9rem; font-weight: 600;">
+                        <div id="splitChangeRow" class="summary-row" style="display: none; font-weight: 600;">
                             <span>เงินทอน:</span>
                             <span id="splitChangeAmount" style="color: #ef4444;">0.00 บาท</span>
                         </div>

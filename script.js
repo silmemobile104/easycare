@@ -204,11 +204,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderDashboard(records) {
         const body = document.getElementById('recordsBody');
-        const total = document.getElementById('totalRecords');
+        const totalElem = document.getElementById('totalRecords');
+        const activeElem = document.getElementById('activeRecords');
+        const expiringElem = document.getElementById('expiringSoon');
         const empty = document.getElementById('emptyState');
 
-        total.textContent = records.length;
-        if (records.length === 0) {
+        // Calculate Stats
+        const now = new Date();
+        const thirtyDaysLater = new Date();
+        thirtyDaysLater.setDate(now.getDate() + 30);
+
+        const totalCount = records.length;
+        const activeCount = records.filter(r => new Date(r.warrantyDates.end) >= now).length;
+        const expiringSoonCount = records.filter(r => {
+            const end = new Date(r.warrantyDates.end);
+            return end > now && end <= thirtyDaysLater;
+        }).length;
+
+        if (totalElem) totalElem.textContent = totalCount.toLocaleString();
+        if (activeElem) activeElem.textContent = activeCount.toLocaleString();
+        if (expiringElem) expiringElem.textContent = expiringSoonCount.toLocaleString();
+
+        if (totalCount === 0) {
             empty.style.display = 'block';
             body.innerHTML = '';
             return;
@@ -1620,7 +1637,7 @@ document.addEventListener('DOMContentLoaded', () => {
             e.preventDefault();
             const editId = document.getElementById('editShopId').value;
             const payload = {
-                shopName: document.getElementById('shopName').value,
+                shopName: document.getElementById('shopModalName').value,
                 location: document.getElementById('shopLocation').value
             };
 
@@ -1655,18 +1672,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (shop) {
                 isEditMode = true;
-                const editIdElem = document.getElementById('editShopId');
-                const titleElem = document.getElementById('shopModalTitle');
-                const idDisplayElem = document.getElementById('shopIdDisplay');
-                const nameElem = document.getElementById('shopName');
+                const modalNameElem = document.getElementById('shopModalName');
                 const locElem = document.getElementById('shopLocation');
 
                 if (editIdElem) editIdElem.value = shop._id;
                 if (titleElem) titleElem.textContent = 'แก้ไขข้อมูลร้านค้า';
                 if (idDisplayElem) idDisplayElem.value = shop.shopId;
-                if (nameElem) nameElem.value = shop.shopName;
-                // Update to match new ID
-                const modalNameElem = document.getElementById('shopModalName');
                 if (modalNameElem) modalNameElem.value = shop.shopName;
                 if (locElem) locElem.value = shop.location || '';
 
