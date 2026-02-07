@@ -903,7 +903,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="search-result-item" onclick="selectMember(${JSON.stringify(m).replace(/"/g, '&quot;')})">
                         <div class="search-result-info">
                             <span class="search-result-name">${m.firstName} ${m.lastName}</span>
-                            <span class="search-result-sub">${m.phone}</span>
+                            <span class="search-result-sub">${m.phone} ${m.citizenId ? `| CID: ${m.citizenId}` : ''}</span>
                         </div>
                         <span class="search-result-tag">${m.memberId}</span>
                     </div>

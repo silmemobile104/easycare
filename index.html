@@ -393,10 +393,11 @@
 
                     <!-- Member Search Box -->
                     <div class="form-group full-width" style="margin-bottom: 2rem;">
-                        <label>ค้นหาสมาชิก (เลขที่สมาชิก / เบอร์โทร / ชื่อ-นามสกุล)</label>
+                        <label>ค้นหาสมาชิก (เลขที่สมาชิก / เลขบัตรประชาชน / เบอร์โทร / ชื่อ-นามสกุล)</label>
                         <div class="search-container">
-                            <input type="text" id="memberSearchInput" placeholder="พิมพ์เพื่อค้นหาคมหาก..."
-                                autocomplete="off" style="border: 2px solid var(--primary); padding-left: 3rem;">
+                            <input type="text" id="memberSearchInput"
+                                placeholder="พิมพ์เพื่อค้นหา (เช่น ชื่อ หรือ เลขบัตร)..." autocomplete="off"
+                                style="border: 2px solid var(--primary); padding-left: 3rem;">
                             <span
                                 style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: var(--primary);">
                                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -414,17 +415,17 @@
                                 readonly class="readonly-field" placeholder="ออกโดยระบบอัตโนมัติ"></div>
                         <div class="form-group"><label>รหัสสมาชิก</label><input type="text" id="memberId"
                                 placeholder="รหัสสมาชิก"></div>
+                        <div class="form-group"><label>ชื่อ</label><input type="text" id="firstName" required></div>
+                        <div class="form-group"><label>นามสกุล</label><input type="text" id="lastName" required>
+                        </div>
+                        <div class="form-group"><label>เบอร์โทรศัพท์</label><input type="tel" id="phone" required
+                                placeholder="0xxxxxxxxx"></div>
                         <div class="form-group">
                             <label>ร้านค้า (Shop)</label>
                             <select id="shopName" required>
                                 <option value="" disabled selected>โหลดข้อมูลร้านค้า...</option>
                             </select>
                         </div>
-                        <div class="form-group"><label>ชื่อ</label><input type="text" id="firstName" required></div>
-                        <div class="form-group"><label>นามสกุล</label><input type="text" id="lastName" required>
-                        </div>
-                        <div class="form-group"><label>เบอร์โทรศัพท์</label><input type="tel" id="phone" required
-                                placeholder="0xxxxxxxxx"></div>
                         <div class="form-group"><label>วันเกิด (พ.ศ.)</label>
                             <div style="display: flex; gap: 0.5rem;">
                                 <input type="number" id="dobDay" placeholder="วัน" min="1" max="31" required
@@ -782,7 +783,7 @@
             </div>
 
             <div style="display: flex; gap: 10px; justify-content: center; margin-top: 1rem;">
-                <button id="closeModal" class="btn-cancel">✕ ยกเลิก</button>
+                <button id="closeModal" class="btn-cancel">✕ ปิด</button>
             </div>
         </div>
     </div>
@@ -817,8 +818,6 @@
                             readonly class="readonly-field" placeholder="จากการเสียบบัตร"></div>
                     <div class="form-group"><label>คำนำหน้า</label><input type="text" id="memberPrefix" readonly
                             class="readonly-field"></div>
-                    <div class="form-group"><label>เพศ</label><input type="text" id="memberGender" readonly
-                            class="readonly-field"></div>
                     <div class="form-group"><label>ชื่อ (TH)</label><input type="text" id="memberFirstName" required
                             readonly class="readonly-field"></div>
                     <div class="form-group"><label>นามสกุล (TH)</label><input type="text" id="memberLastName" required
@@ -827,6 +826,8 @@
                             readonly class="readonly-field"></div>
                     <div class="form-group"><label>Last Name (EN)</label><input type="text" id="memberLastNameEn"
                             readonly class="readonly-field"></div>
+                    <div class="form-group"><label>เพศ</label><input type="text" id="memberGender" readonly
+                            class="readonly-field"></div>
                     <div class="form-group"><label>วันเกิด</label><input type="date" id="memberBirthdate" readonly
                             class="readonly-field"></div>
                     <div class="form-group"><label>เบอร์โทรศัพท์</label><input type="tel" id="memberPhone" required

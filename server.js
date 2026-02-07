@@ -392,6 +392,7 @@ app.get('/api/members/lookup', async (req, res) => {
             $or: [
                 { phone: searchRegex },
                 { memberId: searchRegex },
+                { citizenId: searchRegex },
                 { firstName: searchRegex },
                 { lastName: searchRegex }
             ]
