@@ -1,4 +1,145 @@
 document.addEventListener('DOMContentLoaded', () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // SWEETALERT2 HELPER FUNCTIONS - SmileCare Theme
+    // ═══════════════════════════════════════════════════════════════════
+
+    // Base SweetAlert2 configuration matching SmileCare theme
+    const SwalTheme = Swal.mixin({
+        customClass: {
+            popup: 'swal-popup-custom',
+            title: 'swal-title-custom',
+            confirmButton: 'swal-confirm-btn',
+            cancelButton: 'swal-cancel-btn',
+            denyButton: 'swal-deny-btn'
+        },
+        buttonsStyling: false,
+        confirmButtonColor: '#0d9488',
+        cancelButtonColor: '#ef4444',
+        background: 'rgba(255, 255, 255, 0.95)',
+        backdrop: 'rgba(15, 23, 42, 0.6)'
+    });
+
+    /**
+     * Show a styled alert notification
+     * @param {string} type - 'success' | 'error' | 'warning' | 'info'
+     * @param {string} message - Message to display
+     * @param {string} [title] - Optional title (auto-generated if not provided)
+     */
+    window.showAlert = function (type, message, title = null) {
+        const titles = {
+            success: 'สำเร็จ!',
+            error: 'เกิดข้อผิดพลาด!',
+            warning: 'คำเตือน!',
+            info: 'แจ้งเตือน'
+        };
+
+        return SwalTheme.fire({
+            icon: type,
+            title: title || titles[type] || '',
+            text: message,
+            confirmButtonText: 'ตกลง',
+            timer: type === 'success' ? 3000 : undefined,
+            timerProgressBar: type === 'success'
+        });
+    };
+
+    /**
+     * Show a confirmation dialog with Confirm/Cancel buttons
+     * @param {string} title - Title of the dialog
+     * @param {string} message - Warning message
+     * @param {string} [confirmText='ยืนยัน'] - Confirm button text
+     * @param {string} [cancelText='ยกเลิก'] - Cancel button text
+     * @returns {Promise<boolean>} - Returns true if confirmed, false otherwise
+     */
+    window.showConfirm = async function (title, message, confirmText = 'ยืนยัน', cancelText = 'ยกเลิก') {
+        const result = await SwalTheme.fire({
+            icon: 'warning',
+            title: title,
+            text: message,
+            showCancelButton: true,
+            confirmButtonText: confirmText,
+            cancelButtonText: cancelText,
+            reverseButtons: true
+        });
+        return result.isConfirmed;
+    };
+
+    /**
+     * Show a delete confirmation dialog (red themed)
+     * @param {string} [message] - Custom warning message
+     * @returns {Promise<boolean>} - Returns true if confirmed
+     */
+    window.showDeleteConfirm = async function (message = 'การกระทำนี้ไม่สามารถย้อนกลับได้') {
+        const result = await SwalTheme.fire({
+            icon: 'warning',
+            title: 'คุณแน่ใจหรือไม่?',
+            text: message,
+            showCancelButton: true,
+            confirmButtonText: '🗑️ ลบข้อมูล',
+            cancelButtonText: 'ยกเลิก',
+            confirmButtonColor: '#ef4444',
+            reverseButtons: true
+        });
+        return result.isConfirmed;
+    };
+
+    /**
+     * Show a toast notification (top-end position)
+     * @param {string} type - 'success' | 'error' | 'warning' | 'info'
+     * @param {string} message - Message to display
+     */
+    window.showToast = function (type, message) {
+        const Toast = Swal.mixin({
+            toast: true,
+            position: 'top-end',
+            showConfirmButton: false,
+            timer: 3000,
+            timerProgressBar: true,
+            didOpen: (toast) => {
+                toast.addEventListener('mouseenter', Swal.stopTimer);
+                toast.addEventListener('mouseleave', Swal.resumeTimer);
+            }
+        });
+
+        Toast.fire({
+            icon: type,
+            title: message
+        });
+    };
+
+    // ═══════════════════════════════════════════════════════════════════
+    // GLOBAL LOADER FUNCTIONS
+    // ═══════════════════════════════════════════════════════════════════
+
+    /**
+     * Show the global loading overlay
+     * @param {string} [text='กำลังโหลด...'] - Optional loading text
+     */
+    window.showLoader = function (text = 'กำลังโหลด...') {
+        const loader = document.getElementById('global-loader');
+        if (loader) {
+            const textEl = loader.querySelector('.loader-text');
+            if (textEl) textEl.textContent = text;
+            loader.style.display = 'flex';
+            // Force reflow for animation
+            loader.offsetHeight;
+            loader.classList.add('active');
+        }
+    };
+
+    /**
+     * Hide the global loading overlay
+     */
+    window.hideLoader = function () {
+        const loader = document.getElementById('global-loader');
+        if (loader) {
+            loader.classList.remove('active');
+            setTimeout(() => {
+                loader.style.display = 'none';
+            }, 300); // Match CSS transition
+        }
+    };
+
     // --- APP STATE ---
     let currentUser = JSON.parse(localStorage.getItem('smilecare_staff_session'));
     let isEditMode = false;
@@ -67,6 +208,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const username = document.getElementById('username').value;
             const password = document.getElementById('password').value;
 
+            showLoader('กำลังเข้าสู่ระบบ...');
             try {
                 const res = await fetch('/api/login', {
                     method: 'POST',
@@ -84,6 +226,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             } catch (err) {
                 console.error('Login error:', err);
+            } finally {
+                hideLoader();
             }
         });
     }
@@ -97,6 +241,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const username = document.getElementById('regUsername').value;
             const password = document.getElementById('regPassword').value;
 
+            showLoader('กำลังลงทะเบียน...');
             try {
                 const res = await fetch('/api/register', {
                     method: 'POST',
@@ -105,7 +250,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 const data = await res.json();
                 if (data.success) {
-                    alert('ลงทะเบียนสำเร็จ! กรุณาเข้าสู่ระบบ');
+                    showAlert('success', 'ลงทะเบียนสำเร็จ! กรุณาเข้าสู่ระบบ');
                     showView('login');
                 } else {
                     const errorElem = document.getElementById('regError');
@@ -114,6 +259,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             } catch (err) {
                 console.error('Registration error:', err);
+            } finally {
+                hideLoader();
             }
         });
     }
@@ -153,6 +300,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- DASHBOARD LOGIC ---
     async function fetchWarranties() {
+        showLoader('กำลังโหลดข้อมูล...');
         try {
             const res = await fetch('/api/warranties');
             const data = await res.json();
@@ -160,6 +308,8 @@ document.addEventListener('DOMContentLoaded', () => {
             applyFilters(); // Initial render with filters
         } catch (err) {
             console.error('Fetch error:', err);
+        } finally {
+            hideLoader();
         }
     }
 
@@ -311,19 +461,23 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function deleteWarranty(id) {
-        if (!confirm('⚠️ คำเตือน: คุณต้องการลบข้อมูลประกันนี้ใช่หรือไม่? การกระทำนี้ไม่สามารถย้อนกลับได้')) return;
+        const confirmed = await showDeleteConfirm('คุณต้องการลบข้อมูลประกันนี้ใช่หรือไม่? การกระทำนี้ไม่สามารถย้อนกลับได้');
+        if (!confirmed) return;
 
+        showLoader('กำลังลบข้อมูล...');
         try {
             const res = await fetch(`/api/warranties/${id}`, { method: 'DELETE' });
             if (res.ok) {
-                alert('ลบข้อมูลสำเร็จ');
+                showAlert('success', 'ลบข้อมูลสำเร็จ');
                 fetchWarranties();
             } else {
                 const data = await res.json();
-                alert(data.message || 'เกิดข้อผิดพลาดในการลบข้อมูล');
+                showAlert('error', data.message || 'เกิดข้อผิดพลาดในการลบข้อมูล');
             }
         } catch (err) {
             console.error('Delete error:', err);
+        } finally {
+            hideLoader();
         }
     }
 
@@ -408,7 +562,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         } catch (err) {
             console.error('Edit error:', err);
-            alert('ไม่สามารถดึงข้อมูลเพื่อแก้ไขได้');
+            showAlert('error', 'ไม่สามารถดึงข้อมูลเพื่อแก้ไขได้');
         }
     }
 
@@ -1018,7 +1172,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 document.getElementById('successModal').style.display = 'flex';
             } else {
-                alert(data.message || 'เกิดข้อผิดพลาดในการบันทึกข้อมูล');
+                showAlert('error', data.message || 'เกิดข้อผิดพลาดในการบันทึกข้อมูล');
             }
         } catch (err) {
             console.error('Submit error:', err);
@@ -1273,11 +1427,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('checkoutStep3').style.display = 'block';
             } else {
                 const data = await res.json();
-                alert(data.message || 'เกิดข้อผิดพลาดในการบันทึกการชำระเงิน');
+                showAlert('error', data.message || 'เกิดข้อผิดพลาดในการบันทึกการชำระเงิน');
             }
         } catch (err) {
             console.error('Final confirm error:', err);
-            alert('เกิดข้อผิดพลาดในการเชื่อมต่อ');
+            showAlert('error', 'เกิดข้อผิดพลาดในการเชื่อมต่อ');
         } finally {
             btn.disabled = false;
             btn.innerHTML = originalText;
@@ -1374,16 +1528,17 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function deleteMember(id) {
-        if (!confirm('⚠️ คำเตือน: คุณต้องการลบสมาชิกนี้ใช่หรือไม่? บัญชีและประวัติจะถูกลบออกถาวร')) return;
+        const confirmed = await showDeleteConfirm('คุณต้องการลบสมาชิกนี้ใช่หรือไม่? บัญชีและประวัติจะถูกลบออกถาวร');
+        if (!confirmed) return;
 
         try {
             const res = await fetch(`/api/members/${id}`, { method: 'DELETE' });
             if (res.ok) {
-                alert('ลบคลิกสำเร็จ');
+                showAlert('success', 'ลบสมาชิกสำเร็จ');
                 fetchMembers();
             } else {
                 const data = await res.json();
-                alert(data.message || 'เกิดข้อผิดพลาดในการลบสมาชิก');
+                showAlert('error', data.message || 'เกิดข้อผิดพลาดในการลบสมาชิก');
             }
         } catch (err) {
             console.error('Delete member error:', err);
@@ -1426,7 +1581,7 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('memberModal').style.display = 'flex';
         } catch (err) {
             console.error('Fetch member error:', err);
-            alert('ไม่สามารถดึงข้อมูลสมาชิกได้');
+            showAlert('error', 'ไม่สามารถดึงข้อมูลสมาชิกได้');
         }
     }
 
@@ -1509,11 +1664,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     document.getElementById('memberModal').style.display = 'none';
                     fetchMembers();
                 } else {
-                    alert(data.message || 'เกิดข้อผิดพลาด');
+                    showAlert('error', data.message || 'เกิดข้อผิดพลาด');
                 }
             } catch (err) {
                 console.error('Submit member error:', err);
-                alert('เกิดข้อผิดพลาดในการเชื่อมต่อ');
+                showAlert('error', 'เกิดข้อผิดพลาดในการเชื่อมต่อ');
             }
         });
     }
@@ -1594,16 +1749,17 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function deleteShop(id) {
-        if (!confirm('⚠️ คำเตือน: คุณต้องการลบร้านค้านี้ใช่หรือไม่?')) return;
+        const confirmed = await showDeleteConfirm('คุณต้องการลบร้านค้านี้ใช่หรือไม่?');
+        if (!confirmed) return;
 
         try {
             const res = await fetch(`/api/shops/${id}`, { method: 'DELETE' });
             if (res.ok) {
-                alert('ลบร้านค้าสำเร็จ');
+                showAlert('success', 'ลบร้านค้าสำเร็จ');
                 fetchShops();
             } else {
                 const data = await res.json();
-                alert(data.message || 'เกิดข้อผิดพลาดในการลบร้านค้า');
+                showAlert('error', data.message || 'เกิดข้อผิดพลาดในการลบร้านค้า');
             }
         } catch (err) {
             console.error('Delete shop error:', err);
@@ -1656,7 +1812,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     shopModal.style.display = 'none';
                     fetchShops();
                 } else {
-                    alert('ข้อผิดพลาด: ' + (data.message || 'ไม่สามารถบันทึกข้อมูลได้'));
+                    showAlert('error', data.message || 'ไม่สามารถบันทึกข้อมูลได้');
                 }
             } catch (err) {
                 console.error('Shop save error:', err);
@@ -1708,7 +1864,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (result.success && result.data) {
                 populateMemberFormFromCard(result.data);
-                alert('อ่านข้อมูลจากบัตรเรียบร้อยแล้ว');
+                showAlert('success', 'อ่านข้อมูลจากบัตรเรียบร้อยแล้ว');
             } else {
                 throw new Error(result.message || 'ข้อมูลไม่สมบูรณ์');
             }
@@ -1717,9 +1873,9 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error('Smart Card Error:', err);
             // Specific error message if agent is not running
             if (err.name === 'TypeError' && err.message.toLowerCase().includes('failed to fetch')) {
-                alert('⚠️ ไม่สามารถเชื่อมต่อกับ Smart Card Agent ได้\n\n1. ตรวจสอบว่ารันคำสั่ง "npm start" ในโฟลเดอร์ smartcard-agent\n2. เข้าไปที่ http://localhost:3001 เพื่อเช็คสถานะ');
+                showAlert('warning', 'ไม่สามารถเชื่อมต่อกับ Smart Card Agent ได้ กรุณารันคำสั่ง npm start ในโฟลเดอร์ smartcard-agent', 'ไม่สามารถเชื่อมต่อ');
             } else {
-                alert('ข้อผิดพลาด: ' + err.message);
+                showAlert('error', err.message);
             }
         } finally {
             btn.disabled = false;
