@@ -172,18 +172,22 @@ document.addEventListener('DOMContentLoaded', () => {
         const membersNavLink = document.getElementById('membersNavLink');
         const shopsNavLink = document.getElementById('shopsNavLink');
 
-        if (viewName === 'dashboard' || viewName === 'members' || viewName === 'shops') {
+        if (viewName === 'dashboard' || viewName === 'members' || viewName === 'shops' || viewName === 'claims') {
             views.dashboard.style.display = 'block';
 
             // Hide all sub-views first
             dashMain.style.display = 'none';
             membersMain.style.display = 'none';
             shopsMain.style.display = 'none';
+            const claimsMain = document.getElementById('claimsMain');
+            if (claimsMain) claimsMain.style.display = 'none';
 
             // Remove active class from all nav links
             if (dashNavLink) dashNavLink.classList.remove('active');
             if (membersNavLink) membersNavLink.classList.remove('active');
             if (shopsNavLink) shopsNavLink.classList.remove('active');
+            const claimsNavLinkEl = document.getElementById('claimsNavLink');
+            if (claimsNavLinkEl) claimsNavLinkEl.classList.remove('active');
 
             if (viewName === 'dashboard') {
                 dashMain.style.display = 'block';
@@ -197,6 +201,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 shopsMain.style.display = 'block';
                 if (shopsNavLink) shopsNavLink.classList.add('active');
                 fetchShops();
+            } else if (viewName === 'claims') {
+                const claimsMainEl = document.getElementById('claimsMain');
+                if (claimsMainEl) claimsMainEl.style.display = 'block';
+                const claimsNavLinkEl2 = document.getElementById('claimsNavLink');
+                if (claimsNavLinkEl2) claimsNavLinkEl2.classList.add('active');
+                fetchActivePolicies();
             }
         } else if (views[viewName]) {
             views[viewName].style.display = 'block';
@@ -301,6 +311,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const shopsNavLink = document.getElementById('shopsNavLink');
     if (shopsNavLink) shopsNavLink.addEventListener('click', (e) => { e.preventDefault(); showView('shops'); });
+
+    const claimsNavLink = document.getElementById('claimsNavLink');
+    if (claimsNavLink) claimsNavLink.addEventListener('click', (e) => { e.preventDefault(); showView('claims'); });
 
     // --- DASHBOARD LOGIC ---
     async function fetchWarranties() {
@@ -419,6 +432,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 statusBadge = `<span class="status-badge status-pending">รออนุมัติ</span>`;
             } else if (r.approvalStatus === 'rejected') {
                 statusBadge = `<span class="status-badge status-expired">ไม่อนุมัติ</span>`;
+            } else if (r.claimStatus === 'pending') {
+                statusBadge = `<span class="status-badge status-pending" style="background-color: #f59e0b; color: white;">รอเคลม</span>`;
             } else {
                 const isExpired = new Date(r.warrantyDates.end) < new Date();
                 statusBadge = `<span class="status-badge ${isExpired ? 'status-expired' : 'status-active'}">${isExpired ? 'หมดอายุ' : 'ปกติ'}</span>`;
@@ -426,6 +441,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             return `
                 <tr>
+                    <td data-label="วันที่ทำรายการ">${r.createdAt ? new Date(r.createdAt).toLocaleString('th-TH') : '-'}</td>
                     <td data-label="เลขกรมธรรม์" style="font-weight: 600; color: var(--primary);">${r.policyNumber || '-'}</td>
                     <td data-label="รหัสสมาชิก">${r.memberId || '-'}</td>
                     <td data-label="ชื่อลูกค้า">${r.customer.firstName} ${r.customer.lastName}</td>
@@ -442,9 +458,25 @@ document.addEventListener('DOMContentLoaded', () => {
                         <button class="edit-btn" data-id="${r._id}" title="แก้ไขข้อมูล">
                             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
                         </button>
-                        <button class="print-btn" data-id="${r._id}" title="พิมพ์เอกสาร">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
                         </button>
+                        ${(() => {
+                    if (r.approvalStatus === 'pending') {
+                        return `
+                                <button class="print-btn" style="cursor: not-allowed; opacity: 0.8; pointer-events: none;" title="รออนุมัติ...">
+                                    <div style="width: 18px; height: 18px; border: 2px solid #e2e8f0; border-top-color: #f59e0b; border-radius: 50%; animation: spinnerRotate 1.5s linear infinite;"></div>
+                                </button>`;
+                    } else if (r.approvalStatus === 'rejected') {
+                        return `
+                                <button class="print-btn" style="cursor: not-allowed; opacity: 0.5; color: #ef4444; pointer-events: none;" title="ไม่อนุมัติ">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>
+                                </button>`;
+                    } else {
+                        return `
+                                <button class="print-btn" data-id="${r._id}" title="พิมพ์เอกสาร">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+                                </button>`;
+                    }
+                })()}
                         <button class="delete-btn" data-id="${r._id}" title="ลบข้อมูล" style="color: #ef4444;">
                             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
                         </button>
@@ -2056,6 +2088,471 @@ document.addEventListener('DOMContentLoaded', () => {
     const readSmartCardBtn = document.getElementById('readSmartCardBtn');
     if (readSmartCardBtn) {
         readSmartCardBtn.addEventListener('click', connectSmartCard);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // CLAIM FEATURE - Complete Implementation
+    // ═══════════════════════════════════════════════════════════════════
+
+    let currentClaimData = null; // Store current claim after save
+
+    // Fetch active policies for claim menu
+    async function fetchActivePolicies() {
+        showLoader('กำลังโหลดรายการกรมธรรม์...');
+        try {
+            const res = await fetch('/api/warranties/active');
+            const data = await res.json();
+            renderClaimsTable(data);
+        } catch (err) {
+            console.error('Fetch active policies error:', err);
+        } finally {
+            hideLoader();
+        }
+    }
+
+    // Render active policies table with "ทำรายการเคลม" button
+    function renderClaimsTable(records) {
+        const body = document.getElementById('claimsBody');
+        const empty = document.getElementById('claimsEmptyState');
+        if (!body) return;
+
+        if (records.length === 0) {
+            if (empty) empty.style.display = 'block';
+            body.innerHTML = '';
+            return;
+        }
+
+        if (empty) empty.style.display = 'none';
+        body.innerHTML = records.map(r => {
+            const now = new Date();
+            const end = new Date(r.warrantyDates.end);
+            const diffMs = end - now;
+            const totalHours = Math.floor(diffMs / (1000 * 60 * 60));
+            const days = Math.floor(totalHours / 24);
+            const hours = totalHours % 24;
+            const timeRemainingText = `${days} วัน, ${hours} ชม.`;
+
+            return `
+                <tr>
+                    <td data-label="วันที่ลงทะเบียน">${r.createdAt ? new Date(r.createdAt).toLocaleString('th-TH') : '-'}</td>
+                    <td data-label="เลขกรมธรรม์" style="font-weight: 600; color: var(--primary);">${r.policyNumber || '-'}</td>
+                    <td data-label="รหัสสมาชิก">${r.memberId || '-'}</td>
+                    <td data-label="ชื่อลูกค้า">${r.customer.firstName} ${r.customer.lastName}</td>
+                    <td data-label="เบอร์โทรศัพท์">${r.customer.phone}</td>
+                    <td data-label="รุ่นอุปกรณ์">${r.device.model}</td>
+                    <td data-label="แพ็กเกจ"><span style="color: var(--primary); font-weight: 500;">${r.package.plan}</span></td>
+                    <td data-label="ประกันคงเหลือ">${timeRemainingText}</td>
+                    <td data-label="สถานะ">
+                        ${r.claimStatus === 'pending'
+                    ? `<span class="status-badge status-pending" style="background-color: #f59e0b; color: white;">รอเคลม</span>`
+                    : `<span class="status-badge status-active">ปกติ</span>`
+                }
+                    </td>
+                    <td data-label="ทำรายการ">
+                        ${r.claimStatus === 'pending'
+                    ? `<button onclick="printClaimByWarrantyId('${r._id}')" style="background: linear-gradient(135deg, #3b82f6, #2563eb); color: white; border: none; padding: 6px 16px; border-radius: 8px; cursor: pointer; font-size: 0.85rem; font-weight: 600; white-space: nowrap;">
+                                🖨️ พิมพ์เอกสารรับเครื่อง
+                               </button>`
+                    : `<button class="claim-action-btn" data-id="${r._id}" style="background: linear-gradient(135deg, #f59e0b, #d97706); color: white; border: none; padding: 6px 16px; border-radius: 8px; cursor: pointer; font-size: 0.85rem; font-weight: 600; white-space: nowrap;">
+                                📋 ทำรายการเคลม
+                               </button>`
+                }
+                    </td>
+                </tr>
+            `;
+        }).join('');
+
+        // Attach event listeners to claim buttons
+        document.querySelectorAll('.claim-action-btn').forEach(btn => {
+            btn.addEventListener('click', () => openClaimForm(btn.dataset.id));
+        });
+    }
+
+    // Function to print claim receipt from menu
+    window.printClaimByWarrantyId = async (warrantyId) => {
+        try {
+            showLoader('กำลังดึงข้อมูลเอกสาร...');
+            const res = await fetch(`/api/claims/warranty/${warrantyId}`);
+            const result = await res.json();
+
+            if (result.success) {
+                localStorage.setItem('smilecare_current_claim', JSON.stringify(result.claim));
+                window.open('claim_receipt.html', '_blank');
+            } else {
+                showAlert('error', 'ไม่พบข้อมูลการเคลม');
+            }
+        } catch (err) {
+            console.error('Fetch claim error:', err);
+            showAlert('error', 'เกิดข้อผิดพลาดในการเชื่อมต่อ');
+        } finally {
+            hideLoader();
+        }
+    };
+
+    // Open claim form modal with warranty details
+    async function openClaimForm(warrantyId) {
+        showLoader('กำลังโหลดข้อมูลกรมธรรม์...');
+        try {
+            const res = await fetch(`/api/warranties/${warrantyId}`);
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.message);
+
+            // Populate policy details
+            document.getElementById('claimWarrantyId').value = data._id;
+            document.getElementById('claimPolicyNumber').value = data.policyNumber || '';
+            document.getElementById('claimMemberId').value = data.memberId || '';
+            document.getElementById('claimCustomerName').value = `${data.customer.firstName} ${data.customer.lastName}`;
+            document.getElementById('claimCustomerPhone').value = data.customer.phone || '';
+            document.getElementById('claimDeviceModel').value = data.device.model || '';
+            document.getElementById('claimSerial').value = data.device.serial || '';
+            document.getElementById('claimIMEI').value = data.device.imei || '';
+            document.getElementById('claimPackage').value = data.package.plan || '';
+            document.getElementById('claimStartDate').value = data.warrantyDates.start ? new Date(data.warrantyDates.start).toLocaleDateString('th-TH') : '';
+            document.getElementById('claimEndDate').value = data.warrantyDates.end ? new Date(data.warrantyDates.end).toLocaleDateString('th-TH') : '';
+
+            // Auto-fill claim details
+            document.getElementById('claimDate').value = new Date().toLocaleDateString('th-TH');
+            document.getElementById('claimIdDisplay').value = 'สร้างอัตโนมัติเมื่อบันทึก';
+            document.getElementById('claimStaffName').value = currentUser ? currentUser.staffName : '';
+
+            // Reset form fields
+            document.getElementById('claimSymptoms').value = '';
+            document.getElementById('claimImages').value = '';
+            document.getElementById('claimImagePreview').innerHTML = '';
+            const pickupRadio = document.querySelector('input[name="returnMethod"][value="pickup"]');
+            if (pickupRadio) pickupRadio.checked = false;
+            const deliveryRadio = document.querySelector('input[name="returnMethod"][value="delivery"]');
+            if (deliveryRadio) deliveryRadio.checked = false;
+            document.getElementById('claimPickupBranch').value = '';
+            document.getElementById('pickupBranchGroup').style.display = 'none';
+
+            // Show the modal
+            document.getElementById('claimFormModal').style.display = 'flex';
+        } catch (err) {
+            console.error('Open claim form error:', err);
+            showAlert('error', 'ไม่สามารถดึงข้อมูลกรมธรรม์ได้');
+        } finally {
+            hideLoader();
+        }
+    }
+
+    // Image upload preview
+    const claimImagesInput = document.getElementById('claimImages');
+    if (claimImagesInput) {
+        claimImagesInput.addEventListener('change', function () {
+            const preview = document.getElementById('claimImagePreview');
+            preview.innerHTML = '';
+            Array.from(this.files).forEach(file => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const img = document.createElement('img');
+                    img.src = e.target.result;
+                    img.style.cssText = 'width: 80px; height: 80px; object-fit: cover; border-radius: 8px; border: 2px solid #d1d5db;';
+                    preview.appendChild(img);
+                };
+                reader.readAsDataURL(file);
+            });
+        });
+    }
+
+    // Return method radio toggle
+    document.querySelectorAll('input[name="returnMethod"]').forEach(radio => {
+        radio.addEventListener('change', function () {
+            const branchGroup = document.getElementById('pickupBranchGroup');
+            if (branchGroup) {
+                branchGroup.style.display = this.value === 'pickup' ? 'block' : 'none';
+            }
+        });
+    });
+
+    // Close claim form modal
+    const closeClaimFormBtn = document.getElementById('closeClaimFormModal');
+    if (closeClaimFormBtn) {
+        closeClaimFormBtn.addEventListener('click', () => {
+            document.getElementById('claimFormModal').style.display = 'none';
+        });
+    }
+
+    // Submit claim form
+    const claimForm = document.getElementById('claimForm');
+    if (claimForm) {
+        claimForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const symptoms = document.getElementById('claimSymptoms').value.trim();
+            if (!symptoms) {
+                showAlert('warning', 'กรุณาระบุรายละเอียดอาการเสีย');
+                return;
+            }
+
+            const returnMethodEl = document.querySelector('input[name="returnMethod"]:checked');
+            if (!returnMethodEl) {
+                showAlert('warning', 'กรุณาเลือกวิธีการคืนเครื่อง');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('warrantyId', document.getElementById('claimWarrantyId').value);
+            formData.append('policyNumber', document.getElementById('claimPolicyNumber').value);
+            formData.append('memberId', document.getElementById('claimMemberId').value);
+            formData.append('customerName', document.getElementById('claimCustomerName').value);
+            formData.append('customerPhone', document.getElementById('claimCustomerPhone').value);
+            formData.append('deviceModel', document.getElementById('claimDeviceModel').value);
+            formData.append('symptoms', symptoms);
+            formData.append('staffName', document.getElementById('claimStaffName').value);
+            formData.append('returnMethod', returnMethodEl.value);
+            formData.append('pickupBranch', document.getElementById('claimPickupBranch').value);
+
+            // Append image files
+            const imageFiles = document.getElementById('claimImages').files;
+            for (let i = 0; i < imageFiles.length; i++) {
+                formData.append('images', imageFiles[i]);
+            }
+
+            showLoader('กำลังบันทึกรายการเคลม...');
+            try {
+                const res = await fetch('/api/claims', {
+                    method: 'POST',
+                    body: formData // No Content-Type header — browser sets it with boundary
+                });
+                const result = await res.json();
+
+                if (result.success) {
+                    // Close claim form modal
+                    document.getElementById('claimFormModal').style.display = 'none';
+                    showAlert('success', `บันทึกรายการเคลมสำเร็จ! รหัส: ${result.claim.claimId}`);
+                    currentClaimData = result.claim;
+
+                    // Open contract/signature modal
+                    openClaimContract(result.claim);
+                } else {
+                    showAlert('error', result.message || 'เกิดข้อผิดพลาดในการบันทึก');
+                }
+            } catch (err) {
+                console.error('Submit claim error:', err);
+                showAlert('error', 'เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์');
+            } finally {
+                hideLoader();
+            }
+        });
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // CLAIM CONTRACT & SIGNATURE MODAL
+    // ═══════════════════════════════════════════════════════════════════
+
+    function openClaimContract(claim) {
+        // Populate contract details
+        document.getElementById('contractClaimId').textContent = claim.claimId;
+        document.getElementById('contractClaimDate').textContent = new Date(claim.claimDate).toLocaleDateString('th-TH');
+        document.getElementById('contractPolicyNumber').textContent = claim.policyNumber;
+        document.getElementById('contractMemberId').textContent = claim.memberId;
+        document.getElementById('contractCustomerName').textContent = claim.customerName;
+        document.getElementById('contractCustomerPhone').textContent = claim.customerPhone;
+        document.getElementById('contractDeviceModel').textContent = claim.deviceModel;
+        document.getElementById('contractStaffName').textContent = claim.staffName;
+        document.getElementById('contractSymptoms').textContent = claim.symptoms;
+
+        // Return method
+        const returnText = claim.returnMethod === 'pickup' ? 'มารับเองที่ร้าน' : 'จัดส่ง';
+        document.getElementById('contractReturnMethod').textContent = returnText;
+        const branchRow = document.getElementById('contractBranchRow');
+        if (claim.returnMethod === 'pickup' && claim.pickupBranch) {
+            branchRow.style.display = 'block';
+            document.getElementById('contractPickupBranch').textContent = claim.pickupBranch;
+        } else {
+            branchRow.style.display = 'none';
+        }
+
+        // Uploaded images
+        const imagesSection = document.getElementById('contractImagesSection');
+        const imagesContainer = document.getElementById('contractImages');
+        if (claim.images && claim.images.length > 0) {
+            imagesSection.style.display = 'block';
+            imagesContainer.innerHTML = claim.images.map(src =>
+                `<img src="${src}" style="width: 80px; height: 80px; object-fit: cover; border-radius: 8px; border: 2px solid #d1d5db;">`
+            ).join('');
+        } else {
+            imagesSection.style.display = 'none';
+        }
+
+        // Reset CEO signature state
+        // document.getElementById('ceoSignatureArea').style.display = 'block';
+        // document.getElementById('managerSigCanvas').style.display = 'none';
+        // document.getElementById('clearManagerSigBtn').style.display = 'none';
+
+        // Initialize signature canvases
+        // initSignaturePad('customerSigCanvas');
+        // initSignaturePad('staffSigCanvas');
+        // initSignaturePad('managerSigCanvas');
+
+        // Show modal
+        document.getElementById('claimContractModal').style.display = 'flex';
+    }
+
+    // Signature Pad Logic (mouse + touch)
+    function initSignaturePad(canvasId) {
+        const canvas = document.getElementById(canvasId);
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+
+        // Resize canvas to match display size
+        const rect = canvas.getBoundingClientRect();
+        canvas.width = rect.width || 250;
+        canvas.height = rect.height || 150;
+
+        ctx.strokeStyle = '#1e293b';
+        ctx.lineWidth = 2;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+
+        let isDrawing = false;
+
+        function getPos(e) {
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            if (e.touches) {
+                return {
+                    x: (e.touches[0].clientX - rect.left) * scaleX,
+                    y: (e.touches[0].clientY - rect.top) * scaleY
+                };
+            }
+            return {
+                x: (e.clientX - rect.left) * scaleX,
+                y: (e.clientY - rect.top) * scaleY
+            };
+        }
+
+        function startDraw(e) {
+            e.preventDefault();
+            isDrawing = true;
+            const pos = getPos(e);
+            ctx.beginPath();
+            ctx.moveTo(pos.x, pos.y);
+        }
+
+        function draw(e) {
+            e.preventDefault();
+            if (!isDrawing) return;
+            const pos = getPos(e);
+            ctx.lineTo(pos.x, pos.y);
+            ctx.stroke();
+        }
+
+        function stopDraw(e) {
+            if (e) e.preventDefault();
+            isDrawing = false;
+        }
+
+        // Remove old listeners to avoid duplicates
+        canvas.onmousedown = startDraw;
+        canvas.onmousemove = draw;
+        canvas.onmouseup = stopDraw;
+        canvas.onmouseleave = stopDraw;
+
+        canvas.ontouchstart = startDraw;
+        canvas.ontouchmove = draw;
+        canvas.ontouchend = stopDraw;
+    }
+
+    // Clear signature buttons
+    document.querySelectorAll('.clear-sig-btn').forEach(btn => {
+        btn.addEventListener('click', function () {
+            const canvasId = this.dataset.canvas;
+            const canvas = document.getElementById(canvasId);
+            if (canvas) {
+                const ctx = canvas.getContext('2d');
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+            }
+        });
+    });
+
+    // Toggle CEO signature (use image vs. manual sign)
+    const toggleCeoSigBtn = document.getElementById('toggleCeoSig');
+    if (toggleCeoSigBtn) {
+        toggleCeoSigBtn.addEventListener('click', function () {
+            const ceoArea = document.getElementById('ceoSignatureArea');
+            const managerCanvas = document.getElementById('managerSigCanvas');
+            const clearBtn = document.getElementById('clearManagerSigBtn');
+
+            if (managerCanvas.style.display === 'none') {
+                // Switch to manual sign
+                ceoArea.style.display = 'none';
+                managerCanvas.style.display = 'block';
+                clearBtn.style.display = 'inline-block';
+                this.textContent = 'ใช้รูป CEO';
+                initSignaturePad('managerSigCanvas');
+            } else {
+                // Switch back to CEO image
+                ceoArea.style.display = 'block';
+                managerCanvas.style.display = 'none';
+                clearBtn.style.display = 'none';
+                this.textContent = 'เซ็นใหม่';
+            }
+        });
+    }
+
+    // Save signatures
+    const saveSignaturesBtn = document.getElementById('saveSignaturesBtn');
+    if (saveSignaturesBtn) {
+        saveSignaturesBtn.addEventListener('click', async () => {
+            if (!currentClaimData) return;
+
+            const customerSig = document.getElementById('customerSigCanvas').toDataURL();
+            const staffSig = document.getElementById('staffSigCanvas').toDataURL();
+
+            // Manager signature: use canvas if visible, otherwise use CEO image path
+            let managerSig;
+            const managerCanvas = document.getElementById('managerSigCanvas');
+            if (managerCanvas.style.display !== 'none') {
+                managerSig = managerCanvas.toDataURL();
+            } else {
+                managerSig = 'ceo.png'; // Reference to the CEO image file
+            }
+
+            showLoader('กำลังบันทึกลายเซ็น...');
+            try {
+                const res = await fetch(`/api/claims/${currentClaimData._id}/signatures`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ customerSignature: customerSig, staffSignature: staffSig, managerSignature: managerSig })
+                });
+                const result = await res.json();
+                if (result.success) {
+                    showAlert('success', 'บันทึกลายเซ็นสำเร็จ');
+                } else {
+                    showAlert('error', result.message || 'เกิดข้อผิดพลาด');
+                }
+            } catch (err) {
+                console.error('Save signatures error:', err);
+                showAlert('error', 'เกิดข้อผิดพลาดในการบันทึกลายเซ็น');
+            } finally {
+                hideLoader();
+            }
+        });
+    }
+
+    // Print contract document
+    const printContractBtn = document.getElementById('printContractBtn');
+    if (printContractBtn) {
+        printContractBtn.addEventListener('click', () => {
+            if (currentClaimData) {
+                localStorage.setItem('smilecare_current_claim', JSON.stringify(currentClaimData));
+                window.open('claim_receipt.html', '_blank');
+            } else {
+                showAlert('error', 'ไม่พบข้อมูลการเคลม');
+            }
+        });
+    }
+
+    // Close contract modal
+    const closeContractBtn = document.getElementById('closeContractModal');
+    if (closeContractBtn) {
+        closeContractBtn.addEventListener('click', () => {
+            document.getElementById('claimContractModal').style.display = 'none';
+            currentClaimData = null;
+        });
     }
 
     // --- INITIALIZATION ---

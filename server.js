@@ -3,6 +3,8 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const path = require('path');
+const fs = require('fs');
+const multer = require('multer');
 
 const app = express();
 const PORT = process.env.PORT || 3005;
@@ -12,10 +14,31 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname)));
 
+// Cloudinary Config
+const cloudinary = require('cloudinary').v2;
+const { CloudinaryStorage } = require('multer-storage-cloudinary');
+
+cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET
+});
+
+const storage = new CloudinaryStorage({
+    cloudinary: cloudinary,
+    params: {
+        folder: 'easycare/claim', // Folder name in Cloudinary
+        allowed_formats: ['jpg', 'png', 'jpeg'],
+        // transformation: [{ width: 500, height: 500, crop: 'limit' }] // Optional: Resize
+    },
+});
+
+const claimUpload = multer({ storage: storage });
+
 // MongoDB Connection
 mongoose.connect(process.env.MONGO_URI)
     .then(() => {
-        console.log('Connected to MongoDB Atlas');
+        console.log('Connected to MongoDB Atlas (Cloudinary Enabled)');
         // Drop unique index on memberId if it exists (to allow multi-package per member)
         mongoose.connection.collection('warranties').dropIndex('memberId_1').catch(err => {
             // Ignore error if index doesn't exist
@@ -80,7 +103,13 @@ const WarrantySchema = new mongoose.Schema({
         type: String,
         enum: ['pending', 'approved', 'rejected'],
         default: 'pending'
-    }
+    },
+    approver: String,
+    approvalDate: Date,
+    rejectReason: String,
+    rejectBy: String,
+    rejectDate: Date,
+    claimStatus: { type: String, default: 'normal', enum: ['normal', 'pending', 'completed'] }
 }, { timestamps: true });
 
 const Warranty = mongoose.model('Warranty', WarrantySchema);
@@ -127,6 +156,29 @@ const StaffSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 const Staff = mongoose.model('Staff', StaffSchema);
+
+// Claim Schema
+const ClaimSchema = new mongoose.Schema({
+    claimId: { type: String, unique: true, index: true },
+    warrantyId: { type: mongoose.Schema.Types.ObjectId, ref: 'Warranty' },
+    policyNumber: String,
+    memberId: String,
+    customerName: String,
+    customerPhone: String,
+    deviceModel: String,
+    claimDate: { type: Date, default: Date.now },
+    symptoms: String,
+    images: [String],
+    staffName: String,
+    returnMethod: { type: String, enum: ['pickup', 'delivery'] },
+    pickupBranch: String,
+    customerSignature: String,
+    staffSignature: String,
+    managerSignature: String,
+    status: { type: String, default: 'pending', enum: ['pending', 'in_progress', 'completed', 'rejected'] }
+}, { timestamps: true });
+
+const Claim = mongoose.model('Claim', ClaimSchema);
 
 // API Routes
 
@@ -273,9 +325,14 @@ app.get('/api/warranties/pending', async (req, res) => {
 // Approve a warranty
 app.put('/api/warranties/:id/approve', async (req, res) => {
     try {
+        const { approver } = req.body;
         const warranty = await Warranty.findByIdAndUpdate(
             req.params.id,
-            { approvalStatus: 'approved' },
+            {
+                approvalStatus: 'approved',
+                approver: approver,
+                approvalDate: new Date()
+            },
             { new: true }
         );
         if (!warranty) return res.status(404).json({ message: 'Record not found' });
@@ -288,9 +345,15 @@ app.put('/api/warranties/:id/approve', async (req, res) => {
 // Reject a warranty
 app.put('/api/warranties/:id/reject', async (req, res) => {
     try {
+        const { reason, rejectBy } = req.body;
         const warranty = await Warranty.findByIdAndUpdate(
             req.params.id,
-            { approvalStatus: 'rejected' },
+            {
+                approvalStatus: 'rejected',
+                rejectReason: reason,
+                rejectBy: rejectBy,
+                rejectDate: new Date()
+            },
             { new: true }
         );
         if (!warranty) return res.status(404).json({ message: 'Record not found' });
@@ -322,6 +385,41 @@ app.get('/api/warranties/check-duplicate', async (req, res) => {
 
         const existing = await Warranty.findOne(query);
         res.json({ exists: !!existing });
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
+
+// Get active warranties only (approved + not expired) — for claim menu
+app.get('/api/warranties/active', async (req, res) => {
+    try {
+        const now = new Date();
+        const warranties = await Warranty.aggregate([
+            {
+                $match: {
+                    approvalStatus: 'approved',
+                    'warrantyDates.end': { $gte: now }
+                }
+            },
+            { $sort: { createdAt: -1 } },
+            {
+                $lookup: {
+                    from: 'members',
+                    localField: 'memberId',
+                    foreignField: 'memberId',
+                    as: 'memberInfo'
+                }
+            },
+            {
+                $addFields: {
+                    'customer.citizenId': { $arrayElemAt: ['$memberInfo.citizenId', 0] },
+                    'customer.facebook': { $arrayElemAt: ['$memberInfo.facebook', 0] },
+                    'customer.id': '$memberId'
+                }
+            },
+            { $project: { memberInfo: 0 } }
+        ]);
+        res.json(warranties);
     } catch (err) {
         res.status(500).json({ message: err.message });
     }
@@ -442,6 +540,104 @@ app.delete('/api/warranties/:id', async (req, res) => {
         res.json({ success: true, message: 'Record deleted successfully' });
     } catch (err) {
         res.status(500).json({ message: err.message });
+    }
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// CLAIM API ROUTES
+// ═══════════════════════════════════════════════════════════════════
+
+// Create new claim (with image upload)
+app.post('/api/claims', claimUpload.array('images', 10), async (req, res) => {
+    try {
+        const { warrantyId, policyNumber, memberId, customerName, customerPhone, deviceModel, symptoms, staffName, returnMethod, pickupBranch } = req.body;
+
+        // Generate unique Claim ID: SML + 6 digits
+        let claimId;
+        let isUnique = false;
+        while (!isUnique) {
+            const randomNum = Math.floor(100000 + Math.random() * 900000);
+            claimId = `SML${randomNum}`;
+            const existing = await Claim.findOne({ claimId });
+            if (!existing) isUnique = true;
+        }
+
+        // Collect uploaded file paths (Cloudinary URLs)
+        const images = req.files ? req.files.map(f => f.path) : [];
+
+        const newClaim = new Claim({
+            claimId,
+            warrantyId,
+            policyNumber,
+            memberId,
+            customerName,
+            customerPhone,
+            deviceModel,
+            claimDate: new Date(),
+            symptoms,
+            images,
+            staffName,
+            returnMethod,
+            pickupBranch: returnMethod === 'pickup' ? pickupBranch : ''
+        });
+
+        await newClaim.save();
+
+        // Update Warranty status to 'Wait for Claim'
+        await Warranty.findByIdAndUpdate(warrantyId, { claimStatus: 'pending' });
+
+        res.status(201).json({ success: true, claim: newClaim });
+    } catch (err) {
+        res.status(400).json({ success: false, message: err.message });
+    }
+});
+
+// Get all claims
+app.get('/api/claims', async (req, res) => {
+    try {
+        const claims = await Claim.find().sort({ createdAt: -1 });
+        res.json(claims);
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
+
+// Get claim by Warranty ID (for printing receipt)
+app.get('/api/claims/warranty/:warrantyId', async (req, res) => {
+    try {
+        const claim = await Claim.findOne({ warrantyId: req.params.warrantyId }).sort({ createdAt: -1 });
+        if (!claim) return res.status(404).json({ success: false, message: 'Claim not found' });
+        res.json({ success: true, claim });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+
+// Get single claim
+app.get('/api/claims/:id', async (req, res) => {
+    try {
+        const claim = await Claim.findById(req.params.id);
+        if (!claim) return res.status(404).json({ message: 'ไม่พบข้อมูลการเคลม' });
+        res.json(claim);
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
+
+// Save signatures for a claim
+app.put('/api/claims/:id/signatures', async (req, res) => {
+    try {
+        const { customerSignature, staffSignature, managerSignature } = req.body;
+        const claim = await Claim.findByIdAndUpdate(
+            req.params.id,
+            { customerSignature, staffSignature, managerSignature },
+            { new: true }
+        );
+        if (!claim) return res.status(404).json({ message: 'ไม่พบข้อมูลการเคลม' });
+        res.json({ success: true, claim });
+    } catch (err) {
+        res.status(400).json({ message: err.message });
     }
 });
 
@@ -627,6 +823,15 @@ app.delete('/api/shops/:id', async (req, res) => {
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }
+});
+
+// Global Error Handler
+app.use((err, req, res, next) => {
+    console.error('SERVER ERROR:', err);
+    if (err instanceof multer.MulterError) {
+        return res.status(400).json({ success: false, message: 'Upload Error: ' + err.message });
+    }
+    res.status(500).json({ success: false, message: 'Server Error: ' + err.message });
 });
 
 // Serve frontend SPA (Fallback)

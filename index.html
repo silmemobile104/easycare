@@ -158,6 +158,16 @@
                             </svg>
                             ร้านค้า
                         </a>
+                        <a href="#" id="claimsNavLink">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                <polyline points="14 2 14 8 20 8"></polyline>
+                                <line x1="12" y1="18" x2="12" y2="12"></line>
+                                <line x1="9" y1="15" x2="15" y2="15"></line>
+                            </svg>
+                            แจ้งเคลม
+                        </a>
                         <a href="approval.html" id="approvalNavLink">
                             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -285,6 +295,7 @@
                         <table id="recordsTable">
                             <thead>
                                 <tr>
+                                    <th>วันที่ทำรายการ</th>
                                     <th>เลขกรมธรรม์</th>
                                     <th>รหัสสมาชิก</th>
                                     <th>ชื่อลูกค้า</th>
@@ -374,6 +385,39 @@
                         </table>
                         <div id="shopsEmptyState" class="empty-state" style="display: none;">
                             <p>ยังไม่มีข้อมูลร้านค้าในขณะนี้</p>
+                        </div>
+                    </div>
+                </main>
+
+                <!-- Claims Main Content -->
+                <main id="claimsMain" class="main-content" style="display: none;">
+                    <header class="dashboard-header">
+                        <div class="header-titles">
+                            <h1>เมนูแจ้งเคลม</h1>
+                            <p>รายการกรมธรรม์ที่มีสถานะปกติ (Active) สำหรับทำรายการเคลม</p>
+                        </div>
+                    </header>
+
+                    <div class="table-container">
+                        <table id="claimsTable">
+                            <thead>
+                                <tr>
+                                    <th>วันที่ลงทะเบียน</th>
+                                    <th>เลขกรมธรรม์</th>
+                                    <th>รหัสสมาชิก</th>
+                                    <th>ชื่อลูกค้า</th>
+                                    <th>เบอร์โทรศัพท์</th>
+                                    <th>รุ่นอุปกรณ์</th>
+                                    <th>แพ็กเกจ</th>
+                                    <th>ประกันคงเหลือ</th>
+                                    <th>สถานะ</th>
+                                    <th>ทำรายการ</th>
+                                </tr>
+                            </thead>
+                            <tbody id="claimsBody"></tbody>
+                        </table>
+                        <div id="claimsEmptyState" class="empty-state" style="display: none;">
+                            <p>ไม่มีกรมธรรม์ที่มีสถานะปกติในขณะนี้</p>
                         </div>
                     </div>
                 </main>
@@ -894,6 +938,154 @@
                     <button type="submit" class="submit-btn">บันทึกข้อมูล</button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <!-- Claim Form Modal -->
+    <div id="claimFormModal" class="modal">
+        <div class="modal-content" style="max-width: 800px; max-height: 90vh; overflow-y: auto;">
+            <h2 style="margin-bottom: 1.5rem; color: var(--primary);">📋 ทำรายการเคลมประกัน</h2>
+
+            <!-- Policy Details (read-only) -->
+            <div class="claim-policy-info"
+                style="background: #f1f5f9; border-radius: 12px; padding: 1.5rem; margin-bottom: 1.5rem;">
+                <h3 style="margin-bottom: 1rem; font-size: 1rem; color: var(--text-main);">📄 ข้อมูลกรมธรรม์</h3>
+                <div class="grid-row" style="gap: 0.75rem;">
+                    <div class="form-group"><label>เลขกรมธรรม์</label><input type="text" id="claimPolicyNumber" readonly
+                            class="readonly-field"></div>
+                    <div class="form-group"><label>รหัสสมาชิก</label><input type="text" id="claimMemberId" readonly
+                            class="readonly-field"></div>
+                    <div class="form-group"><label>ชื่อลูกค้า</label><input type="text" id="claimCustomerName" readonly
+                            class="readonly-field"></div>
+                    <div class="form-group"><label>เบอร์โทรศัพท์</label><input type="text" id="claimCustomerPhone"
+                            readonly class="readonly-field"></div>
+                    <div class="form-group"><label>รุ่นอุปกรณ์</label><input type="text" id="claimDeviceModel" readonly
+                            class="readonly-field"></div>
+                    <div class="form-group"><label>Serial Number</label><input type="text" id="claimSerial" readonly
+                            class="readonly-field"></div>
+                    <div class="form-group"><label>IMEI</label><input type="text" id="claimIMEI" readonly
+                            class="readonly-field"></div>
+                    <div class="form-group"><label>แพ็กเกจ</label><input type="text" id="claimPackage" readonly
+                            class="readonly-field"></div>
+                    <div class="form-group"><label>วันเริ่มคุ้มครอง</label><input type="text" id="claimStartDate"
+                            readonly class="readonly-field"></div>
+                    <div class="form-group"><label>วันสิ้นสุดคุ้มครอง</label><input type="text" id="claimEndDate"
+                            readonly class="readonly-field"></div>
+                </div>
+            </div>
+
+            <!-- Claim Form -->
+            <form id="claimForm" enctype="multipart/form-data">
+                <input type="hidden" id="claimWarrantyId">
+                <div
+                    style="background: linear-gradient(135deg, #fef3c7, #fff7ed); border-radius: 12px; padding: 1.5rem; margin-bottom: 1.5rem;">
+                    <h3 style="margin-bottom: 1rem; font-size: 1rem; color: #92400e;">📝 รายละเอียดการแจ้งเคลม</h3>
+                    <div class="grid-row" style="gap: 0.75rem;">
+                        <div class="form-group">
+                            <label>วันที่แจ้งเคลม</label>
+                            <input type="text" id="claimDate" readonly class="readonly-field">
+                        </div>
+                        <div class="form-group">
+                            <label>รหัสการเคลม (Claim ID)</label>
+                            <input type="text" id="claimIdDisplay" readonly class="readonly-field"
+                                placeholder="สร้างอัตโนมัติโดยระบบ">
+                        </div>
+                        <div class="form-group">
+                            <label>ผู้ทำรายการ</label>
+                            <input type="text" id="claimStaffName" readonly class="readonly-field">
+                        </div>
+                    </div>
+
+                    <div class="form-group full-width" style="margin-top: 0.75rem;">
+                        <label>รายละเอียดอาการเสีย *</label>
+                        <textarea id="claimSymptoms" rows="4" required
+                            placeholder="อธิบายอาการเสียหาย เช่น จอแตก, เครื่องตก, น้ำเข้า ฯลฯ"
+                            style="width: 100%; resize: vertical;"></textarea>
+                    </div>
+
+                    <div class="form-group full-width" style="margin-top: 0.75rem;">
+                        <label>อัพโหลดรูปภาพอาการเสีย (รองรับหลายรูป)</label>
+                        <input type="file" id="claimImages" accept="image/*" multiple
+                            style="padding: 0.75rem; border: 2px dashed #d1d5db; border-radius: 8px; width: 100%; cursor: pointer; background: #fefce8;">
+                        <div id="claimImagePreview" style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px;">
+                        </div>
+                    </div>
+
+                    <div class="form-group full-width" style="margin-top: 0.75rem;">
+                        <label style="font-weight: 600;">การคืนเครื่อง (Return Method) *</label>
+                        <div class="radio-options" style="margin-top: 0.5rem;">
+                            <label class="radio-label">
+                                <input type="radio" name="returnMethod" value="pickup" required>
+                                <span class="radio-custom"></span>มารับเองที่ร้าน
+                            </label>
+                            <label class="radio-label">
+                                <input type="radio" name="returnMethod" value="delivery">
+                                <span class="radio-custom"></span>จัดส่ง
+                            </label>
+                        </div>
+                        <div id="pickupBranchGroup" style="display: none; margin-top: 0.75rem;">
+                            <label>ชื่อสาขา / ชื่อร้าน</label>
+                            <input type="text" id="claimPickupBranch" placeholder="ระบุชื่อสาขาที่จะมารับเครื่อง">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-actions" style="margin-top: 1.5rem;">
+                    <button type="button" id="closeClaimFormModal" class="submit-btn"
+                        style="background: var(--text-muted);">ยกเลิก</button>
+                    <button type="submit" class="submit-btn"
+                        style="background: linear-gradient(135deg, #f59e0b, #d97706);">💾 บันทึกรายการเคลม</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Claim Contract / Signature Modal -->
+    <div id="claimContractModal" class="modal">
+        <div class="modal-content" style="max-width: 900px; max-height: 95vh; overflow-y: auto;"
+            id="claimContractPrintArea">
+            <!-- Print Header -->
+            <div style="text-align: center; margin-bottom: 1.5rem;">
+                <img src="logo_easycare.png" alt="Logo" style="height: 60px; margin-bottom: 0.5rem;">
+                <h2 style="color: var(--primary); margin: 0;">รายละเอียดสัญญาการรับเครื่อง</h2>
+                <p style="color: var(--text-muted); font-size: 0.85rem;">EasyCare Mobile Insurance Warranty - Claim
+                    Contract</p>
+            </div>
+
+            <!-- Claim Details -->
+            <div style="background: #f8fafc; border-radius: 12px; padding: 1.5rem; margin-bottom: 1.5rem;">
+                <h3
+                    style="font-size: 1rem; color: var(--text-main); margin-bottom: 1rem; border-bottom: 2px solid #e2e8f0; padding-bottom: 0.5rem;">
+                    📋 รายละเอียดการเคลม</h3>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 0.9rem;">
+                    <div><strong>รหัสเคลม:</strong> <span id="contractClaimId">-</span></div>
+                    <div><strong>วันที่แจ้งเคลม:</strong> <span id="contractClaimDate">-</span></div>
+                    <div><strong>เลขกรมธรรม์:</strong> <span id="contractPolicyNumber">-</span></div>
+                    <div><strong>รหัสสมาชิก:</strong> <span id="contractMemberId">-</span></div>
+                    <div><strong>ชื่อลูกค้า:</strong> <span id="contractCustomerName">-</span></div>
+                    <div><strong>เบอร์โทรศัพท์:</strong> <span id="contractCustomerPhone">-</span></div>
+                    <div><strong>รุ่นอุปกรณ์:</strong> <span id="contractDeviceModel">-</span></div>
+                    <div><strong>ผู้ทำรายการ:</strong> <span id="contractStaffName">-</span></div>
+                    <div style="grid-column: 1 / -1;"><strong>อาการ:</strong> <span id="contractSymptoms">-</span></div>
+                    <div><strong>การคืนเครื่อง:</strong> <span id="contractReturnMethod">-</span></div>
+                    <div id="contractBranchRow" style="display: none;"><strong>สาขา:</strong> <span
+                            id="contractPickupBranch">-</span></div>
+                </div>
+
+                <!-- Uploaded Images -->
+                <div id="contractImagesSection" style="margin-top: 1rem; display: none;">
+                    <strong>รูปภาพประกอบ:</strong>
+                    <div id="contractImages" style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px;"></div>
+                </div>
+            </div>
+
+            <!-- Actions (hidden on print) -->
+            <div class="claim-contract-actions"
+                style="display: flex; gap: 10px; justify-content: center; margin-top: 1.5rem;">
+                <button type="button" id="closeContractModal" class="btn-cancel">✕ ปิด</button>
+                <button type="button" id="printContractBtn" class="submit-btn"
+                    style="background: linear-gradient(135deg, #3b82f6, #2563eb);">🖨️ พิมพ์เอกสาร</button>
+            </div>
         </div>
     </div>
 

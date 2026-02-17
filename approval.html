@@ -751,6 +751,30 @@
                                 <label>สถานะ</label>
                                 <span class="status-badge ${st.class}">${st.text}</span>
                             </div>
+                            ${w.approvalStatus === 'approved' ? `
+                            <div class="detail-item">
+                                <label>ผู้อนุมัติ</label>
+                                <span>${w.approver || '-'}</span>
+                            </div>
+                            <div class="detail-item">
+                                <label>วันที่อนุมัติ</label>
+                                <span>${w.approvalDate ? new Date(w.approvalDate).toLocaleString('th-TH') : '-'}</span>
+                            </div>
+                            ` : ''}
+                            ${w.approvalStatus === 'rejected' ? `
+                            <div class="detail-item">
+                                <label>ผู้ไม่อนุมัติ</label>
+                                <span>${w.rejectBy || '-'}</span>
+                            </div>
+                            <div class="detail-item">
+                                <label>วันที่ทำรายการ</label>
+                                <span>${w.rejectDate ? new Date(w.rejectDate).toLocaleString('th-TH') : '-'}</span>
+                            </div>
+                            <div class="detail-item" style="grid-column: span 2;">
+                                <label>เหตุผลที่ไม่อนุมัติ</label>
+                                <span style="color: #ef4444;">${w.rejectReason || '-'}</span>
+                            </div>
+                            ` : ''}
                         </div>
                     `,
                     width: 600,
@@ -771,9 +795,16 @@
 
                 if (!result.isConfirmed) return;
 
+                const currentUser = JSON.parse(localStorage.getItem('smilecare_staff_session'));
+                const approver = currentUser ? currentUser.staffName : 'Unknown';
+
                 showLoader('กำลังอนุมัติ...');
                 try {
-                    const res = await fetch(`/api/warranties/${id}/approve`, { method: 'PUT' });
+                    const res = await fetch(`/api/warranties/${id}/approve`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ approver })
+                    });
                     const data = await res.json();
                     if (res.ok) {
                         MySwal.fire({
@@ -798,19 +829,34 @@
             window.rejectWarranty = async function (id) {
                 const result = await MySwal.fire({
                     title: 'ยืนยันไม่อนุมัติ?',
-                    text: 'สัญญานี้จะถูกปฏิเสธ ไม่สามารถดำเนินการชำระเงินได้',
+                    text: 'กรุณาระบุเหตุผลที่ไม่อนุมัติสัญญา',
+                    input: 'text',
+                    inputPlaceholder: 'ระบุเหตุผล...',
                     icon: 'warning',
                     showCancelButton: true,
                     confirmButtonText: '❌ ไม่อนุมัติ',
                     cancelButtonText: 'ยกเลิก',
                     confirmButtonColor: '#ef4444',
+                    inputValidator: (value) => {
+                        if (!value) {
+                            return 'กรุณาระบุเหตุผล!';
+                        }
+                    }
                 });
 
                 if (!result.isConfirmed) return;
 
+                const reason = result.value;
+                const currentUser = JSON.parse(localStorage.getItem('smilecare_staff_session'));
+                const rejectBy = currentUser ? currentUser.staffName : 'Unknown';
+
                 showLoader('กำลังดำเนินการ...');
                 try {
-                    const res = await fetch(`/api/warranties/${id}/reject`, { method: 'PUT' });
+                    const res = await fetch(`/api/warranties/${id}/reject`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ reason, rejectBy })
+                    });
                     const data = await res.json();
                     if (res.ok) {
                         MySwal.fire({

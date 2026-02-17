@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>เอกสารรับเครื่องเคลม (Claim Receipt)</title>
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --border-color: #000;
+            --font-family: 'Angsana New', 'TH Sarabun New', 'Sarabun', sans-serif;
+        }
+
+        * {
+            box-sizing: border-box;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+
+        body {
+            font-family: var(--font-family);
+            margin: 0;
+            padding: 0;
+            background-color: #f0f0f0;
+            font-size: 18px;
+        }
+
+        .page {
+            width: 210mm;
+            min-height: 297mm;
+            padding: 10mm 15mm;
+            margin: 5mm auto;
+            background: white;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            position: relative;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .page-content {
+            flex-grow: 1;
+        }
+
+        @media print {
+            body {
+                background: none;
+                padding: 0;
+            }
+
+            .page {
+                margin: 0;
+                box-shadow: none;
+                page-break-after: always;
+            }
+
+            .no-print {
+                display: none !important;
+            }
+        }
+
+        /* Header Styles */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 15px;
+        }
+
+        .logo-section {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .company-name {
+            text-align: center;
+            flex-grow: 1;
+        }
+
+        .company-name h1 {
+            margin: 0;
+            font-size: 26px;
+            font-weight: bold;
+        }
+
+        .company-name h2 {
+            margin: 5px 0;
+            font-size: 22px;
+            font-weight: normal;
+        }
+
+        .date-section {
+            text-align: right;
+            padding-top: 40px;
+        }
+
+        /* Form Table Layout */
+        .form-container {
+            border: 1.5px solid var(--border-color);
+            width: 100%;
+        }
+
+        .row {
+            display: flex;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .row:last-child {
+            border-bottom: none;
+        }
+
+        .col {
+            padding: 8px 10px;
+            border-right: 1px solid var(--border-color);
+        }
+
+        .col:last-child {
+            border-right: none;
+        }
+
+        .section-title {
+            font-weight: bold;
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        .section-header-row {
+            background-color: #f9f9f9;
+        }
+
+        /* Width Classes */
+        .w-25 {
+            width: 25%;
+        }
+
+        .w-30 {
+            width: 30%;
+        }
+
+        .w-33 {
+            width: 33.33%;
+        }
+
+        .w-40 {
+            width: 40%;
+        }
+
+        .w-50 {
+            width: 50%;
+        }
+
+        .w-60 {
+            width: 60%;
+        }
+
+        .w-70 {
+            width: 70%;
+        }
+
+        .w-100 {
+            width: 100%;
+        }
+
+        .field {
+            margin-bottom: 6px;
+            display: flex;
+            align-items: baseline;
+        }
+
+        .label {
+            margin-right: 5px;
+        }
+
+        .dotted-line {
+            border-bottom: 1px dotted #000;
+            display: inline-block;
+            min-height: 1.2em;
+            padding: 0 5px;
+            flex: 1;
+        }
+
+        /* Signature Section */
+        .signature-section {
+            margin-top: 20px;
+            display: flex;
+            justify-content: space-around;
+            text-align: center;
+            border-top: 1px solid #eee;
+            padding-top: 15px;
+        }
+
+        .sig-block {
+            width: 30%;
+        }
+
+        .sig-line {
+            border-bottom: 1px dotted #000;
+            margin-bottom: 5px;
+            padding-top: 50px;
+            min-height: 70px;
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+        }
+
+        .signature-img {
+            max-height: 60px;
+            max-width: 90%;
+            object-fit: contain;
+        }
+
+        .sig-name {
+            margin-top: 5px;
+            font-size: 16px;
+        }
+
+        /* Terms List */
+        .terms-list {
+            list-style: none;
+            counter-reset: terms-counter;
+            font-size: 15px;
+            line-height: 1.6;
+            margin: 10px 0;
+            padding-left: 0;
+        }
+
+        .terms-list li {
+            counter-increment: terms-counter;
+            margin-bottom: 6px;
+            padding-left: 25px;
+            position: relative;
+        }
+
+        .terms-list li::before {
+            content: counter(terms-counter) ".";
+            position: absolute;
+            left: 0;
+            font-weight: bold;
+        }
+
+        /* Images Grid */
+        .images-grid {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 10px;
+        }
+
+        .images-grid img {
+            height: 80px;
+            width: 80px;
+            object-fit: cover;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        /* Print Buttons */
+        .print-button {
+            background: #1e40af;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .print-button:hover {
+            background: #1e3a8a;
+        }
+
+        .close-button {
+            background: #64748b;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 16px;
+        }
+
+        .close-button:hover {
+            background: #475569;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- Print Buttons -->
+    <div class="no-print" style="position: fixed; top: 20px; right: 20px; display: flex; gap: 10px; z-index: 1000;">
+        <button onclick="window.print()" class="print-button">
+            <svg style="width: 20px; height: 20px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z">
+                </path>
+            </svg>
+            พิมพ์เอกสาร
+        </button>
+        <button onclick="window.close()" class="close-button">
+            ปิดหน้าต่าง
+        </button>
+    </div>
+
+    <div class="page">
+        <div class="page-content">
+            <!-- Header -->
+            <div class="header">
+                <div class="logo-section">
+                    <img src="logo_easycare.png" alt="Easy Care Logo" style="height: 20px; object-fit: contain;">
+                </div>
+                <div class="company-name">
+                    <h1>อีซี่แคร์</h1>
+                    <h2>Easy Care</h2>
+                </div>
+                <div class="date-section">
+                    วันที่ <span id="claimDate">.....................................................</span>
+                </div>
+            </div>
+
+            <div style="text-align: center; margin-bottom: 10px;">
+                <strong style="font-size: 20px;">เอกสารรับเครื่องเคลม (Claim Receipt)</strong>
+            </div>
+
+            <div class="form-container">
+                <!-- Document Info Row -->
+                <div class="row">
+                    <div class="col w-40">
+                        <span class="label">เลขที่สมาชิก</span>
+                        <span id="memberId" class="dotted-line" style="width: 150px;"></span>
+                    </div>
+                    <div class="col w-60">
+                        <span class="label" style="font-weight: bold;">เลขที่เอกสาร</span>
+                        <span id="claimId" style="font-weight: bold; font-size: 22px; margin-left: 10px;"></span>
+                    </div>
+                </div>
+
+                <!-- 1. Customer & Policy Information -->
+                <div class="row section-header-row">
+                    <div class="col w-100">
+                        <span class="section-title">1. ข้อมูลกรมธรรม์และลูกค้า (Customer & Policy Information)</span>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col w-60" style="border-right: 1.5px solid #000;">
+                        <div class="field">
+                            <span class="label">ชื่อลูกค้า</span>
+                            <span id="customerName" class="dotted-line" style="width: 200px;"></span>
+                        </div>
+                        <div class="field">
+                            <span class="label">เบอร์โทรศัพท์</span>
+                            <span id="customerPhone" class="dotted-line" style="width: 150px;"></span>
+                        </div>
+                        <div class="field">
+                            <span class="label">เลขกรมธรรม์</span>
+                            <span id="policyNumber" class="dotted-line" style="width: 180px;"></span>
+                        </div>
+                    </div>
+                    <div class="col w-40">
+                        <span class="section-title">สถานที่ตั้งบริษัท</span>
+                        <div style="padding: 5px; line-height: 1.4; font-size: 16px;">
+                            62 ถนนพิพิธภักดี ตำบลสะเตง<br>
+                            อำเภอเมืองยะลา จังหวัดยะลา
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 2. Device Information -->
+                <div class="row section-header-row">
+                    <div class="col w-100">
+                        <span class="section-title">2. ข้อมูลอุปกรณ์ (Device Information)</span>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col w-100">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                            <div>
+                                <div class="field">
+                                    <span class="label">รุ่นอุปกรณ์</span>
+                                    <span id="deviceModel" class="dotted-line" style="width: 180px;"></span>
+                                </div>
+                                <div class="field">
+                                    <span class="label">Serial Number</span>
+                                    <span id="deviceSerial" class="dotted-line" style="width: 150px;"></span>
+                                </div>
+                            </div>
+                            <div>
+                                <div class="field">
+                                    <span class="label">สี</span>
+                                    <span id="deviceColor" class="dotted-line" style="width: 100px;"></span>
+                                    <span class="label" style="margin-left: 15px;">ความจุ</span>
+                                    <span id="deviceCapacity" class="dotted-line" style="width: 80px;"></span>
+                                </div>
+                                <div class="field">
+                                    <span class="label">IMEI</span>
+                                    <span id="deviceIMEI" class="dotted-line" style="width: 200px;"></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 3. Claim Details -->
+                <div class="row section-header-row">
+                    <div class="col w-100">
+                        <span class="section-title">3. รายละเอียดการเคลม (Claim Details)</span>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col w-100">
+                        <div style="margin-bottom: 10px;">
+                            <span class="label" style="font-weight: bold;">อาการที่แจ้ง (Reported Symptoms):</span>
+                        </div>
+                        <div id="symptoms" style="border: 1px solid #ddd; padding: 10px; min-height: 60px; background: #fafafa; line-height: 1.5;"></div>
+                    </div>
+                </div>
+
+                <!-- 4. Return Method -->
+                <div class="row section-header-row">
+                    <div class="col w-100">
+                        <span class="section-title">4. วิธีการรับคืนอุปกรณ์ (Return Method)</span>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col w-50">
+                        <div class="field">
+                            <span class="label">วิธีการรับคืน</span>
+                            <span id="returnMethod" class="dotted-line" style="width: 180px;"></span>
+                        </div>
+                    </div>
+                    <div class="col w-50">
+                        <div class="field">
+                            <span class="label">สาขาที่รับ</span>
+                            <span id="pickupBranch" class="dotted-line" style="width: 180px;"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 5. Images (if available) -->
+                <div id="imagesSection" class="row" style="display: none;">
+                    <div class="col w-100">
+                        <div style="margin-bottom: 8px;">
+                            <span class="label" style="font-weight: bold;">รูปภาพประกอบ (Supporting Images):</span>
+                        </div>
+                        <div class="images-grid" id="imageContainer"></div>
+                    </div>
+                </div>
+
+                <!-- 6. Terms & Conditions -->
+                <div class="row section-header-row">
+                    <div class="col w-100">
+                        <span class="section-title">5. เงื่อนไขการรับบริการ (Terms & Conditions)</span>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col w-100">
+                        <ul class="terms-list">
+                            <li>เอกสารฉบับนี้ใช้เป็นหลักฐานในการรับฝากเครื่องเพื่อตรวจสอบและดำเนินการแก้ไขตามเงื่อนไขการรับประกัน</li>
+                            <li>โปรดนำเอกสารฉบับนี้และบัตรประชาชนมาแสดงทุกครั้งที่ติดต่อขอรับเครื่องคืน</li>
+                            <li>ทางบริษัทฯ จะไม่รับผิดชอบต่อข้อมูลสูญหาย หรือความเสียหายใดๆ ต่อข้อมูลในตัวเครื่อง โปรดสำรองข้อมูลก่อนส่งซ่อม</li>
+                            <li>หากไม่มารับเครื่องคืนภายใน 90 วัน นับจากวันที่แจ้งให้ทราบ ทางบริษัทฯ ขอสงวนสิทธิ์ในการดำเนินการตามความเหมาะสม</li>
+                        </ul>
+                        <div style="margin-top: 15px; font-size: 16px; line-height: 1.5;">
+                            <p style="margin: 5px 0;"><strong>หมายเหตุ:</strong> การลงลายมือชื่อด้านล่างนี้ ถือว่าสมาชิกได้รับทราบและตกลงตามเงื่อนไขที่ระบุไว้ข้างต้นทุกประการ</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Signatures -->
+        <div class="signature-section">
+            <div class="sig-block">
+                <span style="font-weight: bold;">สมาชิกตะกาฟุล</span>
+                <div class="sig-line" id="customerSigBox"></div>
+                <div class="sig-name">(<span id="signCustomerName">..................................................</span>)</div>
+            </div>
+            <div class="sig-block">
+                <span style="font-weight: bold;">พนักงานอีซี่แคร์</span>
+                <div class="sig-line" id="staffSigBox"></div>
+                <div class="sig-name">(<span id="signStaffName">..................................................</span>)</div>
+            </div>
+            <div class="sig-block">
+                <span>ผู้อนุมัติ</span>
+                <div><img src="ceo.png" alt="CEO" style="width: 130px; height: 65px;"></div>
+                <div class="sig-name">(อัสมา ปอโต๊ะ)</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            const claimDataStr = localStorage.getItem('smilecare_current_claim');
+            if (!claimDataStr) {
+                alert('ไม่พบข้อมูลการเคลม กรุณาลองใหม่อีกครั้ง');
+                window.close();
+                return;
+            }
+
+            const claim = JSON.parse(claimDataStr);
+
+            // Format Date Helper
+            const formatThaiDate = (dateStr) => {
+                if (!dateStr) return '';
+                const d = new Date(dateStr);
+                return d.toLocaleDateString('th-TH', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                });
+            };
+
+            // Populate Fields
+            document.getElementById('claimId').textContent = claim.claimId || '-';
+            document.getElementById('claimDate').textContent = claim.claimDate 
+                ? formatThaiDate(claim.claimDate)
+                : '';
+
+            document.getElementById('customerName').textContent = claim.customerName || '-';
+            document.getElementById('memberId').textContent = claim.memberId || '-';
+            document.getElementById('customerPhone').textContent = claim.customerPhone || '-';
+            document.getElementById('policyNumber').textContent = claim.policyNumber || '-';
+
+            document.getElementById('deviceModel').textContent = claim.deviceModel || '-';
+
+            // Fetch warranty details for device info
+            if (claim.warrantyId) {
+                try {
+                    const res = await fetch(`/api/warranties/${claim.warrantyId}`);
+                    const warranty = await res.json();
+                    if (warranty && warranty.device) {
+                        document.getElementById('deviceColor').textContent = warranty.device.color || '-';
+                        document.getElementById('deviceCapacity').textContent = warranty.device.capacity || '-';
+                        document.getElementById('deviceSerial').textContent = warranty.device.serial || '-';
+                        document.getElementById('deviceIMEI').textContent = warranty.device.imei || '-';
+                    }
+                } catch (e) { 
+                    console.error('Error fetching warranty details', e);
+                    document.getElementById('deviceColor').textContent = '-';
+                    document.getElementById('deviceCapacity').textContent = '-';
+                    document.getElementById('deviceSerial').textContent = '-';
+                    document.getElementById('deviceIMEI').textContent = '-';
+                }
+            }
+
+            document.getElementById('symptoms').textContent = claim.symptoms || '-';
+            document.getElementById('returnMethod').textContent = 
+                claim.returnMethod === 'pickup' ? 'รับเองที่สาขา' : 'จัดส่งทางไปรษณีย์';
+            document.getElementById('pickupBranch').textContent = 
+                claim.returnMethod === 'pickup' ? (claim.pickupBranch || '-') : 'ไม่มี';
+
+            // Signatures
+            if (claim.customerSignature) {
+                document.getElementById('customerSigBox').innerHTML = 
+                    `<img src="${claim.customerSignature}" class="signature-img" alt="Customer Signature">`;
+            }
+            if (claim.staffSignature) {
+                document.getElementById('staffSigBox').innerHTML = 
+                    `<img src="${claim.staffSignature}" class="signature-img" alt="Staff Signature">`;
+            }
+
+            document.getElementById('signCustomerName').textContent = 
+                claim.customerName || '..................................';
+            document.getElementById('signStaffName').textContent = 
+                claim.staffName || '..................................';
+
+            // Images
+            if (claim.images && claim.images.length > 0) {
+                const container = document.getElementById('imageContainer');
+                document.getElementById('imagesSection').style.display = 'flex';
+                claim.images.forEach((imgUrl, index) => {
+                    const img = document.createElement('img');
+                    img.src = imgUrl;
+                    img.alt = `รูปภาพที่ ${index + 1}`;
+                    container.appendChild(img);
+                });
+            }
+        });
+    </script>
+</body>
+
+</html>
