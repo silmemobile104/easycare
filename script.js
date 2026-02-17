@@ -172,7 +172,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const membersNavLink = document.getElementById('membersNavLink');
         const shopsNavLink = document.getElementById('shopsNavLink');
 
-        if (viewName === 'dashboard' || viewName === 'members' || viewName === 'shops' || viewName === 'claims') {
+        if (viewName === 'dashboard' || viewName === 'members' || viewName === 'shops' || viewName === 'claims' || viewName === 'statusTracking' || viewName === 'approval') {
             views.dashboard.style.display = 'block';
 
             // Hide all sub-views first
@@ -181,6 +181,10 @@ document.addEventListener('DOMContentLoaded', () => {
             shopsMain.style.display = 'none';
             const claimsMain = document.getElementById('claimsMain');
             if (claimsMain) claimsMain.style.display = 'none';
+            const statusTrackingMain = document.getElementById('statusTrackingMain');
+            if (statusTrackingMain) statusTrackingMain.style.display = 'none';
+            const approvalMain = document.getElementById('approvalMain');
+            if (approvalMain) approvalMain.style.display = 'none';
 
             // Remove active class from all nav links
             if (dashNavLink) dashNavLink.classList.remove('active');
@@ -188,6 +192,10 @@ document.addEventListener('DOMContentLoaded', () => {
             if (shopsNavLink) shopsNavLink.classList.remove('active');
             const claimsNavLinkEl = document.getElementById('claimsNavLink');
             if (claimsNavLinkEl) claimsNavLinkEl.classList.remove('active');
+            const statusTrackingNavLinkEl = document.getElementById('statusTrackingNavLink');
+            if (statusTrackingNavLinkEl) statusTrackingNavLinkEl.classList.remove('active');
+            const approvalNavLinkEl = document.getElementById('approvalNavLink');
+            if (approvalNavLinkEl) approvalNavLinkEl.classList.remove('active');
 
             if (viewName === 'dashboard') {
                 dashMain.style.display = 'block';
@@ -207,6 +215,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 const claimsNavLinkEl2 = document.getElementById('claimsNavLink');
                 if (claimsNavLinkEl2) claimsNavLinkEl2.classList.add('active');
                 fetchActivePolicies();
+            } else if (viewName === 'statusTracking') {
+                if (statusTrackingMain) statusTrackingMain.style.display = 'block';
+                if (statusTrackingNavLinkEl) statusTrackingNavLinkEl.classList.add('active');
+                fetchPendingClaims();
+                stopApprovalAutoRefresh(); // Stop approval refresh if leaving that view
+            } else if (viewName === 'approval') {
+                const approvalMain = document.getElementById('approvalMain');
+                if (approvalMain) approvalMain.style.display = 'block';
+                const approvalNavLinkEl = document.getElementById('approvalNavLink');
+                if (approvalNavLinkEl) approvalNavLinkEl.classList.add('active');
+
+                // Initialize approval view
+                fetchApprovalWarranties('pending');
+                startApprovalAutoRefresh();
+            } else {
+                // For other dashboard views, ensure approval refresh is stopped
+                stopApprovalAutoRefresh();
             }
         } else if (views[viewName]) {
             views[viewName].style.display = 'block';
@@ -314,6 +339,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const claimsNavLink = document.getElementById('claimsNavLink');
     if (claimsNavLink) claimsNavLink.addEventListener('click', (e) => { e.preventDefault(); showView('claims'); });
+
+    const statusTrackingNavLink = document.getElementById('statusTrackingNavLink');
+    if (statusTrackingNavLink) statusTrackingNavLink.addEventListener('click', (e) => { e.preventDefault(); showView('statusTracking'); });
+
+    const approvalNavLink = document.getElementById('approvalNavLink');
+    if (approvalNavLink) approvalNavLink.addEventListener('click', (e) => { e.preventDefault(); showView('approval'); });
 
     // --- DASHBOARD LOGIC ---
     async function fetchWarranties() {
@@ -449,6 +480,21 @@ document.addEventListener('DOMContentLoaded', () => {
                     <td data-label="รุ่นอุปกรณ์">${r.device.model}</td>
                     <td data-label="แพ็กเกจ"><span style="color: var(--primary); font-weight: 500;">${r.package.plan}</span></td>
                     <td data-label="ประกันคงเหลือ">${timeRemainingText}</td>
+                    <td data-label="วงเงินคงเหลือ">
+                        ${(() => {
+                    const deviceValue = r.device.deviceValue || 0;
+                    const limit = Math.floor(deviceValue * 0.7); // 70% of device value
+                    const used = r.totalClaimAmount || 0;
+                    const balance = limit - used;
+                    const color = balance < 0 ? '#ef4444' : '#10b981';
+                    return `
+                            <div style="display: flex; flex-direction: column; align-items: flex-start;">
+                                <span style="color: ${color}; font-weight: 600;">${balance.toLocaleString()} บาท</span>
+                                <span style="font-size: 0.75rem; color: #64748b;">(วงเงิน ${limit.toLocaleString()})</span>
+                            </div>
+                        `;
+                })()}
+                    </td>
                     <td data-label="ร้านค้า">${r.shopName || '-'}</td>
                     <td data-label="ผู้บันทึก">${r.staffName}</td>
                     <td data-label="สถานะ">${statusBadge}</td>
@@ -2149,14 +2195,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                     </td>
                     <td data-label="ทำรายการ">
-                        ${r.claimStatus === 'pending'
-                    ? `<button onclick="printClaimByWarrantyId('${r._id}')" style="background: linear-gradient(135deg, #3b82f6, #2563eb); color: white; border: none; padding: 6px 16px; border-radius: 8px; cursor: pointer; font-size: 0.85rem; font-weight: 600; white-space: nowrap;">
-                                🖨️ พิมพ์เอกสารรับเครื่อง
-                               </button>`
-                    : `<button class="claim-action-btn" data-id="${r._id}" style="background: linear-gradient(135deg, #f59e0b, #d97706); color: white; border: none; padding: 6px 16px; border-radius: 8px; cursor: pointer; font-size: 0.85rem; font-weight: 600; white-space: nowrap;">
-                                📋 ทำรายการเคลม
-                               </button>`
+                        <div style="display: flex; gap: 0.5rem; justify-content: center; align-items: center; flex-wrap: wrap;">
+                            ${r.claimStatus === 'pending'
+                    ? `<button onclick="printClaimByWarrantyId('${r._id}')" style="background: linear-gradient(135deg, #3b82f6, #2563eb); color: white; border: none; padding: 6px 12px; border-radius: 8px; cursor: pointer; font-size: 0.85rem; font-weight: 600; white-space: nowrap;">
+                                    🖨️ พิมพ์เอกสาร
+                                   </button>`
+                    : `<button class="claim-action-btn" data-id="${r._id}" style="background: linear-gradient(135deg, #f59e0b, #d97706); color: white; border: none; padding: 6px 12px; border-radius: 8px; cursor: pointer; font-size: 0.85rem; font-weight: 600; white-space: nowrap;">
+                                    📋 แจ้งเคลม
+                                   </button>`
                 }
+                            <button class="btn-history" onclick="openClaimHistoryModal('${r._id}')">
+                                📜 ประวัติ
+                            </button>
+                        </div>
                     </td>
                 </tr>
             `;
@@ -2204,6 +2255,7 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('claimCustomerName').value = `${data.customer.firstName} ${data.customer.lastName}`;
             document.getElementById('claimCustomerPhone').value = data.customer.phone || '';
             document.getElementById('claimDeviceModel').value = data.device.model || '';
+            document.getElementById('claimColor').value = data.device.color || '';
             document.getElementById('claimSerial').value = data.device.serial || '';
             document.getElementById('claimIMEI').value = data.device.imei || '';
             document.getElementById('claimPackage').value = data.package.plan || '';
@@ -2225,6 +2277,9 @@ document.addEventListener('DOMContentLoaded', () => {
             if (deliveryRadio) deliveryRadio.checked = false;
             document.getElementById('claimPickupBranch').value = '';
             document.getElementById('pickupBranchGroup').style.display = 'none';
+
+            // Reset checklist
+            document.querySelectorAll('input[name="deviceCondition"]').forEach(cb => cb.checked = false);
 
             // Show the modal
             document.getElementById('claimFormModal').style.display = 'flex';
@@ -2298,10 +2353,20 @@ document.addEventListener('DOMContentLoaded', () => {
             formData.append('customerName', document.getElementById('claimCustomerName').value);
             formData.append('customerPhone', document.getElementById('claimCustomerPhone').value);
             formData.append('deviceModel', document.getElementById('claimDeviceModel').value);
+            formData.append('imei', document.getElementById('claimIMEI').value);
+            formData.append('serialNumber', document.getElementById('claimSerial').value);
+            formData.append('color', document.getElementById('claimColor').value);
             formData.append('symptoms', symptoms);
             formData.append('staffName', document.getElementById('claimStaffName').value);
             formData.append('returnMethod', returnMethodEl.value);
             formData.append('pickupBranch', document.getElementById('claimPickupBranch').value);
+
+            // Collect device condition checklist
+            const deviceCondition = {};
+            document.querySelectorAll('input[name="deviceCondition"]').forEach(cb => {
+                deviceCondition[cb.value] = cb.checked;
+            });
+            formData.append('deviceCondition', JSON.stringify(deviceCondition));
 
             // Append image files
             const imageFiles = document.getElementById('claimImages').files;
@@ -2362,6 +2427,35 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('contractPickupBranch').textContent = claim.pickupBranch;
         } else {
             branchRow.style.display = 'none';
+        }
+
+        // Populate Device Condition Checklist
+        const conditionMap = {
+            exterior: 'ตัวเครื่องภายนอก',
+            screen: 'หน้าจอ',
+            assembly: 'การประกอบ',
+            appleLogo: 'โลโก้ Apple',
+            buttons: 'ปุ่มต่างๆ',
+            chargingPort: 'พอร์ตชาร์จ',
+            simTray: 'ช่องใส่ซิม',
+            imeiMatch: 'IMEI ตรงกัน',
+            modelMatch: 'Model เครื่อง',
+            screenTouch: 'หน้าจอ/ทัชสกรีน',
+            faceIdTouchId: 'Face ID / Touch ID',
+            cameras: 'กล้องหน้า/กล้องหลัง',
+            speakerMic: 'ลำโพง/ไมค์',
+            connectivity: 'การเชื่อมต่อ',
+            battery: 'แบตเตอรี่',
+            warrantyVoid: 'ประกัน/วอยด์'
+        };
+
+        const conditions = claim.deviceCondition || {};
+        const conditionGrid = document.getElementById('contractConditionGrid');
+        if (conditionGrid) {
+            conditionGrid.innerHTML = Object.entries(conditionMap).map(([key, label]) => {
+                const isChecked = conditions[key] ? 'checked' : '';
+                return `<div style="display: flex; align-items: center; font-size: 0.9rem;"><input type="checkbox" disabled ${isChecked} style="margin-right: 6px; transform: scale(1.1);"> ${label}</div>`;
+            }).join('');
         }
 
         // Uploaded images
@@ -2552,6 +2646,880 @@ document.addEventListener('DOMContentLoaded', () => {
         closeContractBtn.addEventListener('click', () => {
             document.getElementById('claimContractModal').style.display = 'none';
             currentClaimData = null;
+        });
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // STATUS TRACKING LOGIC
+    // ═══════════════════════════════════════════════════════════════════
+
+    async function fetchPendingClaims() {
+        showLoader('กำลังโหลดรายการเคลม...');
+        try {
+            const res = await fetch('/api/claims/pending');
+            const claims = await res.json();
+            renderStatusTracking(claims);
+        } catch (err) {
+            console.error('Fetch pending claims error:', err);
+            showAlert('error', 'ไม่สามารถโหลดข้อมูลรายการเคลมได้');
+        } finally {
+            hideLoader();
+        }
+    }
+
+    function renderStatusTracking(claims) {
+        const body = document.getElementById('statusTrackingBody');
+        const empty = document.getElementById('statusTrackingEmptyState');
+        if (!body) return;
+
+        if (!claims || claims.length === 0) {
+            body.innerHTML = '';
+            if (empty) empty.style.display = 'block';
+            return;
+        }
+        if (empty) empty.style.display = 'none';
+
+        body.innerHTML = claims.map(c => `
+            <tr>
+                <td data-label="รหัสเคลม" style="font-weight: 600; color: var(--primary);">${c.claimId || '-'}</td>
+                <td data-label="วันที่แจ้งเคลม">${c.claimDate ? new Date(c.claimDate).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' }) : '-'}</td>
+                <td data-label="ชื่อลูกค้า">${c.customerName || '-'}</td>
+                <td data-label="เบอร์โทรศัพท์">${c.customerPhone || '-'}</td>
+                <td data-label="อุปกรณ์">${c.deviceModel || '-'}</td>
+                <td data-label="สถานะ"><span class="status-badge status-pending" style="background-color: #f59e0b; color: white;">รอเคลม</span></td>
+                <td data-label="ทำรายการ">
+                    <div style="display: flex; gap: 0.5rem; justify-content: center;">
+                        <button class="status-update-btn submit-btn" data-id="${c._id}" style="padding: 0.4rem 1rem; font-size: 0.85rem; background: linear-gradient(135deg, #3b82f6, #2563eb);">
+                            📋 อัปเดตสถานะ
+                        </button>
+                        <button class="btn-history" onclick="openClaimHistoryModal('${c._id}')">
+                            📜 ประวัติ
+                        </button>
+                    </div>
+                </td>
+            </tr>
+        `).join('');
+
+        // Wire up buttons
+        document.querySelectorAll('.status-update-btn').forEach(btn => {
+            btn.addEventListener('click', () => openStatusUpdateModal(btn.dataset.id));
+        });
+    }
+
+    async function openStatusUpdateModal(claimId) {
+        showLoader('กำลังโหลดข้อมูล...');
+        try {
+            const res = await fetch(`/api/claims/${claimId}`);
+            const claim = await res.json();
+            if (!res.ok) throw new Error(claim.message);
+
+            // Store claimId
+            document.getElementById('statusUpdateClaimId').value = claim._id;
+
+            // Claim info bar
+            const infoBar = document.getElementById('statusClaimInfo');
+            if (infoBar) {
+                infoBar.innerHTML = `
+                    <div><strong>รหัสเคลม:</strong> ${claim.claimId}</div>
+                    <div><strong>ชื่อลูกค้า:</strong> ${claim.customerName}</div>
+                    <div><strong>เบอร์โทร:</strong> ${claim.customerPhone}</div>
+                    <div><strong>อุปกรณ์:</strong> ${claim.deviceModel}</div>
+                    <div><strong>IMEI:</strong> ${claim.imei}</div>
+                    <div><strong>Serial Number:</strong> ${claim.serialNumber}</div>
+                    <div><strong>สี:</strong> ${claim.color}</div>
+                    <div><strong>อาการ:</strong> ${claim.symptoms || '-'}</div>
+                    <div><strong>วันที่แจ้งเคลม:</strong> ${new Date(claim.claimDate).toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' })}</div>
+                `;
+            }
+
+            // Render timeline
+            renderTimeline(claim);
+
+            // Update total cost
+            const totalCostEl = document.getElementById('statusTotalCost');
+            if (totalCostEl) totalCostEl.textContent = `${(claim.totalCost || 0).toLocaleString()} บาท`;
+
+            // Reset form
+            document.getElementById('updateTitle').value = '';
+            document.getElementById('updateCost').value = '0';
+            const updateImagesInput = document.getElementById('updateImages');
+            if (updateImagesInput) updateImagesInput.value = '';
+            const updatePreview = document.getElementById('updateImagePreview');
+            if (updatePreview) updatePreview.innerHTML = '';
+            const completeImagesInput = document.getElementById('completeImages');
+            if (completeImagesInput) completeImagesInput.value = '';
+            const completePreview = document.getElementById('completeImagePreview');
+            if (completePreview) completePreview.innerHTML = '';
+
+            // Show modal
+            document.getElementById('statusUpdateModal').style.display = 'flex';
+        } catch (err) {
+            console.error('Open status update modal error:', err);
+            showAlert('error', 'ไม่สามารถโหลดข้อมูลเคลมได้');
+        } finally {
+            hideLoader();
+        }
+    }
+
+    function renderTimeline(claim) {
+        const timeline = document.getElementById('statusTimeline');
+        if (!timeline) return;
+
+        let html = '';
+
+        // Step 1: "รับเครื่อง" (auto-generated from claim data)
+        const claimDateStr = new Date(claim.claimDate).toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+        html += `
+            <div class="timeline-item">
+                <div class="timeline-marker">
+                    <div class="timeline-circle">1</div>
+                    <div class="timeline-line"></div>
+                </div>
+                <div class="timeline-content">
+                    <div class="timeline-header">
+                        <h4>รับเครื่อง</h4>
+                        <span class="timeline-date">${claimDateStr}</span>
+                    </div>
+                    <p class="timeline-cost">ค่าใช้จ่าย: <strong>0 บาท</strong></p>
+                    ${claim.images && claim.images.length > 0 ? `
+                        <div class="timeline-images">
+                            ${claim.images.map(img => `<img src="${img}" alt="ภาพตอนรับเครื่อง" onclick="window.open('${img}', '_blank')">`).join('')}
+                        </div>
+                    ` : ''}
+                </div>
+            </div>
+        `;
+
+        // Subsequent updates from the updates array
+        if (claim.updates && claim.updates.length > 0) {
+            claim.updates.forEach(u => {
+                const dateStr = new Date(u.date).toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+                html += `
+                    <div class="timeline-item">
+                        <div class="timeline-marker">
+                            <div class="timeline-circle">${u.step}</div>
+                            <div class="timeline-line"></div>
+                        </div>
+                        <div class="timeline-content">
+                            <div class="timeline-header">
+                                <h4>${u.title || '-'}</h4>
+                                <span class="timeline-date">${dateStr}</span>
+                            </div>
+                            <p class="timeline-cost">ค่าใช้จ่าย: <strong>${(u.cost || 0).toLocaleString()} บาท</strong></p>
+                            ${u.images && u.images.length > 0 ? `
+                                <div class="timeline-images">
+                                    ${u.images.map(img => `<img src="${img}" alt="ภาพประกอบ" onclick="window.open('${img}', '_blank')">`).join('')}
+                                </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        timeline.innerHTML = html;
+    }
+
+    // Image preview for update images
+    const updateImagesInput = document.getElementById('updateImages');
+    if (updateImagesInput) {
+        updateImagesInput.addEventListener('change', function () {
+            const preview = document.getElementById('updateImagePreview');
+            if (!preview) return;
+            preview.innerHTML = '';
+            Array.from(this.files).forEach(file => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    preview.innerHTML += `<img src="${e.target.result}" style="width: 80px; height: 80px; object-fit: cover; border-radius: 8px; border: 2px solid #93c5fd;">`;
+                };
+                reader.readAsDataURL(file);
+            });
+        });
+    }
+
+    // Image preview for complete images
+    const completeImagesInput = document.getElementById('completeImages');
+    if (completeImagesInput) {
+        completeImagesInput.addEventListener('change', function () {
+            const preview = document.getElementById('completeImagePreview');
+            if (!preview) return;
+            preview.innerHTML = '';
+            Array.from(this.files).forEach(file => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    preview.innerHTML += `<img src="${e.target.result}" style="width: 80px; height: 80px; object-fit: cover; border-radius: 8px; border: 2px solid #86efac;">`;
+                };
+                reader.readAsDataURL(file);
+            });
+        });
+    }
+
+    // Submit status update
+    const submitUpdateBtn = document.getElementById('submitUpdateBtn');
+    if (submitUpdateBtn) {
+        submitUpdateBtn.addEventListener('click', async () => {
+            const claimId = document.getElementById('statusUpdateClaimId').value;
+            const title = document.getElementById('updateTitle').value.trim();
+            const cost = document.getElementById('updateCost').value || '0';
+            const imagesInput = document.getElementById('updateImages');
+
+            if (!title) {
+                showAlert('warning', 'กรุณาระบุรายละเอียดการอัปเดต');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('title', title);
+            formData.append('cost', cost);
+            if (imagesInput && imagesInput.files.length > 0) {
+                Array.from(imagesInput.files).forEach(file => {
+                    formData.append('images', file);
+                });
+            }
+
+            showLoader('กำลังบันทึกการอัปเดต...');
+            try {
+                const res = await fetch(`/api/claims/${claimId}/updates`, {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await res.json();
+                if (data.success) {
+                    showToast('success', 'บันทึกการอัปเดตสำเร็จ');
+                    // Re-open the modal to refresh data
+                    await openStatusUpdateModal(claimId);
+                } else {
+                    showAlert('error', data.message || 'ไม่สามารถบันทึกการอัปเดตได้');
+                }
+            } catch (err) {
+                console.error('Submit update error:', err);
+                showAlert('error', 'เกิดข้อผิดพลาดในการบันทึก');
+            } finally {
+                hideLoader();
+            }
+        });
+    }
+
+    // Complete claim (ลูกค้ามารับเครื่องแล้ว)
+    const completeClaimBtn = document.getElementById('completeClaimBtn');
+    if (completeClaimBtn) {
+        completeClaimBtn.addEventListener('click', async () => {
+            const claimId = document.getElementById('statusUpdateClaimId').value;
+            const confirmed = await showConfirm(
+                'ยืนยันการปิดงาน',
+                'คุณแน่ใจหรือไม่ว่าลูกค้ามารับเครื่องแล้ว? สถานะจะเปลี่ยนเป็น "รับเครื่องแล้ว" และไม่สามารถเปลี่ยนกลับได้',
+                '✅ ยืนยันปิดงาน',
+                'ยกเลิก'
+            );
+            if (!confirmed) return;
+
+            const formData = new FormData();
+            const imagesInput = document.getElementById('completeImages');
+            if (imagesInput && imagesInput.files.length > 0) {
+                Array.from(imagesInput.files).forEach(file => {
+                    formData.append('images', file);
+                });
+            }
+
+            showLoader('กำลังปิดงาน...');
+            try {
+                const res = await fetch(`/api/claims/${claimId}/complete`, {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await res.json();
+                if (data.success) {
+                    showAlert('success', 'ปิดงานสำเร็จ! สถานะเปลี่ยนเป็น "รับเครื่องแล้ว"');
+                    document.getElementById('statusUpdateModal').style.display = 'none';
+                    fetchPendingClaims(); // Refresh list
+                } else {
+                    showAlert('error', data.message || 'ไม่สามารถปิดงานได้');
+                }
+            } catch (err) {
+                console.error('Complete claim error:', err);
+                showAlert('error', 'เกิดข้อผิดพลาดในการปิดงาน');
+            } finally {
+                hideLoader();
+            }
+        });
+    }
+
+    // Close status update modal
+    const closeStatusUpdateModalBtn = document.getElementById('closeStatusUpdateModal');
+    if (closeStatusUpdateModalBtn) {
+        closeStatusUpdateModalBtn.addEventListener('click', () => {
+            document.getElementById('statusUpdateModal').style.display = 'none';
+        });
+    }
+
+    // Close claim history modal
+    const closeClaimHistoryModalBtn = document.getElementById('closeClaimHistoryModal');
+    if (closeClaimHistoryModalBtn) {
+        closeClaimHistoryModalBtn.addEventListener('click', () => {
+            document.getElementById('claimHistoryModal').style.display = 'none';
+        });
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // CLAIM HISTORY LOGIC
+    // ═══════════════════════════════════════════════════════════════════
+
+    window.openClaimHistoryModal = async function (warrantyId) {
+        showLoader('กำลังโหลดประวัติการเคลม...');
+        try {
+            const res = await fetch(`/api/claims/history/${warrantyId}`);
+            const claims = await res.json();
+            renderClaimHistory(claims);
+            document.getElementById('claimHistoryModal').style.display = 'flex';
+        } catch (err) {
+            console.error('Fetch claim history error:', err);
+            showAlert('error', 'ไม่สามารถโหลดประวัติการเคลมได้');
+        } finally {
+            hideLoader();
+        }
+    };
+
+    function renderClaimHistory(claims) {
+        const listContainer = document.getElementById('claimHistoryList');
+        const emptyState = document.getElementById('claimHistoryEmpty');
+
+        if (!claims || claims.length === 0) {
+            listContainer.style.display = 'none';
+            emptyState.style.display = 'block';
+            return;
+        }
+
+        listContainer.style.display = 'flex';
+        emptyState.style.display = 'none';
+
+        listContainer.innerHTML = claims.map(c => {
+            const totalCost = c.totalCost || 0;
+            const statusColor = c.status === 'รอเคลม' ? '#f59e0b' : '#10b981';
+            const statusText = c.status === 'รอเคลม' ? 'รอเคลม / กำลังซ่อม' : 'รับเครื่องแล้ว (เสร็จสิ้น)';
+
+            // Helper to generate image HTML
+            const generateImagesHtml = (images) => {
+                if (!images || images.length === 0) return '';
+                return `
+                    <div class="history-images">
+                        ${images.map(img => `<img src="${img}" onclick="window.open('${img}', '_blank')" alt="รูปประกอบ">`).join('')}
+                    </div>
+                `;
+            };
+
+            // Generate timeline HTML for history
+            let timelineHtml = `
+                <div class="history-timeline-item">
+                    <div class="history-dot"></div>
+                    <div class="history-content">
+                        <div style="flex: 1; display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: baseline;">
+                            <strong>รับเครื่อง</strong>
+                            <span class="history-date">${new Date(c.claimDate).toLocaleString('th-TH')}</span>
+                        </div>
+                        ${generateImagesHtml(c.images)}
+                    </div>
+                </div>
+            `;
+
+            if (c.updates && c.updates.length > 0) {
+                timelineHtml += c.updates.map(u => `
+                    <div class="history-timeline-item">
+                        <div class="history-dot"></div>
+                        <div class="history-content">
+                            <div style="display: flex; justify-content: space-between; width: 100%; align-items: baseline; flex-wrap: wrap; gap: 0.5rem;">
+                                <strong>${u.title}</strong>
+                                <span class="history-date">${new Date(u.date).toLocaleString('th-TH')}</span>
+                                ${u.cost > 0 ? `<div class="history-cost">+${u.cost.toLocaleString()} บาท</div>` : ''}
+                            </div>
+                            ${generateImagesHtml(u.images)}
+                        </div>
+                    </div>
+                `).join('');
+            }
+
+            return `
+                <div class="history-card">
+                    <div class="history-header">
+                        <div>
+                            <span style="font-weight: 700; color: var(--primary);">#${c.claimId}</span>
+                            <span style="font-size: 0.9rem; color: #64748b; margin-left: 8px;">${new Date(c.claimDate).toLocaleDateString('th-TH')}</span>
+                        </div>
+                        <span class="status-badge" style="background-color: ${statusColor}; color: white;">${statusText}</span>
+                    </div>
+                    <div class="history-body">
+                            <strong>อุปกรณ์:</strong> ${c.deviceModel} | <strong>สี:</strong> ${c.color || '-'}
+                        </div>
+                        <div style="margin-bottom: 0.5rem; font-size: 0.9rem; color: #64748b;">
+                            <strong>IMEI:</strong> ${c.imei || '-'} | <strong>Serial:</strong> ${c.serialNumber || '-'}
+                        </div>
+                        <div style="margin-bottom: 0.5rem;">
+                            <strong>อาการ:</strong> ${c.symptoms}
+                        </div>
+                        <div style="margin-bottom: 0.5rem;">
+                            <strong>การคืนเครื่อง:</strong> ${c.returnMethod === 'pickup' ? 'รับเองที่สาขา' : 'จัดส่งพัสดุ'}
+                        </div>
+                        
+                        <div class="history-timeline">
+                            ${timelineHtml}
+                        </div>
+
+                        <div class="history-footer">
+                            <span>ค่าใช้จ่ายรวมทั้งสิ้น</span>
+                            <span class="history-total">${totalCost.toLocaleString()} บาท</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // APPROVAL MENU LOGIC
+    // ═══════════════════════════════════════════════════════════════════
+
+    // --- State for Approval View ---
+    let approvalCurrentFilter = 'pending';
+    let approvalAllWarranties = [];
+    let approvalAutoRefreshInterval = null;
+    let approvalIsAutoRefreshPaused = false;
+    let approvalIsSilentFetching = false;
+
+    // --- Helper: Check if a SweetAlert modal is open ---
+    function isModalOpen() {
+        return Swal.isVisible();
+    }
+
+    // --- Helper: Extract sorted IDs ---
+    function getApprovalIdSet(warranties) {
+        return warranties.map(w => w._id).sort().join(',');
+    }
+
+    // --- Fetch Stats Counts (silent) ---
+    async function fetchApprovalCounts() {
+        try {
+            const [pendingRes, approvedRes, rejectedRes] = await Promise.all([
+                fetch('/api/warranties/pending?status=pending'),
+                fetch('/api/warranties/pending?status=approved'),
+                fetch('/api/warranties/pending?status=rejected')
+            ]);
+            const pending = await pendingRes.json();
+            const approved = await approvedRes.json();
+            const rejected = await rejectedRes.json();
+
+            if (document.getElementById('badgePending')) document.getElementById('badgePending').textContent = pending.length;
+            if (document.getElementById('badgeApproved')) document.getElementById('badgeApproved').textContent = approved.length;
+            if (document.getElementById('badgeRejected')) document.getElementById('badgeRejected').textContent = rejected.length;
+        } catch (err) {
+            console.error('Error fetching approval counts:', err);
+        }
+    }
+
+    // --- Full Fetch (with loader) ---
+    async function fetchApprovalWarranties(status) {
+        showLoader();
+        try {
+            const res = await fetch(`/api/warranties/pending?status=${status}`);
+            approvalAllWarranties = await res.json();
+            renderApprovalTable(approvalAllWarranties);
+            fetchApprovalCounts();
+        } catch (err) {
+            console.error('Error fetching approval warranties:', err);
+        } finally {
+            hideLoader();
+        }
+    }
+
+    // --- Silent Fetch (auto-refresh) ---
+    async function silentFetchApprovalWarranties() {
+        // Skip if already fetching, or if a modal is open, or paused
+        if (approvalIsSilentFetching || isModalOpen() || approvalIsAutoRefreshPaused) return;
+
+        approvalIsSilentFetching = true;
+        try {
+            const res = await fetch(`/api/warranties/pending?status=${approvalCurrentFilter}`);
+            const freshData = await res.json();
+
+            // Skip DOM update if modal opened while we were fetching
+            if (isModalOpen()) return;
+
+            const oldIds = getApprovalIdSet(approvalAllWarranties);
+            const newIds = getApprovalIdSet(freshData);
+
+            // Only update DOM if data has actually changed
+            if (oldIds !== newIds) {
+                // Find which IDs are new (not in previous set)
+                const previousIdSet = new Set(approvalAllWarranties.map(w => w._id));
+                const newItemIds = freshData.filter(w => !previousIdSet.has(w._id)).map(w => w._id);
+
+                approvalAllWarranties = freshData;
+                renderApprovalTable(approvalAllWarranties, newItemIds);
+            }
+
+            // Always silently refresh counts
+            fetchApprovalCounts();
+        } catch (err) {
+            console.error('Silent refresh error:', err);
+        } finally {
+            approvalIsSilentFetching = false;
+        }
+    }
+
+    // --- Render Table ---
+    function renderApprovalTable(records, highlightIds = []) {
+        const body = document.getElementById('approvalBody');
+        const empty = document.getElementById('approvalEmptyState');
+
+        if (!body) return; // Guard clause
+
+        if (records.length === 0) {
+            body.innerHTML = '';
+            if (empty) empty.style.display = 'block';
+            return;
+        }
+
+        if (empty) empty.style.display = 'none';
+        const highlightSet = new Set(highlightIds);
+
+        body.innerHTML = records.map(w => {
+            let st = { text: 'รออนุมัติ', class: 'pending' };
+            if (w.approvalStatus === 'approved') {
+                const isExpired = new Date(w.warrantyDates?.end) < new Date();
+                st = isExpired ? { text: 'หมดอายุ', class: 'expired' } : { text: 'ปกติ', class: 'active' };
+            } else if (w.approvalStatus === 'rejected') {
+                st = { text: 'ไม่อนุมัติ', class: 'rejected' };
+            }
+            const rowClass = highlightSet.has(w._id) ? ' class="new-row-highlight"' : '';
+
+            return `
+                <tr${rowClass}>
+                    <td data-label="เลขกรมธรรม์" style="font-weight: 600;">${w.policyNumber || '-'}</td>
+                    <td data-label="ชื่อลูกค้า">${w.customer?.firstName || ''} ${w.customer?.lastName || ''}</td>
+                    <td data-label="รุ่นอุปกรณ์">${w.device?.model || '-'}</td>
+                    <td data-label="แพ็กเกจ">${w.package?.plan || '-'} (${w.package?.price?.toLocaleString() || 0} บาท)</td>
+                    <td data-label="ร้านค้า">${w.shopName || '-'}</td>
+                    <td data-label="สถานะ"><span class="status-badge ${st.class}">${st.text}</span></td>
+                    <td data-label="ดำเนินการ">
+                        <div class="approval-actions">
+                            <button class="btn-view" onclick="viewApprovalDetails('${w._id}')">👁 ดูรายละเอียด</button>
+                            ${w.approvalStatus === 'pending' ? `
+                                <button class="btn-approve" onclick="approveWarranty('${w._id}')">✅ อนุมัติ</button>
+                                <button class="btn-reject" onclick="rejectWarranty('${w._id}')">❌ ไม่อนุมัติ</button>
+                            ` : ''}
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    }
+
+    // --- Actions ---
+    // Make functions globally available for inline onclick
+    window.viewApprovalDetails = function (id) {
+        console.log('viewApprovalDetails called with id:', id);
+        try {
+            const w = approvalAllWarranties.find(r => r._id === id);
+            if (!w) {
+                console.error('Warranty not found for id:', id);
+                alert('ไม่พบข้อมูลสัญญา (Warranty not found)');
+                return;
+            }
+
+            let st = { text: 'รออนุมัติ', class: 'pending' };
+            if (w.approvalStatus === 'approved') {
+                const isExpired = new Date(w.warrantyDates?.end) < new Date();
+                st = isExpired ? { text: 'หมดอายุ', class: 'expired' } : { text: 'ปกติ', class: 'active' };
+            } else if (w.approvalStatus === 'rejected') {
+                st = { text: 'ไม่อนุมัติ', class: 'rejected' };
+            }
+
+            if (typeof SwalTheme === 'undefined') {
+                alert('SwalTheme library is missing!');
+                return;
+            }
+
+            SwalTheme.fire({
+                title: `📋 สัญญา #${w.policyNumber}`,
+                html: `
+                    <div class="approval-detail-grid">
+                        <div class="approval-detail-item">
+                            <label>รหัสลูกค้า</label>
+                            <span>${w.customer?.id || '-'}</span>
+                        </div>
+                        <div class="approval-detail-item">
+                            <label>เลขบัตรประชาชน</label>
+                            <span>${w.customer?.citizenId || '-'}</span>
+                        </div>
+                        <div class="approval-detail-item">
+                            <label>ชื่อลูกค้า</label>
+                            <span>${w.customer?.firstName || ''} ${w.customer?.lastName || ''}</span>
+                        </div>
+                        <div class="approval-detail-item">
+                            <label>อายุ</label>
+                            <span>${w.customer?.age || ''}</span>
+                        </div>
+                        <div class="approval-detail-item">
+                            <label>เบอร์โทรศัพท์</label>
+                            <span>${w.customer?.phone || '-'}</span>
+                        </div>
+                        <div class="approval-detail-item">
+                            <label>ประเภทอุปกรณ์</label>
+                            <span>${w.device?.type || '-'}</span>
+                        </div>
+                        <div class="approval-detail-item">
+                            <label>รุ่น (Model)</label>
+                            <span>${w.device?.model || '-'}</span>
+                        </div>
+                        <div class="approval-detail-item">
+                            <label>สี</label>
+                            <span>${w.device?.color || '-'}</span>
+                        </div>
+                        <div class="approval-detail-item">
+                            <label>ความจุ</label>
+                            <span>${w.device?.capacity || '-'}</span>
+                        </div>
+                        <div class="approval-detail-item">
+                            <label>Serial Number</label>
+                            <span>${w.device?.serial || '-'}</span>
+                        </div>
+                        <div class="approval-detail-item">
+                            <label>IMEI</label>
+                            <span>${w.device?.imei || '-'}</span>
+                        </div>
+                        <div class="approval-detail-item">
+                            <label>มูลค่าเครื่อง</label>
+                            <span>${w.device?.deviceValue?.toLocaleString() || 0} บาท</span>
+                        </div>
+                        <div class="approval-detail-item">
+                            <label>แพ็กเกจ</label>
+                            <span>${w.package?.plan || '-'} (${w.package?.price?.toLocaleString() || 0} บาท)</span>
+                        </div>
+                        <div class="approval-detail-item">
+                            <label>วิธีชำระ</label>
+                            <span>${w.payment?.method || '-'}</span>
+                        </div>
+                        <div class="approval-detail-item">
+                            <label>ร้านค้า</label>
+                            <span>${w.shopName || '-'}</span>
+                        </div>
+                        <div class="approval-detail-item">
+                            <label>ผู้บันทึก</label>
+                            <span>${w.staffName || '-'}</span>
+                        </div>
+                        <div class="approval-detail-item">
+                            <label>สถานะ</label>
+                            <span class="status-badge ${st.class}">${st.text}</span>
+                        </div>
+                        ${w.approvalStatus === 'approved' ? `
+                        <div class="approval-detail-item">
+                            <label>ผู้อนุมัติ</label>
+                            <span>${w.approver || '-'}</span>
+                        </div>
+                        <div class="approval-detail-item">
+                            <label>วันที่อนุมัติ</label>
+                            <span>${w.approvalDate ? new Date(w.approvalDate).toLocaleString('th-TH') : '-'}</span>
+                        </div>
+                        ` : ''}
+                        ${w.approvalStatus === 'rejected' ? `
+                        <div class="approval-detail-item">
+                            <label>ผู้ไม่อนุมัติ</label>
+                            <span>${w.rejectBy || '-'}</span>
+                        </div>
+                        <div class="approval-detail-item">
+                            <label>วันที่ทำรายการ</label>
+                            <span>${w.rejectDate ? new Date(w.rejectDate).toLocaleString('th-TH') : '-'}</span>
+                        </div>
+                        <div class="approval-detail-item" style="grid-column: span 2;">
+                            <label>เหตุผลที่ไม่อนุมัติ</label>
+                            <span style="color: #ef4444;">${w.rejectReason || '-'}</span>
+                        </div>
+                        ` : ''}
+                    </div>
+                `,
+                width: 600,
+                showConfirmButton: true,
+                confirmButtonText: 'ปิด',
+            });
+        } catch (err) {
+            console.error('viewApprovalDetails error:', err);
+            alert('Error accessing details: ' + err.message);
+        }
+    };
+
+    window.approveWarranty = async function (id) {
+        console.log('approveWarranty called for id:', id);
+        try {
+            if (typeof SwalTheme === 'undefined') {
+                alert('SwalTheme library is missing!');
+                return;
+            }
+
+            const result = await SwalTheme.fire({
+                title: 'ยืนยันการอนุมัติ?',
+                text: 'คุณต้องการอนุมัติสัญญานี้หรือไม่?',
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonText: '✅ อนุมัติ',
+                cancelButtonText: 'ยกเลิก',
+            });
+
+            if (!result.isConfirmed) return;
+
+            // Use global currentUser
+            const approver = currentUser ? currentUser.staffName : 'Unknown';
+
+            showLoader('กำลังอนุมัติ...');
+            try {
+                const res = await fetch(`/api/warranties/${id}/approve`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ approver })
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    SwalTheme.fire({
+                        icon: 'success',
+                        title: 'อนุมัติสำเร็จ!',
+                        text: 'สัญญาได้รับการอนุมัติแล้ว',
+                        timer: 2000,
+                        showConfirmButton: false
+                    });
+                    fetchApprovalWarranties(approvalCurrentFilter);
+                } else {
+                    SwalTheme.fire('เกิดข้อผิดพลาด', data.message || 'ไม่สามารถอนุมัติได้', 'error');
+                }
+            } catch (err) {
+                console.error('Approve fetch error:', err);
+                SwalTheme.fire('เกิดข้อผิดพลาด', 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้: ' + err.message, 'error');
+            } finally {
+                hideLoader();
+            }
+        } catch (err) {
+            console.error('approveWarranty outer error:', err);
+            alert('Error in approveWarranty: ' + err.message);
+        }
+    };
+
+    window.rejectWarranty = async function (id) {
+        console.log('rejectWarranty called for id:', id);
+        try {
+            if (typeof SwalTheme === 'undefined') {
+                alert('SwalTheme library is missing!');
+                return;
+            }
+
+            const result = await SwalTheme.fire({
+                title: 'ยืนยันไม่อนุมัติ?',
+                text: 'กรุณาระบุเหตุผลที่ไม่อนุมัติสัญญา',
+                input: 'text',
+                inputPlaceholder: 'ระบุเหตุผล...',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: '❌ ไม่อนุมัติ',
+                cancelButtonText: 'ยกเลิก',
+                confirmButtonColor: '#ef4444',
+                inputValidator: (value) => {
+                    if (!value) {
+                        return 'กรุณาระบุเหตุผล!';
+                    }
+                }
+            });
+
+            if (!result.isConfirmed) return;
+
+            const reason = result.value;
+            // Use global currentUser
+            const rejectBy = currentUser ? currentUser.staffName : 'Unknown';
+
+            showLoader('กำลังดำเนินการ...');
+            try {
+                const res = await fetch(`/api/warranties/${id}/reject`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ reason, rejectBy })
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    SwalTheme.fire({
+                        icon: 'info',
+                        title: 'ไม่อนุมัติสัญญา',
+                        text: 'สัญญาถูกปฏิเสธเรียบร้อยแล้ว',
+                        timer: 2000,
+                        showConfirmButton: false
+                    });
+                    fetchApprovalWarranties(approvalCurrentFilter);
+                } else {
+                    SwalTheme.fire('เกิดข้อผิดพลาด', data.message || 'ไม่สามารถดำเนินการได้', 'error');
+                }
+            } catch (err) {
+                console.error('Reject fetch error:', err);
+                SwalTheme.fire('เกิดข้อผิดพลาด', 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้: ' + err.message, 'error');
+            } finally {
+                hideLoader();
+            }
+        } catch (err) {
+            console.error('rejectWarranty outer error:', err);
+            alert('Error in rejectWarranty: ' + err.message);
+        }
+    };
+
+    // --- Filter Tab Listeners ---
+    document.querySelectorAll('.approval-tab-btn').forEach(btn => {
+        if (!btn) return;
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.approval-tab-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            approvalCurrentFilter = btn.dataset.status;
+            fetchApprovalWarranties(approvalCurrentFilter);
+        });
+    });
+
+    // ====== AUTO-REFRESH LOGIC ======
+    const approvalLiveIndicator = document.getElementById('approvalLiveIndicator');
+    const approvalLiveText = document.getElementById('approvalLiveText');
+    const btnApprovalToggleRefresh = document.getElementById('btnApprovalToggleRefresh');
+
+    function startApprovalAutoRefresh() {
+        stopApprovalAutoRefresh(); // clear any existing interval
+        approvalIsAutoRefreshPaused = false;
+
+        // Initial silent fetch
+        silentFetchApprovalWarranties();
+
+        approvalAutoRefreshInterval = setInterval(silentFetchApprovalWarranties, 5000); // 5 seconds
+
+        if (approvalLiveIndicator) approvalLiveIndicator.classList.remove('paused');
+        if (approvalLiveText) approvalLiveText.textContent = 'Live Update';
+        if (btnApprovalToggleRefresh) {
+            btnApprovalToggleRefresh.classList.remove('active');
+            btnApprovalToggleRefresh.innerHTML = '⏸ หยุดชั่วคราว';
+        }
+    }
+
+    function stopApprovalAutoRefresh() {
+        if (approvalAutoRefreshInterval) {
+            clearInterval(approvalAutoRefreshInterval);
+            approvalAutoRefreshInterval = null;
+        }
+
+        if (approvalLiveIndicator) approvalLiveIndicator.classList.add('paused');
+        if (approvalLiveText) approvalLiveText.textContent = 'Paused';
+    }
+
+    if (btnApprovalToggleRefresh) {
+        btnApprovalToggleRefresh.addEventListener('click', () => {
+            if (approvalIsAutoRefreshPaused) {
+                // Resume
+                startApprovalAutoRefresh();
+            } else {
+                // Pause
+                approvalIsAutoRefreshPaused = true;
+                stopApprovalAutoRefresh();
+
+                if (btnApprovalToggleRefresh) {
+                    btnApprovalToggleRefresh.classList.add('active');
+                    btnApprovalToggleRefresh.innerHTML = '▶ เริ่มใหม่';
+                }
+            }
         });
     }
 

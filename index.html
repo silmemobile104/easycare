@@ -14,6 +14,296 @@
         rel="stylesheet">
     <!-- SweetAlert2 -->
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+    <!-- ===== Claim Receipt Styles (embedded, used only when printing claim receipt) ===== -->
+    <style id="claimReceiptStyles">
+        /* These styles are scoped to #claimReceiptView and the @media print block */
+        #claimReceiptView {
+            display: none;
+            font-family: 'Angsana New', 'TH Sarabun New', 'Sarabun', sans-serif;
+            font-size: 18px;
+            background-color: #f0f0f0;
+            min-height: 100vh;
+            padding: 0;
+            margin: 0;
+        }
+
+        #claimReceiptView .cr-page {
+            width: 210mm;
+            min-height: 297mm;
+            padding: 10mm 15mm;
+            margin: 5mm auto;
+            background: white;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            box-sizing: border-box;
+        }
+
+        #claimReceiptView .cr-page-content {
+            flex-grow: 1;
+        }
+
+        #claimReceiptView .cr-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 15px;
+        }
+
+        #claimReceiptView .cr-logo-section {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        #claimReceiptView .cr-company-name {
+            text-align: center;
+            flex-grow: 1;
+        }
+
+        #claimReceiptView .cr-company-name h1 {
+            margin: 0;
+            font-size: 26px;
+            font-weight: bold;
+        }
+
+        #claimReceiptView .cr-company-name h2 {
+            margin: 5px 0;
+            font-size: 22px;
+            font-weight: normal;
+        }
+
+        #claimReceiptView .cr-date-section {
+            text-align: right;
+            padding-top: 40px;
+        }
+
+        #claimReceiptView .cr-form-container {
+            border: 1.5px solid #000;
+            width: 100%;
+        }
+
+        #claimReceiptView .cr-row {
+            display: flex;
+            border-bottom: 1px solid #000;
+            box-sizing: border-box;
+        }
+
+        #claimReceiptView .cr-row:last-child {
+            border-bottom: none;
+        }
+
+        #claimReceiptView .cr-col {
+            padding: 8px 10px;
+            border-right: 1px solid #000;
+            box-sizing: border-box;
+        }
+
+        #claimReceiptView .cr-col:last-child {
+            border-right: none;
+        }
+
+        #claimReceiptView .cr-section-title {
+            font-weight: bold;
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        #claimReceiptView .cr-section-header-row {
+            background-color: #f9f9f9;
+        }
+
+        #claimReceiptView .cr-w-25 {
+            width: 25%;
+        }
+
+        #claimReceiptView .cr-w-30 {
+            width: 30%;
+        }
+
+        #claimReceiptView .cr-w-33 {
+            width: 33.33%;
+        }
+
+        #claimReceiptView .cr-w-40 {
+            width: 40%;
+        }
+
+        #claimReceiptView .cr-w-50 {
+            width: 50%;
+        }
+
+        #claimReceiptView .cr-w-60 {
+            width: 60%;
+        }
+
+        #claimReceiptView .cr-w-70 {
+            width: 70%;
+        }
+
+        #claimReceiptView .cr-w-100 {
+            width: 100%;
+        }
+
+        #claimReceiptView .cr-field {
+            margin-bottom: 6px;
+            display: flex;
+            align-items: baseline;
+        }
+
+        #claimReceiptView .cr-label {
+            margin-right: 5px;
+        }
+
+        #claimReceiptView .cr-dotted-line {
+            border-bottom: 1px dotted #000;
+            display: inline-block;
+            min-height: 1.2em;
+            padding: 0 5px;
+            flex: 1;
+        }
+
+        #claimReceiptView .cr-signature-section {
+            margin-top: 20px;
+            display: flex;
+            justify-content: space-around;
+            text-align: center;
+            border-top: 1px solid #eee;
+            padding-top: 15px;
+        }
+
+        #claimReceiptView .cr-sig-block {
+            width: 30%;
+        }
+
+        #claimReceiptView .cr-sig-line {
+            border-bottom: 1px dotted #000;
+            margin-bottom: 5px;
+            padding-top: 50px;
+            min-height: 70px;
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+        }
+
+        #claimReceiptView .cr-signature-img {
+            max-height: 60px;
+            max-width: 90%;
+            object-fit: contain;
+        }
+
+        #claimReceiptView .cr-sig-name {
+            margin-top: 5px;
+            font-size: 16px;
+        }
+
+        #claimReceiptView .cr-terms-list {
+            list-style: none;
+            counter-reset: terms-counter;
+            font-size: 15px;
+            line-height: 1.6;
+            margin: 10px 0;
+            padding-left: 0;
+        }
+
+        #claimReceiptView .cr-terms-list li {
+            counter-increment: terms-counter;
+            margin-bottom: 6px;
+            padding-left: 25px;
+            position: relative;
+        }
+
+        #claimReceiptView .cr-terms-list li::before {
+            content: counter(terms-counter) ".";
+            position: absolute;
+            left: 0;
+            font-weight: bold;
+        }
+
+        #claimReceiptView .cr-images-grid {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 10px;
+        }
+
+        #claimReceiptView .cr-images-grid img {
+            height: 80px;
+            width: 80px;
+            object-fit: cover;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        #claimReceiptView .cr-print-buttons {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            display: flex;
+            gap: 10px;
+            z-index: 1000;
+        }
+
+        #claimReceiptView .cr-print-button {
+            background: #1e40af;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        #claimReceiptView .cr-print-button:hover {
+            background: #1e3a8a;
+        }
+
+        #claimReceiptView .cr-close-button {
+            background: #64748b;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 16px;
+        }
+
+        #claimReceiptView .cr-close-button:hover {
+            background: #475569;
+        }
+
+        /* ===== Print styles: when printing, hide app and show only receipt ===== */
+        @media print {
+
+            /* Hide everything except the receipt */
+            body>*:not(#claimReceiptView) {
+                display: none !important;
+            }
+
+            #claimReceiptView {
+                display: block !important;
+                background: none;
+                padding: 0;
+            }
+
+            #claimReceiptView .cr-print-buttons {
+                display: none !important;
+            }
+
+            #claimReceiptView .cr-page {
+                margin: 0;
+                box-shadow: none;
+                page-break-after: always;
+            }
+        }
+    </style>
 </head>
 
 <body>
@@ -123,7 +413,7 @@
                     </svg>
                 </button>
                 <div class="mobile-logo-text">Easy<span>Care</span></div>
-                <div style="width: 40px;"></div> <!-- Spacer -->
+                <div style="width: 40px;"></div>
             </div>
 
             <div class="dashboard-container">
@@ -168,7 +458,14 @@
                             </svg>
                             แจ้งเคลม
                         </a>
-                        <a href="approval.html" id="approvalNavLink">
+                        <a href="#" id="statusTrackingNavLink">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+                            </svg>
+                            ติดตามสถานะ
+                        </a>
+                        <a href="#" id="approvalNavLink">
                             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                 <path d="M9 11l3 3L22 4"></path>
@@ -303,6 +600,7 @@
                                     <th>รุ่นอุปกรณ์</th>
                                     <th>แพ็กเกจ</th>
                                     <th>ประกันคงเหลือ</th>
+                                    <th>วงเงินคงเหลือ</th>
                                     <th>ร้านค้า</th>
                                     <th>ผู้บันทึก</th>
                                     <th>สถานะ</th>
@@ -418,6 +716,88 @@
                         </table>
                         <div id="claimsEmptyState" class="empty-state" style="display: none;">
                             <p>ไม่มีกรมธรรม์ที่มีสถานะปกติในขณะนี้</p>
+                        </div>
+                    </div>
+                </main>
+
+                <!-- Status Tracking Main Content -->
+                <main id="statusTrackingMain" class="main-content" style="display: none;">
+                    <header class="dashboard-header">
+                        <div class="header-titles">
+                            <h1>ติดตามสถานะการซ่อม</h1>
+                            <p>รายการเคลมที่อยู่ระหว่างดำเนินการ (สถานะ: รอเคลม)</p>
+                        </div>
+                    </header>
+
+                    <div class="table-container">
+                        <table id="statusTrackingTable">
+                            <thead>
+                                <tr>
+                                    <th>รหัสเคลม</th>
+                                    <th>วันที่แจ้งเคลม</th>
+                                    <th>ชื่อลูกค้า</th>
+                                    <th>เบอร์โทรศัพท์</th>
+                                    <th>อุปกรณ์</th>
+                                    <th>สถานะ</th>
+                                    <th>จัดการ</th>
+                                </tr>
+                            </thead>
+                            <tbody id="statusTrackingBody"></tbody>
+                        </table>
+                        <div id="statusTrackingEmptyState" class="empty-state" style="display: none;">
+                            <p>ไม่มีรายการเคลมที่อยู่ระหว่างดำเนินการ</p>
+                        </div>
+                    </div>
+                </main>
+
+                <!-- Approval Main Content -->
+                <main id="approvalMain" class="main-content" style="display: none;">
+                    <header class="dashboard-header">
+                        <div class="header-titles">
+                            <h1>อนุมัติสัญญาประกัน</h1>
+                            <p>ตรวจสอบและอนุมัติ/ไม่อนุมัติสัญญาประกันภัยใหม่</p>
+                        </div>
+                    </header>
+
+                    <!-- Filter Tabs -->
+                    <div class="approval-filter-tabs">
+                        <button class="approval-tab-btn active" data-status="pending">⏳ รออนุมัติ <span class="badge"
+                                id="badgePending">0</span></button>
+                        <button class="approval-tab-btn" data-status="approved">✅ อนุมัติแล้ว <span class="badge"
+                                id="badgeApproved">0</span></button>
+                        <button class="approval-tab-btn" data-status="rejected">❌ ไม่อนุมัติ <span class="badge"
+                                id="badgeRejected">0</span></button>
+                    </div>
+
+                    <!-- Live Update Bar -->
+                    <div class="approval-header-bar">
+                        <div id="approvalLiveIndicator" class="live-indicator">
+                            <span class="live-dot"></span>
+                            <span id="approvalLiveText">Live Update</span>
+                        </div>
+                        <button id="btnApprovalToggleRefresh" class="btn-toggle-refresh"
+                            title="หยุด/เริ่ม Auto-Refresh">
+                            ⏸ หยุดชั่วคราว
+                        </button>
+                    </div>
+
+                    <div class="table-container">
+                        <table id="approvalTable">
+                            <thead>
+                                <tr>
+                                    <th>เลขกรมธรรม์</th>
+                                    <th>ชื่อลูกค้า</th>
+                                    <th>รุ่นอุปกรณ์</th>
+                                    <th>แพ็กเกจ</th>
+                                    <th>ร้านค้า</th>
+                                    <th>สถานะ</th>
+                                    <th>ดำเนินการ</th>
+                                </tr>
+                            </thead>
+                            <tbody id="approvalBody"></tbody>
+                        </table>
+                        <div id="approvalEmptyState" class="empty-state" style="display: none;">
+                            <p>ไม่พบรายการสัญญาในหมวดนี้</p>
                         </div>
                     </div>
                 </main>
@@ -541,8 +921,6 @@
                                 <option value="ทะเลทราย">ทะเลทราย (Desert)</option>
                                 <option value="ไทเทเนียมทะเลทราย">ไทเทเนียมทะเลทราย (Desert Titanium)</option>
                                 <option value="ไวท์ไทเทเนียม">ไวท์ไทเทเนียม (White Titanium)</option>
-
-
                             </select>
                         </div>
                         <div class="form-group">
@@ -631,8 +1009,7 @@
                         </div>
                     </div>
 
-                    <div id="initialPaymentCheck" class="form-group" style="margin-top: 1rem;">
-                    </div>
+                    <div id="initialPaymentCheck" class="form-group" style="margin-top: 1rem;"></div>
 
                     <div id="installmentContainer" class="installment-preview" style="display: none;">
                         <h3>รายละเอียดการผ่อนชำระ</h3>
@@ -716,7 +1093,7 @@
         </div>
     </div>
 
-    </div>
+    <!-- =================== MODALS =================== -->
 
     <!-- Success Modal -->
     <div id="successModal" class="modal">
@@ -893,7 +1270,6 @@
                             class="readonly-field"></div>
                     <div class="form-group"><label>วันหมดอายุ</label><input type="date" id="memberExpiryDate" readonly
                             class="readonly-field"></div>
-
                     <div class="form-group full-width">
                         <label>ที่อยู่ตามหน้าบัตร (ID Card Address)</label>
                         <textarea id="memberIdCardAddress" rows="3" readonly class="readonly-field"></textarea>
@@ -917,6 +1293,7 @@
         </div>
     </div>
 
+    <!-- Shop Modal -->
     <div id="shopModal" class="modal">
         <div class="modal-content" style="max-width: 500px;">
             <h2 id="shopModalTitle">เพิ่มข้อมูลร้านค้า</h2>
@@ -961,6 +1338,8 @@
                             readonly class="readonly-field"></div>
                     <div class="form-group"><label>รุ่นอุปกรณ์</label><input type="text" id="claimDeviceModel" readonly
                             class="readonly-field"></div>
+                    <div class="form-group"><label>สี</label><input type="text" id="claimColor" readonly
+                            class="readonly-field"></div>
                     <div class="form-group"><label>Serial Number</label><input type="text" id="claimSerial" readonly
                             class="readonly-field"></div>
                     <div class="form-group"><label>IMEI</label><input type="text" id="claimIMEI" readonly
@@ -993,6 +1372,90 @@
                         <div class="form-group">
                             <label>ผู้ทำรายการ</label>
                             <input type="text" id="claimStaffName" readonly class="readonly-field">
+                        </div>
+                    </div>
+
+                    <!-- Pre-repair Inspection Checklist -->
+                    <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px dashed #cbd5e1;">
+                        <label style="font-weight: 600; color: #92400e; margin-bottom: 0.5rem; display: block;">
+                            🛠️ ตรวจสอบสภาพเครื่องก่อนรับ (Device Condition Checklist)
+                        </label>
+                        <style>
+                            .checklist-grid-custom {
+                                display: grid;
+                                grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+                                gap: 0.75rem;
+                                margin-top: 0.5rem;
+                            }
+
+                            .checklist-item-custom {
+                                display: flex;
+                                align-items: center;
+                                padding: 0.75rem 1rem;
+                                background: #f8fafc;
+                                border: 1px solid #e2e8f0;
+                                border-radius: 10px;
+                                cursor: pointer;
+                                transition: all 0.2s ease;
+                                font-size: 0.95rem;
+                                color: #334155;
+                                user-select: none;
+                            }
+
+                            .checklist-item-custom:hover {
+                                background: #ffffff;
+                                border-color: #0891b2;
+                                box-shadow: 0 4px 12px rgba(8, 145, 178, 0.15);
+                                transform: translateY(-2px);
+                                color: #0e7490;
+                            }
+
+                            .checklist-item-custom input[type="checkbox"] {
+                                width: 1.25em;
+                                height: 1.25em;
+                                margin-right: 0.75rem;
+                                accent-color: #0891b2;
+                                cursor: pointer;
+                                transition: transform 0.2s ease;
+                            }
+
+                            .checklist-item-custom:hover input[type="checkbox"] {
+                                transform: scale(1.1);
+                            }
+                        </style>
+                        <div class="checklist-grid-custom">
+                            <label class="checklist-item-custom"><input type="checkbox" name="deviceCondition"
+                                    value="exterior"> ตัวเครื่องภายนอก</label>
+                            <label class="checklist-item-custom"><input type="checkbox" name="deviceCondition"
+                                    value="screen"> หน้าจอ</label>
+                            <label class="checklist-item-custom"><input type="checkbox" name="deviceCondition"
+                                    value="assembly"> การประกอบ</label>
+                            <label class="checklist-item-custom"><input type="checkbox" name="deviceCondition"
+                                    value="appleLogo"> โลโก้ Apple</label>
+                            <label class="checklist-item-custom"><input type="checkbox" name="deviceCondition"
+                                    value="buttons"> ปุ่มต่างๆ</label>
+                            <label class="checklist-item-custom"><input type="checkbox" name="deviceCondition"
+                                    value="chargingPort"> พอร์ตชาร์จ</label>
+                            <label class="checklist-item-custom"><input type="checkbox" name="deviceCondition"
+                                    value="simTray"> ช่องใส่ซิม</label>
+                            <label class="checklist-item-custom"><input type="checkbox" name="deviceCondition"
+                                    value="imeiMatch"> IMEI ตรงกัน</label>
+                            <label class="checklist-item-custom"><input type="checkbox" name="deviceCondition"
+                                    value="modelMatch"> Model เครื่อง</label>
+                            <label class="checklist-item-custom"><input type="checkbox" name="deviceCondition"
+                                    value="screenTouch"> หน้าจอ/ทัชสกรีน</label>
+                            <label class="checklist-item-custom"><input type="checkbox" name="deviceCondition"
+                                    value="faceIdTouchId"> Face ID / Touch ID</label>
+                            <label class="checklist-item-custom"><input type="checkbox" name="deviceCondition"
+                                    value="cameras"> กล้องหน้า/กล้องหลัง</label>
+                            <label class="checklist-item-custom"><input type="checkbox" name="deviceCondition"
+                                    value="speakerMic"> ลำโพง/ไมค์</label>
+                            <label class="checklist-item-custom"><input type="checkbox" name="deviceCondition"
+                                    value="connectivity"> การเชื่อมต่อ</label>
+                            <label class="checklist-item-custom"><input type="checkbox" name="deviceCondition"
+                                    value="battery"> แบตเตอรี่</label>
+                            <label class="checklist-item-custom"><input type="checkbox" name="deviceCondition"
+                                    value="warrantyVoid"> ประกัน/วอยด์</label>
                         </div>
                     </div>
 
@@ -1067,6 +1530,14 @@
                     <div><strong>รุ่นอุปกรณ์:</strong> <span id="contractDeviceModel">-</span></div>
                     <div><strong>ผู้ทำรายการ:</strong> <span id="contractStaffName">-</span></div>
                     <div style="grid-column: 1 / -1;"><strong>อาการ:</strong> <span id="contractSymptoms">-</span></div>
+                    <div
+                        style="grid-column: 1 / -1; margin-top: 10px; padding-top: 10px; border-top: 1px dashed #e2e8f0;">
+                        <strong>สภาพเครื่องก่อนรับ (Device Condition):</strong>
+                        <div id="contractConditionGrid"
+                            style="display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 5px; margin-top: 5px; font-size: 0.85rem;">
+                            <!-- Checkbox items will be populated by script -->
+                        </div>
+                    </div>
                     <div><strong>การคืนเครื่อง:</strong> <span id="contractReturnMethod">-</span></div>
                     <div id="contractBranchRow" style="display: none;"><strong>สาขา:</strong> <span
                             id="contractPickupBranch">-</span></div>
@@ -1089,7 +1560,456 @@
         </div>
     </div>
 
+    <!-- Status Update Modal -->
+    <div id="statusUpdateModal" class="modal">
+        <div class="modal-content" style="max-width: 900px; max-height: 95vh; overflow-y: auto;">
+            <h2 style="margin-bottom: 1.5rem; color: var(--primary);">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                    stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; margin-right: 8px;">
+                    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+                </svg>
+                ติดตามสถานะการซ่อม
+            </h2>
+
+            <!-- Claim Info Bar -->
+            <div id="statusClaimInfo"
+                style="background: #f1f5f9; border-radius: 12px; padding: 1rem 1.5rem; margin-bottom: 1.5rem; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.5rem; font-size: 0.9rem;">
+            </div>
+
+            <!-- Timeline Section -->
+            <div id="statusTimeline" class="status-timeline"></div>
+
+            <!-- Cost Summary -->
+            <div id="statusCostSummary" class="status-cost-summary">
+                <span>สรุปยอดการซ่อมครั้งนี้ทั้งหมด:</span>
+                <span id="statusTotalCost" style="font-size: 1.4rem; font-weight: 700;">0 บาท</span>
+            </div>
+
+            <!-- Update Form -->
+            <div
+                style="background: linear-gradient(135deg, #eff6ff, #dbeafe); border-radius: 12px; padding: 1.5rem; margin-top: 1.5rem;">
+                <h3 style="margin-bottom: 1rem; font-size: 1rem; color: #1e40af;">📝 เพิ่มการอัปเดตใหม่</h3>
+                <div class="grid-row" style="gap: 0.75rem;">
+                    <div class="form-group">
+                        <label>รายละเอียดการอัปเดต *</label>
+                        <input type="text" id="updateTitle" placeholder="เช่น ส่งเครื่องไปศูนย์, ซ่อมเครื่อง, ทดสอบ"
+                            required>
+                    </div>
+                    <div class="form-group">
+                        <label>ค่าใช้จ่าย (บาท)</label>
+                        <input type="number" id="updateCost" placeholder="0" min="0" value="0">
+                    </div>
+                </div>
+                <div class="form-group full-width" style="margin-top: 0.75rem;">
+                    <label>อัพโหลดรูปภาพประกอบ (รองรับหลายรูป)</label>
+                    <input type="file" id="updateImages" accept="image/*" multiple
+                        style="padding: 0.75rem; border: 2px dashed #93c5fd; border-radius: 8px; width: 100%; cursor: pointer; background: #eff6ff;">
+                    <div id="updateImagePreview" style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px;">
+                    </div>
+                </div>
+                <input type="hidden" id="statusUpdateClaimId">
+                <button type="button" id="submitUpdateBtn" class="submit-btn full-width"
+                    style="margin-top: 1rem; background: linear-gradient(135deg, #3b82f6, #2563eb);">
+                    💾 บันทึกการอัปเดต
+                </button>
+            </div>
+
+            <!-- Complete Section -->
+            <div
+                style="background: linear-gradient(135deg, #f0fdf4, #dcfce7); border: 2px solid #86efac; border-radius: 12px; padding: 1.5rem; margin-top: 1.5rem;">
+                <h3 style="margin-bottom: 0.75rem; font-size: 1rem; color: #166534;">✅ ปิดงาน — ลูกค้ามารับเครื่องแล้ว
+                </h3>
+                <p style="color: #15803d; font-size: 0.85rem; margin-bottom: 1rem;">อัพโหลดรูปภาพวันรับเครื่อง (ถ้ามี)
+                    แล้วกดยืนยันเพื่อปิดงานนี้</p>
+                <div class="form-group full-width">
+                    <input type="file" id="completeImages" accept="image/*" multiple
+                        style="padding: 0.75rem; border: 2px dashed #86efac; border-radius: 8px; width: 100%; cursor: pointer; background: #f0fdf4;">
+                    <div id="completeImagePreview" style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px;">
+                    </div>
+                </div>
+                <button type="button" id="completeClaimBtn" class="submit-btn full-width"
+                    style="margin-top: 1rem; background: linear-gradient(135deg, #22c55e, #16a34a); font-size: 1.1rem; padding: 1rem;">
+                    🎉 ลูกค้ามารับเครื่องแล้ว — ปิดงาน
+                </button>
+            </div>
+
+            <!-- Close Button -->
+            <div style="display: flex; gap: 10px; justify-content: center; margin-top: 1.5rem;">
+                <button type="button" id="closeStatusUpdateModal" class="btn-cancel">✕ ปิด</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Claim History Modal -->
+    <div id="claimHistoryModal" class="modal">
+        <div class="modal-content" style="max-width: 800px; max-height: 90vh; overflow-y: auto;">
+            <h2 style="margin-bottom: 1.5rem; color: var(--primary);">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                    stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; margin-right: 8px;">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                    <polyline points="14 2 14 8 20 8"></polyline>
+                    <line x1="16" y1="13" x2="8" y2="13"></line>
+                    <line x1="16" y1="17" x2="8" y2="17"></line>
+                    <polyline points="10 9 9 9 8 9"></polyline>
+                </svg>
+                ประวัติการเคลม
+            </h2>
+            <div id="claimHistoryList" style="display: flex; flex-direction: column; gap: 1rem;"></div>
+            <div id="claimHistoryEmpty" class="empty-state" style="display: none; padding: 2rem;">
+                <p>ไม่พบประวัติการเคลมสำหรับรายการนี้</p>
+            </div>
+            <div style="display: flex; justify-content: center; margin-top: 1.5rem;">
+                <button type="button" id="closeClaimHistoryModal" class="btn-cancel"
+                    style="width: auto; min-width: 120px;">✕ ปิด</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- =================== CLAIM RECEIPT VIEW (in-page, shown when printing) =================== -->
+    <!--
+        แทนที่การเปิดหน้าต่างใหม่ (window.open) ส่วนนี้จะแสดงผลภายในหน้าเดิม
+        และซ่อน UI หลักเมื่อมีการพิมพ์ผ่าน @media print
+        เรียกใช้งานผ่าน window.showClaimReceipt(claimData) จาก script.js
+    -->
+    <div id="claimReceiptView">
+        <!-- Print Buttons (hidden on print) -->
+        <div class="cr-print-buttons">
+            <button onclick="window.printClaimReceipt()" class="cr-print-button">
+                <svg style="width:20px;height:20px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z">
+                    </path>
+                </svg>
+                พิมพ์เอกสาร
+            </button>
+            <button onclick="window.closeClaimReceipt()" class="cr-close-button">ปิดหน้าต่าง</button>
+        </div>
+
+        <div class="cr-page">
+            <div class="cr-page-content">
+                <!-- Header -->
+                <div class="cr-header">
+                    <div class="cr-logo-section">
+                        <img src="logo_easycare.png" alt="Easy Care Logo" style="height:20px;object-fit:contain;">
+                    </div>
+                    <div class="cr-company-name">
+                        <h1>อีซี่แคร์</h1>
+                        <h2>Easy Care</h2>
+                    </div>
+                    <div class="cr-date-section">
+                        วันที่ <span id="cr_claimDate">.....................................................</span>
+                    </div>
+                </div>
+
+                <div style="text-align:center;margin-bottom:10px;">
+                    <strong style="font-size:20px;">เอกสารรับเครื่องเคลม (Claim Receipt)</strong>
+                </div>
+
+                <div class="cr-form-container">
+                    <!-- Document Info Row -->
+                    <div class="cr-row">
+                        <div class="cr-col cr-w-40">
+                            <span class="cr-label">เลขที่สมาชิก</span>
+                            <span id="cr_memberId" class="cr-dotted-line" style="width:150px;"></span>
+                        </div>
+                        <div class="cr-col cr-w-60">
+                            <span class="cr-label" style="font-weight:bold;">เลขที่เคลม</span>
+                            <span id="cr_claimId" style="font-weight:bold;font-size:22px;margin-left:10px;"></span>
+                        </div>
+                    </div>
+
+                    <!-- 1. Customer & Policy Information -->
+                    <div class="cr-row cr-section-header-row">
+                        <div class="cr-col cr-w-100">
+                            <span class="cr-section-title">1. ข้อมูลกรมธรรม์และลูกค้า (Customer & Policy
+                                Information)</span>
+                        </div>
+                    </div>
+                    <div class="cr-row">
+                        <div class="cr-col cr-w-60" style="border-right:1.5px solid #000;">
+                            <div class="cr-field">
+                                <span class="cr-label">ชื่อลูกค้า</span>
+                                <span id="cr_customerName" class="cr-dotted-line" style="width:200px;"></span>
+                            </div>
+                            <div class="cr-field">
+                                <span class="cr-label">เบอร์โทรศัพท์</span>
+                                <span id="cr_customerPhone" class="cr-dotted-line" style="width:150px;"></span>
+                            </div>
+                            <div class="cr-field">
+                                <span class="cr-label">เลขกรมธรรม์</span>
+                                <span id="cr_policyNumber" class="cr-dotted-line" style="width:180px;"></span>
+                            </div>
+                        </div>
+                        <div class="cr-col cr-w-40">
+                            <span class="cr-section-title">สถานที่ตั้งบริษัท</span>
+                            <div style="padding:5px;line-height:1.4;font-size:16px;">
+                                62 ถนนพิพิธภักดี ตำบลสะเตง<br>
+                                อำเภอเมืองยะลา จังหวัดยะลา
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 2. Device Information -->
+                    <div class="cr-row cr-section-header-row">
+                        <div class="cr-col cr-w-100">
+                            <span class="cr-section-title">2. ข้อมูลอุปกรณ์ (Device Information)</span>
+                        </div>
+                    </div>
+                    <div class="cr-row">
+                        <div class="cr-col cr-w-100">
+                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:15px;">
+                                <div>
+                                    <div class="cr-field">
+                                        <span class="cr-label">รุ่นอุปกรณ์</span>
+                                        <span id="cr_deviceModel" class="cr-dotted-line" style="width:180px;"></span>
+                                    </div>
+                                    <div class="cr-field">
+                                        <span class="cr-label">Serial Number</span>
+                                        <span id="cr_deviceSerial" class="cr-dotted-line" style="width:150px;"></span>
+                                    </div>
+                                </div>
+                                <div>
+                                    <div class="cr-field">
+                                        <span class="cr-label">สี</span>
+                                        <span id="cr_deviceColor" class="cr-dotted-line" style="width:100px;"></span>
+                                        <span class="cr-label" style="margin-left:15px;">ความจุ</span>
+                                        <span id="cr_deviceCapacity" class="cr-dotted-line" style="width:80px;"></span>
+                                    </div>
+                                    <div class="cr-field">
+                                        <span class="cr-label">IMEI</span>
+                                        <span id="cr_deviceIMEI" class="cr-dotted-line" style="width:200px;"></span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 3. Claim Details -->
+                    <div class="cr-row cr-section-header-row">
+                        <div class="cr-col cr-w-100">
+                            <span class="cr-section-title">3. รายละเอียดการเคลม (Claim Details)</span>
+                        </div>
+                    </div>
+                    <div class="cr-row">
+                        <div class="cr-col cr-w-100">
+                            <div style="margin-bottom:10px;">
+                                <span class="cr-label" style="font-weight:bold;">อาการที่แจ้ง (Reported
+                                    Symptoms):</span>
+                            </div>
+                            <div id="cr_symptoms"
+                                style="border:1px solid #ddd;padding:10px;min-height:60px;background:#fafafa;line-height:1.5;">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 4. Return Method -->
+                    <div class="cr-row cr-section-header-row">
+                        <div class="cr-col cr-w-100">
+                            <span class="cr-section-title">4. วิธีการรับคืนอุปกรณ์ (Return Method)</span>
+                        </div>
+                    </div>
+                    <div class="cr-row">
+                        <div class="cr-col cr-w-50">
+                            <div class="cr-field">
+                                <span class="cr-label">วิธีการรับคืน</span>
+                                <span id="cr_returnMethod" class="cr-dotted-line" style="width:180px;"></span>
+                            </div>
+                        </div>
+                        <div class="cr-col cr-w-50">
+                            <div class="cr-field">
+                                <span class="cr-label">สาขาที่รับ</span>
+                                <span id="cr_pickupBranch" class="cr-dotted-line" style="width:180px;"></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 5. Images (if available) -->
+                    <div id="cr_imagesSection" class="cr-row" style="display:none;">
+                        <div class="cr-col cr-w-100">
+                            <div style="margin-bottom:8px;">
+                                <span class="cr-label" style="font-weight:bold;">รูปภาพประกอบ (Supporting
+                                    Images):</span>
+                            </div>
+                            <div class="cr-images-grid" id="cr_imageContainer"></div>
+                        </div>
+                    </div>
+
+                    <!-- 6. Terms & Conditions -->
+                    <div class="cr-row cr-section-header-row">
+                        <div class="cr-col cr-w-100">
+                            <span class="cr-section-title">5. เงื่อนไขการรับบริการ (Terms & Conditions)</span>
+                        </div>
+                    </div>
+                    <div class="cr-row">
+                        <div class="cr-col cr-w-100">
+                            <ul class="cr-terms-list">
+                                <li>เอกสารฉบับนี้ใช้เป็นหลักฐานในการรับฝากเครื่องเพื่อตรวจสอบและดำเนินการแก้ไขตามเงื่อนไขการรับประกัน
+                                </li>
+                                <li>โปรดนำเอกสารฉบับนี้และบัตรประชาชนมาแสดงทุกครั้งที่ติดต่อขอรับเครื่องคืน</li>
+                                <li>ทางบริษัทฯ จะไม่รับผิดชอบต่อข้อมูลสูญหาย หรือความเสียหายใดๆ ต่อข้อมูลในตัวเครื่อง
+                                    โปรดสำรองข้อมูลก่อนส่งซ่อม</li>
+                                <li>หากไม่มารับเครื่องคืนภายใน 90 วัน นับจากวันที่แจ้งให้ทราบ ทางบริษัทฯ
+                                    ขอสงวนสิทธิ์ในการดำเนินการตามความเหมาะสม</li>
+                            </ul>
+                            <div style="margin-top:15px;font-size:16px;line-height:1.5;">
+                                <p style="margin:5px 0;"><strong>หมายเหตุ:</strong>
+                                    การลงลายมือชื่อด้านล่างนี้
+                                    ถือว่าสมาชิกได้รับทราบและตกลงตามเงื่อนไขที่ระบุไว้ข้างต้นทุกประการ
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Signatures -->
+            <div class="cr-signature-section">
+                <div class="cr-sig-block">
+                    <span style="font-weight:bold;">สมาชิกตะกาฟุล</span>
+                    <div class="cr-sig-line" id="cr_customerSigBox"></div>
+                    <div class="cr-sig-name">(<span
+                            id="cr_signCustomerName">..................................................</span>)</div>
+                </div>
+                <div class="cr-sig-block">
+                    <span style="font-weight:bold;">พนักงานอีซี่แคร์</span>
+                    <div class="cr-sig-line" id="cr_staffSigBox"></div>
+                    <div class="cr-sig-name">(<span
+                            id="cr_signStaffName">..................................................</span>)</div>
+                </div>
+                <div class="cr-sig-block">
+                    <span>ผู้อนุมัติ</span>
+                    <div><img src="ceo.png" alt="CEO" style="width:130px;height:65px;"></div>
+                    <div class="cr-sig-name">(อัสมา ปอโต๊ะ)</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- =================== END CLAIM RECEIPT VIEW =================== -->
+
     <script src="script.js"></script>
+
+    <!-- =================== CLAIM RECEIPT LOGIC (inline, replaces claim_receipt.html script) =================== -->
+    <script>
+        /**
+         * showClaimReceipt(claimData)
+         * ----------------------------
+         * เรียกจาก script.js แทน window.open('claim_receipt.html')
+         * รับ object claimData โดยตรง (ไม่ต้องผ่าน localStorage)
+         *
+         * claimData shape:
+         * {
+         *   claimId, claimDate, customerName, memberId, customerPhone,
+         *   policyNumber, deviceModel, warrantyId,
+         *   symptoms, returnMethod, pickupBranch,
+         *   customerSignature, staffSignature, staffName,
+         *   images: []   // array ของ URL หรือ base64
+         * }
+         */
+        window.showClaimReceipt = async function (claim) {
+            if (!claim) {
+                alert('ไม่พบข้อมูลการเคลม');
+                return;
+            }
+
+            // Helper
+            const formatThaiDate = (dateStr) => {
+                if (!dateStr) return '';
+                const d = new Date(dateStr);
+                return d.toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' });
+            };
+
+            const set = (id, val) => {
+                const el = document.getElementById(id);
+                if (el) el.textContent = val || '-';
+            };
+
+            // Populate
+            set('cr_claimId', claim.claimId);
+            document.getElementById('cr_claimDate').textContent = claim.claimDate
+                ? formatThaiDate(claim.claimDate) : '';
+
+            set('cr_memberId', claim.memberId);
+            set('cr_customerName', claim.customerName);
+            set('cr_customerPhone', claim.customerPhone);
+            set('cr_policyNumber', claim.policyNumber);
+            set('cr_deviceModel', claim.deviceModel);
+            set('cr_symptoms', claim.symptoms);
+            set('cr_returnMethod', claim.returnMethod === 'pickup' ? 'รับเองที่สาขา' : 'จัดส่งทางไปรษณีย์');
+            set('cr_pickupBranch', claim.returnMethod === 'pickup' ? (claim.pickupBranch || '-') : 'ไม่มี');
+
+            // Device detail from API
+            const serialEl = document.getElementById('cr_deviceSerial');
+            const colorEl = document.getElementById('cr_deviceColor');
+            const capEl = document.getElementById('cr_deviceCapacity');
+            const imeiEl = document.getElementById('cr_deviceIMEI');
+
+            if (claim.warrantyId) {
+                try {
+                    const res = await fetch(`/api/warranties/${claim.warrantyId}`);
+                    const warranty = await res.json();
+                    if (warranty && warranty.device) {
+                        if (colorEl) colorEl.textContent = warranty.device.color || '-';
+                        if (capEl) capEl.textContent = warranty.device.capacity || '-';
+                        if (serialEl) serialEl.textContent = warranty.device.serial || '-';
+                        if (imeiEl) imeiEl.textContent = warranty.device.imei || '-';
+                    }
+                } catch (e) {
+                    [serialEl, colorEl, capEl, imeiEl].forEach(el => { if (el) el.textContent = '-'; });
+                }
+            } else {
+                [serialEl, colorEl, capEl, imeiEl].forEach(el => { if (el) el.textContent = '-'; });
+            }
+
+            // Signatures
+            const customerSigBox = document.getElementById('cr_customerSigBox');
+            const staffSigBox = document.getElementById('cr_staffSigBox');
+            if (customerSigBox) {
+                customerSigBox.innerHTML = claim.customerSignature
+                    ? `<img src="${claim.customerSignature}" class="cr-signature-img" alt="Customer Signature">`
+                    : '';
+            }
+            if (staffSigBox) {
+                staffSigBox.innerHTML = claim.staffSignature
+                    ? `<img src="${claim.staffSignature}" class="cr-signature-img" alt="Staff Signature">`
+                    : '';
+            }
+            set('cr_signCustomerName', claim.customerName || '..................................');
+            set('cr_signStaffName', claim.staffName || '..................................');
+
+            // Images
+            const imgContainer = document.getElementById('cr_imageContainer');
+            const imgSection = document.getElementById('cr_imagesSection');
+            if (imgContainer) imgContainer.innerHTML = '';
+            if (claim.images && claim.images.length > 0 && imgSection && imgContainer) {
+                imgSection.style.display = 'flex';
+                claim.images.forEach((imgUrl, idx) => {
+                    const img = document.createElement('img');
+                    img.src = imgUrl;
+                    img.alt = `รูปภาพที่ ${idx + 1}`;
+                    imgContainer.appendChild(img);
+                });
+            } else if (imgSection) {
+                imgSection.style.display = 'none';
+            }
+
+            // Show receipt view, hide app
+            document.getElementById('claimReceiptView').style.display = 'block';
+            document.getElementById('app').style.display = 'none';
+            const regView = document.getElementById('registrationView');
+            if (regView) regView.style.display = 'none';
+        };
+
+        /** พิมพ์ใบเสร็จ */
+        window.printClaimReceipt = function () {
+            window.print();
+        };
+
+        /** ปิดหน้าใบเสร็จและกลับสู่ app */
+        window.closeClaimReceipt = function () {
+            document.getElementById('claimReceiptView').style.display = 'none';
+            document.getElementById('app').style.display = '';
+        };
+    </script>
 </body>
 
 </html>

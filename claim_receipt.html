@@ -336,7 +336,7 @@
                         <span id="memberId" class="dotted-line" style="width: 150px;"></span>
                     </div>
                     <div class="col w-60">
-                        <span class="label" style="font-weight: bold;">เลขที่เอกสาร</span>
+                        <span class="label" style="font-weight: bold;">เลขที่เคลม</span>
                         <span id="claimId" style="font-weight: bold; font-size: 22px; margin-left: 10px;"></span>
                     </div>
                 </div>
@@ -406,6 +406,52 @@
                     </div>
                 </div>
 
+                <!-- 2.1 Device Condition Checklist -->
+                <div class="row section-header-row">
+                    <div class="col w-100">
+                        <span class="section-title">2.1 ตรวจสอบสภาพเครื่อง (Device Condition Checklist)</span>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col w-100">
+                        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; font-size: 14px;">
+                            <div style="display: flex; align-items: center;"><input type="checkbox" id="check_exterior"
+                                    disabled style="margin-right: 5px;"> ตัวเครื่องภายนอก</div>
+                            <div style="display: flex; align-items: center;"><input type="checkbox" id="check_screen"
+                                    disabled style="margin-right: 5px;"> หน้าจอ</div>
+                            <div style="display: flex; align-items: center;"><input type="checkbox" id="check_assembly"
+                                    disabled style="margin-right: 5px;"> การประกอบ</div>
+                            <div style="display: flex; align-items: center;"><input type="checkbox" id="check_appleLogo"
+                                    disabled style="margin-right: 5px;"> โลโก้ Apple</div>
+                            <div style="display: flex; align-items: center;"><input type="checkbox" id="check_buttons"
+                                    disabled style="margin-right: 5px;"> ปุ่มต่างๆ</div>
+                            <div style="display: flex; align-items: center;"><input type="checkbox"
+                                    id="check_chargingPort" disabled style="margin-right: 5px;"> พอร์ตชาร์จ</div>
+                            <div style="display: flex; align-items: center;"><input type="checkbox" id="check_simTray"
+                                    disabled style="margin-right: 5px;"> ช่องใส่ซิม</div>
+                            <div style="display: flex; align-items: center;"><input type="checkbox" id="check_imeiMatch"
+                                    disabled style="margin-right: 5px;"> IMEI ตรงกัน</div>
+                            <div style="display: flex; align-items: center;"><input type="checkbox"
+                                    id="check_modelMatch" disabled style="margin-right: 5px;"> Model เครื่อง</div>
+                            <div style="display: flex; align-items: center;"><input type="checkbox"
+                                    id="check_screenTouch" disabled style="margin-right: 5px;"> หน้าจอ/ทัชสกรีน</div>
+                            <div style="display: flex; align-items: center;"><input type="checkbox"
+                                    id="check_faceIdTouchId" disabled style="margin-right: 5px;"> Face ID / Touch ID
+                            </div>
+                            <div style="display: flex; align-items: center;"><input type="checkbox" id="check_cameras"
+                                    disabled style="margin-right: 5px;"> กล้องหน้า/กล้องหลัง</div>
+                            <div style="display: flex; align-items: center;"><input type="checkbox"
+                                    id="check_speakerMic" disabled style="margin-right: 5px;"> ลำโพง/ไมค์</div>
+                            <div style="display: flex; align-items: center;"><input type="checkbox"
+                                    id="check_connectivity" disabled style="margin-right: 5px;"> การเชื่อมต่อ</div>
+                            <div style="display: flex; align-items: center;"><input type="checkbox" id="check_battery"
+                                    disabled style="margin-right: 5px;"> แบตเตอรี่</div>
+                            <div style="display: flex; align-items: center;"><input type="checkbox"
+                                    id="check_warrantyVoid" disabled style="margin-right: 5px;"> ประกัน/วอยด์</div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- 3. Claim Details -->
                 <div class="row section-header-row">
                     <div class="col w-100">
@@ -417,7 +463,9 @@
                         <div style="margin-bottom: 10px;">
                             <span class="label" style="font-weight: bold;">อาการที่แจ้ง (Reported Symptoms):</span>
                         </div>
-                        <div id="symptoms" style="border: 1px solid #ddd; padding: 10px; min-height: 60px; background: #fafafa; line-height: 1.5;"></div>
+                        <div id="symptoms"
+                            style="border: 1px solid #ddd; padding: 10px; min-height: 60px; background: #fafafa; line-height: 1.5;">
+                        </div>
                     </div>
                 </div>
 
@@ -461,13 +509,17 @@
                 <div class="row">
                     <div class="col w-100">
                         <ul class="terms-list">
-                            <li>เอกสารฉบับนี้ใช้เป็นหลักฐานในการรับฝากเครื่องเพื่อตรวจสอบและดำเนินการแก้ไขตามเงื่อนไขการรับประกัน</li>
+                            <li>เอกสารฉบับนี้ใช้เป็นหลักฐานในการรับฝากเครื่องเพื่อตรวจสอบและดำเนินการแก้ไขตามเงื่อนไขการรับประกัน
+                            </li>
                             <li>โปรดนำเอกสารฉบับนี้และบัตรประชาชนมาแสดงทุกครั้งที่ติดต่อขอรับเครื่องคืน</li>
-                            <li>ทางบริษัทฯ จะไม่รับผิดชอบต่อข้อมูลสูญหาย หรือความเสียหายใดๆ ต่อข้อมูลในตัวเครื่อง โปรดสำรองข้อมูลก่อนส่งซ่อม</li>
-                            <li>หากไม่มารับเครื่องคืนภายใน 90 วัน นับจากวันที่แจ้งให้ทราบ ทางบริษัทฯ ขอสงวนสิทธิ์ในการดำเนินการตามความเหมาะสม</li>
+                            <li>ทางบริษัทฯ จะไม่รับผิดชอบต่อข้อมูลสูญหาย หรือความเสียหายใดๆ ต่อข้อมูลในตัวเครื่อง
+                                โปรดสำรองข้อมูลก่อนส่งซ่อม</li>
+                            <li>หากไม่มารับเครื่องคืนภายใน 90 วัน นับจากวันที่แจ้งให้ทราบ ทางบริษัทฯ
+                                ขอสงวนสิทธิ์ในการดำเนินการตามความเหมาะสม</li>
                         </ul>
                         <div style="margin-top: 15px; font-size: 16px; line-height: 1.5;">
-                            <p style="margin: 5px 0;"><strong>หมายเหตุ:</strong> การลงลายมือชื่อด้านล่างนี้ ถือว่าสมาชิกได้รับทราบและตกลงตามเงื่อนไขที่ระบุไว้ข้างต้นทุกประการ</p>
+                            <p style="margin: 5px 0;"><strong>หมายเหตุ:</strong> การลงลายมือชื่อด้านล่างนี้
+                                ถือว่าสมาชิกได้รับทราบและตกลงตามเงื่อนไขที่ระบุไว้ข้างต้นทุกประการ</p>
                         </div>
                     </div>
                 </div>
@@ -479,12 +531,14 @@
             <div class="sig-block">
                 <span style="font-weight: bold;">สมาชิกตะกาฟุล</span>
                 <div class="sig-line" id="customerSigBox"></div>
-                <div class="sig-name">(<span id="signCustomerName">..................................................</span>)</div>
+                <div class="sig-name">(<span
+                        id="signCustomerName">..................................................</span>)</div>
             </div>
             <div class="sig-block">
                 <span style="font-weight: bold;">พนักงานอีซี่แคร์</span>
                 <div class="sig-line" id="staffSigBox"></div>
-                <div class="sig-name">(<span id="signStaffName">..................................................</span>)</div>
+                <div class="sig-name">(<span
+                        id="signStaffName">..................................................</span>)</div>
             </div>
             <div class="sig-block">
                 <span>ผู้อนุมัติ</span>
@@ -518,7 +572,7 @@
 
             // Populate Fields
             document.getElementById('claimId').textContent = claim.claimId || '-';
-            document.getElementById('claimDate').textContent = claim.claimDate 
+            document.getElementById('claimDate').textContent = claim.claimDate
                 ? formatThaiDate(claim.claimDate)
                 : '';
 
@@ -540,7 +594,7 @@
                         document.getElementById('deviceSerial').textContent = warranty.device.serial || '-';
                         document.getElementById('deviceIMEI').textContent = warranty.device.imei || '-';
                     }
-                } catch (e) { 
+                } catch (e) {
                     console.error('Error fetching warranty details', e);
                     document.getElementById('deviceColor').textContent = '-';
                     document.getElementById('deviceCapacity').textContent = '-';
@@ -550,24 +604,52 @@
             }
 
             document.getElementById('symptoms').textContent = claim.symptoms || '-';
-            document.getElementById('returnMethod').textContent = 
+            document.getElementById('returnMethod').textContent =
                 claim.returnMethod === 'pickup' ? 'รับเองที่สาขา' : 'จัดส่งทางไปรษณีย์';
-            document.getElementById('pickupBranch').textContent = 
+            document.getElementById('pickupBranch').textContent =
                 claim.returnMethod === 'pickup' ? (claim.pickupBranch || '-') : 'ไม่มี';
 
             // Signatures
             if (claim.customerSignature) {
-                document.getElementById('customerSigBox').innerHTML = 
+                document.getElementById('customerSigBox').innerHTML =
                     `<img src="${claim.customerSignature}" class="signature-img" alt="Customer Signature">`;
             }
             if (claim.staffSignature) {
-                document.getElementById('staffSigBox').innerHTML = 
+                document.getElementById('staffSigBox').innerHTML =
                     `<img src="${claim.staffSignature}" class="signature-img" alt="Staff Signature">`;
             }
 
-            document.getElementById('signCustomerName').textContent = 
+            // Populate Device Condition Checklist
+            const conditionMap = {
+                exterior: 'check_exterior',
+                screen: 'check_screen',
+                assembly: 'check_assembly',
+                appleLogo: 'check_appleLogo',
+                buttons: 'check_buttons',
+                chargingPort: 'check_chargingPort',
+                simTray: 'check_simTray',
+                imeiMatch: 'check_imeiMatch',
+                modelMatch: 'check_modelMatch',
+                screenTouch: 'check_screenTouch',
+                faceIdTouchId: 'check_faceIdTouchId',
+                cameras: 'check_cameras',
+                speakerMic: 'check_speakerMic',
+                connectivity: 'check_connectivity',
+                battery: 'check_battery',
+                warrantyVoid: 'check_warrantyVoid'
+            };
+
+            const conditions = claim.deviceCondition || {};
+            for (const [key, id] of Object.entries(conditionMap)) {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.checked = !!conditions[key];
+                }
+            }
+
+            document.getElementById('signCustomerName').textContent =
                 claim.customerName || '..................................';
-            document.getElementById('signStaffName').textContent = 
+            document.getElementById('signStaffName').textContent =
                 claim.staffName || '..................................';
 
             // Images

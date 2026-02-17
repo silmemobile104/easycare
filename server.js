@@ -166,6 +166,9 @@ const ClaimSchema = new mongoose.Schema({
     customerName: String,
     customerPhone: String,
     deviceModel: String,
+    imei: String,
+    serialNumber: String,
+    color: String,
     claimDate: { type: Date, default: Date.now },
     symptoms: String,
     images: [String],
@@ -175,7 +178,33 @@ const ClaimSchema = new mongoose.Schema({
     customerSignature: String,
     staffSignature: String,
     managerSignature: String,
-    status: { type: String, default: 'pending', enum: ['pending', 'in_progress', 'completed', 'rejected'] }
+    status: { type: String, default: 'รอเคลม', enum: ['รอเคลม', 'รับเครื่องแล้ว'] },
+    totalCost: { type: Number, default: 0 },
+    updates: [{
+        step: Number,
+        title: String,
+        date: { type: Date, default: Date.now },
+        cost: { type: Number, default: 0 },
+        images: [String]
+    }],
+    deviceCondition: {
+        exterior: { type: Boolean, default: false },
+        screen: { type: Boolean, default: false },
+        assembly: { type: Boolean, default: false },
+        appleLogo: { type: Boolean, default: false },
+        buttons: { type: Boolean, default: false },
+        chargingPort: { type: Boolean, default: false },
+        simTray: { type: Boolean, default: false },
+        imeiMatch: { type: Boolean, default: false },
+        modelMatch: { type: Boolean, default: false },
+        screenTouch: { type: Boolean, default: false },
+        faceIdTouchId: { type: Boolean, default: false },
+        cameras: { type: Boolean, default: false },
+        speakerMic: { type: Boolean, default: false },
+        connectivity: { type: Boolean, default: false },
+        battery: { type: Boolean, default: false },
+        warrantyVoid: { type: Boolean, default: false }
+    }
 }, { timestamps: true });
 
 const Claim = mongoose.model('Claim', ClaimSchema);
@@ -245,13 +274,22 @@ app.get('/api/warranties', async (req, res) => {
                 }
             },
             {
+                $lookup: {
+                    from: 'claims',
+                    localField: '_id',
+                    foreignField: 'warrantyId',
+                    as: 'claims'
+                }
+            },
+            {
                 $addFields: {
                     'customer.citizenId': { $arrayElemAt: ['$memberInfo.citizenId', 0] },
                     'customer.facebook': { $arrayElemAt: ['$memberInfo.facebook', 0] },
-                    'customer.id': '$memberId'
+                    'customer.id': '$memberId',
+                    'totalClaimAmount': { $sum: '$claims.totalCost' }
                 }
             },
-            { $project: { memberInfo: 0 } }
+            { $project: { memberInfo: 0, claims: 0 } }
         ]);
         res.json(warranties);
     } catch (err) {
@@ -411,13 +449,22 @@ app.get('/api/warranties/active', async (req, res) => {
                 }
             },
             {
+                $lookup: {
+                    from: 'claims',
+                    localField: '_id',
+                    foreignField: 'warrantyId',
+                    as: 'claims'
+                }
+            },
+            {
                 $addFields: {
                     'customer.citizenId': { $arrayElemAt: ['$memberInfo.citizenId', 0] },
                     'customer.facebook': { $arrayElemAt: ['$memberInfo.facebook', 0] },
-                    'customer.id': '$memberId'
+                    'customer.id': '$memberId',
+                    'totalClaimAmount': { $sum: '$claims.totalCost' }
                 }
             },
-            { $project: { memberInfo: 0 } }
+            { $project: { memberInfo: 0, claims: 0 } }
         ]);
         res.json(warranties);
     } catch (err) {
@@ -550,7 +597,7 @@ app.delete('/api/warranties/:id', async (req, res) => {
 // Create new claim (with image upload)
 app.post('/api/claims', claimUpload.array('images', 10), async (req, res) => {
     try {
-        const { warrantyId, policyNumber, memberId, customerName, customerPhone, deviceModel, symptoms, staffName, returnMethod, pickupBranch } = req.body;
+        const { warrantyId, policyNumber, memberId, customerName, customerPhone, deviceModel, imei, serialNumber, color, symptoms, staffName, returnMethod, pickupBranch } = req.body;
 
         // Generate unique Claim ID: SML + 6 digits
         let claimId;
@@ -565,7 +612,7 @@ app.post('/api/claims', claimUpload.array('images', 10), async (req, res) => {
         // Collect uploaded file paths (Cloudinary URLs)
         const images = req.files ? req.files.map(f => f.path) : [];
 
-        const newClaim = new Claim({
+        const claimData = {
             claimId,
             warrantyId,
             policyNumber,
@@ -573,13 +620,27 @@ app.post('/api/claims', claimUpload.array('images', 10), async (req, res) => {
             customerName,
             customerPhone,
             deviceModel,
+            imei,
+            serialNumber,
+            color,
             claimDate: new Date(),
             symptoms,
             images,
             staffName,
             returnMethod,
             pickupBranch: returnMethod === 'pickup' ? pickupBranch : ''
-        });
+        };
+
+        // Parse deviceCondition if provided
+        if (req.body.deviceCondition) {
+            try {
+                claimData.deviceCondition = JSON.parse(req.body.deviceCondition);
+            } catch (e) {
+                console.error('Error parsing deviceCondition:', e);
+            }
+        }
+
+        const newClaim = new Claim(claimData);
 
         await newClaim.save();
 
@@ -595,7 +656,25 @@ app.post('/api/claims', claimUpload.array('images', 10), async (req, res) => {
 // Get all claims
 app.get('/api/claims', async (req, res) => {
     try {
-        const claims = await Claim.find().sort({ createdAt: -1 });
+        const claims = await Claim.aggregate([
+            { $sort: { createdAt: -1 } },
+            {
+                $lookup: {
+                    from: 'warranties',
+                    localField: 'warrantyId',
+                    foreignField: '_id',
+                    as: 'warrantyInfo'
+                }
+            },
+            {
+                $addFields: {
+                    'imei': { $ifNull: ['$imei', { $arrayElemAt: ['$warrantyInfo.device.imei', 0] }] },
+                    'serialNumber': { $ifNull: ['$serialNumber', { $arrayElemAt: ['$warrantyInfo.device.serial', 0] }] },
+                    'color': { $ifNull: ['$color', { $arrayElemAt: ['$warrantyInfo.device.color', 0] }] }
+                }
+            },
+            { $project: { warrantyInfo: 0 } }
+        ]);
         res.json(claims);
     } catch (err) {
         res.status(500).json({ message: err.message });
@@ -613,13 +692,149 @@ app.get('/api/claims/warranty/:warrantyId', async (req, res) => {
     }
 });
 
+// Get pending claims (status = 'รอเคลม')
+app.get('/api/claims/pending', async (req, res) => {
+    try {
+        const claims = await Claim.aggregate([
+            { $match: { status: 'รอเคลม' } },
+            { $sort: { createdAt: -1 } },
+            {
+                $lookup: {
+                    from: 'warranties',
+                    localField: 'warrantyId',
+                    foreignField: '_id',
+                    as: 'warrantyInfo'
+                }
+            },
+            {
+                $addFields: {
+                    'imei': { $ifNull: ['$imei', { $arrayElemAt: ['$warrantyInfo.device.imei', 0] }] },
+                    'serialNumber': { $ifNull: ['$serialNumber', { $arrayElemAt: ['$warrantyInfo.device.serial', 0] }] },
+                    'color': { $ifNull: ['$color', { $arrayElemAt: ['$warrantyInfo.device.color', 0] }] }
+                }
+            },
+            { $project: { warrantyInfo: 0 } }
+        ]);
+        res.json(claims);
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
+
+// Get claim history by Warranty ID
+app.get('/api/claims/history/:warrantyId', async (req, res) => {
+    try {
+        const claims = await Claim.aggregate([
+            { $match: { warrantyId: new mongoose.Types.ObjectId(req.params.warrantyId) } },
+            { $sort: { createdAt: -1 } },
+            {
+                $lookup: {
+                    from: 'warranties',
+                    localField: 'warrantyId',
+                    foreignField: '_id',
+                    as: 'warrantyInfo'
+                }
+            },
+            {
+                $addFields: {
+                    'imei': { $ifNull: ['$imei', { $arrayElemAt: ['$warrantyInfo.device.imei', 0] }] },
+                    'serialNumber': { $ifNull: ['$serialNumber', { $arrayElemAt: ['$warrantyInfo.device.serial', 0] }] },
+                    'color': { $ifNull: ['$color', { $arrayElemAt: ['$warrantyInfo.device.color', 0] }] }
+                }
+            },
+            { $project: { warrantyInfo: 0 } }
+        ]);
+        res.json(claims);
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
+
+// Add status update to a claim
+app.post('/api/claims/:id/updates', claimUpload.array('images', 10), async (req, res) => {
+    try {
+        const claim = await Claim.findById(req.params.id);
+        if (!claim) return res.status(404).json({ success: false, message: 'ไม่พบข้อมูลการเคลม' });
+
+        const images = req.files ? req.files.map(f => f.path) : [];
+        const cost = parseFloat(req.body.cost) || 0;
+        const nextStep = (claim.updates ? claim.updates.length : 0) + 2; // +2 because step 1 = "รับเครื่อง" (auto)
+
+        claim.updates.push({
+            step: nextStep,
+            title: req.body.title || '',
+            date: new Date(),
+            cost: cost,
+            images: images
+        });
+
+        claim.totalCost = (claim.totalCost || 0) + cost;
+        await claim.save();
+
+        res.json({ success: true, claim });
+    } catch (err) {
+        res.status(400).json({ success: false, message: err.message });
+    }
+});
+
+// Complete a claim (ลูกค้ามารับเครื่องแล้ว)
+app.post('/api/claims/:id/complete', claimUpload.array('images', 10), async (req, res) => {
+    try {
+        const claim = await Claim.findById(req.params.id);
+        if (!claim) return res.status(404).json({ success: false, message: 'ไม่พบข้อมูลการเคลม' });
+
+        const images = req.files ? req.files.map(f => f.path) : [];
+        const nextStep = (claim.updates ? claim.updates.length : 0) + 2;
+
+        claim.updates.push({
+            step: nextStep,
+            title: 'ลูกค้ามารับเครื่องแล้ว',
+            date: new Date(),
+            cost: 0,
+            images: images
+        });
+
+        claim.status = 'รับเครื่องแล้ว';
+        await claim.save();
+
+        // Also update warranty claimStatus
+        if (claim.warrantyId) {
+            await Warranty.findByIdAndUpdate(claim.warrantyId, { claimStatus: 'completed' });
+        }
+
+        res.json({ success: true, claim });
+    } catch (err) {
+        res.status(400).json({ success: false, message: err.message });
+    }
+});
 
 // Get single claim
 app.get('/api/claims/:id', async (req, res) => {
     try {
-        const claim = await Claim.findById(req.params.id);
-        if (!claim) return res.status(404).json({ message: 'ไม่พบข้อมูลการเคลม' });
-        res.json(claim);
+        const claims = await Claim.aggregate([
+            { $match: { _id: new mongoose.Types.ObjectId(req.params.id) } },
+            {
+                $lookup: {
+                    from: 'warranties',
+                    localField: 'warrantyId',
+                    foreignField: '_id',
+                    as: 'warrantyInfo'
+                }
+            },
+            {
+                $addFields: {
+                    'imei': { $ifNull: ['$imei', { $arrayElemAt: ['$warrantyInfo.device.imei', 0] }] },
+                    'serialNumber': { $ifNull: ['$serialNumber', { $arrayElemAt: ['$warrantyInfo.device.serial', 0] }] },
+                    'color': { $ifNull: ['$color', { $arrayElemAt: ['$warrantyInfo.device.color', 0] }] }
+                }
+            },
+            { $project: { warrantyInfo: 0 } }
+        ]);
+
+        if (!claims || claims.length === 0) {
+            return res.status(404).json({ message: 'ไม่พบข้อมูลการเคลม' });
+        }
+        res.json(claims[0]);
     } catch (err) {
         res.status(500).json({ message: err.message });
     }
