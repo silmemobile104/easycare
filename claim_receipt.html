@@ -308,9 +308,9 @@
         </button>
     </div>
 
-    <div class="page">
+    <div class="page" id="page1">
         <div class="page-content">
-            <!-- Header -->
+            <!-- Header Page 1 -->
             <div class="header">
                 <div class="logo-section">
                     <img src="logo_easycare.png" alt="Easy Care Logo" style="height: 20px; object-fit: contain;">
@@ -320,7 +320,7 @@
                     <h2>Easy Care</h2>
                 </div>
                 <div class="date-section">
-                    วันที่ <span id="claimDate">.....................................................</span>
+                    วันที่ <span id="claimDate_p1">.....................................................</span>
                 </div>
             </div>
 
@@ -329,15 +329,15 @@
             </div>
 
             <div class="form-container">
-                <!-- Document Info Row -->
+                <!-- Document Info Row Page 1 -->
                 <div class="row">
                     <div class="col w-40">
                         <span class="label">เลขที่สมาชิก</span>
-                        <span id="memberId" class="dotted-line" style="width: 150px;"></span>
+                        <span id="memberId_p1" class="dotted-line" style="width: 150px;"></span>
                     </div>
                     <div class="col w-60">
                         <span class="label" style="font-weight: bold;">เลขที่เคลม</span>
-                        <span id="claimId" style="font-weight: bold; font-size: 22px; margin-left: 10px;"></span>
+                        <span id="claimId_p1" style="font-weight: bold; font-size: 22px; margin-left: 10px;"></span>
                     </div>
                 </div>
 
@@ -458,7 +458,7 @@
                         <span class="section-title">3. รายละเอียดการเคลม (Claim Details)</span>
                     </div>
                 </div>
-                <div class="row">
+                <div class="row" style="border-bottom: none;">
                     <div class="col w-100">
                         <div style="margin-bottom: 10px;">
                             <span class="label" style="font-weight: bold;">อาการที่แจ้ง (Reported Symptoms):</span>
@@ -466,6 +466,64 @@
                         <div id="symptoms"
                             style="border: 1px solid #ddd; padding: 10px; min-height: 60px; background: #fafafa; line-height: 1.5;">
                         </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Signatures Page 1 -->
+        <div class="signature-section">
+            <div class="sig-block">
+                <span style="font-weight: bold;">สมาชิกตะกาฟุล</span>
+                <div class="sig-line" id="customerSigBox_p1"></div>
+                <div class="sig-name">(<span
+                        id="signCustomerName_p1">..................................................</span>)</div>
+            </div>
+            <div class="sig-block">
+                <span style="font-weight: bold;">พนักงานอีซี่แคร์</span>
+                <div class="sig-line" id="staffSigBox_p1"></div>
+                <div class="sig-name">(<span
+                        id="signStaffName_p1">..................................................</span>)</div>
+            </div>
+            <div class="sig-block">
+                <span>ผู้อนุมัติ</span>
+                <div><img src="ceo.png" alt="CEO" style="width: 130px; height: 65px;"></div>
+                <div class="sig-name">(อัสมา ปอโต๊ะ)</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Page 2 -->
+    <div class="page" id="page2">
+        <div class="page-content">
+            <!-- Header Page 2 -->
+            <div class="header">
+                <div class="logo-section">
+                    <img src="logo_easycare.png" alt="Easy Care Logo" style="height: 20px; object-fit: contain;">
+                </div>
+                <div class="company-name">
+                    <h1>อีซี่แคร์</h1>
+                    <h2>Easy Care</h2>
+                </div>
+                <div class="date-section">
+                    วันที่ <span id="claimDate_p2">.....................................................</span>
+                </div>
+            </div>
+
+            <div style="text-align: center; margin-bottom: 10px;">
+                <strong style="font-size: 20px;">เอกสารรับเครื่องเคลม (Claim Receipt)</strong>
+            </div>
+
+            <div class="form-container">
+                <!-- Document Info Row Page 2 -->
+                <div class="row">
+                    <div class="col w-40">
+                        <span class="label">เลขที่สมาชิก</span>
+                        <span id="memberId_p2" class="dotted-line" style="width: 150px;"></span>
+                    </div>
+                    <div class="col w-60">
+                        <span class="label" style="font-weight: bold;">เลขที่เคลม</span>
+                        <span id="claimId_p2" style="font-weight: bold; font-size: 22px; margin-left: 10px;"></span>
                     </div>
                 </div>
 
@@ -500,13 +558,13 @@
                     </div>
                 </div>
 
-                <!-- 6. Terms & Conditions -->
+                <!-- 5. Terms & Conditions (Labeled as 5 in original, Topic 4 was followed by Images then Terms) -->
                 <div class="row section-header-row">
                     <div class="col w-100">
                         <span class="section-title">5. เงื่อนไขการรับบริการ (Terms & Conditions)</span>
                     </div>
                 </div>
-                <div class="row">
+                <div class="row" style="border-bottom: none;">
                     <div class="col w-100">
                         <ul class="terms-list">
                             <li>เอกสารฉบับนี้ใช้เป็นหลักฐานในการรับฝากเครื่องเพื่อตรวจสอบและดำเนินการแก้ไขตามเงื่อนไขการรับประกัน
@@ -526,19 +584,19 @@
             </div>
         </div>
 
-        <!-- Signatures -->
+        <!-- Signatures Page 2 -->
         <div class="signature-section">
             <div class="sig-block">
                 <span style="font-weight: bold;">สมาชิกตะกาฟุล</span>
-                <div class="sig-line" id="customerSigBox"></div>
+                <div class="sig-line" id="customerSigBox_p2"></div>
                 <div class="sig-name">(<span
-                        id="signCustomerName">..................................................</span>)</div>
+                        id="signCustomerName_p2">..................................................</span>)</div>
             </div>
             <div class="sig-block">
                 <span style="font-weight: bold;">พนักงานอีซี่แคร์</span>
-                <div class="sig-line" id="staffSigBox"></div>
+                <div class="sig-line" id="staffSigBox_p2"></div>
                 <div class="sig-name">(<span
-                        id="signStaffName">..................................................</span>)</div>
+                        id="signStaffName_p2">..................................................</span>)</div>
             </div>
             <div class="sig-block">
                 <span>ผู้อนุมัติ</span>
@@ -571,13 +629,26 @@
             };
 
             // Populate Fields
-            document.getElementById('claimId').textContent = claim.claimId || '-';
-            document.getElementById('claimDate').textContent = claim.claimDate
-                ? formatThaiDate(claim.claimDate)
-                : '';
+            const setMultiContent = (ids, content) => {
+                ids.forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) el.textContent = content;
+                });
+            };
+
+            const setMultiHTML = (ids, html) => {
+                ids.forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) el.innerHTML = html;
+                });
+            };
+
+            setMultiContent(['claimId_p1', 'claimId_p2'], claim.claimId || '-');
+            const dateStr = claim.claimDate ? formatThaiDate(claim.claimDate) : '';
+            setMultiContent(['claimDate_p1', 'claimDate_p2'], dateStr);
 
             document.getElementById('customerName').textContent = claim.customerName || '-';
-            document.getElementById('memberId').textContent = claim.memberId || '-';
+            setMultiContent(['memberId_p1', 'memberId_p2'], claim.memberId || '-');
             document.getElementById('customerPhone').textContent = claim.customerPhone || '-';
             document.getElementById('policyNumber').textContent = claim.policyNumber || '-';
 
@@ -618,12 +689,12 @@
 
             // Signatures
             if (claim.customerSignature) {
-                document.getElementById('customerSigBox').innerHTML =
-                    `<img src="${claim.customerSignature}" class="signature-img" alt="Customer Signature">`;
+                setMultiHTML(['customerSigBox_p1', 'customerSigBox_p2'],
+                    `<img src="${claim.customerSignature}" class="signature-img" alt="Customer Signature">`);
             }
             if (claim.staffSignature) {
-                document.getElementById('staffSigBox').innerHTML =
-                    `<img src="${claim.staffSignature}" class="signature-img" alt="Staff Signature">`;
+                setMultiHTML(['staffSigBox_p1', 'staffSigBox_p2'],
+                    `<img src="${claim.staffSignature}" class="signature-img" alt="Staff Signature">`);
             }
 
             // Populate Device Condition Checklist
@@ -654,10 +725,10 @@
                 }
             }
 
-            document.getElementById('signCustomerName').textContent =
-                claim.customerName || '..................................';
-            document.getElementById('signStaffName').textContent =
-                claim.staffName || '..................................';
+            setMultiContent(['signCustomerName_p1', 'signCustomerName_p2'],
+                claim.customerName || '..................................');
+            setMultiContent(['signStaffName_p1', 'signStaffName_p2'],
+                claim.staffName || '..................................');
 
             // Images
             if (claim.images && claim.images.length > 0) {
