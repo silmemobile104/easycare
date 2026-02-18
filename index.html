@@ -472,6 +472,7 @@
                                 <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
                             </svg>
                             อนุมัติสัญญา
+                            <span id="approvalBadge" class="nav-badge" style="display: none;">0</span>
                         </a>
                     </nav>
                     <div class="sidebar-footer">
@@ -1490,6 +1491,38 @@
                             <label>ชื่อสาขา / ชื่อร้าน</label>
                             <input type="text" id="claimPickupBranch" placeholder="ระบุชื่อสาขาที่จะมารับเครื่อง">
                         </div>
+
+                        <!-- New Delivery Address Options -->
+                        <div id="deliveryOptionsGroup"
+                            style="display: none; margin-top: 1rem; padding: 1rem; background: #fff; border: 1px solid #e2e8f0; border-radius: 10px;">
+                            <label style="font-weight: 600; color: #1e40af; margin-bottom: 0.75rem; display: block;">📍
+                                เลือกที่อยู่จัดส่ง</label>
+                            <div class="radio-options"
+                                style="flex-direction: column; gap: 0.75rem; align-items: flex-start;">
+                                <label class="radio-label">
+                                    <input type="radio" name="deliveryAddressType" value="card">
+                                    <span class="radio-custom"></span>ตามที่อยู่ตามหน้าบัตร
+                                    <div id="displayCardAddress"
+                                        style="font-size: 0.8rem; color: #64748b; margin-left: 2rem; margin-top: 2px;">
+                                    </div>
+                                </label>
+                                <label class="radio-label">
+                                    <input type="radio" name="deliveryAddressType" value="memberShipping">
+                                    <span class="radio-custom"></span>ตามที่อยู่จัดส่ง
+                                    <div id="displayShippingAddress"
+                                        style="font-size: 0.8rem; color: #64748b; margin-left: 2rem; margin-top: 2px;">
+                                    </div>
+                                </label>
+                                <label class="radio-label">
+                                    <input type="radio" name="deliveryAddressType" value="new">
+                                    <span class="radio-custom"></span>หรือเพิ่มที่อยู่ใหม่
+                                </label>
+                            </div>
+                            <div id="newAddressGroup" style="display: none; margin-top: 0.75rem;">
+                                <textarea id="claimNewAddress" rows="3" placeholder="ระบุพิกัดที่อยู่จัดส่งใหม่..."
+                                    style="width: 100%; border: 1px solid #cbd5e1; border-radius: 8px; padding: 0.5rem;"></textarea>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -1817,7 +1850,7 @@
                         </div>
                         <div class="cr-col cr-w-50">
                             <div class="cr-field">
-                                <span class="cr-label">สาขาที่รับ</span>
+                                <span class="cr-label" id="cr_branchLabel">สาขาที่รับ</span>
                                 <span id="cr_pickupBranch" class="cr-dotted-line" style="width:180px;"></span>
                             </div>
                         </div>
@@ -1935,7 +1968,15 @@
             set('cr_deviceModel', claim.deviceModel);
             set('cr_symptoms', claim.symptoms);
             set('cr_returnMethod', claim.returnMethod === 'pickup' ? 'รับเองที่สาขา' : 'จัดส่งทางไปรษณีย์');
-            set('cr_pickupBranch', claim.returnMethod === 'pickup' ? (claim.pickupBranch || '-') : 'ไม่มี');
+
+            const branchLabel = document.getElementById('cr_branchLabel');
+            if (claim.returnMethod === 'pickup') {
+                if (branchLabel) branchLabel.textContent = 'สาขาที่รับ';
+                set('cr_pickupBranch', claim.pickupBranch || '-');
+            } else {
+                if (branchLabel) branchLabel.textContent = 'ที่อยู่จัดส่ง';
+                set('cr_pickupBranch', claim.deliveryAddressDetail || '-');
+            }
 
             // Device detail from API
             const serialEl = document.getElementById('cr_deviceSerial');

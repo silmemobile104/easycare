@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ติดตามสถานะงานซ่อม | EasyCare</title>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600&family=Sarabun:wght@300;400;500;600&display=swap"
+        rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <style>
+        :root {
+            --primary: #0891b2;
+            --primary-dark: #0e7490;
+            --primary-light: #06b6d4;
+            --bg-body: #f0f9ff;
+            --text-main: #0f172a;
+            --text-muted: #64748b;
+            --white: #ffffff;
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            --radius-lg: 1rem;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Sarabun', sans-serif;
+            background-color: var(--bg-body);
+            color: var(--text-main);
+            line-height: 1.5;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 480px;
+            margin: 0 auto;
+            padding: 1.5rem;
+            flex: 1;
+        }
+
+        /* Header */
+        header {
+            text-align: center;
+            margin-bottom: 2rem;
+            padding-top: 1rem;
+        }
+
+        .logo {
+            width: 120px;
+            height: auto;
+            margin-bottom: 0.5rem;
+        }
+
+        h1 {
+            font-family: 'Kanit', sans-serif;
+            font-size: 1.5rem;
+            color: var(--primary-dark);
+            margin-bottom: 0.25rem;
+        }
+
+        .subtitle {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        /* Search Box */
+        .search-card {
+            background: var(--white);
+            padding: 1.5rem;
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-md);
+            margin-bottom: 2rem;
+            text-align: center;
+        }
+
+        .input-group {
+            margin-bottom: 1rem;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 0.875rem;
+            border: 2px solid #e2e8f0;
+            border-radius: 0.75rem;
+            font-family: 'Kanit', sans-serif;
+            font-size: 1rem;
+            text-align: center;
+            outline: none;
+            transition: 0.2s;
+        }
+
+        input[type="text"]:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(8, 145, 178, 0.1);
+        }
+
+        .btn-search {
+            width: 100%;
+            padding: 0.875rem;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            color: white;
+            border: none;
+            border-radius: 0.75rem;
+            font-family: 'Kanit', sans-serif;
+            font-size: 1rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        .btn-search:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(8, 145, 178, 0.25);
+        }
+
+        /* Result Section */
+        #resultSection {
+            display: none;
+            animation: fadeIn 0.5s ease;
+        }
+
+        .info-card {
+            background: var(--white);
+            border-radius: var(--radius-lg);
+            padding: 1.25rem;
+            margin-bottom: 1.5rem;
+            box-shadow: var(--shadow-md);
+            border-left: 4px solid var(--primary);
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.5rem;
+            font-size: 0.95rem;
+        }
+
+        .info-label {
+            color: var(--text-muted);
+        }
+
+        .info-value {
+            font-weight: 600;
+            color: var(--text-main);
+            text-align: right;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            background: #fef3c7;
+            color: #d97706;
+            border-radius: 999px;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+
+        .status-badge.completed {
+            background: #dcfce7;
+            color: #16a34a;
+        }
+
+        /* Timeline */
+        .timeline {
+            position: relative;
+            padding-left: 1.5rem;
+            border-left: 2px solid #e2e8f0;
+            margin-left: 0.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .timeline-item {
+            position: relative;
+            margin-bottom: 2rem;
+        }
+
+        .timeline-dot {
+            position: absolute;
+            left: -1.95rem;
+            /* Adjust based on padding/border */
+            top: 0.25rem;
+            width: 1rem;
+            height: 1rem;
+            background: var(--white);
+            border: 3px solid var(--primary);
+            border-radius: 50%;
+            z-index: 1;
+        }
+
+        .timeline-item:first-child .timeline-dot {
+            background: var(--primary);
+            box-shadow: 0 0 0 4px rgba(8, 145, 178, 0.2);
+        }
+
+        .timeline-date {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-bottom: 0.25rem;
+            display: block;
+        }
+
+        .timeline-title {
+            font-family: 'Kanit', sans-serif;
+            font-weight: 600;
+            font-size: 1.1rem;
+            color: var(--text-main);
+            margin-bottom: 0.25rem;
+        }
+
+        .timeline-desc {
+            font-size: 0.95rem;
+            color: #475569;
+            margin-bottom: 0.5rem;
+        }
+
+        .timeline-images {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+            flex-wrap: wrap;
+        }
+
+        .timeline-img {
+            width: 80px;
+            height: 80px;
+            object-fit: cover;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            border: 1px solid #e2e8f0;
+        }
+
+        /* Footer */
+        .contact-btn {
+            display: block;
+            width: 100%;
+            text-align: center;
+            background: white;
+            color: var(--primary);
+            border: 2px solid var(--primary);
+            padding: 0.875rem;
+            border-radius: 0.75rem;
+            font-family: 'Kanit', sans-serif;
+            font-weight: 600;
+            text-decoration: none;
+            margin-top: 2rem;
+            transition: 0.2s;
+        }
+
+        .contact-btn:hover {
+            background: var(--bg-body);
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Loading */
+        .loader {
+            display: none;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid var(--primary);
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container">
+        <header>
+            <img src="logo_easycare.png" alt="Easy Care" class="logo">
+            <h1>ติดตามสถานะงานซ่อม</h1>
+            <p class="subtitle">กรอกเลขที่ใบรับเคลมเพื่อตรวจสอบสถานะ</p>
+        </header>
+
+        <div class="search-card">
+            <div class="input-group">
+                <input type="text" id="claimIdInput" placeholder="เลขที่ใบรับเคลม (เช่น SML123456)" autocomplete="off">
+            </div>
+            <button class="btn-search" onclick="trackClaim()">
+                <span id="btnText">ค้นหาข้อมูล</span>
+                <div class="loader" id="loader"></div>
+            </button>
+        </div>
+
+        <div id="resultSection">
+            <!-- Device Info -->
+            <div class="info-card">
+                <div style="margin-bottom: 1rem; border-bottom: 1px solid #f1f5f9; padding-bottom: 0.75rem;">
+                    <div class="info-row">
+                        <span class="info-label">เลขที่ใบรับเคลม</span>
+                        <span class="info-value" id="dispClaimId">-</span>
+                    </div>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">รุ่นอุปกรณ์</span>
+                    <span class="info-value" id="dispModel">-</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">อาการเสีย</span>
+                    <span class="info-value" id="dispSymptoms">-</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">สถานะปัจจุบัน</span>
+                    <span id="dispStatus"></span>
+                </div>
+                <div class="info-row" style="margin-top: 1rem; padding-top: 0.75rem; border-top: 1px dashed #e2e8f0;">
+                    <span class="info-label">ยอดค่าใช้จ่ายรวม</span>
+                    <span class="info-value" style="color: var(--primary); font-size: 1.1rem;" id="dispCost">0
+                        บาท</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">วงเงินคงเหลือ</span>
+                    <div style="text-align: right;">
+                        <span class="info-value" id="dispBalance" style="font-weight: 700;">-</span>
+                        <div style="font-size: 0.75rem; color: #94a3b8;" id="dispLimit">(วงเงินสูงสุด -)</div>
+                    </div>
+                </div>
+            </div>
+
+            <h3 style="font-family: 'Kanit'; margin-bottom: 1.5rem; padding-left: 0.5rem;">Time Line ความคืบหน้า</h3>
+
+            <div class="timeline" id="timelineList">
+                <!-- Timeline items will be injected here -->
+            </div>
+
+            <a href="tel:0812345678" class="contact-btn">ติดต่อร้านค้า</a>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = '/api/public/track/';
+
+        document.getElementById('claimIdInput').addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') trackClaim();
+        });
+
+        async function trackClaim() {
+            const claimId = document.getElementById('claimIdInput').value.trim();
+            const btnText = document.getElementById('btnText');
+            const loader = document.getElementById('loader');
+            const resultSection = document.getElementById('resultSection');
+
+            if (!claimId) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'กรุณากรอกข้อมูล',
+                    text: 'โปรดระบุเลขที่ใบรับเคลมที่ต้องการค้นหา',
+                    confirmButtonColor: '#0891b2'
+                });
+                return;
+            }
+
+            // UI Loading State
+            btnText.style.display = 'none';
+            loader.style.display = 'block';
+            resultSection.style.display = 'none';
+
+            try {
+                const response = await fetch(API_URL + claimId);
+                const data = await response.json();
+
+                if (data.success) {
+                    renderClaimData(data.data);
+                    resultSection.style.display = 'block';
+                } else {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'ไม่พบข้อมูล',
+                        text: 'ไม่พบเลขที่ใบรับเคลมนี้ในระบบ กรุณาตรวจสอบความถูกต้อง',
+                        confirmButtonColor: '#ef4444'
+                    });
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                Swal.fire({
+                    icon: 'error',
+                    title: 'เกิดข้อผิดพลาด',
+                    text: 'ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้',
+                    confirmButtonColor: '#ef4444'
+                });
+            } finally {
+                btnText.style.display = 'inline';
+                loader.style.display = 'none';
+            }
+        }
+
+        function renderClaimData(data) {
+            // Fill Basic Info
+            document.getElementById('dispClaimId').textContent = data.claimId;
+            document.getElementById('dispModel').textContent = data.deviceModel || '-';
+            document.getElementById('dispSymptoms').textContent = data.symptoms || '-';
+
+            const cost = data.totalCost || 0;
+            document.getElementById('dispCost').textContent = cost.toLocaleString() + ' บาท';
+
+            // Remaining Balance
+            const balance = data.remainingBalance || 0;
+            const limit = data.coverageLimit || 0;
+
+            const balanceEl = document.getElementById('dispBalance');
+            balanceEl.textContent = balance.toLocaleString() + ' บาท';
+            balanceEl.style.color = balance < 0 ? '#ef4444' : '#10b981'; // Red if negative, Green if positive
+
+            document.getElementById('dispLimit').textContent = `(วงเงินสูงสุด ${limit.toLocaleString()})`;
+
+            // Status Badge
+            const statusEl = document.getElementById('dispStatus');
+            statusEl.innerHTML = `<span class="status-badge ${data.status === 'รับเครื่องแล้ว' || data.status === 'Completed' ? 'completed' : ''}">${data.status}</span>`;
+
+            // Render Timeline
+            const timelineList = document.getElementById('timelineList');
+            timelineList.innerHTML = '';
+
+            if (data.updates && data.updates.length > 0) {
+                // Determine completion status to know if we should add a final "Done" step visually if needed
+                // But the API returns updates list, so we just render them.
+                // Note: The API sorts them newest first.
+
+                data.updates.forEach((update, index) => {
+                    const dateObj = new Date(update.date);
+                    const dateStr = dateObj.toLocaleDateString('th-TH', {
+                        year: 'numeric', month: 'long', day: 'numeric',
+                        hour: '2-digit', minute: '2-digit'
+                    });
+
+                    let imagesHtml = '';
+                    if (update.images && update.images.length > 0) {
+                        imagesHtml = `<div class="timeline-images">
+                            ${update.images.map(img => `<img src="${img}" class="timeline-img" onclick="viewImage('${img}')" alt="Updated Image">`).join('')}
+                        </div>`;
+                    }
+
+                    const itemHtml = `
+                        <div class="timeline-item">
+                            <div class="timeline-dot"></div>
+                            <span class="timeline-date">${dateStr}</span>
+                            <div class="timeline-title">${update.title}</div>
+                            ${update.cost > 0 ? `<div style="font-size:0.85rem; color:#d97706; margin-bottom:0.25rem;">+ ค่าใช้จ่ายเพิ่มเติม ${update.cost.toLocaleString()} บาท</div>` : ''}
+                            ${imagesHtml}
+                        </div>
+                    `;
+                    timelineList.innerHTML += itemHtml;
+                });
+            } else {
+                timelineList.innerHTML = '<p style="color:var(--text-muted); font-style:italic;">ยังไม่มีความคืบหน้า</p>';
+            }
+        }
+
+        function viewImage(url) {
+            Swal.fire({
+                imageUrl: url,
+                imageAlt: 'Evidence Image',
+                width: 600,
+                confirmButtonColor: '#0891b2',
+                confirmButtonText: 'ปิด',
+                showClass: { popup: 'animate__animated animate__fadeInDown' },
+                hideClass: { popup: 'animate__animated animate__fadeOutUp' }
+            });
+        }
+    </script>
+</body>
+
+</html>

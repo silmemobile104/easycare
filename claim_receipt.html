@@ -484,7 +484,7 @@
                     </div>
                     <div class="col w-50">
                         <div class="field">
-                            <span class="label">สาขาที่รับ</span>
+                            <span class="label" id="branchLabel">สาขาที่รับ</span>
                             <span id="pickupBranch" class="dotted-line" style="width: 180px;"></span>
                         </div>
                     </div>
@@ -606,8 +606,15 @@
             document.getElementById('symptoms').textContent = claim.symptoms || '-';
             document.getElementById('returnMethod').textContent =
                 claim.returnMethod === 'pickup' ? 'รับเองที่สาขา' : 'จัดส่งทางไปรษณีย์';
-            document.getElementById('pickupBranch').textContent =
-                claim.returnMethod === 'pickup' ? (claim.pickupBranch || '-') : 'ไม่มี';
+
+            const branchLabel = document.getElementById('branchLabel');
+            if (claim.returnMethod === 'pickup') {
+                if (branchLabel) branchLabel.textContent = 'สาขาที่รับ';
+                document.getElementById('pickupBranch').textContent = claim.pickupBranch || '-';
+            } else {
+                if (branchLabel) branchLabel.textContent = 'ที่อยู่จัดส่ง';
+                document.getElementById('pickupBranch').textContent = claim.deliveryAddressDetail || '-';
+            }
 
             // Signatures
             if (claim.customerSignature) {

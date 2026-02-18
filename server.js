@@ -179,6 +179,10 @@ const ClaimSchema = new mongoose.Schema({
     staffSignature: String,
     managerSignature: String,
     status: { type: String, default: 'รอเคลม', enum: ['รอเคลม', 'รับเครื่องแล้ว'] },
+    returnMethod: { type: String, enum: ['pickup', 'delivery'] },
+    pickupBranch: String,
+    deliveryAddressType: { type: String, enum: ['card', 'memberShipping', 'new'] },
+    deliveryAddressDetail: String,
     totalCost: { type: Number, default: 0 },
     updates: [{
         step: Number,
@@ -360,6 +364,16 @@ app.get('/api/warranties/pending', async (req, res) => {
     }
 });
 
+// Get pending warranty count for badge
+app.get('/api/warranties/pending-count', async (req, res) => {
+    try {
+        const count = await Warranty.countDocuments({ approvalStatus: 'pending' });
+        res.json({ count });
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
+
 // Approve a warranty
 app.put('/api/warranties/:id/approve', async (req, res) => {
     try {
@@ -461,6 +475,8 @@ app.get('/api/warranties/active', async (req, res) => {
                     'customer.citizenId': { $arrayElemAt: ['$memberInfo.citizenId', 0] },
                     'customer.facebook': { $arrayElemAt: ['$memberInfo.facebook', 0] },
                     'customer.id': '$memberId',
+                    'customer.idCardAddress': { $arrayElemAt: ['$memberInfo.idCardAddress', 0] },
+                    'customer.shippingAddress': { $arrayElemAt: ['$memberInfo.shippingAddress', 0] },
                     'totalClaimAmount': { $sum: '$claims.totalCost' }
                 }
             },
@@ -489,7 +505,9 @@ app.get('/api/warranties/:id', async (req, res) => {
                 $addFields: {
                     'customer.citizenId': { $arrayElemAt: ['$memberInfo.citizenId', 0] },
                     'customer.facebook': { $arrayElemAt: ['$memberInfo.facebook', 0] },
-                    'customer.id': '$memberId'
+                    'customer.id': '$memberId',
+                    'customer.idCardAddress': { $arrayElemAt: ['$memberInfo.idCardAddress', 0] },
+                    'customer.shippingAddress': { $arrayElemAt: ['$memberInfo.shippingAddress', 0] }
                 }
             },
             { $project: { memberInfo: 0 } }
@@ -597,7 +615,11 @@ app.delete('/api/warranties/:id', async (req, res) => {
 // Create new claim (with image upload)
 app.post('/api/claims', claimUpload.array('images', 10), async (req, res) => {
     try {
-        const { warrantyId, policyNumber, memberId, customerName, customerPhone, deviceModel, imei, serialNumber, color, symptoms, staffName, returnMethod, pickupBranch } = req.body;
+        const {
+            warrantyId, policyNumber, memberId, customerName, customerPhone,
+            deviceModel, imei, serialNumber, color, symptoms, staffName,
+            returnMethod, pickupBranch, deliveryAddressType, deliveryAddressDetail
+        } = req.body;
 
         // Generate unique Claim ID: SML + 6 digits
         let claimId;
@@ -628,7 +650,9 @@ app.post('/api/claims', claimUpload.array('images', 10), async (req, res) => {
             images,
             staffName,
             returnMethod,
-            pickupBranch: returnMethod === 'pickup' ? pickupBranch : ''
+            pickupBranch: returnMethod === 'pickup' ? pickupBranch : '',
+            deliveryAddressType: returnMethod === 'delivery' ? deliveryAddressType : undefined,
+            deliveryAddressDetail: returnMethod === 'delivery' ? deliveryAddressDetail : ''
         };
 
         // Parse deviceCondition if provided
@@ -784,27 +808,79 @@ app.post('/api/claims/:id/complete', claimUpload.array('images', 10), async (req
         if (!claim) return res.status(404).json({ success: false, message: 'ไม่พบข้อมูลการเคลม' });
 
         const images = req.files ? req.files.map(f => f.path) : [];
+
+        // Determine next step number
         const nextStep = (claim.updates ? claim.updates.length : 0) + 2;
 
+        // Update claim status to 'รับเครื่องแล้ว' automatically
+        claim.status = 'รับเครื่องแล้ว';
+        claim.pickupDate = new Date();
+
+        // Add completion update
         claim.updates.push({
             step: nextStep,
-            title: 'ลูกค้ามารับเครื่องแล้ว',
+            title: 'ลูกค้าได้รับเครื่องแล้ว',
             date: new Date(),
             cost: 0,
             images: images
         });
 
-        claim.status = 'รับเครื่องแล้ว';
         await claim.save();
 
-        // Also update warranty claimStatus
-        if (claim.warrantyId) {
-            await Warranty.findByIdAndUpdate(claim.warrantyId, { claimStatus: 'completed' });
-        }
+        // Update Warranty status back to 'normal' (active)
+        await Warranty.findByIdAndUpdate(claim.warrantyId, { claimStatus: 'normal' });
 
         res.json({ success: true, claim });
     } catch (err) {
         res.status(400).json({ success: false, message: err.message });
+    }
+});
+
+// Get public claim tracking info
+app.get('/api/public/track/:claimId', async (req, res) => {
+    try {
+        const { claimId } = req.params;
+        const claim = await Claim.findOne({ claimId });
+
+        if (!claim) {
+            return res.status(404).json({ success: false, message: 'ไม่พบข้อมูลการเคลม' });
+        }
+
+        // Calculate Remaining Balance
+        let remainingBalance = 0;
+        let coverageLimit = 0;
+
+        if (claim.warrantyId) {
+            const warranty = await Warranty.findById(claim.warrantyId);
+            if (warranty) {
+                // Calculate Total Used Amount (Sum of all claims for this warranty)
+                const allClaims = await Claim.find({ warrantyId: claim.warrantyId });
+                const totalUsed = allClaims.reduce((sum, c) => sum + (c.totalCost || 0), 0);
+
+                // Calculate Limit (70% of Device Value)
+                const deviceValue = warranty.device.deviceValue || 0;
+                coverageLimit = Math.floor(deviceValue * 0.7);
+
+                remainingBalance = coverageLimit - totalUsed;
+            }
+        }
+
+        // Return only necessary public info
+        const publicData = {
+            claimId: claim.claimId,
+            deviceModel: claim.deviceModel,
+            symptoms: claim.symptoms,
+            status: claim.status,
+            totalCost: claim.totalCost,
+            coverageLimit: coverageLimit,
+            remainingBalance: remainingBalance,
+            updates: claim.updates.sort((a, b) => new Date(b.date) - new Date(a.date)), // Sort newest first
+            timestamp: new Date()
+        };
+
+        res.json({ success: true, data: publicData });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
     }
 });
 

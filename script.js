@@ -237,6 +237,40 @@ document.addEventListener('DOMContentLoaded', () => {
             views[viewName].style.display = 'block';
             if (viewName === 'registration') initRegistrationForm();
         }
+
+        // Always try to update badge if logged in
+        if (currentUser) {
+            updateApprovalBadge();
+            startBadgeInterval();
+        }
+    }
+
+    // --- BADGE LOGIC ---
+    let badgeInterval;
+
+    async function updateApprovalBadge() {
+        if (!currentUser) return;
+        try {
+            const res = await fetch('/api/warranties/pending-count');
+            const data = await res.json();
+
+            const badge = document.getElementById('approvalBadge');
+            if (badge) {
+                if (data.count > 0) {
+                    badge.textContent = data.count > 99 ? '99+' : data.count;
+                    badge.style.display = 'inline-flex';
+                } else {
+                    badge.style.display = 'none';
+                }
+            }
+        } catch (err) {
+            console.error('Error fetching badge count:', err);
+        }
+    }
+
+    function startBadgeInterval() {
+        if (badgeInterval) clearInterval(badgeInterval);
+        badgeInterval = setInterval(updateApprovalBadge, 60000); // Update every 60 seconds
     }
 
     // --- AUTH LOGIC ---
@@ -2262,6 +2296,12 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('claimStartDate').value = data.warrantyDates.start ? new Date(data.warrantyDates.start).toLocaleDateString('th-TH') : '';
             document.getElementById('claimEndDate').value = data.warrantyDates.end ? new Date(data.warrantyDates.end).toLocaleDateString('th-TH') : '';
 
+            // Store member addresses for delivery options
+            document.getElementById('displayCardAddress').textContent = data.customer.idCardAddress || 'ไม่พบข้อมูลที่อยู่ตามหน้าบัตร';
+            document.getElementById('displayShippingAddress').textContent = data.customer.shippingAddress || 'ไม่พบข้อมูลที่อยู่จัดส่ง';
+            document.getElementById('displayCardAddress').dataset.address = data.customer.idCardAddress || '';
+            document.getElementById('displayShippingAddress').dataset.address = data.customer.shippingAddress || '';
+
             // Auto-fill claim details
             document.getElementById('claimDate').value = new Date().toLocaleDateString('th-TH');
             document.getElementById('claimIdDisplay').value = 'สร้างอัตโนมัติเมื่อบันทึก';
@@ -2277,6 +2317,10 @@ document.addEventListener('DOMContentLoaded', () => {
             if (deliveryRadio) deliveryRadio.checked = false;
             document.getElementById('claimPickupBranch').value = '';
             document.getElementById('pickupBranchGroup').style.display = 'none';
+            document.getElementById('deliveryOptionsGroup').style.display = 'none';
+            document.getElementById('newAddressGroup').style.display = 'none';
+            document.getElementById('claimNewAddress').value = '';
+            document.querySelectorAll('input[name="deliveryAddressType"]').forEach(rb => rb.checked = false);
 
             // Reset checklist
             document.querySelectorAll('input[name="deviceCondition"]').forEach(cb => cb.checked = false);
@@ -2314,8 +2358,24 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('input[name="returnMethod"]').forEach(radio => {
         radio.addEventListener('change', function () {
             const branchGroup = document.getElementById('pickupBranchGroup');
-            if (branchGroup) {
-                branchGroup.style.display = this.value === 'pickup' ? 'block' : 'none';
+            const deliveryGroup = document.getElementById('deliveryOptionsGroup');
+
+            if (this.value === 'pickup') {
+                if (branchGroup) branchGroup.style.display = 'block';
+                if (deliveryGroup) deliveryGroup.style.display = 'none';
+            } else if (this.value === 'delivery') {
+                if (branchGroup) branchGroup.style.display = 'none';
+                if (deliveryGroup) deliveryGroup.style.display = 'block';
+            }
+        });
+    });
+
+    // Delivery address type radio toggle
+    document.querySelectorAll('input[name="deliveryAddressType"]').forEach(radio => {
+        radio.addEventListener('change', function () {
+            const newAddressGroup = document.getElementById('newAddressGroup');
+            if (newAddressGroup) {
+                newAddressGroup.style.display = this.value === 'new' ? 'block' : 'none';
             }
         });
     });
@@ -2360,6 +2420,30 @@ document.addEventListener('DOMContentLoaded', () => {
             formData.append('staffName', document.getElementById('claimStaffName').value);
             formData.append('returnMethod', returnMethodEl.value);
             formData.append('pickupBranch', document.getElementById('claimPickupBranch').value);
+
+            if (returnMethodEl.value === 'delivery') {
+                const addrTypeEl = document.querySelector('input[name="deliveryAddressType"]:checked');
+                if (!addrTypeEl) {
+                    showAlert('warning', 'กรุณาเลือกที่อยู่สำหรับจัดส่ง');
+                    return;
+                }
+
+                let addrDetail = '';
+                if (addrTypeEl.value === 'card') {
+                    addrDetail = document.getElementById('displayCardAddress').dataset.address;
+                } else if (addrTypeEl.value === 'memberShipping') {
+                    addrDetail = document.getElementById('displayShippingAddress').dataset.address;
+                } else if (addrTypeEl.value === 'new') {
+                    addrDetail = document.getElementById('claimNewAddress').value.trim();
+                    if (!addrDetail) {
+                        showAlert('warning', 'กรุณากรอกข้อมูลที่อยู่ใหม่');
+                        return;
+                    }
+                }
+
+                formData.append('deliveryAddressType', addrTypeEl.value);
+                formData.append('deliveryAddressDetail', addrDetail);
+            }
 
             // Collect device condition checklist
             const deviceCondition = {};
@@ -2422,9 +2506,15 @@ document.addEventListener('DOMContentLoaded', () => {
         const returnText = claim.returnMethod === 'pickup' ? 'มารับเองที่ร้าน' : 'จัดส่ง';
         document.getElementById('contractReturnMethod').textContent = returnText;
         const branchRow = document.getElementById('contractBranchRow');
+
         if (claim.returnMethod === 'pickup' && claim.pickupBranch) {
             branchRow.style.display = 'block';
             document.getElementById('contractPickupBranch').textContent = claim.pickupBranch;
+        } else if (claim.returnMethod === 'delivery' && claim.deliveryAddressDetail) {
+            branchRow.style.display = 'block';
+            const label = branchRow.querySelector('strong');
+            if (label) label.textContent = 'ที่อยู่จัดส่ง:';
+            document.getElementById('contractPickupBranch').textContent = claim.deliveryAddressDetail;
         } else {
             branchRow.style.display = 'none';
         }
