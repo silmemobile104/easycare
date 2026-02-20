@@ -15,6 +15,8 @@
     <!-- SweetAlert2 -->
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
+    <script src="/socket.io/socket.io.js"></script>
+
     <!-- ===== Claim Receipt Styles (embedded, used only when printing claim receipt) ===== -->
     <style id="claimReceiptStyles">
         /* These styles are scoped to #claimReceiptView and the @media print block */
@@ -578,6 +580,10 @@
                             <select id="statusFilter" class="filter-select">
                                 <option value="all">ทั้งหมด</option>
                                 <option value="active">ปกติ (Active)</option>
+                                <option value="approval_pending">รออนุมัติ</option>
+                                <option value="approval_approved">อนุมัติแล้ว</option>
+                                <option value="approval_rejected">ไม่อนุมัติ</option>
+                                <option value="claim_pending">รอเคลม</option>
                                 <option value="expired">หมดอายุ (Expired)</option>
                             </select>
                         </div>
@@ -780,6 +786,10 @@
                             <span class="live-dot"></span>
                             <span id="approvalLiveText">Live Update</span>
                         </div>
+                        <button id="btnApprovalViewLog" class="btn-toggle-refresh" title="ดู Log ย้อนหลังทั้งหมด"
+                            style="background: #0f172a;">
+                            🕒 Log
+                        </button>
                         <button id="btnApprovalToggleRefresh" class="btn-toggle-refresh"
                             title="หยุด/เริ่ม Auto-Refresh">
                             ⏸ หยุดชั่วคราว
@@ -1275,6 +1285,8 @@
                             class="readonly-field"></div>
                     <div class="form-group"><label>วันหมดอายุ</label><input type="date" id="memberExpiryDate" readonly
                             class="readonly-field"></div>
+                    <div class="form-group"><label>รหัสไปรษณีย์</label><input type="text" id="memberPostalCode"
+                            placeholder="เช่น 10110"></div>
                     <div class="form-group full-width">
                         <label>ที่อยู่ตามหน้าบัตร (ID Card Address)</label>
                         <textarea id="memberIdCardAddress" rows="3" readonly class="readonly-field"></textarea>

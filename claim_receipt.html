@@ -519,7 +519,7 @@
                     <div class="col w-50">
                         <div class="field">
                             <span class="label" id="branchLabel">สาขาที่รับ</span>
-                            <span id="pickupBranch" class="dotted-line" style="width: 180px;"></span>
+                            <span id="pickupBranch" style="width: 180px;"></span>
                         </div>
                     </div>
                 </div>
@@ -567,7 +567,9 @@
                     <div class="col w-50">
                         <div style="font-size: 15px; line-height: 1.8;">
                             <div style="font-weight: bold; margin-bottom: 6px;">🔍 ติดตามสถานะการเคลมออนไลน์</div>
-                            <div style="color: #1e40af;">🌐 smilecare.online/tracking</div>
+                            <div style="margin-top: 4px;">
+                                <img src="LineOA.JPG" alt="Line OA" style="max-width: 80px; width: 100%; height: auto; border: 1px solid #e2e8f0; border-radius: 10px; padding: 6px; background: #fff;" />
+                            </div>
                             <div style="margin-top: 6px; font-size: 14px; color: #475569;">
                                 กรุณาเตรียมเลขที่เลขที่สมาชิกและเลขประจำตัวประชาชนของท่านเพื่อตรวจสอบความคืบหน้า</div>
                         </div>
@@ -693,7 +695,25 @@
                 document.getElementById('pickupBranch').textContent = claim.pickupBranch || '-';
             } else {
                 if (branchLabel) branchLabel.textContent = 'ที่อยู่จัดส่ง';
-                document.getElementById('pickupBranch').textContent = claim.deliveryAddressDetail || '-';
+                let postalCode = '';
+                try {
+                    if (claim.memberId) {
+                        const resMember = await fetch(`/api/members/lookup?query=${encodeURIComponent(claim.memberId)}`);
+                        const dataMember = await resMember.json();
+                        const members = (dataMember && dataMember.success && Array.isArray(dataMember.members)) ? dataMember.members : [];
+                        const exact = members.find(m => m && m.memberId === claim.memberId) || members[0];
+                        if (exact && exact.postalCode) postalCode = exact.postalCode;
+                    }
+                } catch (e) {
+                    // ignore
+                }
+
+                const shipName = claim.customerName || '-';
+                const shipPhone = claim.customerPhone || '-';
+                const shipAddr = claim.deliveryAddressDetail || '-';
+                const shipPostalLine = postalCode ? `รหัสไปรษณีย์ ${postalCode}` : '';
+                const parts = [shipName, `โทร ${shipPhone}`, shipAddr, shipPostalLine].filter(Boolean);
+                document.getElementById('pickupBranch').innerHTML = parts.map(p => String(p).replace(/</g, '&lt;').replace(/>/g, '&gt;')).join('<br>');
             }
 
             // Signatures

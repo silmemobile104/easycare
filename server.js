@@ -133,6 +133,7 @@ const MemberSchema = new mongoose.Schema({
     address: { type: String },
     idCardAddress: { type: String },
     shippingAddress: { type: String },
+    postalCode: { type: String },
     issueDate: { type: Date },
     expiryDate: { type: Date },
     facebook: { type: String },
@@ -355,6 +356,18 @@ app.post('/api/warranties', async (req, res) => {
             approvalStatus: 'pending'
         });
         await newWarranty.save();
+
+        if (io && newWarranty.approvalStatus === 'pending') {
+            const firstName = (newWarranty.customer && newWarranty.customer.firstName) ? newWarranty.customer.firstName : '';
+            const lastName = (newWarranty.customer && newWarranty.customer.lastName) ? newWarranty.customer.lastName : '';
+            const customerName = `${firstName} ${lastName}`.trim() || '-';
+            io.emit('urgent_approval_needed', {
+                warrantyId: newWarranty._id.toString(),
+                policyNumber: newWarranty.policyNumber,
+                customerName
+            });
+        }
+
         res.status(201).json(newWarranty);
     } catch (err) {
         res.status(400).json({ message: err.message });

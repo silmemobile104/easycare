@@ -146,6 +146,68 @@ document.addEventListener('DOMContentLoaded', () => {
         currentUser &&
         (currentUser.staffPosition === 'อนุมัติสัญญา' || currentUser.staffId === 'STF000' || currentUser.staffName === 'Admin')
     );
+
+    // --- SOCKET.IO (for real-time notifications) ---
+    let socket = null;
+    try {
+        if (typeof io !== 'undefined') {
+            socket = io();
+        }
+    } catch (e) {
+        console.warn('Socket.io init failed:', e);
+    }
+
+    const urgentApprovalQueue = [];
+    let urgentApprovalProcessing = false;
+
+    function playUrgentApprovalSound() {
+        try {
+            const audio = new Audio('/alert.mp3');
+            audio.currentTime = 0;
+            const p = audio.play();
+            if (p && typeof p.catch === 'function') {
+                p.catch(() => { /* ignore autoplay block */ });
+            }
+        } catch (e) {
+            // ignore
+        }
+    }
+
+    async function processUrgentApprovalQueue() {
+        if (urgentApprovalProcessing) return;
+        urgentApprovalProcessing = true;
+
+        try {
+            while (urgentApprovalQueue.length > 0) {
+                const payload = urgentApprovalQueue.shift();
+                const customerName = (payload && payload.customerName) ? payload.customerName : '-';
+
+                playUrgentApprovalSound();
+
+                const result = await SwalTheme.fire({
+                    title: 'มีรายการรออนุมัติใหม่!',
+                    text: `ลูกค้า: ${customerName} กำลังรอการอนุมัติสัญญา`,
+                    icon: 'warning',
+                    allowOutsideClick: false,
+                    allowEscapeKey: false,
+                    showCancelButton: true,
+                    confirmButtonText: 'ไปหน้าอนุมัติเดี๋ยวนี้',
+                    cancelButtonText: 'ปิดแจ้งเตือน',
+                    confirmButtonColor: '#0d9488'
+                });
+
+                if (result.isConfirmed) {
+                    if (typeof showView === 'function') {
+                        showView('approval');
+                    } else if (approvalNavLink) {
+                        approvalNavLink.click();
+                    }
+                }
+            }
+        } finally {
+            urgentApprovalProcessing = false;
+        }
+    }
     let isEditMode = false;
     let currentEditData = null;
     let allRecords = []; // Global state for filtering
@@ -398,6 +460,15 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // Urgent Approval Notification (queue)
+    if (socket) {
+        socket.on('urgent_approval_needed', (payload) => {
+            if (!canApproveContracts) return;
+            urgentApprovalQueue.push(payload || {});
+            processUrgentApprovalQueue();
+        });
+    }
+
     // --- DASHBOARD LOGIC ---
     async function fetchWarranties() {
         showLoader('กำลังโหลดข้อมูล...');
@@ -431,8 +502,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // 2. Status filter
             const isExpired = new Date(r.warrantyDates.end) < new Date();
-            if (statusFilter === 'active' && isExpired) return false;
-            if (statusFilter === 'expired' && !isExpired) return false;
+            if (statusFilter !== 'all') {
+                if (statusFilter === 'active') {
+                    if (isExpired) return false;
+                    if (r.approvalStatus && r.approvalStatus !== 'approved') return false;
+                    if (r.claimStatus && r.claimStatus !== 'normal') return false;
+                } else if (statusFilter === 'expired') {
+                    if (!isExpired) return false;
+                } else if (statusFilter === 'approval_pending') {
+                    if (r.approvalStatus !== 'pending') return false;
+                } else if (statusFilter === 'approval_approved') {
+                    if (r.approvalStatus !== 'approved') return false;
+                } else if (statusFilter === 'approval_rejected') {
+                    if (r.approvalStatus !== 'rejected') return false;
+                } else if (statusFilter === 'claim_pending') {
+                    if (r.claimStatus !== 'pending') return false;
+                } else if (statusFilter === 'claim_completed') {
+                    if (r.claimStatus !== 'completed') return false;
+                }
+            }
 
             // 3. Payment filter
             if (paymentFilter !== 'all') {
@@ -1758,7 +1846,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td data-label="รหัสสมาชิก" style="font-weight: 600;">${m.memberId || '-'}</td>
                 <td data-label="ชื่อ-นามสกุล">${m.firstName} ${m.lastName}</td>
                 <td data-label="เบอร์โทรศัพท์">${m.phone}</td>
-                <td data-label="ที่อยู่ตามบัตร">${m.idCardAddress || '-'}</td>
+                <td data-label="ที่อยู่ตามบัตร">${m.idCardAddress || '-'}${m.postalCode ? ` (${m.postalCode})` : ''}</td>
                 <td data-label="จัดการ">
                     <div style="display: flex; gap: 0.5rem; justify-content: center;">
                         <button class="edit-member-btn edit-btn" data-id="${m._id}" title="แก้ไข">
@@ -1832,6 +1920,20 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('memberExpiryDate').value = member.expiryDate ? member.expiryDate.split('T')[0] : '';
             document.getElementById('memberFacebook').value = member.facebook || '';
             document.getElementById('memberFacebookLink').value = member.facebookLink || '';
+            const memberPostalCode = document.getElementById('memberPostalCode');
+            if (memberPostalCode) memberPostalCode.value = member.postalCode || '';
+
+            document.getElementById('memberCitizenId').readOnly = false;
+            document.getElementById('memberPrefix').readOnly = false;
+            document.getElementById('memberFirstName').readOnly = false;
+            document.getElementById('memberLastName').readOnly = false;
+            document.getElementById('memberFirstNameEn').readOnly = false;
+            document.getElementById('memberLastNameEn').readOnly = false;
+            document.getElementById('memberGender').readOnly = false;
+            document.getElementById('memberBirthdate').readOnly = false;
+            document.getElementById('memberIssueDate').readOnly = false;
+            document.getElementById('memberExpiryDate').readOnly = false;
+            document.getElementById('memberIdCardAddress').readOnly = false;
 
             const photoContainer = document.getElementById('smartCardPhotoContainer');
             const photoImg = document.getElementById('smartCardPhoto');
@@ -1865,21 +1967,30 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('memberExpiryDate').value = '';
             document.getElementById('memberFacebook').value = '';
             document.getElementById('memberFacebookLink').value = '';
+            const memberPostalCode = document.getElementById('memberPostalCode');
+            if (memberPostalCode) memberPostalCode.value = '';
             document.getElementById('smartCardPhotoContainer').style.display = 'none';
             document.getElementById('smartCardPhoto').src = '';
 
             // Re-enable fields if they were disabled (though we keep them readonly for SC integration)
-            document.getElementById('memberFirstName').readOnly = true;
-            document.getElementById('memberLastName').readOnly = true;
-            document.getElementById('memberBirthdate').readOnly = true;
-            document.getElementById('memberIdCardAddress').readOnly = true;
+            document.getElementById('memberCitizenId').readOnly = false;
+            document.getElementById('memberPrefix').readOnly = false;
+            document.getElementById('memberFirstName').readOnly = false;
+            document.getElementById('memberLastName').readOnly = false;
+            document.getElementById('memberFirstNameEn').readOnly = false;
+            document.getElementById('memberLastNameEn').readOnly = false;
+            document.getElementById('memberGender').readOnly = false;
+            document.getElementById('memberBirthdate').readOnly = false;
+            document.getElementById('memberIssueDate').readOnly = false;
+            document.getElementById('memberExpiryDate').readOnly = false;
+            document.getElementById('memberIdCardAddress').readOnly = false;
 
             document.getElementById('memberModal').style.display = 'flex';
         });
     }
 
     const closeMemberModal = document.getElementById('closeMemberModal');
-    if (closeMemberModal) {
+    if (closeMemberModal) { 
         closeMemberModal.addEventListener('click', () => {
             document.getElementById('memberModal').style.display = 'none';
         });
@@ -1906,6 +2017,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 idCardAddress: document.getElementById('memberIdCardAddress').value,
                 address: document.getElementById('memberIdCardAddress').value,
                 shippingAddress: document.getElementById('memberShippingAddress').value,
+                postalCode: document.getElementById('memberPostalCode') ? document.getElementById('memberPostalCode').value : undefined,
                 citizenId: document.getElementById('memberCitizenId').value,
                 prefix: document.getElementById('memberPrefix').value,
                 firstNameEn: document.getElementById('memberFirstNameEn').value,
@@ -3380,6 +3492,112 @@ document.addEventListener('DOMContentLoaded', () => {
                 </tr>
             `;
         }).join('');
+    }
+
+    function escapeHtml(s) {
+        return String(s).replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    function formatThaiDateTime(d) {
+        if (!d) return '-';
+        const dd = new Date(d);
+        if (Number.isNaN(dd.getTime())) return '-';
+        return dd.toLocaleString('th-TH');
+    }
+
+    async function openApprovalLogAllModal() {
+        try {
+            if (typeof SwalTheme === 'undefined') {
+                alert('SwalTheme library is missing!');
+                return;
+            }
+
+            showLoader('กำลังโหลด Log...');
+            let all = [];
+            try {
+                const res = await fetch('/api/warranties/pending?status=all');
+                all = await res.json();
+            } finally {
+                hideLoader();
+            }
+
+            const rows = (Array.isArray(all) ? all : [])
+                .slice()
+                .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
+                .map(w => {
+                    const createdAt = formatThaiDateTime(w.createdAt);
+                    const createdBy = w.staffName || '-';
+                    const policy = w.policyNumber || '-';
+                    const customerName = `${w.customer?.firstName || ''} ${w.customer?.lastName || ''}`.trim() || '-';
+
+                    let action = 'รออนุมัติ';
+                    let actionTime = '-';
+                    let actor = '-';
+                    if (w.approvalStatus === 'approved') {
+                        action = 'อนุมัติ';
+                        actionTime = formatThaiDateTime(w.approvalDate);
+                        actor = w.approver || '-';
+                    } else if (w.approvalStatus === 'rejected') {
+                        action = 'ไม่อนุมัติ';
+                        actionTime = formatThaiDateTime(w.rejectDate);
+                        actor = w.rejectBy || '-';
+                    }
+
+                    return `
+                        <tr>
+                            <td style="white-space:nowrap; font-weight:600;">${escapeHtml(policy)}</td>
+                            <td>${escapeHtml(customerName)}</td>
+                            <td style="white-space:nowrap;">${escapeHtml(createdAt)}</td>
+                            <td>${escapeHtml(createdBy)}</td>
+                            <td style="white-space:nowrap; font-weight:700;">${escapeHtml(action)}</td>
+                            <td style="white-space:nowrap;">${escapeHtml(actionTime)}</td>
+                            <td>${escapeHtml(actor)}</td>
+                        </tr>
+                    `;
+                })
+                .join('');
+
+            SwalTheme.fire({
+                title: '🕒 Log การดำเนินงานสัญญาทั้งหมด',
+                icon: 'info',
+                width: 980,
+                confirmButtonText: 'ปิด',
+                html: `
+                    <div style="text-align:left; font-size:0.9rem; margin-bottom:8px; color:#475569;">
+                        แสดงย้อนหลัง: วันที่สร้างรายการ / การอนุมัติ-ไม่อนุมัติ / ผู้ดำเนินการ
+                    </div>
+                    <div style="max-height: 65vh; overflow:auto; border: 1px solid #e2e8f0; border-radius: 10px;">
+                        <table style="width:100%; border-collapse: collapse;">
+                            <thead style="position: sticky; top: 0; background: #f8fafc;">
+                                <tr>
+                                    <th style="text-align:left; padding:10px; border-bottom:1px solid #e2e8f0;">เลขกรมธรรม์</th>
+                                    <th style="text-align:left; padding:10px; border-bottom:1px solid #e2e8f0;">ชื่อลูกค้า</th>
+                                    <th style="text-align:left; padding:10px; border-bottom:1px solid #e2e8f0;">สร้างเมื่อ</th>
+                                    <th style="text-align:left; padding:10px; border-bottom:1px solid #e2e8f0;">ผู้บันทึก</th>
+                                    <th style="text-align:left; padding:10px; border-bottom:1px solid #e2e8f0;">ผล</th>
+                                    <th style="text-align:left; padding:10px; border-bottom:1px solid #e2e8f0;">เวลาที่ทำ</th>
+                                    <th style="text-align:left; padding:10px; border-bottom:1px solid #e2e8f0;">ผู้อนุมัติ/ผู้ไม่อนุมัติ</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${rows || '<tr><td colspan="7" style="padding: 12px; color:#64748b;">ไม่พบข้อมูล</td></tr>'}
+                            </tbody>
+                        </table>
+                    </div>
+                `
+            });
+        } catch (err) {
+            console.error('openApprovalLogAllModal error:', err);
+            alert('เกิดข้อผิดพลาดในการเปิด Log');
+        }
+    }
+
+    const btnApprovalViewLog = document.getElementById('btnApprovalViewLog');
+    if (btnApprovalViewLog) {
+        btnApprovalViewLog.addEventListener('click', (e) => {
+            e.preventDefault();
+            openApprovalLogAllModal();
+        });
     }
 
     // --- Actions ---
