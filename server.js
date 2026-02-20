@@ -5,9 +5,13 @@ const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
+const http = require('http');
+const { Server } = require('socket.io');
 
 const app = express();
 const PORT = process.env.PORT || 3005;
+
+let io;
 
 // Middleware
 app.use(cors());
@@ -215,6 +219,31 @@ const ClaimSchema = new mongoose.Schema({
 const Claim = mongoose.model('Claim', ClaimSchema);
 
 // API Routes
+
+app.post('/api/public/customer/portal', async (req, res) => {
+    try {
+        const { idCard, memberId } = req.body || {};
+        if (!idCard || !memberId) {
+            return res.status(400).json({ success: false, message: 'กรุณาระบุเลขบัตรประชาชนและรหัสสมาชิก' });
+        }
+
+        const member = await Member.findOne({ citizenId: idCard, memberId }).lean();
+        if (!member) {
+            return res.status(404).json({ success: false, message: 'ไม่พบข้อมูลสมาชิก' });
+        }
+
+        const warranties = await Warranty.find({ memberId: member.memberId }).sort({ createdAt: -1 }).lean();
+        const warrantyIds = warranties.map(w => w._id);
+
+        const claims = warrantyIds.length
+            ? await Claim.find({ warrantyId: { $in: warrantyIds } }).sort({ createdAt: -1 }).lean()
+            : [];
+
+        return res.json({ success: true, member, warranties, claims });
+    } catch (err) {
+        return res.status(500).json({ success: false, message: err.message });
+    }
+});
 
 // Staff Registration
 app.post('/api/register', async (req, res) => {
@@ -599,6 +628,79 @@ app.patch('/api/warranties/:id/payment', async (req, res) => {
     }
 });
 
+// Customer Portal: Get Member Data, Warranties, and Claims
+app.post('/api/public/customer/portal', async (req, res) => {
+    try {
+        const { idCard, memberId } = req.body;
+
+        if (!idCard || !memberId) {
+            return res.status(400).json({ success: false, message: 'กรุณากรอกข้อมูลให้ครบถ้วน' });
+        }
+
+        // 1. Authenticate Member
+        // Search by both citizenId (idCard) and memberId
+        const member = await Member.findOne({ citizenId: idCard, memberId: memberId });
+
+        if (!member) {
+            return res.status(404).json({ success: false, message: 'ไม่พบข้อมูลสมาชิก หรือข้อมูลไม่ถูกต้อง' });
+        }
+
+        // 2. Fetch Warranties for this member
+        const warranties = await Warranty.aggregate([
+            { $match: { memberId: memberId } },
+            { $sort: { createdAt: -1 } },
+            {
+                $lookup: {
+                    from: 'claims',
+                    localField: '_id',
+                    foreignField: 'warrantyId',
+                    as: 'claims'
+                }
+            },
+            {
+                $addFields: {
+                    'totalClaimAmount': { $sum: '$claims.totalCost' }
+                }
+            },
+            { $project: { claims: 0 } } // Exclude claims here, we'll fetch them separately or structured differently
+        ]);
+
+        // 3. Fetch all Claims for these warranties
+        // We can actually just use the lookup from step 2, but if we want a flat list of claims for the claims section:
+        const warrantyIds = warranties.map(w => w._id);
+        const claims = await Claim.aggregate([
+            { $match: { warrantyId: { $in: warrantyIds } } },
+            { $sort: { claimDate: -1 } }, // Newest claims first
+            {
+                $lookup: {
+                    from: 'warranties',
+                    localField: 'warrantyId',
+                    foreignField: '_id',
+                    as: 'warrantyInfo'
+                }
+            },
+            {
+                $addFields: {
+                    'deviceModel': { $arrayElemAt: ['$warrantyInfo.device.model', 0] },
+                    'color': { $arrayElemAt: ['$warrantyInfo.device.color', 0] }
+                }
+            },
+            { $project: { warrantyInfo: 0 } }
+        ]);
+
+        res.json({
+            success: true,
+            member: member,
+            warranties: warranties,
+            claims: claims
+        });
+
+    } catch (err) {
+        console.error('Portal Error:', err);
+        res.status(500).json({ success: false, message: 'Server Error: ' + err.message });
+    }
+});
+
 // Delete warranty
 app.delete('/api/warranties/:id', async (req, res) => {
     try {
@@ -797,6 +899,8 @@ app.post('/api/claims/:id/updates', claimUpload.array('images', 10), async (req,
         claim.totalCost = (claim.totalCost || 0) + cost;
         await claim.save();
 
+        if (io) io.emit('claimUpdate', { claimId: claim.claimId, id: claim._id.toString(), warrantyId: claim.warrantyId?.toString() });
+
         res.json({ success: true, claim });
     } catch (err) {
         res.status(400).json({ success: false, message: err.message });
@@ -831,6 +935,8 @@ app.post('/api/claims/:id/complete', claimUpload.array('images', 10), async (req
 
         // Update Warranty status back to 'normal' (active)
         await Warranty.findByIdAndUpdate(claim.warrantyId, { claimStatus: 'normal' });
+
+        if (io) io.emit('claimUpdate', { claimId: claim.claimId, id: claim._id.toString(), warrantyId: claim.warrantyId?.toString() });
 
         res.json({ success: true, claim });
     } catch (err) {
@@ -1134,7 +1240,9 @@ app.get('*', (req, res) => {
 
 // Server Startup Section (Usually at the end)
 const startServer = () => {
-    app.listen(PORT, () => {
+    const server = http.createServer(app);
+    io = new Server(server, { cors: { origin: '*' } });
+    server.listen(PORT, () => {
         console.log(`Server running on http://localhost:${PORT}`);
     });
 };

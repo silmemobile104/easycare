@@ -142,6 +142,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- APP STATE ---
     let currentUser = JSON.parse(localStorage.getItem('smilecare_staff_session'));
+    const canApproveContracts = !!(
+        currentUser &&
+        (currentUser.staffPosition === 'อนุมัติสัญญา' || currentUser.staffId === 'STF000' || currentUser.staffName === 'Admin')
+    );
     let isEditMode = false;
     let currentEditData = null;
     let allRecords = []; // Global state for filtering
@@ -162,6 +166,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- VIEW CONTROLLER ---
     function showView(viewName) {
+        if (viewName === 'approval' && !canApproveContracts) {
+            showAlert('warning', 'บัญชีของคุณไม่มีสิทธิ์เข้าเมนูอนุมัติสัญญา');
+            viewName = 'dashboard';
+        }
         Object.keys(views).forEach(key => {
             if (views[key]) views[key].style.display = 'none';
         });
@@ -382,7 +390,13 @@ document.addEventListener('DOMContentLoaded', () => {
     if (statusTrackingNavLink) statusTrackingNavLink.addEventListener('click', (e) => { e.preventDefault(); showView('statusTracking'); });
 
     const approvalNavLink = document.getElementById('approvalNavLink');
-    if (approvalNavLink) approvalNavLink.addEventListener('click', (e) => { e.preventDefault(); showView('approval'); });
+    if (approvalNavLink) {
+        if (!canApproveContracts) {
+            approvalNavLink.style.display = 'none';
+        } else {
+            approvalNavLink.addEventListener('click', (e) => { e.preventDefault(); showView('approval'); });
+        }
+    }
 
     // --- DASHBOARD LOGIC ---
     async function fetchWarranties() {
@@ -2266,16 +2280,27 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (result.success) {
                 localStorage.setItem('smilecare_current_claim', JSON.stringify(result.claim));
-                window.open('claim_receipt.html', '_blank');
+                const claimMongoId = result.claim && result.claim._id ? String(result.claim._id) : '';
+                if (claimMongoId) {
+                    window.open(`claim_receipt.html?claimId=${encodeURIComponent(claimMongoId)}`, '_blank');
+                } else {
+                    window.open('claim_receipt.html', '_blank');
+                }
             } else {
                 showAlert('error', 'ไม่พบข้อมูลการเคลม');
             }
         } catch (err) {
-            console.error('Fetch claim error:', err);
-            showAlert('error', 'เกิดข้อผิดพลาดในการเชื่อมต่อ');
+            console.error(err);
+            showAlert('error', 'ไม่สามารถดึงข้อมูลเอกสารได้');
         } finally {
             hideLoader();
         }
+    };
+
+    // Print claim receipt by claim MongoDB _id (history)
+    window.printClaimById = function (claimId) {
+        if (!claimId) return;
+        window.open(`claim_receipt.html?claimId=${encodeURIComponent(String(claimId))}`, '_blank');
     };
 
     // Open claim form modal with warranty details
@@ -2459,7 +2484,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 simTray: 'ช่องใส่ซิม', imeiMatch: 'IMEI ตรงกัน', modelMatch: 'Model เครื่อง',
                 screenTouch: 'หน้าจอ/ทัชสกรีน', faceIdTouchId: 'Face ID / Touch ID',
                 cameras: 'กล้องหน้า/กล้องหลัง', speakerMic: 'ลำโพง/ไมค์',
-                connectivity: 'การเชื่อมต่อ', battery: 'แบตเตอรี่', warrantyVoid: 'ประกัน/วอยด์'
+                connectivity: 'การเชื่อมต่อ', battery: 'แบตเตอรี่', warrantyVoid: 'ประกัน/วอยด์',
+                other: 'อื่นๆ'
             };
             const deviceCondition = {};
             let conditionErrors = [];
@@ -2480,6 +2506,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 deviceCondition[key] = { status, reason };
             }
+
+            // Optional "other" (free text, no normal/abnormal selection)
+            const otherReasonEl = document.getElementById('reason-text-other');
+            const otherReason = otherReasonEl ? otherReasonEl.value.trim() : '';
+            if (otherReason) {
+                deviceCondition.other = { status: 'abnormal', reason: otherReason };
+            }
+
             if (conditionErrors.length > 0) {
                 showAlert('warning', `กรุณาเลือกสภาพและระบุเหตุผลให้ครบทุกรายการ:\n• ${conditionErrors.join('\n• ')}`);
                 return;
@@ -2824,9 +2858,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         <button class="status-update-btn submit-btn" data-id="${c._id}" style="padding: 0.4rem 1rem; font-size: 0.85rem; background: linear-gradient(135deg, #3b82f6, #2563eb);">
                             📋 อัปเดตสถานะ
                         </button>
-                        <button class="btn-history" onclick="openClaimHistoryModal('${c._id}')">
-                            📜 ประวัติ
-                        </button>
                     </div>
                 </td>
             </tr>
@@ -3128,6 +3159,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const totalCost = c.totalCost || 0;
             const statusColor = c.status === 'รอเคลม' ? '#f59e0b' : '#10b981';
             const statusText = c.status === 'รอเคลม' ? 'รอเคลม / กำลังซ่อม' : 'รับเครื่องแล้ว (เสร็จสิ้น)';
+            const claimMongoId = c && c._id ? String(c._id) : '';
 
             // Helper to generate image HTML
             const generateImagesHtml = (images) => {
@@ -3179,6 +3211,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         <span class="status-badge" style="background-color: ${statusColor}; color: white;">${statusText}</span>
                     </div>
                     <div class="history-body">
+                            <div style="display:flex; justify-content:flex-end; margin-bottom: 0.75rem;">
+                                <button type="button" onclick="printClaimById('${claimMongoId}')" ${claimMongoId ? '' : 'disabled'}
+                                    style="background: linear-gradient(135deg, #3b82f6, #2563eb); color: white; border: none; padding: 6px 12px; border-radius: 8px; cursor: pointer; font-size: 0.85rem; font-weight: 600; white-space: nowrap;">
+                                    🖨️ พิมพ์เอกสารรับเครื่อง
+                                </button>
+                            </div>
                             <strong>อุปกรณ์:</strong> ${c.deviceModel} | <strong>สี:</strong> ${c.color || '-'}
                         </div>
                         <div style="margin-bottom: 0.5rem; font-size: 0.9rem; color: #64748b;">

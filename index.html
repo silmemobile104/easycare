@@ -1502,7 +1502,8 @@
                                     { key: 'speakerMic', label: 'ลำโพง/ไมค์' },
                                     { key: 'connectivity', label: 'การเชื่อมต่อ' },
                                     { key: 'battery', label: 'แบตเตอรี่' },
-                                    { key: 'warrantyVoid', label: 'ประกัน/วอยด์' }
+                                    { key: 'warrantyVoid', label: 'ประกัน/วอยด์' },
+                                    { key: 'other', label: 'อื่นๆ' }
                                 ];
                                 const container = document.getElementById('deviceConditionChecklist');
                                 if (!container) return;
@@ -1510,32 +1511,42 @@
                                     const row = document.createElement('div');
                                     row.className = 'condition-row';
                                     row.dataset.key = item.key;
-                                    row.innerHTML = `
-                                    <div class="condition-row-top">
-                                        <span class="condition-label">${item.label}</span>
-                                        <div class="condition-btns">
-                                            <button type="button" class="cond-btn normal-btn" data-key="${item.key}">✅ ปกติ</button>
-                                            <button type="button" class="cond-btn abnormal-btn" data-key="${item.key}">❌ ไม่ปกติ</button>
+                                    if (item.key === 'other') {
+                                        row.innerHTML = `
+                                        <div class="condition-row-top">
+                                            <span class="condition-label">${item.label}</span>
                                         </div>
-                                    </div>
-                                    <div class="condition-reason" id="reason-${item.key}">
-                                        <textarea rows="2" id="reason-text-${item.key}" placeholder="ระบุเหตุผลที่ไม่ปกติ..."></textarea>
-                                    </div>`;
-                                    const normalBtn = row.querySelector('.normal-btn');
-                                    const abnormalBtn = row.querySelector('.abnormal-btn');
-                                    const reasonDiv = row.querySelector('.condition-reason');
-                                    normalBtn.addEventListener('click', () => {
-                                        row.className = 'condition-row is-normal';
-                                        normalBtn.classList.add('normal-active');
-                                        abnormalBtn.classList.remove('abnormal-active');
-                                        reasonDiv.style.display = 'none';
-                                    });
-                                    abnormalBtn.addEventListener('click', () => {
-                                        row.className = 'condition-row is-abnormal';
-                                        abnormalBtn.classList.add('abnormal-active');
-                                        normalBtn.classList.remove('normal-active');
-                                        reasonDiv.style.display = 'block';
-                                    });
+                                        <div class="condition-reason" id="reason-${item.key}" style="display: block;">
+                                            <textarea rows="2" id="reason-text-${item.key}" placeholder="ระบุรายละเอียดอื่นๆ..."></textarea>
+                                        </div>`;
+                                    } else {
+                                        row.innerHTML = `
+                                        <div class="condition-row-top">
+                                            <span class="condition-label">${item.label}</span>
+                                            <div class="condition-btns">
+                                                <button type="button" class="cond-btn normal-btn" data-key="${item.key}">✅ ปกติ</button>
+                                                <button type="button" class="cond-btn abnormal-btn" data-key="${item.key}">❌ ไม่ปกติ</button>
+                                            </div>
+                                        </div>
+                                        <div class="condition-reason" id="reason-${item.key}">
+                                            <textarea rows="2" id="reason-text-${item.key}" placeholder="ระบุเหตุผลที่ไม่ปกติ..."></textarea>
+                                        </div>`;
+                                        const normalBtn = row.querySelector('.normal-btn');
+                                        const abnormalBtn = row.querySelector('.abnormal-btn');
+                                        const reasonDiv = row.querySelector('.condition-reason');
+                                        normalBtn.addEventListener('click', () => {
+                                            row.className = 'condition-row is-normal';
+                                            normalBtn.classList.add('normal-active');
+                                            abnormalBtn.classList.remove('abnormal-active');
+                                            reasonDiv.style.display = 'none';
+                                        });
+                                        abnormalBtn.addEventListener('click', () => {
+                                            row.className = 'condition-row is-abnormal';
+                                            abnormalBtn.classList.add('abnormal-active');
+                                            normalBtn.classList.remove('normal-active');
+                                            reasonDiv.style.display = 'block';
+                                        });
+                                    }
                                     container.appendChild(row);
                                 });
                             })();

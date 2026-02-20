@@ -4,23 +4,29 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ติดตามสถานะงานซ่อม | EasyCare</title>
+    <title>Customer Portal | EasyCare</title>
     <link rel="icon" type="image/png" href="icon_easycare.png">
     <link
         href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600&family=Sarabun:wght@300;400;500;600&display=swap"
         rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="/socket.io/socket.io.js"></script>
     <style>
         :root {
             --primary: #0891b2;
             --primary-dark: #0e7490;
             --primary-light: #06b6d4;
+            --secondary: #64748b;
             --bg-body: #f0f9ff;
             --text-main: #0f172a;
             --text-muted: #64748b;
             --white: #ffffff;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
             --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
             --radius-lg: 1rem;
+            --radius-md: 0.75rem;
         }
 
         * {
@@ -35,81 +41,73 @@
             color: var(--text-main);
             line-height: 1.5;
             min-height: 100vh;
-            display: flex;
-            flex-direction: column;
         }
 
         .container {
             width: 100%;
-            max-width: 480px;
+            max-width: 600px;
             margin: 0 auto;
             padding: 1.5rem;
-            flex: 1;
         }
 
-        /* Header */
-        header {
+        /* Login View */
+        #loginView {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            min-height: 90vh;
             text-align: center;
-            margin-bottom: 2rem;
-            padding-top: 1rem;
+            animation: fadeIn 0.5s ease;
         }
 
         .logo {
             width: 120px;
             height: auto;
-            margin-bottom: 0.5rem;
-        }
-
-        h1 {
-            font-family: 'Kanit', sans-serif;
-            font-size: 1.5rem;
-            color: var(--primary-dark);
-            margin-bottom: 0.25rem;
-        }
-
-        .subtitle {
-            color: var(--text-muted);
-            font-size: 0.9rem;
-        }
-
-        /* Search Box */
-        .search-card {
-            background: var(--white);
-            padding: 1.5rem;
-            border-radius: var(--radius-lg);
-            box-shadow: var(--shadow-md);
-            margin-bottom: 2rem;
-            text-align: center;
-        }
-
-        .input-group {
             margin-bottom: 1rem;
         }
 
-        input[type="text"] {
+        .login-card {
+            background: var(--white);
+            padding: 2rem;
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-md);
+        }
+
+        .form-group {
+            margin-bottom: 1.25rem;
+            text-align: left;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            color: var(--text-main);
+        }
+
+        .form-control {
             width: 100%;
             padding: 0.875rem;
             border: 2px solid #e2e8f0;
-            border-radius: 0.75rem;
+            border-radius: var(--radius-md);
             font-family: 'Kanit', sans-serif;
             font-size: 1rem;
-            text-align: center;
-            outline: none;
             transition: 0.2s;
         }
 
-        input[type="text"]:focus {
+        .form-control:focus {
             border-color: var(--primary);
+            outline: none;
             box-shadow: 0 0 0 3px rgba(8, 145, 178, 0.1);
         }
 
-        .btn-search {
+        .btn-primary {
             width: 100%;
             padding: 0.875rem;
             background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
             color: white;
             border: none;
-            border-radius: 0.75rem;
+            border-radius: var(--radius-md);
             font-family: 'Kanit', sans-serif;
             font-size: 1rem;
             font-weight: 500;
@@ -117,76 +115,189 @@
             transition: 0.2s;
         }
 
-        .btn-search:hover {
+        .btn-primary:hover {
             transform: translateY(-1px);
             box-shadow: 0 4px 12px rgba(8, 145, 178, 0.25);
         }
 
-        /* Result Section */
-        #resultSection {
+        /* Dashboard View */
+        #dashboardView {
             display: none;
             animation: fadeIn 0.5s ease;
+            padding-bottom: 4rem;
         }
 
-        .info-card {
+        .dash-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .user-welcome h2 {
+            font-family: 'Kanit', sans-serif;
+            font-size: 1.25rem;
+            color: var(--primary-dark);
+        }
+
+        .user-welcome p {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+        }
+
+        .btn-logout {
+            background: #cbd5e1;
+            color: #475569;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: var(--radius-md);
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        .btn-logout:hover {
+            background: #94a3b8;
+            color: white;
+        }
+
+        .section-title {
+            font-family: 'Kanit', sans-serif;
+            font-size: 1.1rem;
+            margin-bottom: 1rem;
+            color: var(--text-main);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .card {
             background: var(--white);
             border-radius: var(--radius-lg);
             padding: 1.25rem;
             margin-bottom: 1.5rem;
             box-shadow: var(--shadow-md);
-            border-left: 4px solid var(--primary);
         }
 
-        .info-row {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 0.5rem;
-            font-size: 0.95rem;
+        /* Profile Section */
+        .profile-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
         }
 
-        .info-label {
+        .profile-item label {
+            display: block;
+            font-size: 0.8rem;
             color: var(--text-muted);
         }
 
-        .info-value {
-            font-weight: 600;
+        .profile-item span {
+            font-weight: 500;
             color: var(--text-main);
-            text-align: right;
+        }
+
+        /* Warranty Card */
+        .warranty-card {
+            border-left: 4px solid var(--primary);
+            margin-bottom: 1rem;
+            position: relative;
+        }
+
+        .warranty-card.expired {
+            border-left-color: var(--secondary);
+            opacity: 0.8;
+        }
+
+        .warranty-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.5rem;
+        }
+
+        .device-model {
+            font-weight: 600;
+            font-family: 'Kanit', sans-serif;
         }
 
         .status-badge {
-            display: inline-block;
-            padding: 0.25rem 0.75rem;
-            background: #fef3c7;
-            color: #d97706;
+            font-size: 0.75rem;
+            padding: 0.2rem 0.6rem;
             border-radius: 999px;
-            font-size: 0.85rem;
-            font-weight: 600;
+            font-weight: 500;
         }
 
-        .status-badge.completed {
+        .status-active {
             background: #dcfce7;
             color: #16a34a;
         }
 
-        /* Timeline */
+        .status-expired {
+            background: #f1f5f9;
+            color: #64748b;
+        }
+
+        .warranty-details {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+        }
+
+        /* Claim Card & Timeline */
+        .claim-card {
+            border: 1px solid #e2e8f0;
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+            margin-bottom: 1rem;
+            background: var(--white);
+            transition: 0.2s;
+        }
+
+        .claim-header {
+            padding: 1rem;
+            background: #f8fafc;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+        }
+
+        .claim-title {
+            font-weight: 600;
+            font-size: 0.95rem;
+        }
+
+        .claim-date {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        .claim-body {
+            padding: 1.25rem;
+            display: none;
+            /* Hidden by default */
+            border-top: 1px solid #e2e8f0;
+        }
+
+        .claim-body.open {
+            display: block;
+        }
+
+        /* Timeline CSS (Reused) */
         .timeline {
             position: relative;
             padding-left: 1.5rem;
             border-left: 2px solid #e2e8f0;
             margin-left: 0.5rem;
-            margin-bottom: 2rem;
         }
 
         .timeline-item {
             position: relative;
-            margin-bottom: 2rem;
+            margin-bottom: 1.5rem;
         }
 
         .timeline-dot {
             position: absolute;
             left: -1.95rem;
-            /* Adjust based on padding/border */
             top: 0.25rem;
             width: 1rem;
             height: 1rem;
@@ -202,24 +313,13 @@
         }
 
         .timeline-date {
-            font-size: 0.85rem;
+            font-size: 0.8rem;
             color: var(--text-muted);
-            margin-bottom: 0.25rem;
-            display: block;
         }
 
         .timeline-title {
-            font-family: 'Kanit', sans-serif;
             font-weight: 600;
-            font-size: 1.1rem;
             color: var(--text-main);
-            margin-bottom: 0.25rem;
-        }
-
-        .timeline-desc {
-            font-size: 0.95rem;
-            color: #475569;
-            margin-bottom: 0.5rem;
         }
 
         .timeline-images {
@@ -230,33 +330,12 @@
         }
 
         .timeline-img {
-            width: 80px;
-            height: 80px;
+            width: 60px;
+            height: 60px;
             object-fit: cover;
             border-radius: 0.5rem;
             cursor: pointer;
             border: 1px solid #e2e8f0;
-        }
-
-        /* Footer */
-        .contact-btn {
-            display: block;
-            width: 100%;
-            text-align: center;
-            background: white;
-            color: var(--primary);
-            border: 2px solid var(--primary);
-            padding: 0.875rem;
-            border-radius: 0.75rem;
-            font-family: 'Kanit', sans-serif;
-            font-weight: 600;
-            text-decoration: none;
-            margin-top: 2rem;
-            transition: 0.2s;
-        }
-
-        .contact-btn:hover {
-            background: var(--bg-body);
         }
 
         @keyframes fadeIn {
@@ -271,224 +350,381 @@
             }
         }
 
-        /* Loading */
-        .loader {
-            display: none;
-            border: 3px solid #f3f3f3;
-            border-top: 3px solid var(--primary);
-            border-radius: 50%;
-            width: 24px;
-            height: 24px;
-            animation: spin 1s linear infinite;
-            margin: 0 auto;
-        }
-
-        @keyframes spin {
-            0% {
-                transform: rotate(0deg);
-            }
-
-            100% {
-                transform: rotate(360deg);
-            }
+        .empty-state {
+            text-align: center;
+            padding: 2rem;
+            color: var(--text-muted);
+            font-style: italic;
         }
     </style>
 </head>
 
 <body>
 
-    <div class="container">
+    <!-- VIEW 1: LOGIN -->
+    <div class="container" id="loginView">
         <header>
             <img src="logo_easycare.png" alt="Easy.Care" class="logo">
-            <h1>ติดตามสถานะงานซ่อม</h1>
-            <p class="subtitle">กรอกเลขที่ใบรับเคลมเพื่อตรวจสอบสถานะ</p>
+            <h1>Customer Portal</h1>
+            <p style="color: var(--text-muted);">เข้าสู่ระบบเพื่อดูข้อมูลกรมธรรม์และสถานะการเคลม</p>
         </header>
 
-        <div class="search-card">
-            <div class="input-group">
-                <input type="text" id="claimIdInput" placeholder="เลขที่ใบรับเคลม (เช่น SML123456)" autocomplete="off">
-            </div>
-            <button class="btn-search" onclick="trackClaim()">
-                <span id="btnText">ค้นหาข้อมูล</span>
-                <div class="loader" id="loader"></div>
-            </button>
+        <div class="login-card">
+            <form id="loginForm">
+                <div class="form-group">
+                    <label>เลขประจำตัวประชาชน (Citizen ID)</label>
+                    <input type="text" id="idCard" class="form-control" placeholder="กรอกเลขบัตรประชาชน 13 หลัก"
+                        required maxlength="13">
+                </div>
+                <div class="form-group">
+                    <label>รหัสสมาชิก (Member ID)</label>
+                    <input type="text" id="memberId" class="form-control" placeholder="เช่น MEM001" required>
+                </div>
+                <button type="submit" class="btn-primary">เข้าสู่ระบบ (Login)</button>
+            </form>
         </div>
 
-        <div id="resultSection">
-            <!-- Device Info -->
-            <div class="info-card">
-                <div style="margin-bottom: 1rem; border-bottom: 1px solid #f1f5f9; padding-bottom: 0.75rem;">
-                    <div class="info-row">
-                        <span class="info-label">เลขที่ใบรับเคลม</span>
-                        <span class="info-value" id="dispClaimId">-</span>
-                    </div>
+        <div style="text-align: center; margin-top: 2rem;">
+            <a href="tel:0812345678"
+                style="color: var(--secondary); text-decoration: none; font-size: 0.9rem;">ติดต่องานบริการลูกค้า</a>
+        </div>
+    </div>
+
+    <!-- VIEW 2: DASHBOARD -->
+    <div class="container" id="dashboardView">
+        <div class="dash-header">
+            <div class="user-welcome">
+                <h2 id="welcomeName">สวัสดี, คุณ...</h2>
+                <p id="welcomeId">Member ID: ...</p>
+            </div>
+            <button class="btn-logout" onclick="logout()">ออกจากระบบ</button>
+        </div>
+
+        <!-- Section 1: Personal Info -->
+        <h3 class="section-title">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                <circle cx="12" cy="7" r="4"></circle>
+            </svg>
+            ข้อมูลส่วนตัว
+        </h3>
+        <div class="card">
+            <div class="profile-grid">
+                <div class="profile-item">
+                    <label>ชื่อ-นามสกุล</label>
+                    <span id="profileName">-</span>
                 </div>
-                <div class="info-row">
-                    <span class="info-label">รุ่นอุปกรณ์</span>
-                    <span class="info-value" id="dispModel">-</span>
+                <div class="profile-item">
+                    <label>เบอร์โทรศัพท์</label>
+                    <span id="profilePhone">-</span>
                 </div>
-                <div class="info-row">
-                    <span class="info-label">อาการเสีย</span>
-                    <span class="info-value" id="dispSymptoms">-</span>
-                </div>
-                <div class="info-row">
-                    <span class="info-label">สถานะปัจจุบัน</span>
-                    <span id="dispStatus"></span>
-                </div>
-                <div class="info-row" style="margin-top: 1rem; padding-top: 0.75rem; border-top: 1px dashed #e2e8f0;">
-                    <span class="info-label">ยอดค่าใช้จ่ายรวม</span>
-                    <span class="info-value" style="color: var(--primary); font-size: 1.1rem;" id="dispCost">0
-                        บาท</span>
-                </div>
-                <div class="info-row">
-                    <span class="info-label">วงเงินคงเหลือ</span>
-                    <div style="text-align: right;">
-                        <span class="info-value" id="dispBalance" style="font-weight: 700;">-</span>
-                        <div style="font-size: 0.75rem; color: #94a3b8;" id="dispLimit">(วงเงินสูงสุด -)</div>
-                    </div>
+                <div class="profile-item" style="grid-column: span 2;">
+                    <label>ที่อยู่จัดส่ง</label>
+                    <span id="profileAddress">-</span>
                 </div>
             </div>
+        </div>
 
-            <h3 style="font-family: 'Kanit'; margin-bottom: 1.5rem; padding-left: 0.5rem;">Time Line ความคืบหน้า</h3>
+        <!-- Section 2: Warranties -->
+        <h3 class="section-title">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+            </svg>
+            กรมธรรม์ของฉัน
+        </h3>
+        <div id="warrantiesList">
+            <!-- Injected via JS -->
+        </div>
 
-            <div class="timeline" id="timelineList">
-                <!-- Timeline items will be injected here -->
-            </div>
-
-            <a href="tel:0812345678" class="contact-btn">ติดต่อร้านค้า</a>
+        <!-- Section 3: Claims -->
+        <h3 class="section-title">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round">
+                <path
+                    d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z">
+                </path>
+            </svg>
+            ประวัติการเคลม
+        </h3>
+        <div id="claimsList">
+            <!-- Injected via JS -->
         </div>
     </div>
 
     <script>
-        const API_URL = '/api/public/track/';
+        const socket = io();
 
-        document.getElementById('claimIdInput').addEventListener('keypress', function (e) {
-            if (e.key === 'Enter') trackClaim();
+        // Check Local Storage for Session
+        const session = JSON.parse(localStorage.getItem('easycare_customer_session'));
+        if (session) {
+            fetchPortalData(session.idCard, session.memberId);
+        }
+
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const idCard = document.getElementById('idCard').value.trim();
+            const memberId = document.getElementById('memberId').value.trim();
+
+            if (!idCard || !memberId) return;
+
+            Swal.fire({
+                title: 'กำลังโหลดข้อมูล...',
+                allowOutsideClick: false,
+                didOpen: () => Swal.showLoading()
+            });
+
+            await fetchPortalData(idCard, memberId);
         });
 
-        async function trackClaim() {
-            const claimId = document.getElementById('claimIdInput').value.trim();
-            const btnText = document.getElementById('btnText');
-            const loader = document.getElementById('loader');
-            const resultSection = document.getElementById('resultSection');
-
-            if (!claimId) {
-                Swal.fire({
-                    icon: 'warning',
-                    title: 'กรุณากรอกข้อมูล',
-                    text: 'โปรดระบุเลขที่ใบรับเคลมที่ต้องการค้นหา',
-                    confirmButtonColor: '#0891b2'
-                });
-                return;
-            }
-
-            // UI Loading State
-            btnText.style.display = 'none';
-            loader.style.display = 'block';
-            resultSection.style.display = 'none';
-
+        async function fetchPortalData(idCard, memberId) {
             try {
-                const response = await fetch(API_URL + claimId);
-                const data = await response.json();
+                const res = await fetch('/api/public/customer/portal', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ idCard, memberId })
+                });
 
+                if (!res.ok) {
+                    const payload = await res.json().catch(() => null);
+                    if (res.status === 404) {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'ไม่พบข้อมูลสมาชิก',
+                            text: payload?.message || 'เลขบัตรประชาชนหรือรหัสสมาชิกไม่ถูกต้อง',
+                            confirmButtonColor: '#ef4444'
+                        });
+                        return;
+                    }
+
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'เกิดข้อผิดพลาด',
+                        text: payload?.message || `Server error: ${res.status}`,
+                        confirmButtonColor: '#ef4444'
+                    });
+                    return;
+                }
+
+                const data = await res.json();
                 if (data.success) {
-                    renderClaimData(data.data);
-                    resultSection.style.display = 'block';
+                    Swal.close();
+                    localStorage.setItem('easycare_customer_session', JSON.stringify({ idCard, memberId }));
+                    renderDashboard(data);
                 } else {
                     Swal.fire({
                         icon: 'error',
                         title: 'ไม่พบข้อมูล',
-                        text: 'ไม่พบเลขที่ใบรับเคลมนี้ในระบบ กรุณาตรวจสอบความถูกต้อง',
+                        text: data.message,
                         confirmButtonColor: '#ef4444'
                     });
                 }
-            } catch (error) {
-                console.error('Error:', error);
+            } catch (err) {
+                console.error(err);
                 Swal.fire({
                     icon: 'error',
                     title: 'เกิดข้อผิดพลาด',
                     text: 'ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้',
                     confirmButtonColor: '#ef4444'
                 });
-            } finally {
-                btnText.style.display = 'inline';
-                loader.style.display = 'none';
             }
         }
 
-        function renderClaimData(data) {
-            // Fill Basic Info
-            document.getElementById('dispClaimId').textContent = data.claimId;
-            document.getElementById('dispModel').textContent = data.deviceModel || '-';
-            document.getElementById('dispSymptoms').textContent = data.symptoms || '-';
+        function renderDashboard(data) {
+            const member = data.member;
 
-            const cost = data.totalCost || 0;
-            document.getElementById('dispCost').textContent = cost.toLocaleString() + ' บาท';
+            document.getElementById('loginView').style.display = 'none';
+            document.getElementById('dashboardView').style.display = 'block';
 
-            // Remaining Balance
-            const balance = data.remainingBalance || 0;
-            const limit = data.coverageLimit || 0;
+            document.getElementById('welcomeName').textContent = `สวัสดี, คุณ${member.firstName}`;
+            document.getElementById('welcomeId').textContent = `Member ID: ${member.memberId}`;
 
-            const balanceEl = document.getElementById('dispBalance');
-            balanceEl.textContent = balance.toLocaleString() + ' บาท';
-            balanceEl.style.color = balance < 0 ? '#ef4444' : '#10b981'; // Red if negative, Green if positive
+            document.getElementById('profileName').textContent = `${member.firstName} ${member.lastName}`;
+            document.getElementById('profilePhone').textContent = member.phone;
+            document.getElementById('profileAddress').textContent = member.shippingAddress || member.address || '-';
 
-            document.getElementById('dispLimit').textContent = `(วงเงินสูงสุด ${limit.toLocaleString()})`;
+            const wList = document.getElementById('warrantiesList');
+            if (data.warranties.length > 0) {
+                wList.innerHTML = data.warranties.map(w => {
+                    const endObj = new Date(w.warrantyDates.end);
+                    const isExpired = endObj < new Date();
+                    const startObj = w.warrantyDates?.start ? new Date(w.warrantyDates.start) : null;
+                    const startStr = startObj ? startObj.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' }) : '-';
+                    const endStr = endObj.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' });
 
-            // Status Badge
-            const statusEl = document.getElementById('dispStatus');
-            statusEl.innerHTML = `<span class="status-badge ${data.status === 'รับเครื่องแล้ว' || data.status === 'Completed' ? 'completed' : ''}">${data.status}</span>`;
+                    const limit = calcCoverageLimit(w);
+                    const used = calcWarrantyUsedAmount(w, data.claims);
+                    const remaining = Math.max(0, limit - used);
+                    const remainingTimeLabel = calcRemainingCoverageLabel(endObj);
 
-            // Render Timeline
-            const timelineList = document.getElementById('timelineList');
-            timelineList.innerHTML = '';
+                    return `
+                    <div class="card warranty-card ${isExpired ? 'expired' : ''}">
+                        <div class="warranty-header">
+                            <span class="device-model">${w.device.model} (${w.device.color}, ${w.device.capacity})</span>
+                            <span class="status-badge ${isExpired ? 'status-expired' : 'status-active'}">
+                                ${isExpired ? 'Expired' : 'Active'}
+                            </span>
+                        </div>
+                        <div class="warranty-details">
+                            <div>แพ็กเกจ: ${w.package.plan}</div>
+                            <div>IMEI: ${w.device.imei || '-'}</div>
+                            <div>Serial No: ${w.device.serial}</div>
+                            <div>ระยะคุ้มครอง: ${startStr} - ${endStr}</div>
+                            <div>เวลาคงเหลือ: ${remainingTimeLabel}</div>
+                            <div>วงเงินทั้งหมด: ${formatMoney(limit)} บาท</div>
+                            <div>วงเงินคงเหลือ: ${formatMoney(remaining)} บาท</div>
+                        </div>
+                    </div>`;
+                }).join('');
+            } else {
+                wList.innerHTML = '<div class="empty-state">ไม่พบข้อมูลกรมธรรม์</div>';
+            }
 
-            if (data.updates && data.updates.length > 0) {
-                // Determine completion status to know if we should add a final "Done" step visually if needed
-                // But the API returns updates list, so we just render them.
-                // Note: The API sorts them newest first.
+            const cList = document.getElementById('claimsList');
+            if (data.claims.length > 0) {
+                cList.innerHTML = data.claims.map(c => {
+                    const cDate = new Date(c.claimDate).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' });
+                    const timelineHtml = buildClaimTimelineHTML(c);
+                    const totalCost = (c.totalCost || 0);
+                    const claimMongoId = (c && c._id) ? String(c._id) : '';
+                    return `
+                    <div class="claim-card">
+                        <div class="claim-header" onclick="toggleClaimBody(this)">
+                            <div>
+                                <div class="claim-title">${c.deviceModel} - ${c.symptoms}</div>
+                                <div class="claim-date">วันที่ส่งเคลม: ${cDate} • ค่าใช้จ่ายรวม: ${totalCost.toLocaleString('th-TH')} บาท</div>
+                            </div>
+                            <div style="font-size: 1.25rem; color: var(--primary);">&#8250;</div>
+                        </div>
+                        <div class="claim-body">
+                            <div style="display:flex; justify-content:flex-end; padding: 0.75rem 0;">
+                                <button type="button" onclick="event.stopPropagation(); openClaimReceipt('${claimMongoId}')" ${claimMongoId ? '' : 'disabled'}
+                                    style="background: var(--primary); color: white; border: none; padding: 0.5rem 0.9rem; border-radius: 10px; font-weight: 600; cursor: pointer;">
+                                    พิมพ์เอกสารรับเครื่อง
+                                </button>
+                            </div>
+                            <div class="timeline">${timelineHtml}</div>
+                        </div>
+                    </div>`;
+                }).join('');
+            } else {
+                cList.innerHTML = '<div class="empty-state">ไม่พบประวัติการเคลม</div>';
+            }
+        }
 
-                data.updates.forEach((update, index) => {
-                    const dateObj = new Date(update.date);
-                    const dateStr = dateObj.toLocaleDateString('th-TH', {
-                        year: 'numeric', month: 'long', day: 'numeric',
-                        hour: '2-digit', minute: '2-digit'
-                    });
+        function openClaimReceipt(claimMongoId) {
+            if (!claimMongoId) return;
+            window.open(`claim_receipt.html?claimId=${encodeURIComponent(claimMongoId)}`, '_blank');
+        }
 
-                    let imagesHtml = '';
-                    if (update.images && update.images.length > 0) {
-                        imagesHtml = `<div class="timeline-images">
-                            ${update.images.map(img => `<img src="${img}" class="timeline-img" onclick="viewImage('${img}')" alt="Updated Image">`).join('')}
-                        </div>`;
-                    }
+        function buildClaimTimelineHTML(claim) {
+            const items = [];
 
-                    const itemHtml = `
+            const claimDateStr = claim.claimDate
+                ? new Date(claim.claimDate).toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+                : '-';
+            const firstImgs = (claim.images || []).map(img => `<img src="${img}" class="timeline-img" onclick="viewImage('${img}')">`).join('');
+            items.push(`
+                <div class="timeline-item">
+                    <div class="timeline-dot"></div>
+                    <span class="timeline-date">${claimDateStr}</span>
+                    <div class="timeline-title">รับเครื่อง</div>
+                    <div style="font-size:0.85rem; color:#64748b;">ค่าใช้จ่าย 0 บาท</div>
+                    ${firstImgs ? `<div class="timeline-images">${firstImgs}</div>` : ''}
+                </div>
+            `);
+
+            if (claim.updates && claim.updates.length > 0) {
+                claim.updates.forEach(u => {
+                    const uDate = u.date
+                        ? new Date(u.date).toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+                        : '-';
+                    const imgs = (u.images || []).map(img => `<img src="${img}" class="timeline-img" onclick="viewImage('${img}')">`).join('');
+                    const cost = (u.cost || 0);
+                    items.push(`
                         <div class="timeline-item">
                             <div class="timeline-dot"></div>
-                            <span class="timeline-date">${dateStr}</span>
-                            <div class="timeline-title">${update.title}</div>
-                            ${update.cost > 0 ? `<div style="font-size:0.85rem; color:#d97706; margin-bottom:0.25rem;">+ ค่าใช้จ่ายเพิ่มเติม ${update.cost.toLocaleString()} บาท</div>` : ''}
-                            ${imagesHtml}
+                            <span class="timeline-date">${uDate}</span>
+                            <div class="timeline-title">${u.title || '-'}</div>
+                            <div style="font-size:0.85rem; color:#d97706;">ค่าใช้จ่าย ${cost.toLocaleString('th-TH')} บาท</div>
+                            ${imgs ? `<div class="timeline-images">${imgs}</div>` : ''}
                         </div>
-                    `;
-                    timelineList.innerHTML += itemHtml;
+                    `);
                 });
             } else {
-                timelineList.innerHTML = '<p style="color:var(--text-muted); font-style:italic;">ยังไม่มีความคืบหน้า</p>';
+                items.push('<p style="color:#94a3b8; font-style:italic; margin-top:0.75rem;">รอเริ่มดำเนินการ</p>');
             }
+
+            return items.join('');
+        }
+
+        function toggleClaimBody(header) {
+            const body = header.nextElementSibling;
+            const chevron = header.querySelector('div:last-child');
+
+            if (body.classList.contains('open')) {
+                body.classList.remove('open');
+                chevron.style.transform = 'rotate(0deg)';
+                header.style.background = '#f8fafc';
+            } else {
+                body.classList.add('open');
+                chevron.style.transform = 'rotate(90deg)';
+                header.style.background = '#e0f2fe';
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem('easycare_customer_session');
+            location.reload();
         }
 
         function viewImage(url) {
             Swal.fire({
                 imageUrl: url,
-                imageAlt: 'Evidence Image',
-                width: 600,
-                confirmButtonColor: '#0891b2',
                 confirmButtonText: 'ปิด',
-                showClass: { popup: 'animate__animated animate__fadeInDown' },
-                hideClass: { popup: 'animate__animated animate__fadeOutUp' }
+                confirmButtonColor: '#0891b2',
+                width: 500
             });
         }
+
+        function formatMoney(n) {
+            const num = Number(n || 0);
+            return num.toLocaleString('th-TH');
+        }
+
+        function calcCoverageLimit(warranty) {
+            const deviceValue = Number(warranty?.device?.deviceValue || 0);
+            return Math.floor(deviceValue * 0.7);
+        }
+
+        function calcWarrantyUsedAmount(warranty, claims) {
+            const warrantyId = (warranty?._id || '').toString();
+            if (!warrantyId) return 0;
+            const list = Array.isArray(claims) ? claims : [];
+            return list
+                .filter(c => (c?.warrantyId || '').toString() === warrantyId)
+                .reduce((sum, c) => sum + Number(c?.totalCost || 0), 0);
+        }
+
+        function calcRemainingCoverageLabel(endDateObj) {
+            if (!(endDateObj instanceof Date) || Number.isNaN(endDateObj.getTime())) return '-';
+            const now = new Date();
+            const diffMs = endDateObj.getTime() - now.getTime();
+            if (diffMs <= 0) return 'หมดอายุแล้ว';
+
+            const totalHours = Math.floor(diffMs / (1000 * 60 * 60));
+            const days = Math.floor(totalHours / 24);
+            const hours = totalHours % 24;
+
+            return `${days.toLocaleString('th-TH')} วัน, ${hours.toLocaleString('th-TH')} ชม.`;
+        }
+
+        // Socket.io Real-time Updates
+        socket.on('claimUpdate', () => {
+            const s = JSON.parse(localStorage.getItem('easycare_customer_session'));
+            if (s) fetchPortalData(s.idCard, s.memberId);
+        });
     </script>
 </body>
 

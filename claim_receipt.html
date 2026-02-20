@@ -601,14 +601,30 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', async () => {
-            const claimDataStr = localStorage.getItem('smilecare_current_claim');
-            if (!claimDataStr) {
-                alert('ไม่พบข้อมูลการเคลม กรุณาลองใหม่อีกครั้ง');
-                window.close();
-                return;
-            }
+            let claim = null;
+            const params = new URLSearchParams(window.location.search);
+            const claimIdFromQuery = params.get('claimId');
 
-            const claim = JSON.parse(claimDataStr);
+            if (claimIdFromQuery) {
+                try {
+                    const res = await fetch(`/api/claims/${encodeURIComponent(claimIdFromQuery)}`);
+                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                    claim = await res.json();
+                } catch (err) {
+                    console.error('Error fetching claim by id:', err);
+                    alert('ไม่พบข้อมูลการเคลม กรุณาลองใหม่อีกครั้ง');
+                    window.close();
+                    return;
+                }
+            } else {
+                const claimDataStr = localStorage.getItem('smilecare_current_claim');
+                if (!claimDataStr) {
+                    alert('ไม่พบข้อมูลการเคลม กรุณาลองใหม่อีกครั้ง');
+                    window.close();
+                    return;
+                }
+                claim = JSON.parse(claimDataStr);
+            }
 
             // Format Date Helper
             const formatThaiDate = (dateStr) => {
@@ -697,14 +713,17 @@
                 simTray: 'ช่องใส่ซิม', imeiMatch: 'IMEI ตรงกัน', modelMatch: 'Model เครื่อง',
                 screenTouch: 'หน้าจอ/ทัชสกรีน', faceIdTouchId: 'Face ID / Touch ID',
                 cameras: 'กล้องหน้า/กล้องหลัง', speakerMic: 'ลำโพง/ไมค์',
-                connectivity: 'การเชื่อมต่อ', battery: 'แบตเตอรี่', warrantyVoid: 'ประกัน/วอยด์'
+                connectivity: 'การเชื่อมต่อ', battery: 'แบตเตอรี่', warrantyVoid: 'ประกัน/วอยด์',
+                other: 'อื่นๆ'
             };
+
             const conditions = claim.deviceCondition || {};
             const abnormalList = document.getElementById('abnormalConditionList');
             const abnormalItems = Object.entries(conditions).filter(([key, val]) =>
                 val && (val === false || val.status === 'abnormal')
             );
             if (abnormalItems.length === 0) {
+                abnormalList.innerHTML = '<span style="color:#16a34a; font-weight:600;"> สภาพปกติทุกรายการ</span>';
                 abnormalList.innerHTML = '<span style="color:#16a34a; font-weight:600;">✅ สภาพปกติทุกรายการ</span>';
             } else {
                 abnormalList.innerHTML = abnormalItems.map(([key, val]) => {

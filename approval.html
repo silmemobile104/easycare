@@ -482,6 +482,20 @@
                 return;
             }
 
+            // --- Permission Check ---
+            const canApproveContracts = (currentUser.staffPosition === 'อนุมัติสัญญา' || currentUser.staffId === 'STF000' || currentUser.staffName === 'Admin');
+            if (!canApproveContracts) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'ไม่มีสิทธิ์เข้าใช้งาน',
+                    text: 'บัญชีของคุณไม่มีสิทธิ์เข้าเมนูอนุมัติสัญญา',
+                    confirmButtonText: 'ตกลง'
+                }).then(() => {
+                    window.location.href = 'index.html';
+                });
+                return;
+            }
+
             // Update staff info
             const staffNameEl = document.getElementById('displayStaffName');
             const staffInitialEl = document.getElementById('staffInitial');
