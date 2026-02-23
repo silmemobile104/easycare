@@ -2091,7 +2091,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const closeMemberModal = document.getElementById('closeMemberModal');
-    if (closeMemberModal) { 
+    if (closeMemberModal) {
         closeMemberModal.addEventListener('click', () => {
             document.getElementById('memberModal').style.display = 'none';
         });
@@ -3196,10 +3196,43 @@ document.addEventListener('DOMContentLoaded', () => {
             const evidencePreview = document.getElementById('updateEvidencePreview');
             if (evidencePreview) evidencePreview.innerHTML = '';
 
-            const completeImagesInput = document.getElementById('completeImages');
-            if (completeImagesInput) completeImagesInput.value = '';
-            const completePreview = document.getElementById('completeImagePreview');
-            if (completePreview) completePreview.innerHTML = '';
+            const completeReturnRadios = document.querySelectorAll('input[name="completeReturnMethod"]');
+            if (completeReturnRadios.length) completeReturnRadios.forEach(el => el.checked = false);
+            const pickupGroup = document.getElementById('completePickupGroup');
+            if (pickupGroup) pickupGroup.style.display = 'none';
+            const deliveryGroup = document.getElementById('completeDeliveryGroup');
+            if (deliveryGroup) deliveryGroup.style.display = 'none';
+
+            const completePickupBranch = document.getElementById('completePickupBranch');
+            if (completePickupBranch) completePickupBranch.value = '';
+
+            const deliveryAddressTypeRadios = document.querySelectorAll('input[name="completeDeliveryAddressType"]');
+            if (deliveryAddressTypeRadios.length) deliveryAddressTypeRadios.forEach(el => el.checked = false);
+
+            const completeNewAddressGroup = document.getElementById('completeNewAddressGroup');
+            if (completeNewAddressGroup) completeNewAddressGroup.style.display = 'none';
+
+            const completeNewAddress = document.getElementById('completeNewAddress');
+            if (completeNewAddress) completeNewAddress.value = '';
+
+            const displayOriginalAddress = document.getElementById('displayOriginalAddress');
+            if (displayOriginalAddress) {
+                const addr = claim.deliveryAddressDetail || claim.pickupBranch || '';
+                displayOriginalAddress.textContent = addr || '-';
+                displayOriginalAddress.dataset.address = addr;
+            }
+
+            const completeClaimBtn = document.getElementById('completeClaimBtn');
+            if (completeClaimBtn) completeClaimBtn.style.display = 'none';
+
+            ['completeDeviceImagePickup', 'completeCustomerImage', 'completeDeviceImageDelivery', 'completeBoxImage', 'completeReceiptImage'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.value = '';
+            });
+            ['previewDevicePickup', 'previewCustomerPickup', 'previewDeviceDelivery', 'previewBoxDelivery', 'previewReceiptDelivery'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.innerHTML = '';
+            });
 
             // Show modal
             document.getElementById('statusUpdateModal').style.display = 'flex';
@@ -3354,22 +3387,44 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Image preview for complete images
-    const completeImagesInput = document.getElementById('completeImages');
-    if (completeImagesInput) {
-        completeImagesInput.addEventListener('change', function () {
-            const preview = document.getElementById('completeImagePreview');
-            if (!preview) return;
-            preview.innerHTML = '';
-            Array.from(this.files).forEach(file => {
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    preview.innerHTML += `<img src="${e.target.result}" style="width: 80px; height: 80px; object-fit: cover; border-radius: 8px; border: 2px solid #86efac;">`;
-                };
-                reader.readAsDataURL(file);
+    // Image previews for complete claim
+    ['completeDeviceImagePickup', 'completeCustomerImage', 'completeDeviceImageDelivery', 'completeBoxImage', 'completeReceiptImage'].forEach(id => {
+        const input = document.getElementById(id);
+        if (input) {
+            input.addEventListener('change', function () {
+                const previewId = id.replace('complete', 'preview').replace('Image', '');
+                const preview = document.getElementById(previewId);
+                if (!preview) return;
+                preview.innerHTML = '';
+                Array.from(this.files).forEach(file => {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        preview.innerHTML += `<img src="${e.target.result}" style="width: 60px; height: 60px; object-fit: cover; border-radius: 8px; border: 2px solid #86efac;">`;
+                    };
+                    reader.readAsDataURL(file);
+                });
             });
+        }
+    });
+
+    // Handle return method radio change
+    document.querySelectorAll('input[name="completeReturnMethod"]').forEach(rb => {
+        rb.addEventListener('change', function () {
+            const completePickupGroup = document.getElementById('completePickupGroup');
+            const completeDeliveryGroup = document.getElementById('completeDeliveryGroup');
+            const completeClaimBtn = document.getElementById('completeClaimBtn');
+            if (completePickupGroup) completePickupGroup.style.display = this.value === 'pickup' ? 'block' : 'none';
+            if (completeDeliveryGroup) completeDeliveryGroup.style.display = this.value === 'delivery' ? 'block' : 'none';
+            if (completeClaimBtn) completeClaimBtn.style.display = 'block';
         });
-    }
+    });
+
+    document.querySelectorAll('input[name="completeDeliveryAddressType"]').forEach(rb => {
+        rb.addEventListener('change', function () {
+            const completeNewAddressGroup = document.getElementById('completeNewAddressGroup');
+            if (completeNewAddressGroup) completeNewAddressGroup.style.display = this.value === 'new' ? 'block' : 'none';
+        });
+    });
 
     // Submit status update
     const submitUpdateBtn = document.getElementById('submitUpdateBtn');
@@ -3442,26 +3497,79 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Complete claim (ลูกค้ามารับเครื่องแล้ว)
+    // Complete claim (ลูกค้ามารับเครื่องแล้ว หรือ จัดส่ง)
     const completeClaimBtn = document.getElementById('completeClaimBtn');
     if (completeClaimBtn) {
         completeClaimBtn.addEventListener('click', async () => {
             const claimId = document.getElementById('statusUpdateClaimId').value;
+
+            const returnMethodEl = document.querySelector('input[name="completeReturnMethod"]:checked');
+            if (!returnMethodEl) {
+                showAlert('warning', 'กรุณาเลือกรุปแบบการคืนเครื่อง');
+                return;
+            }
+            const returnMethod = returnMethodEl.value;
+
+            const formData = new FormData();
+            formData.append('returnMethod', returnMethod);
+
+            if (returnMethod === 'pickup') {
+                const pickupBranch = document.getElementById('completePickupBranch').value.trim();
+                if (!pickupBranch) {
+                    showAlert('warning', 'กรุณาระบุสาขาที่ลูกค้ามารับ');
+                    return;
+                }
+                const deviceImg = document.getElementById('completeDeviceImagePickup');
+                const cusImg = document.getElementById('completeCustomerImage');
+                if (!deviceImg || !cusImg || !deviceImg.files.length || !cusImg.files.length) {
+                    showAlert('warning', 'กรุณาแนบรูปภาพให้ครบถ้วน (รูปเครื่อง และ รูปตอนลูกค้ามารับเครื่อง)');
+                    return;
+                }
+                formData.append('pickupBranch', pickupBranch);
+                Array.from(deviceImg.files).forEach(file => formData.append('deviceImage', file));
+                Array.from(cusImg.files).forEach(file => formData.append('customerImage', file));
+
+            } else if (returnMethod === 'delivery') {
+                const addressTypeEl = document.querySelector('input[name="completeDeliveryAddressType"]:checked');
+                if (!addressTypeEl) {
+                    showAlert('warning', 'กรุณาเลือกที่อยู่จัดส่ง');
+                    return;
+                }
+                const addressType = addressTypeEl.value;
+                formData.append('deliveryAddressType', addressType);
+
+                let deliveryDetail = '';
+                if (addressType === 'original') {
+                    deliveryDetail = document.getElementById('displayOriginalAddress').dataset.address || '';
+                } else if (addressType === 'new') {
+                    deliveryDetail = document.getElementById('completeNewAddress').value.trim();
+                    if (!deliveryDetail) {
+                        showAlert('warning', 'กรุณาระบุที่อยู่จัดส่งใหม่');
+                        return;
+                    }
+                }
+                formData.append('deliveryAddressDetail', deliveryDetail);
+
+                const deviceImg = document.getElementById('completeDeviceImageDelivery');
+                const boxImg = document.getElementById('completeBoxImage');
+                const receiptImg = document.getElementById('completeReceiptImage');
+
+                if (!deviceImg || !boxImg || !receiptImg || !deviceImg.files.length || !boxImg.files.length || !receiptImg.files.length) {
+                    showAlert('warning', 'กรุณาแนบรูปภาพให้ครบถ้วน (รูปเครื่อง, รูปกล่อง, รูปใบเสร็จส่งของ)');
+                    return;
+                }
+                Array.from(deviceImg.files).forEach(file => formData.append('deviceImage', file));
+                Array.from(boxImg.files).forEach(file => formData.append('boxImage', file));
+                Array.from(receiptImg.files).forEach(file => formData.append('receiptImage', file));
+            }
+
             const confirmed = await showConfirm(
                 'ยืนยันการปิดงาน',
-                'คุณแน่ใจหรือไม่ว่าลูกค้ามารับเครื่องแล้ว? สถานะจะเปลี่ยนเป็น "รับเครื่องแล้ว" และไม่สามารถเปลี่ยนกลับได้',
+                'คุณแน่ใจหรือไม่ที่จะปิดงานเคลมนี้? สถานะจะเปลี่ยนเป็น "รับเครื่องแล้ว" และไม่สามารถกลับมาแก้ไขได้อีก',
                 '✅ ยืนยันปิดงาน',
                 'ยกเลิก'
             );
             if (!confirmed) return;
-
-            const formData = new FormData();
-            const imagesInput = document.getElementById('completeImages');
-            if (imagesInput && imagesInput.files.length > 0) {
-                Array.from(imagesInput.files).forEach(file => {
-                    formData.append('images', file);
-                });
-            }
 
             showLoader('กำลังปิดงาน...');
             try {

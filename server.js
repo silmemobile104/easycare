@@ -185,11 +185,12 @@ const ClaimSchema = new mongoose.Schema({
     staffSignature: String,
     managerSignature: String,
     status: { type: String, default: 'รอเคลม', enum: ['รอเคลม', 'รับเครื่องแล้ว'] },
-    returnMethod: { type: String, enum: ['pickup', 'delivery'] },
-    pickupBranch: String,
-    deliveryAddressType: { type: String, enum: ['card', 'memberShipping', 'new'] },
-    deliveryAddressDetail: String,
     totalCost: { type: Number, default: 0 },
+    completedReturnMethod: { type: String, enum: ['pickup', 'delivery'] },
+    completedReturnBranch: String,
+    completedDeliveryAddressType: { type: String, enum: ['card', 'memberShipping', 'new', 'original'] },
+    completedDeliveryAddressDetail: String,
+    pickupDate: Date,
     updates: [{
         step: Number,
         title: String,
@@ -971,13 +972,39 @@ app.post('/api/claims/:id/updates', claimUpload.fields([
     }
 });
 
-// Complete a claim (ลูกค้ามารับเครื่องแล้ว)
-app.post('/api/claims/:id/complete', claimUpload.array('images', 10), async (req, res) => {
+// Complete a claim (ลูกค้ามารับเครื่องแล้ว หรือ จัดส่งกลับ)
+app.post('/api/claims/:id/complete', claimUpload.fields([
+    { name: 'deviceImage', maxCount: 10 },
+    { name: 'boxImage', maxCount: 10 },
+    { name: 'receiptImage', maxCount: 10 },
+    { name: 'customerImage', maxCount: 10 }
+]), async (req, res) => {
     try {
         const claim = await Claim.findById(req.params.id);
         if (!claim) return res.status(404).json({ success: false, message: 'ไม่พบข้อมูลการเคลม' });
 
-        const images = req.files ? req.files.map(f => f.path) : [];
+        const { returnMethod, pickupBranch, deliveryAddressType, deliveryAddressDetail } = req.body;
+
+        const images = [];
+        if (req.files) {
+            ['deviceImage', 'boxImage', 'receiptImage', 'customerImage'].forEach(field => {
+                if (req.files[field]) {
+                    req.files[field].forEach(file => images.push(file.path));
+                }
+            });
+        }
+
+        claim.completedReturnMethod = returnMethod;
+        let title = 'ปิดงานเคลม: ';
+
+        if (returnMethod === 'pickup') {
+            claim.completedReturnBranch = pickupBranch;
+            title += `ลูกค้ามารับเครื่องที่สาขา ${pickupBranch || ''}`;
+        } else if (returnMethod === 'delivery') {
+            claim.completedDeliveryAddressType = deliveryAddressType;
+            claim.completedDeliveryAddressDetail = deliveryAddressDetail;
+            title += 'จัดส่งเรียบร้อยแล้ว';
+        }
 
         // Determine next step number
         const nextStep = (claim.updates ? claim.updates.length : 0) + 2;
@@ -989,7 +1016,7 @@ app.post('/api/claims/:id/complete', claimUpload.array('images', 10), async (req
         // Add completion update
         claim.updates.push({
             step: nextStep,
-            title: 'ลูกค้าได้รับเครื่องแล้ว',
+            title: title,
             date: new Date(),
             cost: 0,
             images: images
