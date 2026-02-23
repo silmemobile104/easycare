@@ -173,6 +173,36 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    async function updateStatusTrackingBadge({ showToastIfOverdue = false } = {}) {
+        if (!currentUser) return;
+        try {
+            const res = await fetch('/api/claims/pending');
+            const claims = await res.json();
+            const overdueCount = (Array.isArray(claims) ? claims : []).filter(c => c && c.isOverdue).length;
+
+            const badge = document.getElementById('statusTrackingBadge');
+            if (badge) {
+                if (overdueCount > 0) {
+                    badge.textContent = overdueCount > 99 ? '99+' : overdueCount;
+                    badge.style.display = 'inline-flex';
+                } else {
+                    badge.style.display = 'none';
+                }
+            }
+
+            if (showToastIfOverdue && overdueCount > 0) {
+                const lastToastAt = parseInt(localStorage.getItem('smilecare_overdue_claim_toast_ts') || '0', 10);
+                const now = Date.now();
+                if (!Number.isFinite(lastToastAt) || (now - lastToastAt) > (60 * 60 * 1000)) {
+                    showToast('warning', `แจ้งเตือน: มีงานเคลม ${overdueCount} รายการที่ไม่ได้อัปเดตสถานะเกิน 5 วัน!`);
+                    localStorage.setItem('smilecare_overdue_claim_toast_ts', String(now));
+                }
+            }
+        } catch (err) {
+            console.error('Error fetching status tracking overdue count:', err);
+        }
+    }
+
     async function processUrgentApprovalQueue() {
         if (urgentApprovalProcessing) return;
         urgentApprovalProcessing = true;
@@ -317,6 +347,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- BADGE LOGIC ---
     let badgeInterval;
+    let statusTrackingBadgeInterval;
 
     async function updateApprovalBadge() {
         if (!currentUser) return;
@@ -341,6 +372,9 @@ document.addEventListener('DOMContentLoaded', () => {
     function startBadgeInterval() {
         if (badgeInterval) clearInterval(badgeInterval);
         badgeInterval = setInterval(updateApprovalBadge, 60000); // Update every 60 seconds
+
+        if (statusTrackingBadgeInterval) clearInterval(statusTrackingBadgeInterval);
+        statusTrackingBadgeInterval = setInterval(() => updateStatusTrackingBadge(), 60000);
     }
 
     // --- AUTH LOGIC ---
@@ -359,19 +393,40 @@ document.addEventListener('DOMContentLoaded', () => {
                     body: JSON.stringify({ username, password })
                 });
                 const data = await res.json();
-                if (data.success) {
+
+                if (data && data.success) {
                     currentUser = data.user;
                     localStorage.setItem('smilecare_staff_session', JSON.stringify(currentUser));
                     updateStaffInfo();
                     showView('dashboard');
+
+                    updateStatusTrackingBadge({ showToastIfOverdue: true });
                 } else {
-                    document.getElementById('loginError').style.display = 'block';
+                    const loginError = document.getElementById('loginError');
+                    if (loginError) loginError.style.display = 'block';
                 }
             } catch (err) {
-                console.error('Login error:', err);
+                console.error('Fetch error:', err);
             } finally {
                 hideLoader();
             }
+        });
+    }
+
+    // Image preview for evidence images
+    const updateEvidenceInput = document.getElementById('updateEvidenceImages');
+    if (updateEvidenceInput) {
+        updateEvidenceInput.addEventListener('change', function () {
+            const preview = document.getElementById('updateEvidencePreview');
+            if (!preview) return;
+            preview.innerHTML = '';
+            Array.from(this.files).forEach(file => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    preview.innerHTML += `<img src="${e.target.result}" style="width: 80px; height: 80px; object-fit: cover; border-radius: 8px; border: 2px solid #f59e0b;">`;
+                };
+                reader.readAsDataURL(file);
+            });
         });
     }
 
@@ -919,6 +974,47 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function updateModelOptions() {
+        const productTypeEl = document.getElementById('productType');
+        const modelEl = document.getElementById('model');
+        if (!productTypeEl || !modelEl) return;
+
+        const type = productTypeEl.value;
+        const currentVal = modelEl.value;
+
+        const MODELS = {
+            iPhone: [
+                'iPhone 13',
+                'iPhone 14',
+                'iPhone 15',
+                'iPhone 16',
+                'iPhone 16 Plus',
+                'iPhone 16 Pro',
+                'iPhone 16 Pro Max',
+                'iPhone 17 256',
+                'iPhone 17 Pro',
+                'iPhone 17 Pro Max'
+            ],
+            iPad: [
+                'iPad Gen11',
+                'iPad Air7'
+            ]
+        };
+
+        const list = MODELS[type] || [];
+        modelEl.innerHTML = '<option value="" disabled selected>เลือก</option>';
+        list.forEach(m => {
+            const opt = document.createElement('option');
+            opt.value = m;
+            opt.textContent = m;
+            modelEl.appendChild(opt);
+        });
+
+        if (list.includes(currentVal)) {
+            modelEl.value = currentVal;
+        }
+    }
+
     function updateAge() {
         const day = parseInt(document.getElementById('dobDay').value);
         const month = parseInt(document.getElementById('dobMonth').value);
@@ -1176,10 +1272,15 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // Listeners for form updates
-    document.getElementById('productType').addEventListener('change', toggleIMEIField);
+    document.getElementById('productType').addEventListener('change', () => {
+        toggleIMEIField();
+        updateModelOptions();
+    });
     document.getElementById('dobDay').addEventListener('input', updateAge);
     document.getElementById('dobMonth').addEventListener('input', updateAge);
     document.getElementById('dobYear').addEventListener('input', updateAge);
+
+    updateModelOptions();
     document.getElementById('package').addEventListener('change', updatePaymentUI);
     document.getElementById('protectionType').addEventListener('change', updatePaymentUI);
     document.getElementsByName('paymentMethod').forEach(r => r.addEventListener('change', updatePaymentUI));
@@ -2009,15 +2110,29 @@ document.addEventListener('DOMContentLoaded', () => {
         memberForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             const editId = document.getElementById('editMemberId').value;
+
+            const normalizeDigits = (v) => String(v || '').replace(/\D/g, '');
+            const phoneDigits = normalizeDigits(document.getElementById('memberPhone').value);
+            const postalDigits = normalizeDigits(document.getElementById('memberPostalCode') ? document.getElementById('memberPostalCode').value : '');
+
+            if (phoneDigits.length !== 10) {
+                showAlert('warning', 'กรุณากรอกเบอร์โทรศัพท์เป็นตัวเลข 10 หลัก');
+                return;
+            }
+            if (postalDigits && postalDigits.length !== 5) {
+                showAlert('warning', 'กรุณากรอกรหัสไปรษณีย์เป็นตัวเลข 5 หลัก');
+                return;
+            }
+
             const payload = {
                 firstName: document.getElementById('memberFirstName').value,
                 lastName: document.getElementById('memberLastName').value,
-                phone: document.getElementById('memberPhone').value,
+                phone: phoneDigits,
                 birthdate: document.getElementById('memberBirthdate').value,
                 idCardAddress: document.getElementById('memberIdCardAddress').value,
                 address: document.getElementById('memberIdCardAddress').value,
                 shippingAddress: document.getElementById('memberShippingAddress').value,
-                postalCode: document.getElementById('memberPostalCode') ? document.getElementById('memberPostalCode').value : undefined,
+                postalCode: postalDigits || undefined,
                 citizenId: document.getElementById('memberCitizenId').value,
                 prefix: document.getElementById('memberPrefix').value,
                 firstNameEn: document.getElementById('memberFirstNameEn').value,
@@ -2326,6 +2441,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const empty = document.getElementById('claimsEmptyState');
         if (!body) return;
 
+        records = Array.isArray(records) ? records : [];
+        records = records.filter(r => r && r.approvalStatus === 'approved');
+
         if (records.length === 0) {
             if (empty) empty.style.display = 'block';
             body.innerHTML = '';
@@ -2464,7 +2582,17 @@ document.addEventListener('DOMContentLoaded', () => {
             document.querySelectorAll('input[name="deliveryAddressType"]').forEach(rb => rb.checked = false);
 
             // Reset checklist
-            document.querySelectorAll('input[name="deviceCondition"]').forEach(cb => cb.checked = false);
+            const devicePowerOnEl = document.getElementById('devicePowerOn');
+            if (devicePowerOnEl) {
+                devicePowerOnEl.checked = true;
+                devicePowerOnEl.dispatchEvent(new Event('change'));
+            }
+            document.querySelectorAll('#deviceConditionChecklist .condition-row').forEach(row => {
+                row.className = 'condition-row';
+            });
+            document.querySelectorAll('#deviceConditionChecklist textarea').forEach(t => {
+                t.value = '';
+            });
 
             // Show the modal
             document.getElementById('claimFormModal').style.display = 'flex';
@@ -2557,6 +2685,9 @@ document.addEventListener('DOMContentLoaded', () => {
             formData.append('imei', document.getElementById('claimIMEI').value);
             formData.append('serialNumber', document.getElementById('claimSerial').value);
             formData.append('color', document.getElementById('claimColor').value);
+            const devicePowerStateEl2 = document.querySelector('input[name="devicePowerState"]:checked');
+            const devicePowerState2 = devicePowerStateEl2 ? devicePowerStateEl2.value : 'on';
+            formData.append('devicePowerState', devicePowerState2);
             formData.append('symptoms', symptoms);
             formData.append('staffName', document.getElementById('claimStaffName').value);
             formData.append('returnMethod', returnMethodEl.value);
@@ -2587,9 +2718,14 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             // Collect device condition checklist (new button-based format)
-            const conditionKeys = ['exterior', 'screen', 'assembly', 'appleLogo', 'buttons', 'chargingPort',
-                'simTray', 'imeiMatch', 'modelMatch', 'screenTouch', 'faceIdTouchId', 'cameras',
-                'speakerMic', 'connectivity', 'battery', 'warrantyVoid'];
+            const devicePowerStateEl = document.querySelector('input[name="devicePowerState"]:checked');
+            const devicePowerState = devicePowerStateEl ? devicePowerStateEl.value : 'on';
+
+            const conditionKeys = (devicePowerState === 'off')
+                ? ['exterior', 'screen', 'assembly', 'appleLogo', 'chargingPort', 'simTray']
+                : ['exterior', 'screen', 'assembly', 'appleLogo', 'buttons', 'chargingPort',
+                    'simTray', 'imeiMatch', 'modelMatch', 'screenTouch', 'faceIdTouchId', 'cameras',
+                    'speakerMic', 'connectivity', 'battery', 'warrantyVoid'];
             const conditionLabels = {
                 exterior: 'ตัวเครื่องภายนอก', screen: 'หน้าจอ', assembly: 'การประกอบ',
                 appleLogo: 'โลโก้ Apple', buttons: 'ปุ่มต่างๆ', chargingPort: 'พอร์ตชาร์จ',
@@ -2937,6 +3073,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const res = await fetch('/api/claims/pending');
             const claims = await res.json();
             renderStatusTracking(claims);
+
+            updateStatusTrackingBadge();
         } catch (err) {
             console.error('Fetch pending claims error:', err);
             showAlert('error', 'ไม่สามารถโหลดข้อมูลรายการเคลมได้');
@@ -2957,14 +3095,23 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         if (empty) empty.style.display = 'none';
 
+        const safeDays = (n) => {
+            const x = parseInt(n, 10);
+            return Number.isFinite(x) && x >= 0 ? x : 0;
+        };
+
         body.innerHTML = claims.map(c => `
-            <tr>
+            <tr class="${c && c.isOverdue ? 'row-overdue' : ''}">
                 <td data-label="รหัสเคลม" style="font-weight: 600; color: var(--primary);">${c.claimId || '-'}</td>
                 <td data-label="วันที่แจ้งเคลม">${c.claimDate ? new Date(c.claimDate).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' }) : '-'}</td>
                 <td data-label="ชื่อลูกค้า">${c.customerName || '-'}</td>
                 <td data-label="เบอร์โทรศัพท์">${c.customerPhone || '-'}</td>
                 <td data-label="อุปกรณ์">${c.deviceModel || '-'}</td>
-                <td data-label="สถานะ"><span class="status-badge status-pending" style="background-color: #f59e0b; color: white;">รอเคลม</span></td>
+                <td data-label="สถานะ">
+                    ${c && c.isOverdue
+                ? `<span class="status-badge status-overdue">⚠️ เกินกำหนดอัปเดต (${safeDays(c.daysOverdue)} วัน)</span>`
+                : `<span class="status-badge status-pending" style="background-color: #f59e0b; color: white;">รอเคลม</span>`}
+                </td>
                 <td data-label="ทำรายการ">
                     <div style="display: flex; gap: 0.5rem; justify-content: center;">
                         <button class="status-update-btn submit-btn" data-id="${c._id}" style="padding: 0.4rem 1rem; font-size: 0.85rem; background: linear-gradient(135deg, #3b82f6, #2563eb);">
@@ -2988,18 +3135,26 @@ document.addEventListener('DOMContentLoaded', () => {
             const claim = await res.json();
             if (!res.ok) throw new Error(claim.message);
 
+            const isIPadModel = (model) => {
+                if (!model) return false;
+                return String(model).toLowerCase().includes('ipad');
+            };
+
             // Store claimId
             document.getElementById('statusUpdateClaimId').value = claim._id;
 
             // Claim info bar
             const infoBar = document.getElementById('statusClaimInfo');
             if (infoBar) {
+                const imeiHtml = isIPadModel(claim.deviceModel)
+                    ? ''
+                    : `<div><strong>IMEI:</strong> ${claim.imei}</div>`;
                 infoBar.innerHTML = `
                     <div><strong>รหัสเคลม:</strong> ${claim.claimId}</div>
                     <div><strong>ชื่อลูกค้า:</strong> ${claim.customerName}</div>
                     <div><strong>เบอร์โทร:</strong> ${claim.customerPhone}</div>
                     <div><strong>อุปกรณ์:</strong> ${claim.deviceModel}</div>
-                    <div><strong>IMEI:</strong> ${claim.imei}</div>
+                    ${imeiHtml}
                     <div><strong>Serial Number:</strong> ${claim.serialNumber}</div>
                     <div><strong>สี:</strong> ${claim.color}</div>
                     <div><strong>อาการ:</strong> ${claim.symptoms || '-'}</div>
@@ -3010,17 +3165,37 @@ document.addEventListener('DOMContentLoaded', () => {
             // Render timeline
             renderTimeline(claim);
 
-            // Update total cost
-            const totalCostEl = document.getElementById('statusTotalCost');
-            if (totalCostEl) totalCostEl.textContent = `${(claim.totalCost || 0).toLocaleString()} บาท`;
-
             // Reset form
             document.getElementById('updateTitle').value = '';
             document.getElementById('updateCost').value = '0';
+            const centerNameEl = document.getElementById('updateCenterName');
+            if (centerNameEl) centerNameEl.value = '';
+            const centerLocationEl = document.getElementById('updateCenterLocation');
+            if (centerLocationEl) centerLocationEl.value = '';
+            const centerPhoneEl = document.getElementById('updateCenterPhone');
+            if (centerPhoneEl) centerPhoneEl.value = '';
+            const techNameEl = document.getElementById('updateTechnicianName');
+            if (techNameEl) techNameEl.value = '';
+            const techPhoneEl = document.getElementById('updateTechnicianPhone');
+            if (techPhoneEl) techPhoneEl.value = '';
+
+            const costSection = document.getElementById('updateCostSection');
+            const toggleCostBtn = document.getElementById('toggleCostBtn');
+            if (costSection) costSection.style.display = 'none';
+            if (toggleCostBtn) toggleCostBtn.style.display = 'block';
+
             const updateImagesInput = document.getElementById('updateImages');
             if (updateImagesInput) updateImagesInput.value = '';
             const updatePreview = document.getElementById('updateImagePreview');
             if (updatePreview) updatePreview.innerHTML = '';
+
+            const evidenceGroup = document.getElementById('updateEvidenceGroup');
+            if (evidenceGroup) evidenceGroup.style.display = 'none';
+            const evidenceInput = document.getElementById('updateEvidenceImages');
+            if (evidenceInput) evidenceInput.value = '';
+            const evidencePreview = document.getElementById('updateEvidencePreview');
+            if (evidencePreview) evidencePreview.innerHTML = '';
+
             const completeImagesInput = document.getElementById('completeImages');
             if (completeImagesInput) completeImagesInput.value = '';
             const completePreview = document.getElementById('completeImagePreview');
@@ -3081,9 +3256,24 @@ document.addEventListener('DOMContentLoaded', () => {
                                 <span class="timeline-date">${dateStr}</span>
                             </div>
                             <p class="timeline-cost">ค่าใช้จ่าย: <strong>${(u.cost || 0).toLocaleString()} บาท</strong></p>
+                            ${(u.centerName || u.centerLocation || u.centerPhone || u.technicianName || u.technicianPhone) ? `
+                                <div style="margin-top: 0.45rem; font-size: 0.85rem; color: #334155;">
+                                    ${u.centerName ? `<div><strong>ศูนย์:</strong> ${u.centerName}</div>` : ''}
+                                    ${u.centerLocation ? `<div><strong>ที่ตั้งศูนย์:</strong> ${u.centerLocation}</div>` : ''}
+                                    ${u.centerPhone ? `<div><strong>เบอร์ศูนย์:</strong> ${u.centerPhone}</div>` : ''}
+                                    ${u.technicianName ? `<div><strong>ช่าง:</strong> ${u.technicianName}</div>` : ''}
+                                    ${u.technicianPhone ? `<div><strong>เบอร์ช่าง:</strong> ${u.technicianPhone}</div>` : ''}
+                                </div>
+                            ` : ''}
                             ${u.images && u.images.length > 0 ? `
                                 <div class="timeline-images">
                                     ${u.images.map(img => `<img src="${img}" alt="ภาพประกอบ" onclick="window.open('${img}', '_blank')">`).join('')}
+                                </div>
+                            ` : ''}
+                            ${u.evidenceImages && u.evidenceImages.length > 0 ? `
+                                <div style="margin-top: 0.6rem; font-size: 0.85rem; color: #b45309; font-weight: 700;">หลักฐานค่าใช้จ่าย</div>
+                                <div class="timeline-images">
+                                    ${u.evidenceImages.map(img => `<img src="${img}" alt="หลักฐานค่าใช้จ่าย" onclick="window.open('${img}', '_blank')" style="border: 2px solid #f59e0b;">`).join('')}
                                 </div>
                             ` : ''}
                         </div>
@@ -3093,6 +3283,58 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         timeline.innerHTML = html;
+    }
+
+    function isCostEnabled() {
+        const costSection = document.getElementById('updateCostSection');
+        if (!costSection) return false;
+        return costSection.style.display !== 'none';
+    }
+
+    function getUpdateCostNumber() {
+        const costEl = document.getElementById('updateCost');
+        const raw = costEl ? costEl.value : '0';
+        const n = Number(raw);
+        if (!Number.isFinite(n) || n < 0) return 0;
+        return n;
+    }
+
+    function resetCostUI() {
+        const costSection = document.getElementById('updateCostSection');
+        const toggleCostBtn = document.getElementById('toggleCostBtn');
+        const costEl = document.getElementById('updateCost');
+        const evidenceGroup = document.getElementById('updateEvidenceGroup');
+        const evidenceInput = document.getElementById('updateEvidenceImages');
+        const evidencePreview = document.getElementById('updateEvidencePreview');
+        if (costEl) costEl.value = '0';
+        if (costSection) costSection.style.display = 'none';
+        if (toggleCostBtn) toggleCostBtn.style.display = 'block';
+        if (evidenceGroup) evidenceGroup.style.display = 'none';
+        if (evidenceInput) evidenceInput.value = '';
+        if (evidencePreview) evidencePreview.innerHTML = '';
+    }
+
+    const toggleCostBtn = document.getElementById('toggleCostBtn');
+    if (toggleCostBtn) {
+        toggleCostBtn.addEventListener('click', () => {
+            const costSection = document.getElementById('updateCostSection');
+            const costEl = document.getElementById('updateCost');
+            const evidenceGroup = document.getElementById('updateEvidenceGroup');
+            if (costSection) costSection.style.display = 'block';
+            toggleCostBtn.style.display = 'none';
+            if (evidenceGroup) evidenceGroup.style.display = 'block';
+            if (costEl) {
+                costEl.value = costEl.value || '0';
+                costEl.focus();
+            }
+        });
+    }
+
+    const removeCostBtn = document.getElementById('removeCostBtn');
+    if (removeCostBtn) {
+        removeCostBtn.addEventListener('click', () => {
+            resetCostUI();
+        });
     }
 
     // Image preview for update images
@@ -3135,20 +3377,45 @@ document.addEventListener('DOMContentLoaded', () => {
         submitUpdateBtn.addEventListener('click', async () => {
             const claimId = document.getElementById('statusUpdateClaimId').value;
             const title = document.getElementById('updateTitle').value.trim();
-            const cost = document.getElementById('updateCost').value || '0';
+            const costEnabled = isCostEnabled();
+            const costNumber = costEnabled ? getUpdateCostNumber() : 0;
+            const cost = String(costNumber);
             const imagesInput = document.getElementById('updateImages');
+            const evidenceInput = document.getElementById('updateEvidenceImages');
 
             if (!title) {
                 showAlert('warning', 'กรุณาระบุรายละเอียดการอัปเดต');
                 return;
             }
 
+            if (costNumber > 0 && (!evidenceInput || evidenceInput.files.length === 0)) {
+                showAlert('warning', 'หากมีค่าใช้จ่าย กรุณาแนบรูปหลักฐานอย่างน้อย 1 รูป');
+                return;
+            }
+
             const formData = new FormData();
             formData.append('title', title);
             formData.append('cost', cost);
+            const centerName = (document.getElementById('updateCenterName')?.value || '').trim();
+            const centerLocation = (document.getElementById('updateCenterLocation')?.value || '').trim();
+            const centerPhone = (document.getElementById('updateCenterPhone')?.value || '').trim();
+            const technicianName = (document.getElementById('updateTechnicianName')?.value || '').trim();
+            const technicianPhone = (document.getElementById('updateTechnicianPhone')?.value || '').trim();
+
+            formData.append('centerName', centerName);
+            formData.append('centerLocation', centerLocation);
+            formData.append('centerPhone', centerPhone);
+            formData.append('technicianName', technicianName);
+            formData.append('technicianPhone', technicianPhone);
             if (imagesInput && imagesInput.files.length > 0) {
                 Array.from(imagesInput.files).forEach(file => {
                     formData.append('images', file);
+                });
+            }
+
+            if (evidenceInput && evidenceInput.files.length > 0) {
+                Array.from(evidenceInput.files).forEach(file => {
+                    formData.append('evidenceImages', file);
                 });
             }
 
@@ -3483,10 +3750,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     <td data-label="ดำเนินการ">
                         <div class="approval-actions">
                             <button class="btn-view" onclick="viewApprovalDetails('${w._id}')">👁 ดูรายละเอียด</button>
-                            ${w.approvalStatus === 'pending' ? `
-                                <button class="btn-approve" onclick="approveWarranty('${w._id}')">✅ อนุมัติ</button>
-                                <button class="btn-reject" onclick="rejectWarranty('${w._id}')">❌ ไม่อนุมัติ</button>
-                            ` : ''}
                         </div>
                     </td>
                 </tr>
@@ -3722,10 +3985,51 @@ document.addEventListener('DOMContentLoaded', () => {
                         </div>
                         ` : ''}
                     </div>
+
+                    <div style="display:flex; justify-content:center; gap:10px; margin-top: 14px;">
+                        ${w.approvalStatus === 'pending' ? `
+                        <button type="button" id="approvalApproveBtn" class="submit-btn"
+                            style="width:auto; padding: 10px 14px; background: linear-gradient(135deg, #10b981, #059669);">
+                            ✅ อนุมัติ
+                        </button>
+                        <button type="button" id="approvalRejectBtn" class="submit-btn"
+                            style="width:auto; padding: 10px 14px; background: linear-gradient(135deg, #ef4444, #dc2626);">
+                            ❌ ไม่อนุมัติ
+                        </button>
+                        ` : ''}
+                        <button type="button" id="approvalPrintContractBtn" class="submit-btn"
+                            style="width:auto; padding: 10px 14px; background: linear-gradient(135deg, #3b82f6, #2563eb);">
+                            🖨️ พิมพ์เอกสารสัญญา
+                        </button>
+                    </div>
                 `,
                 width: 600,
                 showConfirmButton: true,
                 confirmButtonText: 'ปิด',
+                didOpen: () => {
+                    const btn = document.getElementById('approvalPrintContractBtn');
+                    if (btn) {
+                        btn.addEventListener('click', () => {
+                            window.open(`document.html?id=${encodeURIComponent(w._id)}`, '_blank');
+                        });
+                    }
+
+                    const approveBtn = document.getElementById('approvalApproveBtn');
+                    if (approveBtn) {
+                        approveBtn.addEventListener('click', () => {
+                            Swal.close();
+                            approveWarranty(w._id);
+                        });
+                    }
+
+                    const rejectBtn = document.getElementById('approvalRejectBtn');
+                    if (rejectBtn) {
+                        rejectBtn.addEventListener('click', () => {
+                            Swal.close();
+                            rejectWarranty(w._id);
+                        });
+                    }
+                },
             });
         } catch (err) {
             console.error('viewApprovalDetails error:', err);
@@ -3915,6 +4219,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (currentUser) {
         updateStaffInfo();
         showView('dashboard');
+
+        updateStatusTrackingBadge({ showToastIfOverdue: true });
     } else {
         showView('login');
     }

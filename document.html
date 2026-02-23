@@ -683,6 +683,15 @@
                 document.getElementById('doc_deviceValue').textContent = data.device.deviceValue ? data.device.deviceValue.toLocaleString() : '-';
                 document.getElementById('doc_officialWarrantyEnd').textContent = formatThaiDate(data.device.officialWarrantyEnd);
 
+                // Hide IMEI in contract document when device is iPad
+                const deviceTypeText = `${data.device.type || ''} ${data.device.model || ''}`.toLowerCase();
+                const isIpad = deviceTypeText.includes('ipad') || deviceTypeText.includes('ไอแพด');
+                if (isIpad) {
+                    const imeiEl = document.getElementById('doc_imei');
+                    const imeiField = imeiEl ? imeiEl.closest('.field') : null;
+                    if (imeiField) imeiField.style.display = 'none';
+                }
+
                 // Periods
                 document.getElementById('doc_startDate').textContent = formatThaiDate(data.warrantyDates.start);
                 document.getElementById('doc_endDate').textContent = formatThaiDate(data.warrantyDates.end);

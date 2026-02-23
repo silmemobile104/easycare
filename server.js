@@ -149,7 +149,6 @@ const ShopSchema = new mongoose.Schema({
     shopName: { type: String, required: true },
     location: { type: String }
 }, { timestamps: true });
-
 const Shop = mongoose.model('Shop', ShopSchema);
 
 // Staff Schema
@@ -172,6 +171,7 @@ const ClaimSchema = new mongoose.Schema({
     customerName: String,
     customerPhone: String,
     deviceModel: String,
+    devicePowerState: { type: String, enum: ['on', 'off'], default: 'on' },
     imei: String,
     serialNumber: String,
     color: String,
@@ -195,7 +195,13 @@ const ClaimSchema = new mongoose.Schema({
         title: String,
         date: { type: Date, default: Date.now },
         cost: { type: Number, default: 0 },
-        images: [String]
+        centerName: { type: String, default: '' },
+        centerLocation: { type: String, default: '' },
+        centerPhone: { type: String, default: '' },
+        technicianName: { type: String, default: '' },
+        technicianPhone: { type: String, default: '' },
+        images: [String],
+        evidenceImages: [String]
     }],
     deviceCondition: {
         exterior: { status: { type: String, default: '' }, reason: { type: String, default: '' } },
@@ -213,7 +219,8 @@ const ClaimSchema = new mongoose.Schema({
         speakerMic: { status: { type: String, default: '' }, reason: { type: String, default: '' } },
         connectivity: { status: { type: String, default: '' }, reason: { type: String, default: '' } },
         battery: { status: { type: String, default: '' }, reason: { type: String, default: '' } },
-        warrantyVoid: { status: { type: String, default: '' }, reason: { type: String, default: '' } }
+        warrantyVoid: { status: { type: String, default: '' }, reason: { type: String, default: '' } },
+        other: { status: { type: String, default: '' }, reason: { type: String, default: '' } }
     }
 }, { timestamps: true });
 
@@ -735,7 +742,8 @@ app.post('/api/claims', claimUpload.array('images', 10), async (req, res) => {
         const {
             warrantyId, policyNumber, memberId, customerName, customerPhone,
             deviceModel, imei, serialNumber, color, symptoms, staffName,
-            returnMethod, pickupBranch, deliveryAddressType, deliveryAddressDetail
+            returnMethod, pickupBranch, deliveryAddressType, deliveryAddressDetail,
+            devicePowerState
         } = req.body;
 
         // Generate unique Claim ID: SML + 6 digits
@@ -759,6 +767,7 @@ app.post('/api/claims', claimUpload.array('images', 10), async (req, res) => {
             customerName,
             customerPhone,
             deviceModel,
+            devicePowerState: devicePowerState === 'off' ? 'off' : 'on',
             imei,
             serialNumber,
             color,
@@ -856,7 +865,30 @@ app.get('/api/claims/pending', async (req, res) => {
             },
             { $project: { warrantyInfo: 0 } }
         ]);
-        res.json(claims);
+
+        const now = Date.now();
+        const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+        const enriched = (claims || []).map(c => {
+            const updates = Array.isArray(c.updates) ? c.updates : [];
+            const lastUpdate = updates.length > 0 ? updates[updates.length - 1] : null;
+            const lastUpdateDateRaw = (lastUpdate && lastUpdate.date) ? lastUpdate.date : (c.claimDate || c.createdAt);
+            const lastUpdateTime = lastUpdateDateRaw ? new Date(lastUpdateDateRaw).getTime() : NaN;
+
+            const daysSinceUpdate = Number.isFinite(lastUpdateTime)
+                ? Math.floor((now - lastUpdateTime) / MS_PER_DAY)
+                : 0;
+
+            const isOverdue = daysSinceUpdate >= 5;
+
+            return {
+                ...c,
+                isOverdue,
+                daysOverdue: isOverdue ? daysSinceUpdate : 0,
+            };
+        });
+
+        res.json(enriched);
     } catch (err) {
         res.status(500).json({ message: err.message });
     }
@@ -892,21 +924,40 @@ app.get('/api/claims/history/:warrantyId', async (req, res) => {
 });
 
 // Add status update to a claim
-app.post('/api/claims/:id/updates', claimUpload.array('images', 10), async (req, res) => {
+app.post('/api/claims/:id/updates', claimUpload.fields([
+    { name: 'images', maxCount: 10 },
+    { name: 'evidenceImages', maxCount: 10 }
+]), async (req, res) => {
     try {
         const claim = await Claim.findById(req.params.id);
         if (!claim) return res.status(404).json({ success: false, message: 'ไม่พบข้อมูลการเคลม' });
 
-        const images = req.files ? req.files.map(f => f.path) : [];
+        const images = (req.files && req.files.images) ? req.files.images.map(f => f.path) : [];
+        const evidenceImages = (req.files && req.files.evidenceImages) ? req.files.evidenceImages.map(f => f.path) : [];
         const cost = parseFloat(req.body.cost) || 0;
+        const centerName = String(req.body.centerName || '').trim();
+        const centerLocation = String(req.body.centerLocation || '').trim();
+        const centerPhone = String(req.body.centerPhone || '').trim();
+        const technicianName = String(req.body.technicianName || '').trim();
+        const technicianPhone = String(req.body.technicianPhone || '').trim();
         const nextStep = (claim.updates ? claim.updates.length : 0) + 2; // +2 because step 1 = "รับเครื่อง" (auto)
+
+        if (cost > 0 && evidenceImages.length === 0) {
+            return res.status(400).json({ success: false, message: 'หากมีค่าใช้จ่าย กรุณาแนบรูปหลักฐานอย่างน้อย 1 รูป' });
+        }
 
         claim.updates.push({
             step: nextStep,
             title: req.body.title || '',
             date: new Date(),
             cost: cost,
-            images: images
+            centerName,
+            centerLocation,
+            centerPhone,
+            technicianName,
+            technicianPhone,
+            images: images,
+            evidenceImages: evidenceImages
         });
 
         claim.totalCost = (claim.totalCost || 0) + cost;
@@ -1068,7 +1119,18 @@ app.get('/api/members', async (req, res) => {
 // Create new member
 app.post('/api/members', async (req, res) => {
     try {
-        const { phone, citizenId } = req.body;
+        const { phone, citizenId, postalCode } = req.body;
+
+        const normalizeDigits = (v) => String(v || '').replace(/\D/g, '');
+        const phoneDigits = normalizeDigits(phone);
+        const postalDigits = normalizeDigits(postalCode);
+
+        if (!phoneDigits || phoneDigits.length !== 10) {
+            return res.status(400).json({ success: false, message: 'กรุณากรอกเบอร์โทรศัพท์เป็นตัวเลข 10 หลัก' });
+        }
+        if (postalDigits && postalDigits.length !== 5) {
+            return res.status(400).json({ success: false, message: 'กรุณากรอกรหัสไปรษณีย์เป็นตัวเลข 5 หลัก' });
+        }
 
         if (citizenId) {
             const existingCitizen = await Member.findOne({ citizenId });
@@ -1077,7 +1139,7 @@ app.post('/api/members', async (req, res) => {
             }
         }
 
-        const existingMember = await Member.findOne({ phone });
+        const existingMember = await Member.findOne({ phone: phoneDigits });
         if (existingMember) {
             return res.status(400).json({ success: false, message: 'เบอร์โทรศัพท์นี้ถูกใช้งานแล้ว' });
         }
@@ -1092,7 +1154,12 @@ app.post('/api/members', async (req, res) => {
             if (!existingId) isUnique = true;
         }
 
-        const newMember = new Member({ ...req.body, memberId });
+        const newMember = new Member({
+            ...req.body,
+            phone: phoneDigits,
+            postalCode: postalDigits || req.body.postalCode,
+            memberId
+        });
         await newMember.save();
         res.status(201).json({ success: true, member: newMember });
     } catch (err) {
@@ -1138,9 +1205,21 @@ app.get('/api/members/:id', async (req, res) => {
 // Update member
 app.put('/api/members/:id', async (req, res) => {
     try {
-        const { phone, citizenId } = req.body;
+        const { phone, citizenId, postalCode } = req.body;
+
+        const normalizeDigits = (v) => String(v || '').replace(/\D/g, '');
+        const phoneDigits = normalizeDigits(phone);
+        const postalDigits = normalizeDigits(postalCode);
+
+        if (!phoneDigits || phoneDigits.length !== 10) {
+            return res.status(400).json({ success: false, message: 'กรุณากรอกเบอร์โทรศัพท์เป็นตัวเลข 10 หลัก' });
+        }
+        if (postalDigits && postalDigits.length !== 5) {
+            return res.status(400).json({ success: false, message: 'กรุณากรอกรหัสไปรษณีย์เป็นตัวเลข 5 หลัก' });
+        }
+
         // Check if phone unique but not current member
-        const existingMember = await Member.findOne({ phone, _id: { $ne: req.params.id } });
+        const existingMember = await Member.findOne({ phone: phoneDigits, _id: { $ne: req.params.id } });
         if (existingMember) {
             return res.status(400).json({ success: false, message: 'เบอร์โทรศัพท์นี้ถูกใช้งานโดยสมาชิกท่านอื่นแล้ว' });
         }
@@ -1154,7 +1233,7 @@ app.put('/api/members/:id', async (req, res) => {
 
         const updatedMember = await Member.findByIdAndUpdate(
             req.params.id,
-            req.body,
+            { ...req.body, phone: phoneDigits, postalCode: postalDigits || req.body.postalCode },
             { new: true }
         );
         if (!updatedMember) return res.status(404).json({ success: false, message: 'ไม่พบข้อมูลสมาชิก' });

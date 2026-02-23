@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Customer Portal | EasyCare</title>
+    <title>Customer Portal | Easy.Care</title>
     <link rel="icon" type="image/png" href="icon_easycare.png">
     <link
         href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600&family=Sarabun:wght@300;400;500;600&display=swap"
@@ -218,28 +218,72 @@
         .device-model {
             font-weight: 600;
             font-family: 'Kanit', sans-serif;
+            font-size: 1.15rem;
+            color: var(--primary-dark);
+            line-height: 1.3;
         }
 
         .status-badge {
-            font-size: 0.75rem;
-            padding: 0.2rem 0.6rem;
+            font-size: 0.8rem;
+            padding: 0.3rem 0.75rem;
             border-radius: 999px;
-            font-weight: 500;
+            font-weight: 600;
+            height: fit-content;
         }
 
         .status-active {
             background: #dcfce7;
             color: #16a34a;
+            border: 1px solid #bbf7d0;
         }
 
         .status-expired {
             background: #f1f5f9;
             color: #64748b;
+            border: 1px solid #e2e8f0;
         }
 
         .warranty-details {
-            font-size: 0.9rem;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px dashed #e2e8f0;
+        }
+
+        .detail-col {
+            display: flex;
+            flex-direction: column;
+            gap: 0.2rem;
+        }
+
+        .detail-label {
+            font-size: 0.8rem;
             color: var(--text-muted);
+        }
+
+        .detail-value {
+            font-size: 1rem;
+            color: var(--text-main);
+            font-weight: 500;
+        }
+
+        .detail-value.highlight {
+            color: var(--primary);
+            font-weight: 600;
+        }
+
+        .detail-value.amount {
+            color: var(--success);
+            font-weight: 600;
+        }
+
+        @media (max-width: 480px) {
+            .warranty-details {
+                grid-template-columns: 1fr;
+                gap: 0.8rem;
+            }
         }
 
         /* Claim Card & Timeline */
@@ -553,6 +597,15 @@
                     const startStr = startObj ? startObj.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' }) : '-';
                     const endStr = endObj.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' });
 
+                    const modelText = String(w?.device?.model || '');
+                    const typeText = String(w?.device?.type || '');
+                    const isIpad = (modelText + ' ' + typeText).toLowerCase().includes('ipad');
+                    const imeiHtml = isIpad ? '' : `
+                            <div class="detail-col">
+                                <span class="detail-label">IMEI</span>
+                                <span class="detail-value">${w.device.imei || '-'}</span>
+                            </div>`;
+
                     const limit = calcCoverageLimit(w);
                     const used = calcWarrantyUsedAmount(w, data.claims);
                     const remaining = Math.max(0, limit - used);
@@ -560,20 +613,43 @@
 
                     return `
                     <div class="card warranty-card ${isExpired ? 'expired' : ''}">
-                        <div class="warranty-header">
-                            <span class="device-model">${w.device.model} (${w.device.color}, ${w.device.capacity})</span>
+                        <div class="warranty-header" style="align-items: flex-start;">
+                            <div class="device-model">
+                                ${w.device.model} 
+                                <div style="font-size: 0.85rem; color: var(--text-muted); font-weight: normal; margin-top: 0.2rem;">
+                                    สี ${w.device.color}, ความจุ ${w.device.capacity}
+                                </div>
+                            </div>
                             <span class="status-badge ${isExpired ? 'status-expired' : 'status-active'}">
-                                ${isExpired ? 'Expired' : 'Active'}
+                                ${isExpired ? 'หมดอายุ' : 'คุ้มครอง'}
                             </span>
                         </div>
                         <div class="warranty-details">
-                            <div>แพ็กเกจ: ${w.package.plan}</div>
-                            <div>IMEI: ${w.device.imei || '-'}</div>
-                            <div>Serial No: ${w.device.serial}</div>
-                            <div>ระยะคุ้มครอง: ${startStr} - ${endStr}</div>
-                            <div>เวลาคงเหลือ: ${remainingTimeLabel}</div>
-                            <div>วงเงินทั้งหมด: ${formatMoney(limit)} บาท</div>
-                            <div>วงเงินคงเหลือ: ${formatMoney(remaining)} บาท</div>
+                            <div class="detail-col">
+                                <span class="detail-label">แพ็กเกจ</span>
+                                <span class="detail-value highlight">${w.package.plan}</span>
+                            </div>
+                            <div class="detail-col">
+                                <span class="detail-label">เวลาคงเหลือ</span>
+                                <span class="detail-value ${isExpired ? '' : 'highlight'}">${remainingTimeLabel}</span>
+                            </div>
+                            ${imeiHtml}
+                            <div class="detail-col">
+                                <span class="detail-label">Serial No.</span>
+                                <span class="detail-value">${w.device.serial || '-'}</span>
+                            </div>
+                            <div class="detail-col" style="grid-column: 1 / -1;">
+                                <span class="detail-label">ระยะเวลาคุ้มครอง</span>
+                                <span class="detail-value">${startStr} - ${endStr}</span>
+                            </div>
+                            <div class="detail-col">
+                                <span class="detail-label">วงเงินเคลมสูงสุด</span>
+                                <span class="detail-value amount">${formatMoney(limit)} ฿</span>
+                            </div>
+                            <div class="detail-col">
+                                <span class="detail-label">วงเงินคงเหลือ</span>
+                                <span class="detail-value amount" style="color: ${remaining > 0 ? 'var(--primary-dark)' : 'var(--danger)'};">${formatMoney(remaining)} ฿</span>
+                            </div>
                         </div>
                     </div>`;
                 }).join('');
@@ -594,6 +670,7 @@
                             <div>
                                 <div class="claim-title">${c.deviceModel} - ${c.symptoms}</div>
                                 <div class="claim-date">วันที่ส่งเคลม: ${cDate} • ค่าใช้จ่ายรวม: ${totalCost.toLocaleString('th-TH')} บาท</div>
+                                <div></div>
                             </div>
                             <div style="font-size: 1.25rem; color: var(--primary);">&#8250;</div>
                         </div>
@@ -624,14 +701,29 @@
             const claimDateStr = claim.claimDate
                 ? new Date(claim.claimDate).toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })
                 : '-';
-            const firstImgs = (claim.images || []).map(img => `<img src="${img}" class="timeline-img" onclick="viewImage('${img}')">`).join('');
+            const buildThumbs = (arr) => {
+                const list = Array.isArray(arr) ? arr : [];
+                const thumbs = list.slice(0, 3).map(img => `<img src="${img}" class="timeline-img" onclick="viewImage('${img}')">`).join('');
+                if (!list || list.length <= 3) return thumbs ? `<div class="timeline-images">${thumbs}</div>` : '';
+                const encoded = encodeURIComponent(JSON.stringify(list));
+                return `
+                    <div class="timeline-images">${thumbs}</div>
+                    <div style="margin-top: 0.35rem;">
+                        <button type="button" onclick="viewGallery('${encoded}')" style="background:#0ea5e9; color:#fff; border:none; padding:0.35rem 0.6rem; border-radius:10px; font-weight:600; cursor:pointer;">
+                            ดูรูปทั้งหมด (${list.length})
+                        </button>
+                    </div>
+                `;
+            };
+
+            const firstImgs = buildThumbs(claim.images || []);
             items.push(`
                 <div class="timeline-item">
                     <div class="timeline-dot"></div>
                     <span class="timeline-date">${claimDateStr}</span>
                     <div class="timeline-title">รับเครื่อง</div>
                     <div style="font-size:0.85rem; color:#64748b;">ค่าใช้จ่าย 0 บาท</div>
-                    ${firstImgs ? `<div class="timeline-images">${firstImgs}</div>` : ''}
+                    ${firstImgs}
                 </div>
             `);
 
@@ -640,15 +732,29 @@
                     const uDate = u.date
                         ? new Date(u.date).toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })
                         : '-';
-                    const imgs = (u.images || []).map(img => `<img src="${img}" class="timeline-img" onclick="viewImage('${img}')">`).join('');
+                    const imgs = buildThumbs(u.images || []);
+                    const evidenceImgs = (u.evidenceImages || []).map(img => `<img src="${img}" class="timeline-img" onclick="viewImage('${img}')" style="border: 2px solid #f59e0b;">`).join('');
                     const cost = (u.cost || 0);
+                    const meta = (u.centerName || u.centerLocation || u.centerPhone || u.technicianName || u.technicianPhone)
+                        ? `
+                            <div style="margin-top:0.35rem; font-size:0.82rem; color:#334155;">
+                                ${u.centerName ? `<div><strong>ศูนย์:</strong> ${u.centerName}</div>` : ''}
+                                ${u.centerLocation ? `<div><strong>ที่ตั้งศูนย์:</strong> ${u.centerLocation}</div>` : ''}
+                                ${u.centerPhone ? `<div><strong>เบอร์ศูนย์:</strong> ${u.centerPhone}</div>` : ''}
+                                ${u.technicianName ? `<div><strong>ช่าง:</strong> ${u.technicianName}</div>` : ''}
+                                ${u.technicianPhone ? `<div><strong>เบอร์ช่าง:</strong> ${u.technicianPhone}</div>` : ''}
+                            </div>
+                        `
+                        : '';
                     items.push(`
                         <div class="timeline-item">
                             <div class="timeline-dot"></div>
                             <span class="timeline-date">${uDate}</span>
                             <div class="timeline-title">${u.title || '-'}</div>
                             <div style="font-size:0.85rem; color:#d97706;">ค่าใช้จ่าย ${cost.toLocaleString('th-TH')} บาท</div>
-                            ${imgs ? `<div class="timeline-images">${imgs}</div>` : ''}
+                            ${meta}
+                            ${imgs}
+                            ${evidenceImgs ? `<div style=\"margin-top:0.35rem; font-size:0.8rem; color:#b45309; font-weight:600;\">หลักฐานค่าใช้จ่าย</div><div class=\"timeline-images\">${evidenceImgs}</div>` : ''}
                         </div>
                     `);
                 });
@@ -686,6 +792,27 @@
                 confirmButtonColor: '#0891b2',
                 width: 500
             });
+        }
+
+        function viewGallery(encoded) {
+            try {
+                const urls = JSON.parse(decodeURIComponent(encoded || ''));
+                const list = Array.isArray(urls) ? urls : [];
+                const html = `
+                    <div style="display:flex; flex-wrap:wrap; gap:10px; justify-content:center;">
+                        ${list.map(u => `<img src="${u}" style="width: 120px; height: 120px; object-fit: cover; border-radius: 12px; cursor: pointer; border: 1px solid #e2e8f0;" onclick=\"viewImage('${u}')\">`).join('')}
+                    </div>
+                `;
+                Swal.fire({
+                    title: `รูปทั้งหมด (${list.length})`,
+                    html,
+                    confirmButtonText: 'ปิด',
+                    confirmButtonColor: '#0891b2',
+                    width: 720
+                });
+            } catch (e) {
+                viewImage(encoded);
+            }
         }
 
         function formatMoney(n) {

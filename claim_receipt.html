@@ -386,7 +386,7 @@
                                     <span id="deviceModel" class="dotted-line" style="width: 180px;"></span>
                                 </div>
                                 <div class="field">
-                                    <span class="label">Serial Number</span>
+                                    <span class="label">เลขเครื่อง</span>
                                     <span id="deviceSerial" class="dotted-line" style="width: 150px;"></span>
                                 </div>
                             </div>
@@ -397,7 +397,7 @@
                                     <span class="label" style="margin-left: 15px;">ความจุ</span>
                                     <span id="deviceCapacity" class="dotted-line" style="width: 80px;"></span>
                                 </div>
-                                <div class="field">
+                                <div class="field" id="imeiField">
                                     <span class="label">IMEI</span>
                                     <span id="deviceIMEI" class="dotted-line" style="width: 200px;"></span>
                                 </div>
@@ -559,9 +559,9 @@
                     <div class="col w-50" style="border-right: 1px solid #000;">
                         <div style="font-size: 15px; line-height: 2;">
                             <div>📞 <strong>โทรศัพท์:</strong> 073-123-456</div>
-                            <div>💬 <strong>LINE OA:</strong> @easycare</div>
+                            <div>💬 <strong>LINE OA:</strong> @easy.care</div>
                             <div>📍 <strong>ที่อยู่:</strong> 62 ถ.พิพิธภักดี ต.สะเตง อ.เมืองยะลา จ.ยะลา</div>
-                            <div>🕐 <strong>เวลาทำการ:</strong> จันทร์–เสาร์ 09:00–18:00 น.</div>
+                            <div>🕐 <strong>เวลาทำการ:</strong> จันทร์–เสาร์ 09:00–19:30 น.</div>
                         </div>
                     </div>
                     <div class="col w-50">
@@ -654,6 +654,11 @@
                 });
             };
 
+            const isIPadModel = (model) => {
+                if (!model) return false;
+                return String(model).toLowerCase().includes('ipad');
+            };
+
             setMultiContent(['claimId_p1', 'claimId_p2'], claim.claimId || '-');
             const dateStr = claim.claimDate ? formatThaiDate(claim.claimDate) : '';
             setMultiContent(['claimDate_p1', 'claimDate_p2'], dateStr);
@@ -665,6 +670,11 @@
 
             document.getElementById('deviceModel').textContent = claim.deviceModel || '-';
 
+            const imeiFieldEl = document.getElementById('imeiField');
+            if (imeiFieldEl && isIPadModel(claim.deviceModel)) {
+                imeiFieldEl.style.display = 'none';
+            }
+
             // Fetch warranty details for device info
             if (claim.warrantyId) {
                 try {
@@ -675,6 +685,10 @@
                         document.getElementById('deviceCapacity').textContent = warranty.device.capacity || '-';
                         document.getElementById('deviceSerial').textContent = warranty.device.serial || '-';
                         document.getElementById('deviceIMEI').textContent = warranty.device.imei || '-';
+
+                        if (imeiFieldEl && (warranty.device.type === 'iPad' || isIPadModel(warranty.device.model))) {
+                            imeiFieldEl.style.display = 'none';
+                        }
                     }
                 } catch (e) {
                     console.error('Error fetching warranty details', e);
@@ -739,16 +753,35 @@
 
             const conditions = claim.deviceCondition || {};
             const abnormalList = document.getElementById('abnormalConditionList');
+
+            const powerStateText = (claim && claim.devicePowerState === 'off') ? 'เครื่องไม่ติด' : 'เครื่องติด';
+            const powerStateHtml = `<div style="margin-bottom:6px;"><span style="font-weight:700;">สภาพเครื่อง:</span> ${powerStateText}</div>`;
+
+            const getConditionReason = (val) => {
+                if (!val) return '';
+                if (typeof val === 'string') return val.trim();
+                if (typeof val === 'object' && typeof val.reason === 'string') return val.reason.trim();
+                return '';
+            };
+
+            const isConditionAbnormal = (key, val) => {
+                if (!val) return false;
+                if (key === 'other') return Boolean(getConditionReason(val));
+                if (val === false) return true;
+                if (typeof val === 'object' && val.status === 'abnormal') return true;
+                return false;
+            };
+
             const abnormalItems = Object.entries(conditions).filter(([key, val]) =>
-                val && (val === false || val.status === 'abnormal')
+                isConditionAbnormal(key, val)
             );
+
             if (abnormalItems.length === 0) {
-                abnormalList.innerHTML = '<span style="color:#16a34a; font-weight:600;"> สภาพปกติทุกรายการ</span>';
-                abnormalList.innerHTML = '<span style="color:#16a34a; font-weight:600;">✅ สภาพปกติทุกรายการ</span>';
+                abnormalList.innerHTML = powerStateHtml + '<span style="color:#16a34a; font-weight:600;">✅ สภาพปกติทุกรายการ</span>';
             } else {
-                abnormalList.innerHTML = abnormalItems.map(([key, val]) => {
+                abnormalList.innerHTML = powerStateHtml + abnormalItems.map(([key, val]) => {
                     const label = conditionLabels[key] || key;
-                    const reason = (val && val.reason) ? val.reason : '-';
+                    const reason = getConditionReason(val) || '-';
                     return `<div style="margin-bottom:6px;"><span style="color:#dc2626;font-weight:700;">❌ ${label}</span> <span style="color:#64748b;">— หมายเหตุ: ${reason}</span></div>`;
                 }).join('');
             }

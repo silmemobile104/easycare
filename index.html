@@ -441,8 +441,7 @@
                                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                 <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
                                 <circle cx="9" cy="7" r="4"></circle>
-                                <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
-                                <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+
                             </svg>
                             สมาชิก
                         </a>
@@ -470,6 +469,7 @@
                                 <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
                             </svg>
                             ติดตามสถานะ
+                            <span id="statusTrackingBadge" class="nav-badge" style="display: none;">0</span>
                         </a>
                         <a href="#" id="approvalNavLink">
                             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -782,17 +782,9 @@
 
                     <!-- Live Update Bar -->
                     <div class="approval-header-bar">
-                        <div id="approvalLiveIndicator" class="live-indicator">
-                            <span class="live-dot"></span>
-                            <span id="approvalLiveText">Live Update</span>
-                        </div>
                         <button id="btnApprovalViewLog" class="btn-toggle-refresh" title="ดู Log ย้อนหลังทั้งหมด"
                             style="background: #0f172a;">
                             🕒 Log
-                        </button>
-                        <button id="btnApprovalToggleRefresh" class="btn-toggle-refresh"
-                            title="หยุด/เริ่ม Auto-Refresh">
-                            ⏸ หยุดชั่วคราว
                         </button>
                     </div>
 
@@ -866,7 +858,7 @@
                         <div class="form-group"><label>นามสกุล</label><input type="text" id="lastName" required>
                         </div>
                         <div class="form-group"><label>เบอร์โทรศัพท์</label><input type="tel" id="phone" required
-                                placeholder="0xxxxxxxxx"></div>
+                                placeholder="0xxxxxxxxx" maxlength="10" inputmode="numeric" pattern="[0-9]{10}" title="กรุณากรอกเบอร์โทรศัพท์เป็นตัวเลข 10 หลัก"></div>
                         <div class="form-group">
                             <label>ร้านค้า (Shop)</label>
                             <select id="shopName" required>
@@ -960,7 +952,7 @@
                         <div class="form-group"><label>วันสิ้นสุดประกันศูนย์</label>
                             <input type="date" id="officialWarrantyEnd" required>
                         </div>
-                        <div class="form-group"><label>มูลค่าเครื่อง (Device Value)</label>
+                        <div class="form-group"><label>ราคาเครื่องเต็ม ณ ปัจจุบัน</label>
                             <input type="number" id="deviceValue" placeholder="ระบุมูลค่าเครื่อง (บาท)" required>
                         </div>
                     </div>
@@ -1276,7 +1268,7 @@
                     <div class="form-group"><label>วันเกิด</label><input type="date" id="memberBirthdate" readonly
                             class="readonly-field"></div>
                     <div class="form-group"><label>เบอร์โทรศัพท์</label><input type="tel" id="memberPhone" required
-                            placeholder="0xxxxxxxxx (กรอกมือ)"></div>
+                            placeholder="0xxxxxxxxx (กรอกมือ)" maxlength="10" inputmode="numeric" pattern="[0-9]{10}" title="กรุณากรอกเบอร์โทรศัพท์เป็นตัวเลข 10 หลัก"></div>
                     <div class="form-group"><label>ชื่อเฟสบุ๊ก</label><input type="text" id="memberFacebook"
                             placeholder="ชื่อเฟสบุ๊ก"></div>
                     <div class="form-group"><label>ลิงค์เฟสบุ๊ก</label><input type="text" id="memberFacebookLink"
@@ -1286,7 +1278,7 @@
                     <div class="form-group"><label>วันหมดอายุ</label><input type="date" id="memberExpiryDate" readonly
                             class="readonly-field"></div>
                     <div class="form-group"><label>รหัสไปรษณีย์</label><input type="text" id="memberPostalCode"
-                            placeholder="เช่น 10110"></div>
+                            placeholder="เช่น 10110" maxlength="5" inputmode="numeric" pattern="[0-9]{5}" title="กรุณากรอกรหัสไปรษณีย์เป็นตัวเลข 5 หลัก"></div>
                     <div class="form-group full-width">
                         <label>ที่อยู่ตามหน้าบัตร (ID Card Address)</label>
                         <textarea id="memberIdCardAddress" rows="3" readonly class="readonly-field"></textarea>
@@ -1399,6 +1391,17 @@
                         </label>
                         <p style="font-size: 0.82rem; color: #b45309; margin-bottom: 0.75rem;">⚠️ ทุกรายการต้องกดเลือก
                             <strong>ปกติ</strong> หรือ <strong>ไม่ปกติ</strong> หากไม่ปกติต้องระบุเหตุผล</p>
+                        <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; margin-bottom: 0.75rem;">
+                            <span style="font-size: 0.86rem; color: #92400e; font-weight: 600;">สภาพเครื่อง:</span>
+                            <label style="display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.86rem; color: #334155; cursor: pointer;">
+                                <input type="radio" name="devicePowerState" id="devicePowerOn" value="on" checked>
+                                เครื่องติด
+                            </label>
+                            <label style="display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.86rem; color: #334155; cursor: pointer;">
+                                <input type="radio" name="devicePowerState" id="devicePowerOff" value="off">
+                                เครื่องไม่ติด
+                            </label>
+                        </div>
                         <style>
                             .condition-checklist {
                                 display: flex;
@@ -1519,20 +1522,38 @@
                                 ];
                                 const container = document.getElementById('deviceConditionChecklist');
                                 if (!container) return;
-                                items.forEach(item => {
-                                    const row = document.createElement('div');
-                                    row.className = 'condition-row';
-                                    row.dataset.key = item.key;
-                                    if (item.key === 'other') {
-                                        row.innerHTML = `
+
+                                const allowedKeysWhenOff = new Set(['exterior', 'screen', 'assembly', 'appleLogo', 'chargingPort', 'simTray']);
+                                const getPowerState = () => {
+                                    const el = document.querySelector('input[name="devicePowerState"]:checked');
+                                    return el ? el.value : 'on';
+                                };
+
+                                const renderChecklist = () => {
+                                    const powerState = getPowerState();
+                                    container.innerHTML = '';
+
+                                    items
+                                        .filter(item => {
+                                            if (powerState === 'off') {
+                                                return allowedKeysWhenOff.has(item.key);
+                                            }
+                                            return true;
+                                        })
+                                        .forEach(item => {
+                                            const row = document.createElement('div');
+                                            row.className = 'condition-row';
+                                            row.dataset.key = item.key;
+                                            if (item.key === 'other') {
+                                                row.innerHTML = `
                                         <div class="condition-row-top">
                                             <span class="condition-label">${item.label}</span>
                                         </div>
                                         <div class="condition-reason" id="reason-${item.key}" style="display: block;">
                                             <textarea rows="2" id="reason-text-${item.key}" placeholder="ระบุรายละเอียดอื่นๆ..."></textarea>
                                         </div>`;
-                                    } else {
-                                        row.innerHTML = `
+                                            } else {
+                                                row.innerHTML = `
                                         <div class="condition-row-top">
                                             <span class="condition-label">${item.label}</span>
                                             <div class="condition-btns">
@@ -1543,23 +1564,30 @@
                                         <div class="condition-reason" id="reason-${item.key}">
                                             <textarea rows="2" id="reason-text-${item.key}" placeholder="ระบุเหตุผลที่ไม่ปกติ..."></textarea>
                                         </div>`;
-                                        const normalBtn = row.querySelector('.normal-btn');
-                                        const abnormalBtn = row.querySelector('.abnormal-btn');
-                                        const reasonDiv = row.querySelector('.condition-reason');
-                                        normalBtn.addEventListener('click', () => {
-                                            row.className = 'condition-row is-normal';
-                                            normalBtn.classList.add('normal-active');
-                                            abnormalBtn.classList.remove('abnormal-active');
-                                            reasonDiv.style.display = 'none';
+                                                const normalBtn = row.querySelector('.normal-btn');
+                                                const abnormalBtn = row.querySelector('.abnormal-btn');
+                                                const reasonDiv = row.querySelector('.condition-reason');
+                                                normalBtn.addEventListener('click', () => {
+                                                    row.className = 'condition-row is-normal';
+                                                    normalBtn.classList.add('normal-active');
+                                                    abnormalBtn.classList.remove('abnormal-active');
+                                                    reasonDiv.style.display = 'none';
+                                                });
+                                                abnormalBtn.addEventListener('click', () => {
+                                                    row.className = 'condition-row is-abnormal';
+                                                    abnormalBtn.classList.add('abnormal-active');
+                                                    normalBtn.classList.remove('normal-active');
+                                                    reasonDiv.style.display = 'block';
+                                                });
+                                            }
+                                            container.appendChild(row);
                                         });
-                                        abnormalBtn.addEventListener('click', () => {
-                                            row.className = 'condition-row is-abnormal';
-                                            abnormalBtn.classList.add('abnormal-active');
-                                            normalBtn.classList.remove('normal-active');
-                                            reasonDiv.style.display = 'block';
-                                        });
-                                    }
-                                    container.appendChild(row);
+                                };
+
+                                renderChecklist();
+
+                                document.querySelectorAll('input[name="devicePowerState"]').forEach(rb => {
+                                    rb.addEventListener('change', renderChecklist);
                                 });
                             })();
                         </script>
@@ -1649,7 +1677,7 @@
             <div style="text-align: center; margin-bottom: 1.5rem;">
                 <img src="logo_easycare.png" alt="Logo" style="height: 60px; margin-bottom: 0.5rem;">
                 <h2 style="color: var(--primary); margin: 0;">รายละเอียดสัญญาการรับเครื่อง</h2>
-                <p style="color: var(--text-muted); font-size: 0.85rem;">EasyCare Mobile Insurance Warranty - Claim
+                <p style="color: var(--text-muted); font-size: 0.85rem;">Easy.Care Mobile Insurance Warranty - Claim
                     Contract</p>
             </div>
 
@@ -1734,8 +1762,44 @@
                             required>
                     </div>
                     <div class="form-group">
-                        <label>ค่าใช้จ่าย (บาท)</label>
-                        <input type="number" id="updateCost" placeholder="0" min="0" value="0">
+                        <label>ชื่อศูนย์</label>
+                        <input type="text" id="updateCenterName" placeholder="เช่น ศูนย์ Apple Authorized / ศูนย์ซ่อม...">
+                    </div>
+                    <div class="form-group">
+                        <label>สถานที่ตั้งศูนย์</label>
+                        <input type="text" id="updateCenterLocation" placeholder="เช่น สาขา..., จังหวัด...">
+                    </div>
+                    <div class="form-group">
+                        <label>เบอร์โทรศูนย์</label>
+                        <input type="text" id="updateCenterPhone" placeholder="เช่น 02-xxx-xxxx">
+                    </div>
+                    <div class="form-group">
+                        <label>ชื่อช่าง</label>
+                        <input type="text" id="updateTechnicianName" placeholder="เช่น คุณ...">
+                    </div>
+                    <div class="form-group">
+                        <label>เบอร์ติดต่อช่าง</label>
+                        <input type="text" id="updateTechnicianPhone" placeholder="เช่น 08x-xxx-xxxx">
+                    </div>
+                    <div class="form-group">
+                        <label>ค่าใช้จ่าย</label>
+                        <button type="button" id="toggleCostBtn" class="submit-btn" style="width: 100%; padding: 0.75rem; font-size: 0.95rem; background: linear-gradient(135deg, #f59e0b, #d97706);">
+                            ➕ เพิ่มค่าใช้จ่าย
+                        </button>
+                        <div id="updateCostSection" style="display:none; margin-top: 0.75rem;">
+                            <div style="display:flex; gap: 0.5rem; align-items: center;">
+                                <input type="number" id="updateCost" placeholder="0" min="0" value="0" style="flex: 1;">
+                                <button type="button" id="removeCostBtn" class="btn-cancel" style="width: auto; min-width: 90px; padding: 0.75rem 0.9rem;">ลบ</button>
+                            </div>
+                            <div style="margin-top: 0.5rem; font-size: 0.85rem; color: #b45309;">หากมีค่าใช้จ่าย ต้องแนบรูปหลักฐานอย่างน้อย 1 รูป</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="form-group full-width" id="updateEvidenceGroup" style="margin-top: 0.75rem; display:none;">
+                    <label>แนบรูปหลักฐานค่าใช้จ่าย (บังคับเมื่อมีค่าใช้จ่าย)</label>
+                    <input type="file" id="updateEvidenceImages" accept="image/*" multiple
+                        style="padding: 0.75rem; border: 2px dashed #f59e0b; border-radius: 8px; width: 100%; cursor: pointer; background: #fffbeb;">
+                    <div id="updateEvidencePreview" style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px;">
                     </div>
                 </div>
                 <div class="form-group full-width" style="margin-top: 0.75rem;">
