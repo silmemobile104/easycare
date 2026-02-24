@@ -4474,6 +4474,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const staffForm = document.getElementById('staffForm');
     const btnAddStaff = document.getElementById('addStaffBtn');
     let isEditStaffMode = false;
+    let allStaffData = []; // Global state for staff filtering
 
     if (btnAddStaff) {
         btnAddStaff.addEventListener('click', () => openStaffModal());
@@ -4485,6 +4486,55 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (staffForm) {
         staffForm.addEventListener('submit', saveStaff);
+    }
+
+    // --- STAFF SEARCH & FILTER EVENT LISTENERS ---
+    const staffSearchInput = document.getElementById('staffSearchInput');
+    const staffRoleFilter = document.getElementById('staffRoleFilter');
+    const staffFilterBtn = document.getElementById('staffFilterBtn');
+    const staffResetBtn = document.getElementById('staffResetBtn');
+
+    if (staffSearchInput) {
+        staffSearchInput.addEventListener('keyup', (e) => {
+            if (e.key === 'Enter') applyStaffFilter();
+        });
+        // Real-time filtering as user types
+        staffSearchInput.addEventListener('input', () => applyStaffFilter());
+    }
+    if (staffRoleFilter) {
+        staffRoleFilter.addEventListener('change', () => applyStaffFilter());
+    }
+    if (staffFilterBtn) {
+        staffFilterBtn.addEventListener('click', () => applyStaffFilter());
+    }
+    if (staffResetBtn) {
+        staffResetBtn.addEventListener('click', () => {
+            if (staffSearchInput) staffSearchInput.value = '';
+            if (staffRoleFilter) staffRoleFilter.value = 'all';
+            applyStaffFilter();
+        });
+    }
+
+    // --- APPLY STAFF FILTER (client-side) ---
+    function applyStaffFilter() {
+        const searchTerm = (staffSearchInput?.value || '').trim().toLowerCase();
+        const roleFilter = staffRoleFilter?.value || 'all';
+
+        let filtered = allStaffData;
+
+        if (searchTerm) {
+            filtered = filtered.filter(s =>
+                (s.username || '').toLowerCase().includes(searchTerm) ||
+                (s.staffName || '').toLowerCase().includes(searchTerm) ||
+                (s.staffId || '').toLowerCase().includes(searchTerm)
+            );
+        }
+
+        if (roleFilter !== 'all') {
+            filtered = filtered.filter(s => s.role === roleFilter);
+        }
+
+        renderStaff(filtered);
     }
 
     // --- FETCH STAFF ---
@@ -4507,55 +4557,62 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (!res.ok) throw new Error(data.message || 'Failed to fetch staff');
 
-            const tbody = document.getElementById('staffBody');
-            const emptyState = document.getElementById('staffEmptyState');
-            const table = document.getElementById('staffTable');
-
-            if (data.length === 0) {
-                table.style.display = 'none';
-                emptyState.style.display = 'block';
-                return;
-            }
-
-            table.style.display = 'table';
-            emptyState.style.display = 'none';
-
-            tbody.innerHTML = data.map(staff => {
-                let roleBadgeStr = '';
-                if (staff.role === 'admin') roleBadgeStr = '<span class="status-badge" style="background:#8b5cf6;color:white;">ผู้ดูแลระบบ</span>';
-                else if (staff.role === 'approver') roleBadgeStr = '<span class="status-badge" style="background:#0ea5e9;color:white;">ผู้อนุมัติ</span>';
-                else roleBadgeStr = '<span class="status-badge" style="background:#10b981;color:white;">พนักงานขาย</span>';
-
-                // Prevent admin from deleting themselves
-                const isSelf = staff.username === currentUser.username;
-                const adminCount = data.filter(s => s.role === 'admin').length;
-                const canDelete = !(isSelf && adminCount === 1); // Can't delete if last admin
-
-                return `
-                    <tr>
-                        <td data-label="Username"><strong>${staff.username}</strong></td>
-                        <td data-label="ชื่อ-นามสกุล">${staff.staffName}</td>
-                        <td data-label="Role">${roleBadgeStr}</td>
-                        <td data-label="จัดการ">
-                            <div style="display: flex; gap: 0.5rem; justify-content: center;">
-                                <button class="edit-btn" onclick='window.editStaffData(${JSON.stringify(staff).replace(/'/g, "&#39;")})' title="แก้ไข">
-                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
-                                </button>
-                                ${canDelete ? `
-                                <button class="delete-btn" onclick="window.deleteStaff('${staff._id}')" title="ลบพนักงาน" style="color: #ef4444;">
-                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
-                                </button>
-                                ` : '<span style="color:#94a3b8; font-size:0.8rem;">(Admin)</span>'}
-                            </div>
-                        </td>
-                    </tr>
-                `;
-            }).join('');
+            allStaffData = data; // Store for filtering
+            applyStaffFilter(); // Render with current filter applied
 
         } catch (err) {
             hideLoader();
             showAlert('error', err.message);
         }
+    }
+
+    // --- RENDER STAFF TABLE ---
+    function renderStaff(data) {
+        const currentUser = JSON.parse(localStorage.getItem('smilecare_staff_session'));
+        const tbody = document.getElementById('staffBody');
+        const emptyState = document.getElementById('staffEmptyState');
+        const table = document.getElementById('staffTable');
+
+        if (data.length === 0) {
+            table.style.display = 'none';
+            emptyState.style.display = 'block';
+            return;
+        }
+
+        table.style.display = 'table';
+        emptyState.style.display = 'none';
+
+        tbody.innerHTML = data.map(staff => {
+            let roleBadgeStr = '';
+            if (staff.role === 'admin') roleBadgeStr = '<span class="status-badge" style="background:#8b5cf6;color:white;">ผู้ดูแลระบบ</span>';
+            else if (staff.role === 'approver') roleBadgeStr = '<span class="status-badge" style="background:#0ea5e9;color:white;">ผู้อนุมัติ</span>';
+            else roleBadgeStr = '<span class="status-badge" style="background:#10b981;color:white;">พนักงานขาย</span>';
+
+            // Prevent admin from deleting themselves
+            const isSelf = staff.username === currentUser.username;
+            const adminCount = allStaffData.filter(s => s.role === 'admin').length;
+            const canDelete = !(isSelf && adminCount === 1); // Can't delete if last admin
+
+            return `
+                <tr>
+                    <td data-label="Username"><strong>${staff.username}</strong></td>
+                    <td data-label="ชื่อ-นามสกุล">${staff.staffName}</td>
+                    <td data-label="Role">${roleBadgeStr}</td>
+                    <td data-label="จัดการ">
+                        <div style="display: flex; gap: 0.5rem; justify-content: center;">
+                            <button class="edit-btn" onclick='window.editStaffData(${JSON.stringify(staff).replace(/'/g, "&#39;")})' title="แก้ไข">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                            </button>
+                            ${canDelete ? `
+                            <button class="delete-btn" onclick="window.deleteStaff('${staff._id}')" title="ลบพนักงาน" style="color: #ef4444;">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                            </button>
+                            ` : '<span style="color:#94a3b8; font-size:0.8rem;">(Admin)</span>'}
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }).join('');
     }
 
     // --- OPEN MODAL (CREATE / EDIT) ---
