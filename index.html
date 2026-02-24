@@ -325,81 +325,157 @@
     <div id="app">
 
         <!-- Login View -->
-        <div id="loginView" class="view auth-page" style="display: none;">
-            <div class="login-container">
-                <div class="login-card">
-                    <header>
-                        <img src="logo_easycare.png" alt="EasyCare Logo" class="logo">
-                        <h1>เข้าสู่ระบบเจ้าหน้าที่</h1>
-                        <p>ยินดีต้อนรับกลับมา กรุณาลงชื่อเข้าใช้งาน</p>
-                    </header>
-                    <form id="loginForm">
-                        <div class="form-group">
-                            <label for="username">ชื่อผู้ใช้งาน</label>
-                            <input type="text" id="username" placeholder="ระบุชื่อผู้ใช้งาน" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="password">รหัสผ่าน</label>
-                            <input type="password" id="password" placeholder="••••••••" required>
-                        </div>
-                        <div id="loginError" class="error-text" style="display: none;">
-                            ชื่อผู้ใช้งานหรือรหัสผ่านไม่ถูกต้อง</div>
-                        <button type="submit" class="submit-btn full-width">
-                            <span>เข้าสู่ระบบ</span>
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <line x1="5" y1="12" x2="19" y2="12"></line>
-                                <polyline points="12 5 19 12 12 19"></polyline>
-                            </svg>
-                        </button>
-                        <div class="auth-footer">
-                            <p>ยังไม่มีบัญชีผู้ใช้? <a href="#" id="toRegister">ลงทะเบียนใหม่</a></p>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        </div>
+        <div id="loginView" class="view auth-page-v2" style="display: none;">
+            <!-- Animated floating orbs -->
+            <div class="login-orb login-orb-1"></div>
+            <div class="login-orb login-orb-2"></div>
+            <div class="login-orb login-orb-3"></div>
+            <div class="login-orb login-orb-4"></div>
 
-        <!-- Staff Registration View -->
-        <div id="staffRegisterView" class="view auth-page" style="display: none;">
-            <div class="login-container">
-                <div class="login-card">
-                    <header>
-                        <img src="logo_easycare.png" alt="EasyCare Logo" class="logo">
-                        <h1>ลงทะเบียนเจ้าหน้าที่ใหม่</h1>
-                        <p>สร้างบัญชีเจ้าหน้าที่เพื่อจัดการระบบ</p>
-                    </header>
-                    <form id="staffRegisterForm">
-                        <div class="form-group">
-                            <label for="regStaffName">ชื่อ-นามสกุล</label>
-                            <input type="text" id="regStaffName" placeholder="เช่น นายสมชาย ใจดี" required>
+            <div class="login-split-container">
+                <!-- Branding Panel (Left) -->
+                <div class="login-brand-panel">
+                    <div class="login-brand-content">
+                        <img src="logo_easycare.png" alt="EasyCare Logo" class="login-brand-logo">
+                        <h1 class="login-brand-title">Easy<span>Care</span></h1>
+                        <p class="login-brand-subtitle">ระบบจัดการประกันภัยมือถืออัจฉริยะ</p>
+                        <div class="login-brand-features">
+                            <div class="login-feature-item">
+                                <div class="login-feature-icon">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                                    </svg>
+                                </div>
+                                <span>ปลอดภัย มั่นใจ ทุกการใช้งาน</span>
+                            </div>
+                            <div class="login-feature-item">
+                                <div class="login-feature-icon">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+                                    </svg>
+                                </div>
+                                <span>ติดตามสถานะเคลมแบบเรียลไทม์</span>
+                            </div>
+                            <div class="login-feature-item">
+                                <div class="login-feature-icon">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                                        <line x1="8" y1="21" x2="16" y2="21"></line>
+                                        <line x1="12" y1="17" x2="12" y2="21"></line>
+                                    </svg>
+                                </div>
+                                <span>จัดการข้อมูลครบจบในที่เดียว</span>
+                            </div>
                         </div>
-                        <div class="form-group">
-                            <label for="regStaffPosition">ตำแหน่ง/หน้าที่</label>
-                            <input type="text" id="regStaffPosition" placeholder="เช่น พนักงานขาย" required>
+                    </div>
+                    <div class="login-brand-footer">
+                        <p>© 2026 EasyCare — Powered by Silmin Mobile</p>
+                    </div>
+                </div>
+
+                <!-- Login Form Panel (Right) -->
+                <div class="login-form-panel">
+                    <div class="login-card-v2">
+                        <div class="login-card-header">
+                            <div class="login-avatar-icon">
+                                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                                    <circle cx="12" cy="7" r="4"></circle>
+                                </svg>
+                            </div>
+                            <h2>ยินดีต้อนรับกลับมา</h2>
+                            <p>ลงชื่อเข้าใช้งานระบบเจ้าหน้าที่</p>
                         </div>
-                        <div class="form-group">
-                            <label for="regUsername">ชื่อผู้ใช้งาน</label>
-                            <input type="text" id="regUsername" placeholder="เช่น admin_smile" required>
+
+                        <form id="loginForm" class="login-form-v2">
+                            <div class="login-input-group">
+                                <label for="username">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                                        <circle cx="12" cy="7" r="4"></circle>
+                                    </svg>
+                                    ชื่อผู้ใช้งาน
+                                </label>
+                                <div class="login-input-wrapper">
+                                    <svg class="login-input-icon" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                                        stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                        stroke-linejoin="round">
+                                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                                        <circle cx="12" cy="7" r="4"></circle>
+                                    </svg>
+                                    <input type="text" id="username" placeholder="ระบุชื่อผู้ใช้งาน" required
+                                        autocomplete="username">
+                                </div>
+                            </div>
+
+                            <div class="login-input-group">
+                                <label for="password">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                                        <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                                    </svg>
+                                    รหัสผ่าน
+                                </label>
+                                <div class="login-input-wrapper">
+                                    <svg class="login-input-icon" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                                        stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                        stroke-linejoin="round">
+                                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                                        <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                                    </svg>
+                                    <input type="password" id="password" placeholder="••••••••" required
+                                        autocomplete="current-password">
+                                    <button type="button" id="togglePasswordBtn" class="login-toggle-password"
+                                        tabindex="-1" aria-label="แสดง/ซ่อนรหัสผ่าน">
+                                        <svg id="eyeIcon" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                                            stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                            stroke-linejoin="round">
+                                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                            <circle cx="12" cy="12" r="3"></circle>
+                                        </svg>
+                                        <svg id="eyeOffIcon" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                                            stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                            stroke-linejoin="round" style="display:none;">
+                                            <path
+                                                d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24">
+                                            </path>
+                                            <line x1="1" y1="1" x2="23" y2="23"></line>
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div id="loginError" class="login-error-msg" style="display: none;">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <circle cx="12" cy="12" r="10"></circle>
+                                    <line x1="15" y1="9" x2="9" y2="15"></line>
+                                    <line x1="9" y1="9" x2="15" y2="15"></line>
+                                </svg>
+                                ชื่อผู้ใช้งานหรือรหัสผ่านไม่ถูกต้อง
+                            </div>
+
+                            <button type="submit" class="login-submit-btn" id="loginSubmitBtn">
+                                <span>เข้าสู่ระบบ</span>
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path>
+                                    <polyline points="10 17 15 12 10 7"></polyline>
+                                    <line x1="15" y1="12" x2="3" y2="12"></line>
+                                </svg>
+                            </button>
+                        </form>
+
+                        <div class="login-card-footer">
+                            <p>ระบบสำหรับเจ้าหน้าที่เท่านั้น</p>
                         </div>
-                        <div class="form-group">
-                            <label for="regPassword">รหัสผ่าน</label>
-                            <input type="password" id="regPassword" placeholder="••••••••" required>
-                        </div>
-                        <div id="regError" class="error-text" style="display: none;">ชื่อผู้ใช้งานนี้มีอยู่ในระบบแล้ว
-                        </div>
-                        <button type="submit" class="submit-btn full-width">
-                            <span>ลงทะเบียนบัญชี</span>
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <line x1="5" y1="12" x2="19" y2="12"></line>
-                                <polyline points="12 5 19 12 12 19"></polyline>
-                            </svg>
-                        </button>
-                        <div class="auth-footer">
-                            <p>มีบัญชีอยู่แล้ว? <a href="#" id="toLogin">เข้าสู่ระบบ</a></p>
-                        </div>
-                    </form>
+                    </div>
                 </div>
             </div>
         </div>
@@ -479,6 +555,16 @@
                             </svg>
                             อนุมัติสัญญา
                             <span id="approvalBadge" class="nav-badge" style="display: none;">0</span>
+                        </a>
+                        <a href="#" id="staffNavLink" data-permission="nav-staff">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                                <circle cx="9" cy="7" r="4"></circle>
+                                <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                                <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                            </svg>
+                            จัดการพนักงาน
                         </a>
                     </nav>
                     <div class="sidebar-footer">
@@ -745,6 +831,41 @@
                         </table>
                         <div id="shopsEmptyState" class="empty-state" style="display: none;">
                             <p>ยังไม่มีข้อมูลร้านค้าในขณะนี้</p>
+                        </div>
+                    </div>
+                </main>
+
+                <!-- Staff Main Content -->
+                <main id="staffMain" class="main-content" style="display: none;">
+                    <header class="dashboard-header">
+                        <div class="header-titles">
+                            <h1>ระบบจัดการพนักงาน</h1>
+                            <p>เพิ่ม แก้ไข สิทธิ์การใช้งาน และลบข้อมูลพนักงานระบบ</p>
+                        </div>
+                        <button id="addStaffBtn" class="add-btn">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <line x1="12" y1="5" x2="12" y2="19"></line>
+                                <line x1="5" y1="12" x2="19" y2="12"></line>
+                            </svg>
+                            เพิ่มพนักงานใหม่
+                        </button>
+                    </header>
+
+                    <div class="table-container">
+                        <table id="staffTable">
+                            <thead>
+                                <tr>
+                                    <th>ชื่อผู้ใช้งาน (Username)</th>
+                                    <th>ชื่อ-นามสกุล</th>
+                                    <th>สิทธิ์การใช้งาน (Role)</th>
+                                    <th>จัดการ</th>
+                                </tr>
+                            </thead>
+                            <tbody id="staffBody"></tbody>
+                        </table>
+                        <div id="staffEmptyState" class="empty-state" style="display: none;">
+                            <p>ยังไม่มีข้อมูลพนักงานในขณะนี้</p>
                         </div>
                     </div>
                 </main>
@@ -1439,22 +1560,9 @@
                             class="readonly-field"></div>
                     <div class="form-group"><label>วันเกิด</label><input type="date" id="memberBirthdate" readonly
                             class="readonly-field"></div>
-                    <div class="form-group"><label>เบอร์โทรศัพท์</label><input type="tel" id="memberPhone" required
-                            placeholder="0xxxxxxxxx (กรอกมือ)" maxlength="10" inputmode="numeric" pattern="[0-9]{10}"
-                            title="กรุณากรอกเบอร์โทรศัพท์เป็นตัวเลข 10 หลัก"></div>
-                    <div class="form-group"><label>ชื่อเฟสบุ๊ก</label><input type="text" id="memberFacebook"
-                            placeholder="ชื่อเฟสบุ๊ก"></div>
-                    <div class="form-group"><label>ลิงค์เฟสบุ๊ก</label><input type="text" id="memberFacebookLink"
-                            placeholder="ลิงค์เฟสบุ๊ก (URL)"></div>
-                    <div class="form-group"><label>วันออกบัตร</label><input type="date" id="memberIssueDate" readonly
-                            class="readonly-field"></div>
-                    <div class="form-group"><label>วันหมดอายุ</label><input type="date" id="memberExpiryDate" readonly
-                            class="readonly-field"></div>
-                    <div class="form-group"><label>รหัสไปรษณีย์</label><input type="text" id="memberPostalCode"
-                            placeholder="เช่น 10110" maxlength="5" inputmode="numeric" pattern="[0-9]{5}"
-                            title="กรุณากรอกรหัสไปรษณีย์เป็นตัวเลข 5 หลัก"></div>
-                    <div class="form-group full-width">
-                        <label>ที่อยู่ตามหน้าบัตร (ID Card Address)</label>
+                    <div class="form-group"><label>วันหมดอายุบัตร</label><input type="date" id="memberCardExpiry"
+                            readonly class="readonly-field"></div>
+                    <div class="form-group full-width"><label>ที่อยู่ตามบัตรประชาชน</label>
                         <textarea id="memberIdCardAddress" rows="3" readonly class="readonly-field"></textarea>
                     </div>
                     <div class="form-group full-width">
@@ -1475,6 +1583,45 @@
             </form>
         </div>
     </div>
+
+    <!-- Staff Form Modal -->
+    <div id="staffModal" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 500px;">
+            <h2 id="staffModalTitle">เพิ่มพนักงานใหม่</h2>
+            <form id="staffForm">
+                <input type="hidden" id="editStaffId">
+                <div class="form-group">
+                    <label>ชื่อผู้ใช้งาน (Username) <span style="color: #ef4444;">*</span></label>
+                    <input type="text" id="staffUsername" required placeholder="ใช้สำหรับเข้าสู่ระบบ">
+                </div>
+                <div class="form-group">
+                    <label>รหัสผ่าน (Password) <span style="color: #ef4444;" id="staffPasswordRequired">*</span></label>
+                    <input type="password" id="staffPassword" required placeholder="รหัสผ่านเข้าสู่ระบบ">
+                    <small id="staffPasswordHelp"
+                        style="color: #64748b; font-size: 0.8rem; display: none;">ปล่อยว่างไว้หากไม่ต้องการเปลี่ยนรหัสผ่านใหม่</small>
+                </div>
+                <div class="form-group">
+                    <label>ชื่อ-นามสกุลพนักงาน <span style="color: #ef4444;">*</span></label>
+                    <input type="text" id="staffName" required placeholder="เช่น นายสมชาย สมมติ">
+                </div>
+                <div class="form-group">
+                    <label>สิทธิ์การใช้งาน (Role) <span style="color: #ef4444;">*</span></label>
+                    <select id="staffRole" required>
+                        <option value="sales">พนักงานขาย</option>
+                        <option value="approver">ฝ่ายอนุมัติสัญญา</option>
+                        <option value="admin">ผู้ดูแลระบบ</option>
+                    </select>
+                </div>
+
+                <div class="form-actions" style="margin-top: 1.5rem;">
+                    <button type="button" id="closeStaffModal" class="submit-btn"
+                        style="background: var(--text-muted);">ยกเลิก</button>
+                    <button type="submit" class="submit-btn" id="saveStaffBtn">บันทึกข้อมูล</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
 
     <!-- Shop Modal -->
     <div id="shopModal" class="modal">

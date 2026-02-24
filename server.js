@@ -361,6 +361,98 @@ app.post('/api/login', async (req, res) => {
     }
 });
 
+// Middleware to check Admin Role (simplified for this context)
+const checkAdminRole = (req, res, next) => {
+    // In a real app we'd use JWT. Here, since it's a simple app, we can expect the role in headers
+    const userRole = req.headers['x-user-role'];
+    if (userRole !== 'admin') {
+        return res.status(403).json({ success: false, message: 'Forbidden: Admin access required' });
+    }
+    next();
+};
+
+// ═══════════════════════════════════════════════════════════════════
+// STAFF CRUD API ROUTES (Admin Only)
+// ═══════════════════════════════════════════════════════════════════
+
+// Get all staff
+app.get('/api/staff', checkAdminRole, async (req, res) => {
+    try {
+        const staff = await Staff.find({}, { password: 0 }).sort({ createdAt: -1 });
+        res.json(staff);
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// Create new staff
+app.post('/api/staff', checkAdminRole, async (req, res) => {
+    try {
+        const { username, password, staffName, role } = req.body;
+
+        const existingStaff = await Staff.findOne({ username });
+        if (existingStaff) {
+            return res.status(400).json({ success: false, message: 'Username already exists' });
+        }
+
+        const staffId = 'STF' + Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+        // Derive staffPosition from role for backward compatibility
+        let staffPosition = 'เจ้าหน้าที่';
+        if (role === 'admin') staffPosition = 'ผู้ดูแลระบบ';
+        else if (role === 'approver') staffPosition = 'ผู้อนุมัติ';
+        else staffPosition = 'พนักงานขาย';
+
+        const newStaff = new Staff({ staffId, staffName, staffPosition, username, password, role });
+        await newStaff.save();
+
+        const insertedStaff = await Staff.findById(newStaff._id, { password: 0 });
+        res.status(201).json({ success: true, staff: insertedStaff });
+    } catch (err) {
+        res.status(400).json({ success: false, message: err.message });
+    }
+});
+
+// Update staff
+app.put('/api/staff/:id', checkAdminRole, async (req, res) => {
+    try {
+        const { staffName, role, password } = req.body;
+
+        // Build update object
+        const updateData = { staffName, role };
+
+        if (role === 'admin') updateData.staffPosition = 'ผู้ดูแลระบบ';
+        else if (role === 'approver') updateData.staffPosition = 'ผู้อนุมัติ';
+        else updateData.staffPosition = 'พนักงานขาย';
+
+        if (password && password.trim() !== '') {
+            updateData.password = password;
+        }
+
+        const updatedStaff = await Staff.findByIdAndUpdate(
+            req.params.id,
+            updateData,
+            { new: true, runValidators: true, select: '-password' }
+        );
+
+        if (!updatedStaff) return res.status(404).json({ success: false, message: 'Staff not found' });
+
+        res.json({ success: true, staff: updatedStaff });
+    } catch (err) {
+        res.status(400).json({ success: false, message: err.message });
+    }
+});
+
+// Delete staff
+app.delete('/api/staff/:id', checkAdminRole, async (req, res) => {
+    try {
+        const deletedStaff = await Staff.findByIdAndDelete(req.params.id);
+        if (!deletedStaff) return res.status(404).json({ success: false, message: 'Staff not found' });
+        res.json({ success: true, message: 'Staff deleted successfully' });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
 // Get all warranties (Enriched with Member Data)
 app.get('/api/warranties', async (req, res) => {
     try {

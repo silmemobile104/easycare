@@ -4,7 +4,8 @@ const menuPermissions = {
     'nav-shops': ['sales', 'admin'],
     'nav-claims': ['sales', 'admin'],
     'nav-tracking': ['sales', 'admin'],
-    'nav-approval': ['approver', 'admin']
+    'nav-approval': ['approver', 'admin'],
+    'nav-staff': ['admin']
 };
 
 /**

@@ -257,8 +257,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const views = {
         login: document.getElementById('loginView'),
         dashboard: document.getElementById('dashboardView'),
-        registration: document.getElementById('registrationView'),
-        staffRegister: document.getElementById('staffRegisterView')
+        registration: document.getElementById('registrationView')
     };
 
     // --- VIEW CONTROLLER ---
@@ -277,7 +276,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const membersNavLink = document.getElementById('membersNavLink');
         const shopsNavLink = document.getElementById('shopsNavLink');
 
-        if (viewName === 'dashboard' || viewName === 'members' || viewName === 'shops' || viewName === 'claims' || viewName === 'statusTracking' || viewName === 'approval') {
+        if (viewName === 'dashboard' || viewName === 'members' || viewName === 'shops' || viewName === 'claims' || viewName === 'statusTracking' || viewName === 'approval' || viewName === 'staff') {
             views.dashboard.style.display = 'block';
 
             // Hide all sub-views first
@@ -290,6 +289,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (statusTrackingMain) statusTrackingMain.style.display = 'none';
             const approvalMain = document.getElementById('approvalMain');
             if (approvalMain) approvalMain.style.display = 'none';
+            const staffMain = document.getElementById('staffMain');
+            if (staffMain) staffMain.style.display = 'none';
 
             // Remove active class from all nav links
             if (dashNavLink) dashNavLink.classList.remove('active');
@@ -301,6 +302,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (statusTrackingNavLinkEl) statusTrackingNavLinkEl.classList.remove('active');
             const approvalNavLinkEl = document.getElementById('approvalNavLink');
             if (approvalNavLinkEl) approvalNavLinkEl.classList.remove('active');
+            const staffNavLinkEl = document.getElementById('staffNavLink');
+            if (staffNavLinkEl) staffNavLinkEl.classList.remove('active');
 
             if (viewName === 'dashboard') {
                 dashMain.style.display = 'block';
@@ -326,18 +329,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 fetchPendingClaims();
                 stopApprovalAutoRefresh(); // Stop approval refresh if leaving that view
             } else if (viewName === 'approval') {
-                const approvalMain = document.getElementById('approvalMain');
                 if (approvalMain) approvalMain.style.display = 'block';
-                const approvalNavLinkEl = document.getElementById('approvalNavLink');
                 if (approvalNavLinkEl) approvalNavLinkEl.classList.add('active');
 
                 // Initialize approval view
                 fetchApprovalWarranties('pending');
                 startApprovalAutoRefresh();
+            } else if (viewName === 'staff') {
+                if (staffMain) staffMain.style.display = 'block';
+                if (staffNavLinkEl) staffNavLinkEl.classList.add('active');
+                fetchStaff();
+                stopApprovalAutoRefresh();
             } else {
                 // For other dashboard views, ensure approval refresh is stopped
                 stopApprovalAutoRefresh();
             }
+
         } else if (views[viewName]) {
             views[viewName].style.display = 'block';
             if (viewName === 'registration') initRegistrationForm();
@@ -434,6 +441,25 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // --- PASSWORD TOGGLE ---
+    const togglePasswordBtn = document.getElementById('togglePasswordBtn');
+    if (togglePasswordBtn) {
+        togglePasswordBtn.addEventListener('click', () => {
+            const passwordInput = document.getElementById('password');
+            const eyeIcon = document.getElementById('eyeIcon');
+            const eyeOffIcon = document.getElementById('eyeOffIcon');
+            if (passwordInput.type === 'password') {
+                passwordInput.type = 'text';
+                eyeIcon.style.display = 'none';
+                eyeOffIcon.style.display = 'block';
+            } else {
+                passwordInput.type = 'password';
+                eyeIcon.style.display = 'block';
+                eyeOffIcon.style.display = 'none';
+            }
+        });
+    }
+
     // Image preview for evidence images
     const updateEvidenceInput = document.getElementById('updateEvidenceImages');
     if (updateEvidenceInput) {
@@ -450,48 +476,6 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
     }
-
-    // --- STAFF REGISTRATION LOGIC ---
-    const staffRegisterForm = document.getElementById('staffRegisterForm');
-    if (staffRegisterForm) {
-        staffRegisterForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const staffName = document.getElementById('regStaffName').value;
-            const staffPosition = document.getElementById('regStaffPosition').value;
-            const username = document.getElementById('regUsername').value;
-            const password = document.getElementById('regPassword').value;
-
-            console.log('Sending registration data:', { staffName, staffPosition, username });
-            showLoader('กำลังลงทะเบียน...');
-            try {
-                const res = await fetch('/api/register', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ staffName, staffPosition, username, password })
-                });
-                const data = await res.json();
-                if (data.success) {
-                    showAlert('success', 'ลงทะเบียนสำเร็จ! กรุณาเข้าสู่ระบบ');
-                    showView('login');
-                } else {
-                    const errorElem = document.getElementById('regError');
-                    errorElem.textContent = data.message || 'การลงทะเบียนล้มเหลว';
-                    errorElem.style.display = 'block';
-                }
-            } catch (err) {
-                console.error('Registration error:', err);
-            } finally {
-                hideLoader();
-            }
-        });
-    }
-
-    // --- VIEW NAVIGATION ---
-    const toRegisterBtn = document.getElementById('toRegister');
-    if (toRegisterBtn) toRegisterBtn.addEventListener('click', (e) => { e.preventDefault(); showView('staffRegister'); });
-
-    const toLoginBtn = document.getElementById('toLogin');
-    if (toLoginBtn) toLoginBtn.addEventListener('click', (e) => { e.preventDefault(); showView('login'); });
 
     function updateStaffInfo() {
         if (!currentUser) return;
@@ -535,6 +519,9 @@ document.addEventListener('DOMContentLoaded', () => {
             approvalNavLink.addEventListener('click', (e) => { e.preventDefault(); showView('approval'); });
         }
     }
+
+    const staffNavLink = document.getElementById('staffNavLink');
+    if (staffNavLink) staffNavLink.addEventListener('click', (e) => { e.preventDefault(); showView('staff'); });
 
     // Urgent Approval Notification (queue)
     if (socket) {
@@ -4479,4 +4466,208 @@ document.addEventListener('DOMContentLoaded', () => {
         showView('login');
     }
     console.log('SmileCare script initialized successfully.');
+
+    // ═══════════════════════════════════════════════════════════════════
+    // STAFF MANAGEMENT LOGIC
+    // ═══════════════════════════════════════════════════════════════════
+    const staffModal = document.getElementById('staffModal');
+    const staffForm = document.getElementById('staffForm');
+    const btnAddStaff = document.getElementById('addStaffBtn');
+    let isEditStaffMode = false;
+
+    if (btnAddStaff) {
+        btnAddStaff.addEventListener('click', () => openStaffModal());
+    }
+
+    document.getElementById('closeStaffModal')?.addEventListener('click', () => {
+        if (staffModal) staffModal.style.display = 'none';
+    });
+
+    if (staffForm) {
+        staffForm.addEventListener('submit', saveStaff);
+    }
+
+    // --- FETCH STAFF ---
+    window.fetchStaff = async function () {
+        // Double check admin role
+        const currentUser = JSON.parse(localStorage.getItem('smilecare_staff_session'));
+        if (!currentUser || currentUser.role !== 'admin') {
+            showAlert('error', 'ไม่มีสิทธิ์เข้าถึงข้อมูลพนักงาน');
+            showView('dashboard');
+            return;
+        }
+
+        showLoader('กำลังโหลดข้อมูลพนักงาน...');
+        try {
+            const res = await fetch('/api/staff', {
+                headers: { 'x-user-role': currentUser.role }
+            });
+            const data = await res.json();
+            hideLoader();
+
+            if (!res.ok) throw new Error(data.message || 'Failed to fetch staff');
+
+            const tbody = document.getElementById('staffBody');
+            const emptyState = document.getElementById('staffEmptyState');
+            const table = document.getElementById('staffTable');
+
+            if (data.length === 0) {
+                table.style.display = 'none';
+                emptyState.style.display = 'block';
+                return;
+            }
+
+            table.style.display = 'table';
+            emptyState.style.display = 'none';
+
+            tbody.innerHTML = data.map(staff => {
+                let roleBadgeStr = '';
+                if (staff.role === 'admin') roleBadgeStr = '<span class="status-badge" style="background:#8b5cf6;color:white;">ผู้ดูแลระบบ</span>';
+                else if (staff.role === 'approver') roleBadgeStr = '<span class="status-badge" style="background:#0ea5e9;color:white;">ผู้อนุมัติ</span>';
+                else roleBadgeStr = '<span class="status-badge" style="background:#10b981;color:white;">พนักงานขาย</span>';
+
+                // Prevent admin from deleting themselves
+                const isSelf = staff.username === currentUser.username;
+                const adminCount = data.filter(s => s.role === 'admin').length;
+                const canDelete = !(isSelf && adminCount === 1); // Can't delete if last admin
+
+                return `
+                    <tr>
+                        <td data-label="Username"><strong>${staff.username}</strong></td>
+                        <td data-label="ชื่อ-นามสกุล">${staff.staffName}</td>
+                        <td data-label="Role">${roleBadgeStr}</td>
+                        <td data-label="จัดการ">
+                            <div style="display: flex; gap: 0.5rem; justify-content: center;">
+                                <button class="edit-btn" onclick='window.editStaffData(${JSON.stringify(staff).replace(/'/g, "&#39;")})' title="แก้ไข">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                                </button>
+                                ${canDelete ? `
+                                <button class="delete-btn" onclick="window.deleteStaff('${staff._id}')" title="ลบพนักงาน" style="color: #ef4444;">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                                </button>
+                                ` : '<span style="color:#94a3b8; font-size:0.8rem;">(Admin)</span>'}
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+
+        } catch (err) {
+            hideLoader();
+            showAlert('error', err.message);
+        }
+    }
+
+    // --- OPEN MODAL (CREATE / EDIT) ---
+    window.openStaffModal = function (staffData = null) {
+        if (!staffModal) return;
+        staffForm.reset();
+
+        isEditStaffMode = !!staffData;
+
+        const staffPwdField = document.getElementById('staffPassword');
+        const staffPwdHelp = document.getElementById('staffPasswordHelp');
+        const staffPwdReq = document.getElementById('staffPasswordRequired');
+
+        if (isEditStaffMode) {
+            document.getElementById('staffModalTitle').textContent = 'แก้ไขข้อมูลพนักงาน';
+            document.getElementById('editStaffId').value = staffData._id;
+
+            const staffUserField = document.getElementById('staffUsername');
+            staffUserField.value = staffData.username;
+            staffUserField.readOnly = true; // Cannot change username
+            staffUserField.style.backgroundColor = '#f1f5f9';
+
+            document.getElementById('staffName').value = staffData.staffName;
+            document.getElementById('staffRole').value = staffData.role;
+
+            if (staffPwdField) staffPwdField.required = false;
+            if (staffPwdReq) staffPwdReq.style.display = 'none';
+            if (staffPwdHelp) staffPwdHelp.style.display = 'block';
+        } else {
+            document.getElementById('staffModalTitle').textContent = 'เพิ่มพนักงานใหม่';
+            document.getElementById('editStaffId').value = '';
+
+            const staffUserField = document.getElementById('staffUsername');
+            staffUserField.readOnly = false;
+            staffUserField.style.backgroundColor = '';
+
+            if (staffPwdField) staffPwdField.required = true;
+            if (staffPwdReq) staffPwdReq.style.display = 'inline';
+            if (staffPwdHelp) staffPwdHelp.style.display = 'none';
+        }
+
+        staffModal.style.display = 'flex';
+    }
+
+    window.editStaffData = function (staffData) {
+        window.openStaffModal(staffData);
+    };
+
+    // --- SAVE STAFF ---
+    async function saveStaff(e) {
+        e.preventDefault();
+        const currentUser = JSON.parse(localStorage.getItem('smilecare_staff_session'));
+        const id = document.getElementById('editStaffId').value;
+        const payload = {
+            username: document.getElementById('staffUsername').value.trim(),
+            staffName: document.getElementById('staffName').value.trim(),
+            role: document.getElementById('staffRole').value,
+            password: document.getElementById('staffPassword').value
+        };
+
+        const url = isEditStaffMode ? `/api/staff/${id}` : '/api/staff';
+        const method = isEditStaffMode ? 'PUT' : 'POST';
+
+        showLoader('กำลังบันทึกข้อมูลพนักงาน...');
+        try {
+            const res = await fetch(url, {
+                method,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-user-role': currentUser.role
+                },
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+            hideLoader();
+
+            if (!res.ok) throw new Error(data.message || 'Error saving staff');
+
+            staffModal.style.display = 'none';
+            showToast('success', isEditStaffMode ? 'แก้ไขพนักงานสำเร็จ' : 'เพิ่มพนักงานสำเร็จ');
+            fetchStaff();
+
+        } catch (err) {
+            hideLoader();
+            showAlert('error', err.message);
+        }
+    }
+
+    // --- DELETE STAFF ---
+    window.deleteStaff = async function (id) {
+        const confirmed = await showDeleteConfirm('คุณแน่ใจว่าต้องการลบพนักงานคนนี้? การกระทำนี้ไม่สามารถย้อนกลับได้');
+        if (!confirmed) return;
+
+        const currentUser = JSON.parse(localStorage.getItem('smilecare_staff_session'));
+        showLoader('กำลังลบข้อมูล...');
+        try {
+            const res = await fetch(`/api/staff/${id}`, {
+                method: 'DELETE',
+                headers: { 'x-user-role': currentUser.role }
+            });
+            const data = await res.json();
+            hideLoader();
+
+            if (!res.ok) throw new Error(data.message || 'Error deleting staff');
+
+            showToast('success', 'ลบพนักงานเรียบร้อยแล้ว');
+            fetchStaff();
+
+        } catch (err) {
+            hideLoader();
+            showAlert('error', err.message);
+        }
+    };
 });
+
