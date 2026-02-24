@@ -568,7 +568,8 @@
                         <div style="font-size: 15px; line-height: 1.8;">
                             <div style="font-weight: bold; margin-bottom: 6px;">🔍 ติดตามสถานะการเคลมออนไลน์</div>
                             <div style="margin-top: 4px;">
-                                <img src="LineOA.png" alt="Line OA" style="max-width: 80px; width: 100%; height: auto; border: 1px solid #e2e8f0; border-radius: 10px; padding: 6px; background: #fff;" />
+                                <img src="LineOA.png" alt="Line OA"
+                                    style="max-width: 80px; width: 100%; height: auto; border: 1px solid #e2e8f0; border-radius: 10px; padding: 6px; background: #fff;" />
                             </div>
                             <div style="margin-top: 6px; font-size: 14px; color: #475569;">
                                 กรุณาเตรียมเลขที่เลขที่สมาชิกและเลขประจำตัวประชาชนของท่านเพื่อตรวจสอบความคืบหน้า</div>
@@ -710,21 +711,32 @@
             } else {
                 if (branchLabel) branchLabel.textContent = 'ที่อยู่จัดส่ง';
                 let postalCode = '';
+                let fallbackAddr = '';
                 try {
                     if (claim.memberId) {
                         const resMember = await fetch(`/api/members/lookup?query=${encodeURIComponent(claim.memberId)}`);
                         const dataMember = await resMember.json();
                         const members = (dataMember && dataMember.success && Array.isArray(dataMember.members)) ? dataMember.members : [];
                         const exact = members.find(m => m && m.memberId === claim.memberId) || members[0];
-                        if (exact && exact.postalCode) postalCode = exact.postalCode;
+                        if (exact) {
+                            if (exact.postalCode) postalCode = exact.postalCode;
+                            // Prepare fallback addresses
+                            fallbackAddr = exact.shippingAddress || exact.idCardAddress || exact.address || '';
+                        }
                     }
                 } catch (e) {
-                    // ignore
+                    console.error('Error fetching member details for fallback', e);
                 }
 
                 const shipName = claim.customerName || '-';
                 const shipPhone = claim.customerPhone || '-';
-                const shipAddr = claim.deliveryAddressDetail || '-';
+
+                // Use fallback if deliveryAddressDetail is missing or just "-"
+                let shipAddr = claim.deliveryAddressDetail;
+                if (!shipAddr || shipAddr === '-') {
+                    shipAddr = fallbackAddr || '-';
+                }
+
                 const shipPostalLine = postalCode ? `รหัสไปรษณีย์ ${postalCode}` : '';
                 const parts = [shipName, `โทร ${shipPhone}`, shipAddr, shipPostalLine].filter(Boolean);
                 document.getElementById('pickupBranch').innerHTML = parts.map(p => String(p).replace(/</g, '&lt;').replace(/>/g, '&gt;')).join('<br>');
