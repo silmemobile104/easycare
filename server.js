@@ -157,7 +157,8 @@ const StaffSchema = new mongoose.Schema({
     staffName: String,
     staffPosition: String,
     username: { type: String, unique: true, index: true },
-    password: { type: String, required: true }
+    password: { type: String, required: true },
+    role: { type: String, enum: ['sales', 'approver', 'admin'], default: 'sales' }
 }, { timestamps: true });
 
 const Staff = mongoose.model('Staff', StaffSchema);
@@ -227,7 +228,63 @@ const ClaimSchema = new mongoose.Schema({
 
 const Claim = mongoose.model('Claim', ClaimSchema);
 
+// ═══════════════════════════════════════════════════════════════════
+// FILTER HELPER FUNCTIONS
+// ═══════════════════════════════════════════════════════════════════
+
+// Build dynamic $match for Warranty queries from query params
+function buildWarrantyFilterMatch(query, baseMatch = {}) {
+    const match = { ...baseMatch };
+    const { search, startDate, endDate } = query;
+
+    if (search) {
+        const regex = { $regex: search, $options: 'i' };
+        match.$or = [
+            { 'customer.firstName': regex },
+            { 'customer.lastName': regex },
+            { 'customer.phone': regex },
+            { policyNumber: regex },
+            { memberId: regex },
+            { 'device.imei': regex },
+            { 'device.serial': regex }
+        ];
+    }
+    if (startDate) {
+        match.createdAt = { ...(match.createdAt || {}), $gte: new Date(startDate) };
+    }
+    if (endDate) {
+        match.createdAt = { ...(match.createdAt || {}), $lte: new Date(endDate + 'T23:59:59.999Z') };
+    }
+    return match;
+}
+
+// Build dynamic $match for Claim queries from query params
+function buildClaimFilterMatch(query, baseMatch = {}) {
+    const match = { ...baseMatch };
+    const { search, startDate, endDate } = query;
+
+    if (search) {
+        const regex = { $regex: search, $options: 'i' };
+        match.$or = [
+            { customerName: regex },
+            { customerPhone: regex },
+            { claimId: regex },
+            { policyNumber: regex },
+            { imei: regex },
+            { deviceModel: regex }
+        ];
+    }
+    if (startDate) {
+        match.claimDate = { ...(match.claimDate || {}), $gte: new Date(startDate) };
+    }
+    if (endDate) {
+        match.claimDate = { ...(match.claimDate || {}), $lte: new Date(endDate + 'T23:59:59.999Z') };
+    }
+    return match;
+}
+
 // API Routes
+
 
 app.post('/api/public/customer/portal', async (req, res) => {
     try {
@@ -257,8 +314,8 @@ app.post('/api/public/customer/portal', async (req, res) => {
 // Staff Registration
 app.post('/api/register', async (req, res) => {
     try {
-        const { staffName, staffPosition, username, password } = req.body;
-        console.log('Registering staff:', { staffName, staffPosition, username });
+        const { staffName, staffPosition, username, password, role } = req.body;
+        console.log('Registering staff:', { staffName, staffPosition, username, role });
 
         // Check if username exists
         const existingStaff = await Staff.findOne({ username });
@@ -267,7 +324,7 @@ app.post('/api/register', async (req, res) => {
         }
 
         const staffId = 'STF' + Math.floor(Math.random() * 1000).toString().padStart(3, '0');
-        const newStaff = new Staff({ staffId, staffName, staffPosition, username, password });
+        const newStaff = new Staff({ staffId, staffName, staffPosition, username, password, role: role || 'sales' });
         await newStaff.save();
 
         res.status(201).json({ success: true, user: { staffName, staffId, staffPosition } });
@@ -287,14 +344,14 @@ app.post('/api/login', async (req, res) => {
         if (staff) {
             res.json({
                 success: true,
-                user: { staffName: staff.staffName, staffId: staff.staffId, staffPosition: staff.staffPosition }
+                user: { staffName: staff.staffName, staffId: staff.staffId, staffPosition: staff.staffPosition, role: staff.role }
             });
         } else {
             // Fallback for admin if no staff exists yet (optional, but keep for convenience as per requirement)
             if (username === 'admin' && password === '1234') {
                 return res.json({
                     success: true,
-                    user: { staffName: 'Admin', staffId: 'STF000' }
+                    user: { staffName: 'Admin', staffId: 'STF000', role: 'admin' }
                 });
             }
             res.status(401).json({ success: false, message: 'Invalid credentials' });
@@ -307,7 +364,34 @@ app.post('/api/login', async (req, res) => {
 // Get all warranties (Enriched with Member Data)
 app.get('/api/warranties', async (req, res) => {
     try {
-        const warranties = await Warranty.aggregate([
+        // Build dynamic filter from query params
+        const filterMatch = buildWarrantyFilterMatch(req.query);
+
+        // Handle status filter for dashboard
+        const dashStatus = req.query.status;
+        if (dashStatus && dashStatus !== 'all') {
+            const now = new Date();
+            if (dashStatus === 'active') {
+                filterMatch.approvalStatus = 'approved';
+                filterMatch['warrantyDates.end'] = { $gte: now };
+                filterMatch.claimStatus = 'normal';
+            } else if (dashStatus === 'expired') {
+                filterMatch['warrantyDates.end'] = { ...(filterMatch['warrantyDates.end'] || {}), $lt: now };
+            } else if (dashStatus === 'approval_pending') {
+                filterMatch.approvalStatus = 'pending';
+            } else if (dashStatus === 'approval_approved') {
+                filterMatch.approvalStatus = 'approved';
+            } else if (dashStatus === 'approval_rejected') {
+                filterMatch.approvalStatus = 'rejected';
+            } else if (dashStatus === 'claim_pending') {
+                filterMatch.claimStatus = 'pending';
+            } else if (dashStatus === 'claim_completed') {
+                filterMatch.claimStatus = 'completed';
+            }
+        }
+
+        const pipeline = [
+            ...(Object.keys(filterMatch).length > 0 ? [{ $match: filterMatch }] : []),
             { $sort: { createdAt: -1 } },
             {
                 $lookup: {
@@ -334,7 +418,9 @@ app.get('/api/warranties', async (req, res) => {
                 }
             },
             { $project: { memberInfo: 0, claims: 0 } }
-        ]);
+        ];
+
+        const warranties = await Warranty.aggregate(pipeline);
         res.json(warranties);
     } catch (err) {
         res.status(500).json({ message: err.message });
@@ -386,10 +472,13 @@ app.post('/api/warranties', async (req, res) => {
 app.get('/api/warranties/pending', async (req, res) => {
     try {
         const status = req.query.status || 'pending';
-        const matchQuery = {};
+        const baseMatch = {};
         if (status !== 'all') {
-            matchQuery.approvalStatus = status;
+            baseMatch.approvalStatus = status;
         }
+
+        // Merge with search/date filters
+        const matchQuery = buildWarrantyFilterMatch(req.query, baseMatch);
 
         const warranties = await Warranty.aggregate([
             { $match: matchQuery },
@@ -498,13 +587,16 @@ app.get('/api/warranties/check-duplicate', async (req, res) => {
 app.get('/api/warranties/active', async (req, res) => {
     try {
         const now = new Date();
+        const baseMatch = {
+            approvalStatus: 'approved',
+            'warrantyDates.end': { $gte: now }
+        };
+
+        // Merge with search/date filters
+        const matchQuery = buildWarrantyFilterMatch(req.query, baseMatch);
+
         const warranties = await Warranty.aggregate([
-            {
-                $match: {
-                    approvalStatus: 'approved',
-                    'warrantyDates.end': { $gte: now }
-                }
-            },
+            { $match: matchQuery },
             { $sort: { createdAt: -1 } },
             {
                 $lookup: {
@@ -846,8 +938,11 @@ app.get('/api/claims/warranty/:warrantyId', async (req, res) => {
 // Get pending claims (status = 'รอเคลม')
 app.get('/api/claims/pending', async (req, res) => {
     try {
+        // Merge base status filter with search/date filters
+        const matchQuery = buildClaimFilterMatch(req.query, { status: 'รอเคลม' });
+
         const claims = await Claim.aggregate([
-            { $match: { status: 'รอเคลม' } },
+            { $match: matchQuery },
             { $sort: { createdAt: -1 } },
             {
                 $lookup: {

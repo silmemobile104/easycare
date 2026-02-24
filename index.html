@@ -426,7 +426,7 @@
                 <aside class="sidebar" id="sidebar">
                     <img src="logo_easycare.png" alt="EasyCare Logo" class="logo">
                     <nav>
-                        <a href="#" id="dashNavLink" class="active">
+                        <a href="#" id="dashNavLink" class="active" data-permission="nav-packages">
                             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                 <rect x="3" y="3" width="7" height="7"></rect>
@@ -436,7 +436,7 @@
                             </svg>
                             แพ็กเกจ
                         </a>
-                        <a href="#" id="membersNavLink">
+                        <a href="#" id="membersNavLink" data-permission="nav-members">
                             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                 <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
@@ -445,7 +445,7 @@
                             </svg>
                             สมาชิก
                         </a>
-                        <a href="#" id="shopsNavLink">
+                        <a href="#" id="shopsNavLink" data-permission="nav-shops">
                             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                 <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
@@ -453,7 +453,7 @@
                             </svg>
                             ร้านค้า
                         </a>
-                        <a href="#" id="claimsNavLink">
+                        <a href="#" id="claimsNavLink" data-permission="nav-claims">
                             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                 <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
@@ -463,7 +463,7 @@
                             </svg>
                             แจ้งเคลม
                         </a>
-                        <a href="#" id="statusTrackingNavLink">
+                        <a href="#" id="statusTrackingNavLink" data-permission="nav-tracking">
                             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                 <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
@@ -471,7 +471,7 @@
                             ติดตามสถานะ
                             <span id="statusTrackingBadge" class="nav-badge" style="display: none;">0</span>
                         </a>
-                        <a href="#" id="approvalNavLink">
+                        <a href="#" id="approvalNavLink" data-permission="nav-approval">
                             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                 <path d="M9 11l3 3L22 4"></path>
@@ -563,39 +563,52 @@
                         </div>
                     </div>
 
-                    <!-- Filter Bar -->
-                    <div class="filter-bar">
-                        <div class="search-container">
-                            <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none"
-                                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <circle cx="11" cy="11" r="8"></circle>
-                                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                            </svg>
-                            <input type="text" id="searchInput"
-                                placeholder="ค้นหาด้วย ชื่อ, รหัสสมาชิก หรือเบอร์โทรศัพท์...">
-                        </div>
-
-                        <div class="filter-group">
-                            <label>สถานะ:</label>
-                            <select id="statusFilter" class="filter-select">
-                                <option value="all">ทั้งหมด</option>
-                                <option value="active">ปกติ (Active)</option>
-                                <option value="approval_pending">รออนุมัติ</option>
-                                <option value="approval_approved">อนุมัติแล้ว</option>
-                                <option value="approval_rejected">ไม่อนุมัติ</option>
-                                <option value="claim_pending">รอเคลม</option>
-                                <option value="expired">หมดอายุ (Expired)</option>
-                            </select>
-                        </div>
-
-                        <div class="filter-group">
-                            <label>การชำระเงิน:</label>
-                            <select id="paymentFilter" class="filter-select">
-                                <option value="all">ทั้งหมด</option>
-                                <option value="full">ชำระเต็มจำนวน</option>
-                                <option value="installment">ชำระเป็นงวด</option>
-                                <option value="installment_complete">ชำระเป็นงวดครบแล้ว</option>
-                            </select>
+                    <!-- Advanced Filter Bar -->
+                    <div class="advanced-filter-bar">
+                        <div class="filter-bar-row">
+                            <div class="search-container">
+                                <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                                    stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                    stroke-linejoin="round">
+                                    <circle cx="11" cy="11" r="8"></circle>
+                                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                                </svg>
+                                <input type="text" id="dashSearchInput"
+                                    placeholder="ค้นหาชื่อ, เบอร์, IMEI, เลขกรมธรรม์...">
+                            </div>
+                            <div class="filter-group">
+                                <label>จากวันที่:</label>
+                                <input type="date" id="dashStartDate" class="filter-date-input">
+                            </div>
+                            <div class="filter-group">
+                                <label>ถึงวันที่:</label>
+                                <input type="date" id="dashEndDate" class="filter-date-input">
+                            </div>
+                            <div class="filter-group">
+                                <label>สถานะ:</label>
+                                <select id="dashStatusFilter" class="filter-select">
+                                    <option value="all">ทั้งหมด</option>
+                                    <option value="active">ปกติ (Active)</option>
+                                    <option value="approval_pending">รออนุมัติ</option>
+                                    <option value="approval_approved">อนุมัติแล้ว</option>
+                                    <option value="approval_rejected">ไม่อนุมัติ</option>
+                                    <option value="claim_pending">รอเคลม</option>
+                                    <option value="expired">หมดอายุ (Expired)</option>
+                                </select>
+                            </div>
+                            <div class="filter-group">
+                                <label>การชำระเงิน:</label>
+                                <select id="dashPaymentFilter" class="filter-select">
+                                    <option value="all">ทั้งหมด</option>
+                                    <option value="full">ชำระเต็มจำนวน</option>
+                                    <option value="installment">ชำระเป็นงวด</option>
+                                    <option value="installment_complete">ชำระเป็นงวดครบแล้ว</option>
+                                </select>
+                            </div>
+                            <div class="filter-actions">
+                                <button type="button" class="filter-search-btn" id="dashFilterBtn">🔍 ค้นหา</button>
+                                <button type="button" class="filter-reset-btn" id="dashResetBtn">↻ ล้างค่า</button>
+                            </div>
                         </div>
                     </div>
 
@@ -644,6 +657,25 @@
                         </button>
                     </header>
 
+                    <!-- Members Filter Bar -->
+                    <div class="advanced-filter-bar">
+                        <div class="filter-bar-row">
+                            <div class="search-container">
+                                <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                                    stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                    stroke-linejoin="round">
+                                    <circle cx="11" cy="11" r="8"></circle>
+                                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                                </svg>
+                                <input type="text" id="membersSearchInput"
+                                    placeholder="ค้นหารหัสสมาชิก, ชื่อ, เบอร์โทร...">
+                            </div>
+                            <div class="filter-actions">
+                                <button type="button" class="filter-reset-btn" id="membersResetBtn">↻ ล้างค่า</button>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="table-container">
                         <table id="membersTable">
                             <thead>
@@ -680,6 +712,25 @@
                         </button>
                     </header>
 
+                    <!-- Shops Filter Bar -->
+                    <div class="advanced-filter-bar">
+                        <div class="filter-bar-row">
+                            <div class="search-container">
+                                <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                                    stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                    stroke-linejoin="round">
+                                    <circle cx="11" cy="11" r="8"></circle>
+                                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                                </svg>
+                                <input type="text" id="shopsSearchInput"
+                                    placeholder="ค้นหารหัสร้านค้า, ชื่อร้าน, สถานที่...">
+                            </div>
+                            <div class="filter-actions">
+                                <button type="button" class="filter-reset-btn" id="shopsResetBtn">↻ ล้างค่า</button>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="table-container">
                         <table id="shopsTable">
                             <thead>
@@ -706,6 +757,34 @@
                             <p>รายการกรมธรรม์ที่มีสถานะปกติ (Active) สำหรับทำรายการเคลม</p>
                         </div>
                     </header>
+
+                    <!-- Claims Filter Bar -->
+                    <div class="advanced-filter-bar">
+                        <div class="filter-bar-row">
+                            <div class="search-container">
+                                <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                                    stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                    stroke-linejoin="round">
+                                    <circle cx="11" cy="11" r="8"></circle>
+                                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                                </svg>
+                                <input type="text" id="claimsSearchInput"
+                                    placeholder="ค้นหาชื่อ, เบอร์, IMEI, เลขกรมธรรม์...">
+                            </div>
+                            <div class="filter-group">
+                                <label>จากวันที่:</label>
+                                <input type="date" id="claimsStartDate" class="filter-date-input">
+                            </div>
+                            <div class="filter-group">
+                                <label>ถึงวันที่:</label>
+                                <input type="date" id="claimsEndDate" class="filter-date-input">
+                            </div>
+                            <div class="filter-actions">
+                                <button type="button" class="filter-search-btn" id="claimsFilterBtn">🔍 ค้นหา</button>
+                                <button type="button" class="filter-reset-btn" id="claimsResetBtn">↻ ล้างค่า</button>
+                            </div>
+                        </div>
+                    </div>
 
                     <div class="table-container">
                         <table id="claimsTable">
@@ -740,6 +819,33 @@
                         </div>
                     </header>
 
+                    <!-- Status Tracking Filter Bar -->
+                    <div class="advanced-filter-bar">
+                        <div class="filter-bar-row">
+                            <div class="search-container">
+                                <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                                    stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                    stroke-linejoin="round">
+                                    <circle cx="11" cy="11" r="8"></circle>
+                                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                                </svg>
+                                <input type="text" id="trackingSearchInput" placeholder="ค้นหาชื่อ, เบอร์, เลข SML...">
+                            </div>
+                            <div class="filter-group">
+                                <label>จากวันที่:</label>
+                                <input type="date" id="trackingStartDate" class="filter-date-input">
+                            </div>
+                            <div class="filter-group">
+                                <label>ถึงวันที่:</label>
+                                <input type="date" id="trackingEndDate" class="filter-date-input">
+                            </div>
+                            <div class="filter-actions">
+                                <button type="button" class="filter-search-btn" id="trackingFilterBtn">🔍 ค้นหา</button>
+                                <button type="button" class="filter-reset-btn" id="trackingResetBtn">↻ ล้างค่า</button>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="table-container">
                         <table id="statusTrackingTable">
                             <thead>
@@ -771,13 +877,50 @@
                     </header>
 
                     <!-- Filter Tabs -->
-                    <div class="approval-filter-tabs">
-                        <button class="approval-tab-btn active" data-status="pending">⏳ รออนุมัติ <span class="badge"
-                                id="badgePending">0</span></button>
-                        <button class="approval-tab-btn" data-status="approved">✅ อนุมัติแล้ว <span class="badge"
-                                id="badgeApproved">0</span></button>
-                        <button class="approval-tab-btn" data-status="rejected">❌ ไม่อนุมัติ <span class="badge"
-                                id="badgeRejected">0</span></button>
+                    <div class="stats-overview" style="margin-bottom: 2rem;">
+                        <div class="stat-card approval-tab-btn active" data-status="pending"
+                            style="cursor: pointer; transition: all 0.3s ease;">
+                            <div class="stat-icon orange">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <circle cx="12" cy="12" r="10"></circle>
+                                    <polyline points="12 6 12 12 16 14"></polyline>
+                                </svg>
+                            </div>
+                            <div class="stat-content">
+                                <h3 id="badgePending">0</h3>
+                                <p>รออนุมัติ (Pending)</p>
+                            </div>
+                        </div>
+                        <div class="stat-card approval-tab-btn" data-status="approved"
+                            style="cursor: pointer; transition: all 0.3s ease;">
+                            <div class="stat-icon green">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                                    <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                                </svg>
+                            </div>
+                            <div class="stat-content">
+                                <h3 id="badgeApproved">0</h3>
+                                <p>อนุมัติแล้ว (Approved)</p>
+                            </div>
+                        </div>
+                        <div class="stat-card approval-tab-btn" data-status="rejected"
+                            style="cursor: pointer; transition: all 0.3s ease;">
+                            <div class="stat-icon red" style="background: rgba(239, 68, 68, 0.1); color: #ef4444;">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <circle cx="12" cy="12" r="10"></circle>
+                                    <line x1="15" y1="9" x2="9" y2="15"></line>
+                                    <line x1="9" y1="9" x2="15" y2="15"></line>
+                                </svg>
+                            </div>
+                            <div class="stat-content">
+                                <h3 id="badgeRejected">0</h3>
+                                <p>ไม่อนุมัติ (Rejected)</p>
+                            </div>
+                        </div>
                     </div>
 
                     <!-- Live Update Bar -->
@@ -786,6 +929,34 @@
                             style="background: #0f172a;">
                             🕒 Log
                         </button>
+                    </div>
+
+                    <!-- Approval Filter Bar -->
+                    <div class="advanced-filter-bar">
+                        <div class="filter-bar-row">
+                            <div class="search-container">
+                                <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                                    stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                    stroke-linejoin="round">
+                                    <circle cx="11" cy="11" r="8"></circle>
+                                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                                </svg>
+                                <input type="text" id="approvalSearchInput"
+                                    placeholder="ค้นหาชื่อ, เบอร์, IMEI, เลขกรมธรรม์...">
+                            </div>
+                            <div class="filter-group">
+                                <label>จากวันที่:</label>
+                                <input type="date" id="approvalStartDate" class="filter-date-input">
+                            </div>
+                            <div class="filter-group">
+                                <label>ถึงวันที่:</label>
+                                <input type="date" id="approvalEndDate" class="filter-date-input">
+                            </div>
+                            <div class="filter-actions">
+                                <button type="button" class="filter-search-btn" id="approvalFilterBtn">🔍 ค้นหา</button>
+                                <button type="button" class="filter-reset-btn" id="approvalResetBtn">↻ ล้างค่า</button>
+                            </div>
+                        </div>
                     </div>
 
                     <div class="table-container">
@@ -2177,6 +2348,7 @@
     </div>
     <!-- =================== END CLAIM RECEIPT VIEW =================== -->
 
+    <script src="permissions.js"></script>
     <script src="script.js"></script>
 
     <!-- =================== CLAIM RECEIPT LOGIC (inline, replaces claim_receipt.html script) =================== -->

@@ -2698,55 +2698,60 @@ a:focus-visible {
    APPROVAL PAGE STYLES (migrated from approval.html)
    ═══════════════════════════════════════════════════════════════════ */
 
-.approval-filter-tabs {
-    display: flex;
-    gap: 0.5rem;
-    margin-bottom: 1.5rem;
-    flex-wrap: wrap;
+
+
+.stat-card.approval-tab-btn {
+    border: 2px solid transparent;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
 }
 
-.approval-tab-btn {
-    padding: 0.6rem 1.2rem;
-    border: 2px solid #e2e8f0;
-    border-radius: 12px;
-    background: #fff;
-    color: #475569;
-    font-weight: 600;
-    font-size: 0.9rem;
-    cursor: pointer;
-    transition: all 0.25s ease;
-    font-family: inherit;
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
+.stat-card.approval-tab-btn:hover {
+    border-color: var(--primary-light);
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-md);
 }
 
-.approval-tab-btn:hover {
+.stat-card.approval-tab-btn.active {
     border-color: var(--primary);
-    color: var(--primary);
+    background: linear-gradient(to bottom right, #ffffff, #f0fdfa);
+    box-shadow: 0 10px 25px -5px rgba(13, 148, 136, 0.15), 0 8px 10px -6px rgba(13, 148, 136, 0.1);
 }
 
-.approval-tab-btn.active {
-    background: linear-gradient(135deg, var(--primary), var(--secondary));
-    color: #fff;
-    border-color: transparent;
-    box-shadow: var(--shadow-sm);
+.stat-card.approval-tab-btn.active::after {
+    content: '';
+    position: absolute;
+    top: -2px;
+    right: -2px;
+    width: 20px;
+    height: 20px;
+    background: var(--primary);
+    border-radius: 50%;
+    border: 4px solid #fff;
+    box-shadow: 0 0 0 1px var(--primary-light);
 }
 
-.approval-tab-btn .badge {
-    background: rgba(255, 255, 255, 0.3);
-    padding: 2px 8px;
-    border-radius: 10px;
-    font-size: 0.75rem;
+.stat-card.approval-tab-btn .stat-content h3 {
+    transition: all 0.3s ease;
 }
 
-.approval-tab-btn.active .badge {
-    background: rgba(255, 255, 255, 0.3);
+.stat-card.approval-tab-btn.active .stat-content h3 {
+    color: var(--primary-dark);
 }
 
-.approval-tab-btn:not(.active) .badge {
-    background: #e2e8f0;
-    color: #475569;
+.stat-card.approval-tab-btn[data-status="rejected"].active {
+    border-color: #ef4444;
+    background: linear-gradient(to bottom right, #ffffff, #fef2f2);
+    box-shadow: 0 10px 25px -5px rgba(239, 68, 68, 0.15), 0 8px 10px -6px rgba(239, 68, 68, 0.1);
+}
+
+.stat-card.approval-tab-btn[data-status="rejected"].active::after {
+    background: #ef4444;
+    box-shadow: 0 0 0 1px #fca5a5;
+}
+
+.stat-card.approval-tab-btn[data-status="rejected"].active .stat-content h3 {
+    color: #b91c1c;
 }
 
 .approval-actions {
@@ -2942,6 +2947,203 @@ tr.new-row-highlight {
 
     .approval-actions button {
         width: 100%;
+        justify-content: center;
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   ADVANCED FILTER BAR
+═══════════════════════════════════════════════════════════════════ */
+
+.advanced-filter-bar {
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(241, 245, 249, 0.95) 100%);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 1rem 1.25rem;
+    margin-bottom: 1.5rem;
+    box-shadow: var(--shadow-sm);
+    transition: var(--transition);
+}
+
+.advanced-filter-bar:hover {
+    box-shadow: var(--shadow-md);
+    border-color: var(--primary-light);
+}
+
+.filter-bar-row {
+    display: flex;
+    align-items: flex-end;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.filter-bar-row .search-container {
+    flex: 1 1 280px;
+    min-width: 220px;
+}
+
+.filter-bar-row .search-container input {
+    width: 100%;
+    padding: 0.625rem 0.875rem 0.625rem 2.75rem;
+    border: 2px solid var(--border);
+    border-radius: var(--radius-md);
+    font-size: 0.9rem;
+    transition: var(--transition);
+    background: #fff;
+    font-family: inherit;
+}
+
+.filter-bar-row .search-container input:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.1);
+    outline: none;
+}
+
+.filter-bar-row .filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    min-width: 0;
+}
+
+.filter-bar-row .filter-group label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.filter-date-input {
+    padding: 0.575rem 0.75rem;
+    border: 2px solid var(--border);
+    border-radius: var(--radius-md);
+    font-size: 0.85rem;
+    color: var(--text-main);
+    background: #fff;
+    transition: var(--transition);
+    font-family: inherit;
+    min-width: 140px;
+}
+
+.filter-date-input:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.1);
+    outline: none;
+}
+
+.filter-bar-row .filter-select {
+    padding: 0.575rem 0.75rem;
+    border: 2px solid var(--border);
+    border-radius: var(--radius-md);
+    font-size: 0.85rem;
+    color: var(--text-main);
+    background: #fff;
+    cursor: pointer;
+    transition: var(--transition);
+    font-family: inherit;
+    min-width: 130px;
+}
+
+.filter-bar-row .filter-select:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.1);
+    outline: none;
+}
+
+.filter-actions {
+    display: flex;
+    gap: 0.5rem;
+    align-items: flex-end;
+}
+
+.filter-search-btn {
+    padding: 0.575rem 1.25rem;
+    background: var(--primary-gradient);
+    color: white;
+    border: none;
+    border-radius: var(--radius-md);
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--transition);
+    font-family: inherit;
+    white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    box-shadow: 0 4px 12px rgba(13, 148, 136, 0.2);
+}
+
+.filter-search-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(13, 148, 136, 0.35);
+    filter: brightness(1.08);
+}
+
+.filter-search-btn:active {
+    transform: translateY(0) scale(0.97);
+}
+
+.filter-reset-btn {
+    padding: 0.575rem 1rem;
+    background: linear-gradient(135deg, #f8fafc, #e2e8f0);
+    color: var(--text-secondary);
+    border: 2px solid var(--border);
+    border-radius: var(--radius-md);
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--transition);
+    font-family: inherit;
+    white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.filter-reset-btn:hover {
+    background: linear-gradient(135deg, #64748b, #475569);
+    color: white;
+    border-color: #64748b;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(100, 116, 139, 0.25);
+}
+
+.filter-reset-btn:active {
+    transform: translateY(0) scale(0.97);
+}
+
+/* Responsive: Stack on small screens */
+@media (max-width: 768px) {
+    .filter-bar-row {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .filter-bar-row .search-container {
+        flex: 1 1 100%;
+    }
+
+    .filter-bar-row .filter-group {
+        flex: 1 1 100%;
+    }
+
+    .filter-date-input,
+    .filter-bar-row .filter-select {
+        width: 100%;
+    }
+
+    .filter-actions {
+        flex: 1 1 100%;
+        justify-content: stretch;
+    }
+
+    .filter-search-btn,
+    .filter-reset-btn {
+        flex: 1;
         justify-content: center;
     }
 }

@@ -1,4 +1,9 @@
 document.addEventListener('DOMContentLoaded', () => {
+    // สั่งทำงานให้กำหนดสิทธิ์เมนูทันทีเมื่อโหลดหน้าเว็บ
+    if (typeof applyMenuPermissions === 'function') {
+        applyMenuPermissions();
+    }
+
     // ═══════════════════════════════════════════════════════════════════
     // SWEETALERT2 HELPER FUNCTIONS - SmileCare Theme
     // ═══════════════════════════════════════════════════════════════════
@@ -142,7 +147,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- APP STATE ---
     let currentUser = JSON.parse(localStorage.getItem('smilecare_staff_session'));
-    const canApproveContracts = !!(
+    const canApproveContracts = (typeof hasPermission === 'function' && hasPermission('nav-approval')) || !!(
         currentUser &&
         (currentUser.staffPosition === 'อนุมัติสัญญา' || currentUser.staffId === 'STF000' || currentUser.staffName === 'Admin')
     );
@@ -397,8 +402,24 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (data && data.success) {
                     currentUser = data.user;
                     localStorage.setItem('smilecare_staff_session', JSON.stringify(currentUser));
+
+                    // บันทึก role ลงใน localStorage ตาม requirement
+                    if (data.user.role) {
+                        localStorage.setItem('userRole', data.user.role);
+                    }
+
                     updateStaffInfo();
-                    showView('dashboard');
+
+                    // อัปเดตเมนูเมื่อ Login ผ่านแบบไม่ต้องโหลดหน้าเว็บใหม่
+                    if (typeof applyMenuPermissions === 'function') {
+                        applyMenuPermissions();
+                    }
+
+                    if (data.user.role === 'approver') {
+                        showView('approval');
+                    } else {
+                        showView('dashboard');
+                    }
 
                     updateStatusTrackingBadge({ showToastIfOverdue: true });
                 } else {
@@ -524,14 +545,30 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // --- HELPER: Build filter query string from prefixed inputs ---
+    function buildFilterQueryString(prefix) {
+        const search = (document.getElementById(`${prefix}SearchInput`) || {}).value?.trim() || '';
+        const startDate = (document.getElementById(`${prefix}StartDate`) || {}).value || '';
+        const endDate = (document.getElementById(`${prefix}EndDate`) || {}).value || '';
+        const status = (document.getElementById(`${prefix}StatusFilter`) || {}).value || '';
+        const params = new URLSearchParams();
+        if (search) params.set('search', search);
+        if (startDate) params.set('startDate', startDate);
+        if (endDate) params.set('endDate', endDate);
+        if (status && status !== 'all') params.set('status', status);
+        const qs = params.toString();
+        return qs ? `?${qs}` : '';
+    }
+
     // --- DASHBOARD LOGIC ---
     async function fetchWarranties() {
         showLoader('กำลังโหลดข้อมูล...');
         try {
-            const res = await fetch('/api/warranties');
+            const qs = buildFilterQueryString('dash');
+            const res = await fetch(`/api/warranties${qs}`);
             const data = await res.json();
             allRecords = data; // Save to global state
-            applyFilters(); // Initial render with filters
+            applyPaymentFilter(); // Apply client-side payment filter, then render
         } catch (err) {
             console.error('Fetch error:', err);
         } finally {
@@ -539,58 +576,24 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function applyFilters() {
-        const searchTerm = document.getElementById('searchInput').value.toLowerCase();
-        const statusFilter = document.getElementById('statusFilter').value;
-        const paymentFilter = document.getElementById('paymentFilter').value;
+    // Client-side payment filter only (search/status/date are now server-side)
+    function applyPaymentFilter() {
+        const paymentFilter = (document.getElementById('dashPaymentFilter') || {}).value || 'all';
 
-        const filtered = allRecords.filter(r => {
-            // 1. Search filter
-            const fullName = `${r.customer.firstName} ${r.customer.lastName}`.toLowerCase();
-            const matchesSearch = !searchTerm ||
-                (r.policyNumber && r.policyNumber.includes(searchTerm)) ||
-                (r.memberId && r.memberId.toLowerCase().includes(searchTerm)) ||
-                fullName.includes(searchTerm) ||
-                r.customer.phone.includes(searchTerm);
-
-            if (!matchesSearch) return false;
-
-            // 2. Status filter
-            const isExpired = new Date(r.warrantyDates.end) < new Date();
-            if (statusFilter !== 'all') {
-                if (statusFilter === 'active') {
-                    if (isExpired) return false;
-                    if (r.approvalStatus && r.approvalStatus !== 'approved') return false;
-                    if (r.claimStatus && r.claimStatus !== 'normal') return false;
-                } else if (statusFilter === 'expired') {
-                    if (!isExpired) return false;
-                } else if (statusFilter === 'approval_pending') {
-                    if (r.approvalStatus !== 'pending') return false;
-                } else if (statusFilter === 'approval_approved') {
-                    if (r.approvalStatus !== 'approved') return false;
-                } else if (statusFilter === 'approval_rejected') {
-                    if (r.approvalStatus !== 'rejected') return false;
-                } else if (statusFilter === 'claim_pending') {
-                    if (r.claimStatus !== 'pending') return false;
-                } else if (statusFilter === 'claim_completed') {
-                    if (r.claimStatus !== 'completed') return false;
-                }
-            }
-
-            // 3. Payment filter
-            if (paymentFilter !== 'all') {
-                const method = r.payment.method;
+        let filtered = allRecords;
+        if (paymentFilter !== 'all') {
+            filtered = allRecords.filter(r => {
+                const method = r.payment?.method;
                 if (paymentFilter === 'full' && method !== 'Full Payment') return false;
                 if (paymentFilter === 'installment' && method !== 'Installment') return false;
                 if (paymentFilter === 'installment_complete') {
                     if (method !== 'Installment') return false;
-                    const isComplete = r.payment.schedule.every(s => s.status === 'Paid');
+                    const isComplete = r.payment.schedule?.every(s => s.status === 'Paid');
                     if (!isComplete) return false;
                 }
-            }
-
-            return true;
-        });
+                return true;
+            });
+        }
 
         renderDashboard(filtered);
     }
@@ -604,19 +607,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Calculate Stats
         const now = new Date();
-        const thirtyDaysLater = new Date();
-        thirtyDaysLater.setDate(now.getDate() + 30);
-
         const totalCount = records.length;
         const activeCount = records.filter(r => new Date(r.warrantyDates.end) >= now).length;
-        const expiringSoonCount = records.filter(r => {
-            const end = new Date(r.warrantyDates.end);
-            return end > now && end <= thirtyDaysLater;
-        }).length;
+        const expiredCount = records.filter(r => new Date(r.warrantyDates.end) < now).length;
 
         if (totalElem) totalElem.textContent = totalCount.toLocaleString();
         if (activeElem) activeElem.textContent = activeCount.toLocaleString();
-        if (expiringElem) expiringElem.textContent = expiringSoonCount.toLocaleString();
+        if (expiringElem) expiringElem.textContent = expiredCount.toLocaleString();
 
         if (totalCount === 0) {
             empty.style.display = 'block';
@@ -659,7 +656,7 @@ document.addEventListener('DOMContentLoaded', () => {
             } else if (r.approvalStatus === 'rejected') {
                 statusBadge = `<span class="status-badge status-expired">ไม่อนุมัติ</span>`;
             } else if (r.claimStatus === 'pending') {
-                statusBadge = `<span class="status-badge status-pending" style="background-color: #f59e0b; color: white;">รอเคลม</span>`;
+                statusBadge = `<span class="status-badge" style="background: linear-gradient(135deg, #ef4444, #dc2626); color: white; box-shadow: 0 2px 8px rgba(239, 68, 68, 0.4); font-weight: 700;">รอเคลม</span>`;
             } else {
                 const isExpired = new Date(r.warrantyDates.end) < new Date();
                 statusBadge = `<span class="status-badge ${isExpired ? 'status-expired' : 'status-active'}">${isExpired ? 'หมดอายุ' : 'ปกติ'}</span>`;
@@ -1915,20 +1912,58 @@ document.addEventListener('DOMContentLoaded', () => {
         fetchWarranties();
     });
 
-    // Dashboard Filters listeners
-    document.getElementById('searchInput').addEventListener('input', applyFilters);
-    document.getElementById('statusFilter').addEventListener('change', applyFilters);
-    document.getElementById('paymentFilter').addEventListener('change', applyFilters);
+    // Dashboard Filter Button Listeners
+    const dashFilterBtn = document.getElementById('dashFilterBtn');
+    const dashResetBtn = document.getElementById('dashResetBtn');
+    if (dashFilterBtn) {
+        dashFilterBtn.addEventListener('click', () => fetchWarranties());
+    }
+    if (dashResetBtn) {
+        dashResetBtn.addEventListener('click', () => {
+            const ids = ['dashSearchInput', 'dashStartDate', 'dashEndDate'];
+            ids.forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+            const sf = document.getElementById('dashStatusFilter'); if (sf) sf.value = 'all';
+            const pf = document.getElementById('dashPaymentFilter'); if (pf) pf.value = 'all';
+            fetchWarranties();
+        });
+    }
+    // Payment filter still applies client-side on change
+    const dashPaymentFilter = document.getElementById('dashPaymentFilter');
+    if (dashPaymentFilter) {
+        dashPaymentFilter.addEventListener('change', applyPaymentFilter);
+    }
+    // Allow Enter key in search input to trigger search
+    const dashSearchInput = document.getElementById('dashSearchInput');
+    if (dashSearchInput) {
+        dashSearchInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') fetchWarranties(); });
+    }
 
     // --- MEMBERS LOGIC ---
+    let allMembers = [];
+
     async function fetchMembers() {
         try {
             const res = await fetch('/api/members');
-            const data = await res.json();
-            renderMembers(data);
+            allMembers = await res.json();
+            applyMembersFilter();
         } catch (err) {
             console.error('Fetch members error:', err);
         }
+    }
+
+    function applyMembersFilter() {
+        const search = (document.getElementById('membersSearchInput') || {}).value?.toLowerCase()?.trim() || '';
+        let filtered = allMembers;
+        if (search) {
+            filtered = allMembers.filter(m => {
+                const fullName = `${m.firstName} ${m.lastName}`.toLowerCase();
+                return (m.memberId && m.memberId.toLowerCase().includes(search)) ||
+                    fullName.includes(search) ||
+                    (m.phone && m.phone.includes(search)) ||
+                    (m.citizenId && m.citizenId.includes(search));
+            });
+        }
+        renderMembers(filtered);
     }
 
     function renderMembers(members) {
@@ -2168,6 +2203,32 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // --- Members Search Listeners ---
+    const membersSearchInput = document.getElementById('membersSearchInput');
+    if (membersSearchInput) {
+        membersSearchInput.addEventListener('input', applyMembersFilter);
+    }
+    const membersResetBtn = document.getElementById('membersResetBtn');
+    if (membersResetBtn) {
+        membersResetBtn.addEventListener('click', () => {
+            const el = document.getElementById('membersSearchInput'); if (el) el.value = '';
+            applyMembersFilter();
+        });
+    }
+
+    // --- Shops Search Listeners ---
+    const shopsSearchInput = document.getElementById('shopsSearchInput');
+    if (shopsSearchInput) {
+        shopsSearchInput.addEventListener('input', applyShopsFilter);
+    }
+    const shopsResetBtn = document.getElementById('shopsResetBtn');
+    if (shopsResetBtn) {
+        shopsResetBtn.addEventListener('click', () => {
+            const el = document.getElementById('shopsSearchInput'); if (el) el.value = '';
+            applyShopsFilter();
+        });
+    }
+
     // --- MOBILE MENU LOGIC ---
     const menuToggle = document.getElementById('mobileMenuBtn');
     const sidebar = document.getElementById('sidebar');
@@ -2193,14 +2254,29 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- SHOPS LOGIC ---
+    let allShops = [];
+
     async function fetchShops() {
         try {
             const res = await fetch('/api/shops');
-            const data = await res.json();
-            renderShops(data);
+            allShops = await res.json();
+            applyShopsFilter();
         } catch (err) {
             console.error('Fetch shops error:', err);
         }
+    }
+
+    function applyShopsFilter() {
+        const search = (document.getElementById('shopsSearchInput') || {}).value?.toLowerCase()?.trim() || '';
+        let filtered = allShops;
+        if (search) {
+            filtered = allShops.filter(s => {
+                return (s.shopId && s.shopId.toLowerCase().includes(search)) ||
+                    (s.shopName && s.shopName.toLowerCase().includes(search)) ||
+                    (s.location && s.location.toLowerCase().includes(search));
+            });
+        }
+        renderShops(filtered);
     }
 
     function renderShops(shops) {
@@ -2425,7 +2501,8 @@ document.addEventListener('DOMContentLoaded', () => {
     async function fetchActivePolicies() {
         showLoader('กำลังโหลดรายการกรมธรรม์...');
         try {
-            const res = await fetch('/api/warranties/active');
+            const qs = buildFilterQueryString('claims');
+            const res = await fetch(`/api/warranties/active${qs}`);
             const data = await res.json();
             renderClaimsTable(data);
         } catch (err) {
@@ -2472,7 +2549,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <td data-label="ประกันคงเหลือ">${timeRemainingText}</td>
                     <td data-label="สถานะ">
                         ${r.claimStatus === 'pending'
-                    ? `<span class="status-badge status-pending" style="background-color: #f59e0b; color: white;">รอเคลม</span>`
+                    ? `<span class="status-badge" style="background: linear-gradient(135deg, #ef4444, #dc2626); color: white; box-shadow: 0 2px 8px rgba(239, 68, 68, 0.4); font-weight: 700;">รอเคลม</span>`
                     : `<span class="status-badge status-active">ปกติ</span>`
                 }
                     </td>
@@ -3070,7 +3147,8 @@ document.addEventListener('DOMContentLoaded', () => {
     async function fetchPendingClaims() {
         showLoader('กำลังโหลดรายการเคลม...');
         try {
-            const res = await fetch('/api/claims/pending');
+            const qs = buildFilterQueryString('tracking');
+            const res = await fetch(`/api/claims/pending${qs}`);
             const claims = await res.json();
             renderStatusTracking(claims);
 
@@ -3110,7 +3188,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td data-label="สถานะ">
                     ${c && c.isOverdue
                 ? `<span class="status-badge status-overdue">⚠️ เกินกำหนดอัปเดต (${safeDays(c.daysOverdue)} วัน)</span>`
-                : `<span class="status-badge status-pending" style="background-color: #f59e0b; color: white;">รอเคลม</span>`}
+                : `<span class="status-badge" style="background: linear-gradient(135deg, #ef4444, #dc2626); color: white; box-shadow: 0 2px 8px rgba(239, 68, 68, 0.4); font-weight: 700;">รอเคลม</span>`}
                 </td>
                 <td data-label="ทำรายการ">
                     <div style="display: flex; gap: 0.5rem; justify-content: center;">
@@ -3644,7 +3722,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         listContainer.innerHTML = claims.map(c => {
             const totalCost = c.totalCost || 0;
-            const statusColor = c.status === 'รอเคลม' ? '#f59e0b' : '#10b981';
+            const statusColor = c.status === 'รอเคลม' ? '#ef4444' : '#10b981';
             const statusText = c.status === 'รอเคลม' ? 'รอเคลม / กำลังซ่อม' : 'รับเครื่องแล้ว (เสร็จสิ้น)';
             const claimMongoId = c && c._id ? String(c._id) : '';
 
@@ -3775,7 +3853,10 @@ document.addEventListener('DOMContentLoaded', () => {
     async function fetchApprovalWarranties(status) {
         showLoader();
         try {
-            const res = await fetch(`/api/warranties/pending?status=${status}`);
+            const qs = buildFilterQueryString('approval');
+            const separator = qs ? '&' : '';
+            const url = `/api/warranties/pending?status=${status}${separator}${qs ? qs.substring(1) : ''}`;
+            const res = await fetch(url);
             approvalAllWarranties = await res.json();
             renderApprovalTable(approvalAllWarranties);
             fetchApprovalCounts();
@@ -4273,6 +4354,67 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
+    // ═══════════════════════════════════════════════════════════════════
+    // FILTER BAR EVENT LISTENERS (Claims, Status Tracking, Approval)
+    // ═══════════════════════════════════════════════════════════════════
+
+    // --- Claims Filter ---
+    const claimsFilterBtn = document.getElementById('claimsFilterBtn');
+    const claimsResetBtn = document.getElementById('claimsResetBtn');
+    if (claimsFilterBtn) {
+        claimsFilterBtn.addEventListener('click', () => fetchActivePolicies());
+    }
+    if (claimsResetBtn) {
+        claimsResetBtn.addEventListener('click', () => {
+            ['claimsSearchInput', 'claimsStartDate', 'claimsEndDate'].forEach(id => {
+                const el = document.getElementById(id); if (el) el.value = '';
+            });
+            fetchActivePolicies();
+        });
+    }
+    const claimsSearchInput = document.getElementById('claimsSearchInput');
+    if (claimsSearchInput) {
+        claimsSearchInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') fetchActivePolicies(); });
+    }
+
+    // --- Status Tracking Filter ---
+    const trackingFilterBtn = document.getElementById('trackingFilterBtn');
+    const trackingResetBtn = document.getElementById('trackingResetBtn');
+    if (trackingFilterBtn) {
+        trackingFilterBtn.addEventListener('click', () => fetchPendingClaims());
+    }
+    if (trackingResetBtn) {
+        trackingResetBtn.addEventListener('click', () => {
+            ['trackingSearchInput', 'trackingStartDate', 'trackingEndDate'].forEach(id => {
+                const el = document.getElementById(id); if (el) el.value = '';
+            });
+            fetchPendingClaims();
+        });
+    }
+    const trackingSearchInput = document.getElementById('trackingSearchInput');
+    if (trackingSearchInput) {
+        trackingSearchInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') fetchPendingClaims(); });
+    }
+
+    // --- Approval Filter ---
+    const approvalFilterBtn = document.getElementById('approvalFilterBtn');
+    const approvalResetBtn = document.getElementById('approvalResetBtn');
+    if (approvalFilterBtn) {
+        approvalFilterBtn.addEventListener('click', () => fetchApprovalWarranties(approvalCurrentFilter));
+    }
+    if (approvalResetBtn) {
+        approvalResetBtn.addEventListener('click', () => {
+            ['approvalSearchInput', 'approvalStartDate', 'approvalEndDate'].forEach(id => {
+                const el = document.getElementById(id); if (el) el.value = '';
+            });
+            fetchApprovalWarranties(approvalCurrentFilter);
+        });
+    }
+    const approvalSearchInput = document.getElementById('approvalSearchInput');
+    if (approvalSearchInput) {
+        approvalSearchInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') fetchApprovalWarranties(approvalCurrentFilter); });
+    }
+
     // ====== AUTO-REFRESH LOGIC ======
     const approvalLiveIndicator = document.getElementById('approvalLiveIndicator');
     const approvalLiveText = document.getElementById('approvalLiveText');
@@ -4324,11 +4466,15 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- INITIALIZATION ---
+    // Show login or dashboard initially
     if (currentUser) {
+        if (currentUser.role === 'approver') {
+            showView('approval');
+        } else {
+            showView('dashboard');
+        }
         updateStaffInfo();
-        showView('dashboard');
-
-        updateStatusTrackingBadge({ showToastIfOverdue: true });
+        updateStatusTrackingBadge();
     } else {
         showView('login');
     }
