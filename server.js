@@ -58,6 +58,9 @@ const WarrantySchema = new mongoose.Schema({
     shopName: String,
     protectionType: String,
     staffName: String,
+    devicePrice: Number,
+    installmentsPaid: { type: Number, default: 1 },
+    usedCoverage: { type: Number, default: 0 },
     customer: {
         firstName: String,
         lastName: String,
@@ -115,6 +118,28 @@ const WarrantySchema = new mongoose.Schema({
     rejectDate: Date,
     claimStatus: { type: String, default: 'normal', enum: ['normal', 'pending', 'completed'] }
 }, { timestamps: true });
+
+WarrantySchema.virtual('maxLimit').get(function () {
+    const basePrice = Number(this.devicePrice ?? this.device?.deviceValue ?? 0);
+    return Math.floor(basePrice * 0.70);
+});
+
+WarrantySchema.virtual('currentLimit').get(function () {
+    const maxLimit = Number(this.maxLimit ?? 0);
+    const paid = Number(this.installmentsPaid ?? 1);
+    if (paid >= 3) return Math.floor(maxLimit * 1.0);
+    if (paid === 2) return Math.floor(maxLimit * 0.30);
+    return Math.floor(maxLimit * 0.10);
+});
+
+WarrantySchema.virtual('remainingLimit').get(function () {
+    const used = Number(this.usedCoverage ?? 0);
+    const current = Number(this.currentLimit ?? 0);
+    return current - used;
+});
+
+WarrantySchema.set('toJSON', { virtuals: true });
+WarrantySchema.set('toObject', { virtuals: true });
 
 const Warranty = mongoose.model('Warranty', WarrantySchema);
 
@@ -509,6 +534,58 @@ app.get('/api/warranties', async (req, res) => {
                     'totalClaimAmount': { $sum: '$claims.totalCost' }
                 }
             },
+            {
+                $addFields: {
+                    devicePrice: { $ifNull: ['$devicePrice', '$device.deviceValue'] },
+                    installmentsPaid: {
+                        $let: {
+                            vars: {
+                                paidCount: {
+                                    $size: {
+                                        $filter: {
+                                            input: { $ifNull: ['$payment.schedule', []] },
+                                            as: 's',
+                                            cond: { $eq: ['$$s.status', 'Paid'] }
+                                        }
+                                    }
+                                }
+                            },
+                            in: {
+                                $cond: [
+                                    { $eq: ['$payment.method', 'Installment'] },
+                                    { $min: [3, '$$paidCount'] },
+                                    3
+                                ]
+                            }
+                        }
+                    },
+                    usedCoverage: { $ifNull: ['$usedCoverage', '$totalClaimAmount'] }
+                }
+            },
+            {
+                $addFields: {
+                    maxLimit: { $floor: { $multiply: ['$devicePrice', 0.70] } }
+                }
+            },
+            {
+                $addFields: {
+                    currentLimit: {
+                        $switch: {
+                            branches: [
+                                { case: { $gte: ['$installmentsPaid', 3] }, then: { $floor: { $multiply: ['$maxLimit', 1.0] } } },
+                                { case: { $eq: ['$installmentsPaid', 2] }, then: { $floor: { $multiply: ['$maxLimit', 0.30] } } },
+                                { case: { $eq: ['$installmentsPaid', 1] }, then: { $floor: { $multiply: ['$maxLimit', 0.10] } } }
+                            ],
+                            default: { $floor: { $multiply: ['$maxLimit', 0.10] } }
+                        }
+                    }
+                }
+            },
+            {
+                $addFields: {
+                    remainingLimit: { $subtract: ['$currentLimit', '$usedCoverage'] }
+                }
+            },
             { $project: { memberInfo: 0, claims: 0 } }
         ];
 
@@ -541,6 +618,19 @@ app.post('/api/warranties', async (req, res) => {
             policyNumber,
             approvalStatus: 'pending'
         });
+
+        // Enforce installmentsPaid from payment data in DB (do not trust client input)
+        try {
+            if (newWarranty.payment && newWarranty.payment.method === 'Installment') {
+                const paidCount = (Array.isArray(newWarranty.payment.schedule) ? newWarranty.payment.schedule : [])
+                    .filter(s => s && s.status === 'Paid').length;
+                newWarranty.installmentsPaid = Math.min(3, Math.max(0, paidCount));
+            } else {
+                newWarranty.installmentsPaid = 3;
+            }
+        } catch (e) {
+            console.error('Failed to calc installmentsPaid on create:', e);
+        }
         await newWarranty.save();
 
         if (io && newWarranty.approvalStatus === 'pending') {
@@ -584,12 +674,73 @@ app.get('/api/warranties/pending', async (req, res) => {
                 }
             },
             {
-                $addFields: {
-                    'customer.citizenId': { $arrayElemAt: ['$memberInfo.citizenId', 0] },
-                    'customer.id': '$memberId'
+                $lookup: {
+                    from: 'claims',
+                    localField: '_id',
+                    foreignField: 'warrantyId',
+                    as: 'claims'
                 }
             },
-            { $project: { memberInfo: 0 } }
+            {
+                $addFields: {
+                    'customer.citizenId': { $arrayElemAt: ['$memberInfo.citizenId', 0] },
+                    'customer.id': '$memberId',
+                    'totalClaimAmount': { $sum: '$claims.totalCost' }
+                }
+            },
+            {
+                $addFields: {
+                    devicePrice: { $ifNull: ['$devicePrice', '$device.deviceValue'] },
+                    installmentsPaid: {
+                        $let: {
+                            vars: {
+                                paidCount: {
+                                    $size: {
+                                        $filter: {
+                                            input: { $ifNull: ['$payment.schedule', []] },
+                                            as: 's',
+                                            cond: { $eq: ['$$s.status', 'Paid'] }
+                                        }
+                                    }
+                                }
+                            },
+                            in: {
+                                $cond: [
+                                    { $eq: ['$payment.method', 'Installment'] },
+                                    { $min: [3, '$$paidCount'] },
+                                    3
+                                ]
+                            }
+                        }
+                    },
+                    usedCoverage: { $ifNull: ['$usedCoverage', '$totalClaimAmount'] }
+                }
+            },
+            {
+                $addFields: {
+                    maxLimit: { $floor: { $multiply: ['$devicePrice', 0.70] } }
+                }
+            },
+            {
+                $addFields: {
+                    currentLimit: {
+                        $switch: {
+                            branches: [
+                                { case: { $gte: ['$installmentsPaid', 3] }, then: { $floor: { $multiply: ['$maxLimit', 1.0] } } },
+                                { case: { $eq: ['$installmentsPaid', 2] }, then: { $floor: { $multiply: ['$maxLimit', 0.30] } } },
+                                { case: { $eq: ['$installmentsPaid', 1] }, then: { $floor: { $multiply: ['$maxLimit', 0.10] } } }
+                            ],
+                            default: { $floor: { $multiply: ['$maxLimit', 0.10] } }
+                        }
+                    }
+                }
+            },
+            {
+                $addFields: {
+                    remainingLimit: { $subtract: ['$currentLimit', '$usedCoverage'] }
+                }
+            },
+            { $project: { memberInfo: 0, claims: 0 } }
         ]);
         res.json(warranties);
     } catch (err) {
@@ -738,15 +889,76 @@ app.get('/api/warranties/:id', async (req, res) => {
                 }
             },
             {
+                $lookup: {
+                    from: 'claims',
+                    localField: '_id',
+                    foreignField: 'warrantyId',
+                    as: 'claims'
+                }
+            },
+            {
                 $addFields: {
                     'customer.citizenId': { $arrayElemAt: ['$memberInfo.citizenId', 0] },
                     'customer.facebook': { $arrayElemAt: ['$memberInfo.facebook', 0] },
                     'customer.id': '$memberId',
                     'customer.idCardAddress': { $arrayElemAt: ['$memberInfo.idCardAddress', 0] },
-                    'customer.shippingAddress': { $arrayElemAt: ['$memberInfo.shippingAddress', 0] }
+                    'customer.shippingAddress': { $arrayElemAt: ['$memberInfo.shippingAddress', 0] },
+                    'totalClaimAmount': { $sum: '$claims.totalCost' }
                 }
             },
-            { $project: { memberInfo: 0 } }
+            {
+                $addFields: {
+                    devicePrice: { $ifNull: ['$devicePrice', '$device.deviceValue'] },
+                    installmentsPaid: {
+                        $let: {
+                            vars: {
+                                paidCount: {
+                                    $size: {
+                                        $filter: {
+                                            input: { $ifNull: ['$payment.schedule', []] },
+                                            as: 's',
+                                            cond: { $eq: ['$$s.status', 'Paid'] }
+                                        }
+                                    }
+                                }
+                            },
+                            in: {
+                                $cond: [
+                                    { $eq: ['$payment.method', 'Installment'] },
+                                    { $min: [3, '$$paidCount'] },
+                                    3
+                                ]
+                            }
+                        }
+                    },
+                    usedCoverage: { $ifNull: ['$usedCoverage', '$totalClaimAmount'] }
+                }
+            },
+            {
+                $addFields: {
+                    maxLimit: { $floor: { $multiply: ['$devicePrice', 0.70] } }
+                }
+            },
+            {
+                $addFields: {
+                    currentLimit: {
+                        $switch: {
+                            branches: [
+                                { case: { $gte: ['$installmentsPaid', 3] }, then: { $floor: { $multiply: ['$maxLimit', 1.0] } } },
+                                { case: { $eq: ['$installmentsPaid', 2] }, then: { $floor: { $multiply: ['$maxLimit', 0.30] } } },
+                                { case: { $eq: ['$installmentsPaid', 1] }, then: { $floor: { $multiply: ['$maxLimit', 0.10] } } }
+                            ],
+                            default: { $floor: { $multiply: ['$maxLimit', 0.10] } }
+                        }
+                    }
+                }
+            },
+            {
+                $addFields: {
+                    remainingLimit: { $subtract: ['$currentLimit', '$usedCoverage'] }
+                }
+            },
+            { $project: { memberInfo: 0, claims: 0 } }
         ]);
 
         if (!warranties || warranties.length === 0) {
@@ -827,6 +1039,22 @@ app.patch('/api/warranties/:id/payment', async (req, res) => {
         }
 
         await warranty.save();
+
+        // Recalculate installmentsPaid based on DB payment schedule
+        try {
+            if (warranty.payment && warranty.payment.method === 'Installment') {
+                const paidCount = (Array.isArray(warranty.payment.schedule) ? warranty.payment.schedule : [])
+                    .filter(s => s && s.status === 'Paid').length;
+                warranty.installmentsPaid = Math.min(3, Math.max(0, paidCount));
+            } else {
+                warranty.installmentsPaid = 3;
+            }
+            await warranty.save();
+        } catch (e) {
+            // If this fails, do not block payment update response
+            console.error('Failed to recalc installmentsPaid:', e);
+        }
+
         res.json({ success: true, warranty });
     } catch (err) {
         res.status(400).json({ message: err.message });
@@ -1243,10 +1471,14 @@ app.get('/api/public/track/:claimId', async (req, res) => {
                 const allClaims = await Claim.find({ warrantyId: claim.warrantyId });
                 const totalUsed = allClaims.reduce((sum, c) => sum + (c.totalCost || 0), 0);
 
-                // Calculate Limit (70% of Device Value)
-                const deviceValue = warranty.device.deviceValue || 0;
-                coverageLimit = Math.floor(deviceValue * 0.7);
+                const basePrice = Number(warranty.devicePrice ?? warranty.device?.deviceValue ?? 0);
+                const maxLimit = Math.floor(basePrice * 0.70);
+                const paid = Number(warranty.installmentsPaid ?? 1);
+                const currentLimit = paid >= 3
+                    ? Math.floor(maxLimit * 1.0)
+                    : (paid === 2 ? Math.floor(maxLimit * 0.30) : Math.floor(maxLimit * 0.10));
 
+                coverageLimit = currentLimit;
                 remainingBalance = coverageLimit - totalUsed;
             }
         }

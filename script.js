@@ -592,6 +592,26 @@ document.addEventListener('DOMContentLoaded', () => {
         const expiringElem = document.getElementById('expiringSoon');
         const empty = document.getElementById('emptyState');
 
+        const getCoverageNumbers = (w) => {
+            const devicePrice = Number(w?.devicePrice ?? w?.device?.deviceValue ?? 0);
+            const maxLimit = Number.isFinite(Number(w?.maxLimit))
+                ? Number(w.maxLimit)
+                : Math.floor(devicePrice * 0.70);
+            const installmentsPaid = Number.isFinite(Number(w?.installmentsPaid))
+                ? Number(w.installmentsPaid)
+                : 1;
+            const currentLimit = Number.isFinite(Number(w?.currentLimit))
+                ? Number(w.currentLimit)
+                : (installmentsPaid >= 3 ? Math.floor(maxLimit * 1.0) : (installmentsPaid === 2 ? Math.floor(maxLimit * 0.30) : Math.floor(maxLimit * 0.10)));
+            const usedCoverage = Number.isFinite(Number(w?.usedCoverage))
+                ? Number(w.usedCoverage)
+                : Number(w?.totalClaimAmount ?? 0);
+            const remainingLimit = Number.isFinite(Number(w?.remainingLimit))
+                ? Number(w.remainingLimit)
+                : (currentLimit - usedCoverage);
+            return { devicePrice, maxLimit, installmentsPaid, currentLimit, usedCoverage, remainingLimit };
+        };
+
         // Calculate Stats
         const now = new Date();
         const totalCount = records.length;
@@ -661,15 +681,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     <td data-label="ประกันคงเหลือ">${timeRemainingText}</td>
                     <td data-label="วงเงินคงเหลือ">
                         ${(() => {
-                    const deviceValue = r.device.deviceValue || 0;
-                    const limit = Math.floor(deviceValue * 0.7); // 70% of device value
-                    const used = r.totalClaimAmount || 0;
-                    const balance = limit - used;
+                    const cov = getCoverageNumbers(r);
+                    const balance = cov.remainingLimit;
                     const color = balance < 0 ? '#ef4444' : '#10b981';
                     return `
                             <div style="display: flex; flex-direction: column; align-items: flex-start;">
                                 <span style="color: ${color}; font-weight: 600;">${balance.toLocaleString()} บาท</span>
-                                <span style="font-size: 0.75rem; color: #64748b;">(วงเงิน ${limit.toLocaleString()})</span>
+                                <span style="font-size: 0.75rem; color: #64748b;">(วงเงินสูงสุด ${cov.maxLimit.toLocaleString()})</span>
                             </div>
                         `;
                 })()}
@@ -1490,6 +1508,7 @@ document.addEventListener('DOMContentLoaded', () => {
             shopName: document.getElementById('shopName').value,
             protectionType: document.getElementById('protectionType').value,
             staffName: currentUser.staffName,
+            devicePrice: parseFloat(document.getElementById('deviceValue').value) || 0,
             customer: {
                 firstName: document.getElementById('firstName').value,
                 lastName: document.getElementById('lastName').value,
@@ -2618,6 +2637,37 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('claimPackage').value = data.package.plan || '';
             document.getElementById('claimStartDate').value = data.warrantyDates.start ? new Date(data.warrantyDates.start).toLocaleDateString('th-TH') : '';
             document.getElementById('claimEndDate').value = data.warrantyDates.end ? new Date(data.warrantyDates.end).toLocaleDateString('th-TH') : '';
+
+            const devicePrice = Number(data?.devicePrice ?? data?.device?.deviceValue ?? 0);
+            const maxLimit = Number.isFinite(Number(data?.maxLimit)) ? Number(data.maxLimit) : Math.floor(devicePrice * 0.70);
+            const installmentsPaid = Number.isFinite(Number(data?.installmentsPaid)) ? Number(data.installmentsPaid) : 1;
+            const currentLimit = Number.isFinite(Number(data?.currentLimit))
+                ? Number(data.currentLimit)
+                : (installmentsPaid >= 3 ? Math.floor(maxLimit * 1.0) : (installmentsPaid === 2 ? Math.floor(maxLimit * 0.30) : Math.floor(maxLimit * 0.10)));
+            const usedCoverage = Number.isFinite(Number(data?.usedCoverage)) ? Number(data.usedCoverage) : Number(data?.totalClaimAmount ?? 0);
+            const remainingLimit = Number.isFinite(Number(data?.remainingLimit)) ? Number(data.remainingLimit) : (currentLimit - usedCoverage);
+
+            const claimCoverageText = document.getElementById('claimCoverageText');
+            const claimCoverageUsedText = document.getElementById('claimCoverageUsedText');
+            const claimCoverageProgress = document.getElementById('claimCoverageProgress');
+            if (claimCoverageText) {
+                claimCoverageText.textContent = `วงเงินสูงสุด: ${maxLimit.toLocaleString()} บ. | สิทธิ์ปัจจุบัน (งวด ${installmentsPaid}): ${currentLimit.toLocaleString()} บ. | ใช้ไป: ${usedCoverage.toLocaleString()} บ. | คงเหลือเคลมได้: ${remainingLimit.toLocaleString()} บ.`;
+            }
+            if (claimCoverageUsedText) {
+                claimCoverageUsedText.textContent = `${usedCoverage.toLocaleString()} / ${currentLimit.toLocaleString()} บ.`;
+            }
+            if (claimCoverageProgress) {
+                const denom = currentLimit > 0 ? currentLimit : 0;
+                const pct = denom > 0 ? Math.max(0, Math.min(100, (usedCoverage / denom) * 100)) : 0;
+                claimCoverageProgress.style.width = `${pct}%`;
+                if (remainingLimit < 0) {
+                    claimCoverageProgress.style.background = '#ef4444';
+                } else if (pct >= 80) {
+                    claimCoverageProgress.style.background = '#f59e0b';
+                } else {
+                    claimCoverageProgress.style.background = '#3b82f6';
+                }
+            }
 
             // Store member addresses for delivery options
             document.getElementById('displayCardAddress').textContent = data.customer.idCardAddress || 'ไม่พบข้อมูลที่อยู่ตามหน้าบัตร';
@@ -4122,7 +4172,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         </div>
                         <div class="approval-detail-item">
                             <label>วิธีชำระ</label>
-                            <span>${w.payment?.method || '-'}</span>
+                            <span>${(() => {
+                                const m = w.payment?.method;
+                                if (m === 'Installment') return 'แบ่งจ่าย';
+                                if (m === 'Full Payment') return 'เต็มจำนวน';
+                                return m || '-';
+                            })()}</span>
                         </div>
                         <div class="approval-detail-item">
                             <label>ร้านค้า</label>
