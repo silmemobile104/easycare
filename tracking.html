@@ -606,9 +606,9 @@
                                 <span class="detail-value">${w.device.imei || '-'}</span>
                             </div>`;
 
-                    const limit = calcCoverageLimit(w);
-                    const used = calcWarrantyUsedAmount(w, data.claims);
-                    const remaining = Math.max(0, limit - used);
+                    const cov = getCoverageNumbers(w, data.claims);
+                    const limit = cov.currentLimit;
+                    const remaining = cov.remainingLimit;
                     const remainingTimeLabel = calcRemainingCoverageLabel(endObj);
 
                     return `
@@ -643,8 +643,9 @@
                                 <span class="detail-value">${startStr} - ${endStr}</span>
                             </div>
                             <div class="detail-col">
-                                <span class="detail-label">วงเงินเคลมสูงสุด</span>
+                                <span class="detail-label">สิทธิ์เคลมปัจจุบัน</span>
                                 <span class="detail-value amount">${formatMoney(limit)} ฿</span>
+                                <span class="detail-label" style="margin-top:0.25rem;">(วงเงินสูงสุด ${formatMoney(cov.maxLimit)} ฿${cov.installmentsPaid ? ` | งวด ${cov.installmentsPaid}` : ''})</span>
                             </div>
                             <div class="detail-col">
                                 <span class="detail-label">วงเงินคงเหลือ</span>
@@ -820,9 +821,35 @@
             return num.toLocaleString('th-TH');
         }
 
-        function calcCoverageLimit(warranty) {
-            const deviceValue = Number(warranty?.device?.deviceValue || 0);
-            return Math.floor(deviceValue * 0.7);
+        function getCoverageNumbers(warranty, claims) {
+            const devicePrice = Number(warranty?.devicePrice ?? warranty?.device?.deviceValue ?? 0);
+
+            const maxLimit = Number.isFinite(Number(warranty?.maxLimit))
+                ? Number(warranty.maxLimit)
+                : Math.floor(devicePrice * 0.70);
+
+            const installmentsPaid = Number.isFinite(Number(warranty?.installmentsPaid))
+                ? Number(warranty.installmentsPaid)
+                : null;
+
+            const currentLimit = Number.isFinite(Number(warranty?.currentLimit))
+                ? Number(warranty.currentLimit)
+                : (() => {
+                    const paid = Number.isFinite(Number(installmentsPaid)) ? Number(installmentsPaid) : 1;
+                    if (paid >= 3) return Math.floor(maxLimit * 1.0);
+                    if (paid === 2) return Math.floor(maxLimit * 0.30);
+                    return Math.floor(maxLimit * 0.10);
+                })();
+
+            const usedCoverage = Number.isFinite(Number(warranty?.usedCoverage))
+                ? Number(warranty.usedCoverage)
+                : calcWarrantyUsedAmount(warranty, claims);
+
+            const remainingLimit = Number.isFinite(Number(warranty?.remainingLimit))
+                ? Number(warranty.remainingLimit)
+                : (currentLimit - usedCoverage);
+
+            return { devicePrice, maxLimit, installmentsPaid, currentLimit, usedCoverage, remainingLimit };
         }
 
         function calcWarrantyUsedAmount(warranty, claims) {

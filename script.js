@@ -2047,7 +2047,8 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('memberIdDisplay').value = member.memberId;
             document.getElementById('memberFirstName').value = member.firstName;
             document.getElementById('memberLastName').value = member.lastName;
-            document.getElementById('memberPhone').value = member.phone;
+            const memberPhoneDirectEl = document.getElementById('memberPhone');
+            if (memberPhoneDirectEl) memberPhoneDirectEl.value = member.phone;
             document.getElementById('memberBirthdate').value = member.birthdate ? member.birthdate.split('T')[0] : '';
             document.getElementById('memberIdCardAddress').value = member.idCardAddress || '';
             document.getElementById('memberShippingAddress').value = member.shippingAddress || '';
@@ -2058,12 +2059,14 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('memberFirstNameEn').value = member.firstNameEn || '';
             document.getElementById('memberLastNameEn').value = member.lastNameEn || '';
             document.getElementById('memberCitizenId').value = member.citizenId || '';
-            document.getElementById('memberIssueDate').value = member.issueDate ? member.issueDate.split('T')[0] : '';
-            document.getElementById('memberExpiryDate').value = member.expiryDate ? member.expiryDate.split('T')[0] : '';
-            document.getElementById('memberFacebook').value = member.facebook || '';
-            document.getElementById('memberFacebookLink').value = member.facebookLink || '';
+            const memberCardExpiryEl = document.getElementById('memberCardExpiry');
+            if (memberCardExpiryEl) memberCardExpiryEl.value = member.expiryDate ? member.expiryDate.split('T')[0] : '';
             const memberPostalCode = document.getElementById('memberPostalCode');
             if (memberPostalCode) memberPostalCode.value = member.postalCode || '';
+            const memberFacebookEl = document.getElementById('memberFacebook');
+            if (memberFacebookEl) memberFacebookEl.value = member.facebook || '';
+            const memberFacebookLinkEl = document.getElementById('memberFacebookLink');
+            if (memberFacebookLinkEl) memberFacebookLinkEl.value = member.facebookLink || '';
 
             document.getElementById('memberCitizenId').readOnly = false;
             document.getElementById('memberPrefix').readOnly = false;
@@ -2073,8 +2076,6 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('memberLastNameEn').readOnly = false;
             document.getElementById('memberGender').readOnly = false;
             document.getElementById('memberBirthdate').readOnly = false;
-            document.getElementById('memberIssueDate').readOnly = false;
-            document.getElementById('memberExpiryDate').readOnly = false;
             document.getElementById('memberIdCardAddress').readOnly = false;
 
             const photoContainer = document.getElementById('smartCardPhotoContainer');
@@ -2105,12 +2106,16 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('memberGender').value = '';
             document.getElementById('memberFirstNameEn').value = '';
             document.getElementById('memberLastNameEn').value = '';
-            document.getElementById('memberIssueDate').value = '';
-            document.getElementById('memberExpiryDate').value = '';
-            document.getElementById('memberFacebook').value = '';
-            document.getElementById('memberFacebookLink').value = '';
+            const memberCardExpiryEl = document.getElementById('memberCardExpiry');
+            if (memberCardExpiryEl) memberCardExpiryEl.value = '';
+            const memberPhoneEl = document.getElementById('memberPhone');
+            if (memberPhoneEl) memberPhoneEl.value = '';
             const memberPostalCode = document.getElementById('memberPostalCode');
             if (memberPostalCode) memberPostalCode.value = '';
+            const memberFacebookEl = document.getElementById('memberFacebook');
+            if (memberFacebookEl) memberFacebookEl.value = '';
+            const memberFacebookLinkEl = document.getElementById('memberFacebookLink');
+            if (memberFacebookLinkEl) memberFacebookLinkEl.value = '';
             document.getElementById('smartCardPhotoContainer').style.display = 'none';
             document.getElementById('smartCardPhoto').src = '';
 
@@ -2123,8 +2128,10 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('memberLastNameEn').readOnly = false;
             document.getElementById('memberGender').readOnly = false;
             document.getElementById('memberBirthdate').readOnly = false;
-            document.getElementById('memberIssueDate').readOnly = false;
-            document.getElementById('memberExpiryDate').readOnly = false;
+            const memberIssueDateEl = document.getElementById('memberIssueDate');
+            if (memberIssueDateEl) memberIssueDateEl.readOnly = false;
+            const memberExpiryDateEl = document.getElementById('memberExpiryDate');
+            if (memberExpiryDateEl) memberExpiryDateEl.readOnly = false;
             document.getElementById('memberIdCardAddress').readOnly = false;
 
             document.getElementById('memberModal').style.display = 'flex';
@@ -2153,7 +2160,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const editId = document.getElementById('editMemberId').value;
 
             const normalizeDigits = (v) => String(v || '').replace(/\D/g, '');
-            const phoneDigits = normalizeDigits(document.getElementById('memberPhone').value);
+            const phoneDigits = normalizeDigits(document.getElementById('memberPhone') ? document.getElementById('memberPhone').value : '');
             const postalDigits = normalizeDigits(document.getElementById('memberPostalCode') ? document.getElementById('memberPostalCode').value : '');
 
             if (phoneDigits.length !== 10) {
@@ -2179,10 +2186,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 firstNameEn: document.getElementById('memberFirstNameEn').value,
                 lastNameEn: document.getElementById('memberLastNameEn').value,
                 gender: document.getElementById('memberGender').value,
-                issueDate: document.getElementById('memberIssueDate').value,
-                expiryDate: document.getElementById('memberExpiryDate').value,
-                facebook: document.getElementById('memberFacebook').value,
-                facebookLink: document.getElementById('memberFacebookLink').value,
+                expiryDate: document.getElementById('memberCardExpiry') ? document.getElementById('memberCardExpiry').value : undefined,
+                facebook: document.getElementById('memberFacebook') ? document.getElementById('memberFacebook').value : undefined,
+                facebookLink: document.getElementById('memberFacebookLink') ? document.getElementById('memberFacebookLink').value : undefined,
                 photo: document.getElementById('smartCardPhoto').src.startsWith('data:image') ? document.getElementById('smartCardPhoto').src : undefined
             };
 
@@ -2473,8 +2479,12 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('memberBirthdate').value = data.birthdate;
         document.getElementById('memberGender').value = data.gender;
         document.getElementById('memberIdCardAddress').value = data.address;
-        document.getElementById('memberIssueDate').value = data.issueDate;
-        document.getElementById('memberExpiryDate').value = data.expiryDate;
+        const memberIssueDateEl = document.getElementById('memberIssueDate');
+        if (memberIssueDateEl) memberIssueDateEl.value = data.issueDate;
+        const memberExpiryDateEl = document.getElementById('memberExpiryDate');
+        if (memberExpiryDateEl) memberExpiryDateEl.value = data.expiryDate;
+        const memberCardExpiryEl = document.getElementById('memberCardExpiry');
+        if (memberCardExpiryEl) memberCardExpiryEl.value = data.expiryDate;
 
         const photoContainer = document.getElementById('smartCardPhotoContainer');
         const photoImg = document.getElementById('smartCardPhoto');
@@ -2495,6 +2505,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const readSmartCardBtn = document.getElementById('readSmartCardBtn');
     if (readSmartCardBtn) {
         readSmartCardBtn.addEventListener('click', connectSmartCard);
+    }
+
+    const memberPhoneInput = document.getElementById('memberPhone');
+    if (memberPhoneInput) {
+        memberPhoneInput.addEventListener('input', () => {
+            const digitsOnly = String(memberPhoneInput.value || '').replace(/\D/g, '').slice(0, 10);
+            if (memberPhoneInput.value !== digitsOnly) memberPhoneInput.value = digitsOnly;
+        });
     }
 
     // ═══════════════════════════════════════════════════════════════════
@@ -2940,11 +2958,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (claim.returnMethod === 'pickup' && claim.pickupBranch) {
             branchRow.style.display = 'block';
             document.getElementById('contractPickupBranch').textContent = claim.pickupBranch;
-        } else if (claim.returnMethod === 'delivery' && claim.deliveryAddressDetail) {
+        } else if (claim.returnMethod === 'delivery' && (claim.completedDeliveryAddressDetail || claim.deliveryAddressDetail)) {
             branchRow.style.display = 'block';
             const label = branchRow.querySelector('strong');
             if (label) label.textContent = 'ที่อยู่จัดส่ง:';
-            document.getElementById('contractPickupBranch').textContent = claim.deliveryAddressDetail;
+            document.getElementById('contractPickupBranch').textContent = claim.completedDeliveryAddressDetail || claim.deliveryAddressDetail;
         } else {
             branchRow.style.display = 'none';
         }
@@ -3332,9 +3350,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const displayOriginalAddress = document.getElementById('displayOriginalAddress');
             if (displayOriginalAddress) {
-                const addr = claim.deliveryAddressDetail || claim.pickupBranch || '';
+                let addr = claim.completedDeliveryAddressDetail || claim.deliveryAddressDetail || '';
+
+                if ((!addr || addr === '-') && claim.memberId) {
+                    try {
+                        const mRes = await fetch(`/api/members/lookup?query=${encodeURIComponent(claim.memberId)}`);
+                        if (mRes.ok) {
+                            const payload = await mRes.json().catch(() => null);
+                            const members = payload && payload.success && Array.isArray(payload.members) ? payload.members : [];
+                            const exact = members.find(m => String(m.memberId || '') === String(claim.memberId)) || members[0];
+                            if (exact) {
+                                addr = exact.shippingAddress || exact.idCardAddress || exact.address || addr;
+                            }
+                        }
+                    } catch (e) {
+                        console.error('Failed to load member for original address:', e);
+                    }
+                }
+
                 displayOriginalAddress.textContent = addr || '-';
-                displayOriginalAddress.dataset.address = addr;
+                displayOriginalAddress.dataset.address = addr || '';
             }
 
             const completeClaimBtn = document.getElementById('completeClaimBtn');
@@ -3828,7 +3863,18 @@ document.addEventListener('DOMContentLoaded', () => {
                             <strong>อาการ:</strong> ${c.symptoms}
                         </div>
                         <div style="margin-bottom: 0.5rem;">
-                            <strong>การคืนเครื่อง:</strong> ${c.returnMethod === 'pickup' ? 'รับเองที่สาขา' : 'จัดส่งพัสดุ'}
+                            ${(() => {
+                                const method = c.completedReturnMethod || c.returnMethod;
+                                const isPickup = method === 'pickup';
+                                const label = isPickup ? 'รับเองที่สาขา' : 'จัดส่งพัสดุ';
+                                const detail = isPickup
+                                    ? (c.completedReturnBranch || c.pickupBranch || '')
+                                    : (c.completedDeliveryAddressDetail || c.deliveryAddressDetail || '');
+                                const detailHtml = detail
+                                    ? `<div style="margin-top: 0.25rem; font-size: 0.85rem; color: #64748b; line-height: 1.35;">${detail}</div>`
+                                    : '';
+                                return `<strong>การคืนเครื่อง:</strong> ${label}${detailHtml}`;
+                            })()}
                         </div>
                         
                         <div class="history-timeline">

@@ -207,6 +207,8 @@ const ClaimSchema = new mongoose.Schema({
     staffName: String,
     returnMethod: { type: String, enum: ['pickup', 'delivery'] },
     pickupBranch: String,
+    deliveryAddressType: { type: String, enum: ['card', 'memberShipping', 'new', 'original'] },
+    deliveryAddressDetail: String,
     customerSignature: String,
     staffSignature: String,
     managerSignature: String,
@@ -1379,6 +1381,20 @@ app.post('/api/claims/:id/updates', claimUpload.fields([
         claim.totalCost = (claim.totalCost || 0) + cost;
         await claim.save();
 
+        // Sync usedCoverage on Warranty based on total claim cost
+        try {
+            if (claim.warrantyId) {
+                const agg = await Claim.aggregate([
+                    { $match: { warrantyId: claim.warrantyId } },
+                    { $group: { _id: '$warrantyId', totalUsed: { $sum: { $ifNull: ['$totalCost', 0] } } } }
+                ]);
+                const totalUsed = agg && agg[0] ? Number(agg[0].totalUsed || 0) : 0;
+                await Warranty.findByIdAndUpdate(claim.warrantyId, { usedCoverage: totalUsed });
+            }
+        } catch (e) {
+            console.error('Failed to sync usedCoverage from claims:', e);
+        }
+
         if (io) io.emit('claimUpdate', { claimId: claim.claimId, id: claim._id.toString(), warrantyId: claim.warrantyId?.toString() });
 
         res.json({ success: true, claim });
@@ -1471,6 +1487,10 @@ app.get('/api/public/track/:claimId', async (req, res) => {
                 const allClaims = await Claim.find({ warrantyId: claim.warrantyId });
                 const totalUsed = allClaims.reduce((sum, c) => sum + (c.totalCost || 0), 0);
 
+                const usedCoverage = Number.isFinite(Number(warranty.usedCoverage))
+                    ? Number(warranty.usedCoverage)
+                    : totalUsed;
+
                 const basePrice = Number(warranty.devicePrice ?? warranty.device?.deviceValue ?? 0);
                 const maxLimit = Math.floor(basePrice * 0.70);
                 const paid = Number(warranty.installmentsPaid ?? 1);
@@ -1479,7 +1499,7 @@ app.get('/api/public/track/:claimId', async (req, res) => {
                     : (paid === 2 ? Math.floor(maxLimit * 0.30) : Math.floor(maxLimit * 0.10));
 
                 coverageLimit = currentLimit;
-                remainingBalance = coverageLimit - totalUsed;
+                remainingBalance = coverageLimit - usedCoverage;
             }
         }
 
