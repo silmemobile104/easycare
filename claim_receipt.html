@@ -42,6 +42,25 @@
             flex-grow: 1;
         }
 
+        #abnormalConditionList .abnormal-power {
+            margin-bottom: 6px;
+        }
+
+        #abnormalConditionList .abnormal-grid {
+            display: flex;
+            flex-wrap: wrap;
+            column-gap: 12px;
+        }
+
+        #abnormalConditionList .abnormal-item {
+            width: calc(50% - 6px);
+            margin-bottom: 1px;
+        }
+
+        #abnormalConditionList .abnormal-item span {
+            word-break: break-word;
+        }
+
         @media print {
             body {
                 background: none;
@@ -414,7 +433,7 @@
                 </div>
                 <div class="row">
                     <div class="col w-100">
-                        <div id="abnormalConditionList" style="font-size: 15px; line-height: 1.8;"></div>
+                        <div id="abnormalConditionList"></div>
                     </div>
                 </div>
 
@@ -767,7 +786,7 @@
             const abnormalList = document.getElementById('abnormalConditionList');
 
             const powerStateText = (claim && claim.devicePowerState === 'off') ? 'เครื่องไม่ติด' : 'เครื่องติด';
-            const powerStateHtml = `<div style="margin-bottom:6px;"><span style="font-weight:700;">สภาพเครื่อง:</span> ${powerStateText}</div>`;
+            const powerStateHtml = `<div class="abnormal-power"><span style="font-weight:700;">สภาพเครื่อง:</span> ${powerStateText}</div>`;
 
             const getConditionReason = (val) => {
                 if (!val) return '';
@@ -791,11 +810,13 @@
             if (abnormalItems.length === 0) {
                 abnormalList.innerHTML = powerStateHtml + '<span style="color:#16a34a; font-weight:600;">✅ สภาพปกติทุกรายการ</span>';
             } else {
-                abnormalList.innerHTML = powerStateHtml + abnormalItems.map(([key, val]) => {
+                const itemsHtml = abnormalItems.map(([key, val]) => {
                     const label = conditionLabels[key] || key;
                     const reason = getConditionReason(val) || '-';
-                    return `<div style="margin-bottom:6px;"><span style="color:#dc2626;font-weight:700;">❌ ${label}</span> <span style="color:#64748b;">— หมายเหตุ: ${reason}</span></div>`;
+                    return `<div class="abnormal-item"><span style="color:#dc2626;font-weight:700;">❌ ${label}</span> <span style="color:#64748b;">— หมายเหตุ: ${reason}</span></div>`;
                 }).join('');
+
+                abnormalList.innerHTML = `${powerStateHtml}<div class="abnormal-grid">${itemsHtml}</div>`;
             }
 
             setMultiContent(['signCustomerName_p1', 'signCustomerName_p2'],
