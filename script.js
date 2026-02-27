@@ -178,6 +178,34 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    async function populateClaimShopsDropdown(selectedShop = '') {
+        const shopSelect = document.getElementById('claimShopName');
+        if (!shopSelect) return;
+
+        try {
+            const res = await fetch('/api/shops');
+            const shops = await res.json();
+
+            shopSelect.innerHTML = '<option value="" disabled selected>กรุณาเลือกร้านค้า</option>';
+            shops.forEach(shop => {
+                const option = document.createElement('option');
+                option.value = shop.shopName;
+                option.textContent = shop.shopName;
+                if (selectedShop && shop.shopName === selectedShop) {
+                    option.selected = true;
+                }
+                shopSelect.appendChild(option);
+            });
+
+            if (!selectedShop) {
+                shopSelect.value = '';
+            }
+        } catch (err) {
+            console.error('Populate claim shops error:', err);
+            shopSelect.innerHTML = '<option value="" disabled selected>ไม่สามารถโหลดข้อมูลร้านค้าได้</option>';
+        }
+    }
+
     async function updateStatusTrackingBadge({ showToastIfOverdue = false } = {}) {
         if (!currentUser) return;
         try {
@@ -2698,6 +2726,8 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('claimIdDisplay').value = 'สร้างอัตโนมัติเมื่อบันทึก';
             document.getElementById('claimStaffName').value = currentUser ? currentUser.staffName : '';
 
+            await populateClaimShopsDropdown('');
+
             // Reset form fields
             document.getElementById('claimSymptoms').value = '';
             document.getElementById('claimImages').value = '';
@@ -2807,6 +2837,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
+            const claimShopNameEl = document.getElementById('claimShopName');
+            const claimShopName = claimShopNameEl ? String(claimShopNameEl.value || '').trim() : '';
+            if (!claimShopName) {
+                showAlert('warning', 'กรุณาเลือกสาขาที่ส่งเคลม');
+                return;
+            }
+
             const formData = new FormData();
             formData.append('warrantyId', document.getElementById('claimWarrantyId').value);
             formData.append('policyNumber', document.getElementById('claimPolicyNumber').value);
@@ -2822,6 +2859,7 @@ document.addEventListener('DOMContentLoaded', () => {
             formData.append('devicePowerState', devicePowerState2);
             formData.append('symptoms', symptoms);
             formData.append('staffName', document.getElementById('claimStaffName').value);
+            formData.append('claimShopName', claimShopName);
             formData.append('returnMethod', returnMethodEl.value);
             formData.append('pickupBranch', document.getElementById('claimPickupBranch').value);
 
@@ -3858,6 +3896,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         </div>
                         <div style="margin-bottom: 0.5rem; font-size: 0.9rem; color: #64748b;">
                             <strong>IMEI:</strong> ${c.imei || '-'} | <strong>Serial:</strong> ${c.serialNumber || '-'}
+                        </div>
+                        <div style="margin-bottom: 0.5rem;">
+                            <strong>จากร้าน:</strong> ${c.claimShopName}
                         </div>
                         <div style="margin-bottom: 0.5rem;">
                             <strong>อาการ:</strong> ${c.symptoms}

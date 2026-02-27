@@ -194,6 +194,7 @@ const ClaimSchema = new mongoose.Schema({
     warrantyId: { type: mongoose.Schema.Types.ObjectId, ref: 'Warranty' },
     policyNumber: String,
     memberId: String,
+    claimShopName: String,
     customerName: String,
     customerPhone: String,
     deviceModel: String,
@@ -1157,6 +1158,7 @@ app.post('/api/claims', claimUpload.array('images', 10), async (req, res) => {
         const {
             warrantyId, policyNumber, memberId, customerName, customerPhone,
             deviceModel, imei, serialNumber, color, symptoms, staffName,
+            claimShopName,
             returnMethod, pickupBranch, deliveryAddressType, deliveryAddressDetail,
             devicePowerState
         } = req.body;
@@ -1179,6 +1181,7 @@ app.post('/api/claims', claimUpload.array('images', 10), async (req, res) => {
             warrantyId,
             policyNumber,
             memberId,
+            claimShopName: String(claimShopName || '').trim(),
             customerName,
             customerPhone,
             deviceModel,

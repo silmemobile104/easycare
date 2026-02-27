@@ -346,17 +346,20 @@
             <div style="text-align: center; margin-bottom: 10px;">
                 <strong style="font-size: 20px;">เอกสารรับเครื่องเคลม (Claim Receipt)</strong>
             </div>
-
+            <div>
+                <span class="label">จากร้าน</span>
+                <span id="doc_shopName"></span>
+            </div>
             <div class="form-container">
                 <!-- Document Info Row Page 1 -->
                 <div class="row">
                     <div class="col w-40">
                         <span class="label">เลขที่สมาชิก</span>
-                        <span id="memberId_p1" class="dotted-line" style="width: 150px;"></span>
+                        <span id="memberId_p1" style="width: 150px;"></span>
                     </div>
                     <div class="col w-60">
                         <span class="label" style="font-weight: bold;">เลขที่เคลม</span>
-                        <span id="claimId_p1" style="font-weight: bold; font-size: 22px; margin-left: 10px;"></span>
+                        <span id="claimId_p1" style="width: 150px;"></span>
                     </div>
                 </div>
 
@@ -682,6 +685,11 @@
             setMultiContent(['claimId_p1', 'claimId_p2'], claim.claimId || '-');
             const dateStr = claim.claimDate ? formatThaiDate(claim.claimDate) : '';
             setMultiContent(['claimDate_p1', 'claimDate_p2'], dateStr);
+
+            const docShopNameEl = document.getElementById('doc_shopName');
+            if (docShopNameEl) {
+                docShopNameEl.textContent = claim.claimShopName || '-';
+            }
 
             document.getElementById('customerName').textContent = claim.customerName || '-';
             setMultiContent(['memberId_p1', 'memberId_p2'], claim.memberId || '-');
