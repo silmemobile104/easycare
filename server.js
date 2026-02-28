@@ -400,6 +400,188 @@ const checkAdminRole = (req, res, next) => {
 };
 
 // ═══════════════════════════════════════════════════════════════════
+// EXECUTIVE DASHBOARD (Admin Only)
+// ═══════════════════════════════════════════════════════════════════
+
+app.get('/api/dashboard/stats', checkAdminRole, async (req, res) => {
+    try {
+        const { startDate, endDate, staff } = req.query || {};
+
+        const warrantyMatch = {};
+        const claimMatch = {};
+
+        if (staff) {
+            warrantyMatch.staffName = String(staff);
+            claimMatch.staffName = String(staff);
+        }
+
+        if (startDate) {
+            warrantyMatch.createdAt = { ...(warrantyMatch.createdAt || {}), $gte: new Date(startDate) };
+            claimMatch.claimDate = { ...(claimMatch.claimDate || {}), $gte: new Date(startDate) };
+        }
+        if (endDate) {
+            const end = new Date(endDate + 'T23:59:59.999Z');
+            warrantyMatch.createdAt = { ...(warrantyMatch.createdAt || {}), $lte: end };
+            claimMatch.claimDate = { ...(claimMatch.claimDate || {}), $lte: end };
+        }
+
+        const now = new Date();
+
+        const [revenueAgg, claimCostAgg, activeAgg, overdueAgg, packagesAgg, claimStatusAgg, warrantyTrendAgg, claimTrendAgg] = await Promise.all([
+            Warranty.aggregate([
+                { $match: warrantyMatch },
+                {
+                    $group: {
+                        _id: null,
+                        totalRevenue: { $sum: { $ifNull: ['$package.price', 0] } }
+                    }
+                },
+                { $project: { _id: 0, totalRevenue: 1 } }
+            ]),
+            Claim.aggregate([
+                { $match: claimMatch },
+                {
+                    $group: {
+                        _id: null,
+                        totalClaimCost: { $sum: { $ifNull: ['$totalCost', 0] } }
+                    }
+                },
+                { $project: { _id: 0, totalClaimCost: 1 } }
+            ]),
+            Warranty.aggregate([
+                {
+                    $match: {
+                        ...warrantyMatch,
+                        'warrantyDates.end': { $gte: now }
+                    }
+                },
+                { $count: 'activeWarranties' }
+            ]),
+            Claim.aggregate([
+                {
+                    $match: {
+                        ...claimMatch,
+                        status: 'รอเคลม'
+                    }
+                },
+                {
+                    $addFields: {
+                        lastUpdateDate: {
+                            $let: {
+                                vars: { lastUpdate: { $arrayElemAt: ['$updates', -1] } },
+                                in: {
+                                    $ifNull: ['$$lastUpdate.date', { $ifNull: ['$claimDate', '$createdAt'] }]
+                                }
+                            }
+                        }
+                    }
+                },
+                {
+                    $addFields: {
+                        daysSinceUpdate: {
+                            $floor: {
+                                $divide: [{ $subtract: ['$$NOW', '$lastUpdateDate'] }, 86400000]
+                            }
+                        }
+                    }
+                },
+                { $match: { daysSinceUpdate: { $gte: 5 } } },
+                { $count: 'overdueClaims' }
+            ]),
+            Warranty.aggregate([
+                { $match: warrantyMatch },
+                {
+                    $group: {
+                        _id: { $ifNull: ['$package.plan', 'ไม่ระบุแพ็กเกจ'] },
+                        count: { $sum: 1 }
+                    }
+                },
+                { $project: { _id: 0, plan: '$_id', count: 1 } },
+                { $sort: { count: -1, plan: 1 } }
+            ]),
+            Claim.aggregate([
+                { $match: claimMatch },
+                { $group: { _id: { $ifNull: ['$status', 'ไม่ระบุสถานะ'] }, count: { $sum: 1 } } },
+                { $project: { _id: 0, status: '$_id', count: 1 } },
+                { $sort: { count: -1, status: 1 } }
+            ]),
+            Warranty.aggregate([
+                { $match: warrantyMatch },
+                {
+                    $group: {
+                        _id: {
+                            year: { $year: '$createdAt' },
+                            month: { $month: '$createdAt' }
+                        },
+                        revenue: { $sum: { $ifNull: ['$package.price', 0] } }
+                    }
+                },
+                {
+                    $project: {
+                        _id: 0,
+                        year: '$_id.year',
+                        month: '$_id.month',
+                        revenue: 1
+                    }
+                },
+                { $sort: { year: 1, month: 1 } }
+            ]),
+            Claim.aggregate([
+                { $match: claimMatch },
+                {
+                    $group: {
+                        _id: {
+                            year: { $year: '$claimDate' },
+                            month: { $month: '$claimDate' }
+                        },
+                        claimCost: { $sum: { $ifNull: ['$totalCost', 0] } }
+                    }
+                },
+                {
+                    $project: {
+                        _id: 0,
+                        year: '$_id.year',
+                        month: '$_id.month',
+                        claimCost: 1
+                    }
+                },
+                { $sort: { year: 1, month: 1 } }
+            ])
+        ]);
+
+        const totalRevenue = Number(revenueAgg?.[0]?.totalRevenue || 0);
+        const totalClaimCost = Number(claimCostAgg?.[0]?.totalClaimCost || 0);
+        const activeWarranties = Number(activeAgg?.[0]?.activeWarranties || 0);
+        const overdueClaims = Number(overdueAgg?.[0]?.overdueClaims || 0);
+
+        const trendMap = new Map();
+        (Array.isArray(warrantyTrendAgg) ? warrantyTrendAgg : []).forEach(r => {
+            const key = `${r.year}-${String(r.month).padStart(2, '0')}`;
+            trendMap.set(key, { month: key, revenue: Number(r.revenue || 0), claimCost: 0 });
+        });
+        (Array.isArray(claimTrendAgg) ? claimTrendAgg : []).forEach(r => {
+            const key = `${r.year}-${String(r.month).padStart(2, '0')}`;
+            const existing = trendMap.get(key) || { month: key, revenue: 0, claimCost: 0 };
+            existing.claimCost = Number(r.claimCost || 0);
+            trendMap.set(key, existing);
+        });
+        const trend = Array.from(trendMap.values()).sort((a, b) => a.month.localeCompare(b.month));
+
+        return res.json({
+            success: true,
+            kpi: { totalRevenue, totalClaimCost, activeWarranties, overdueClaims },
+            charts: {
+                trend,
+                packages: Array.isArray(packagesAgg) ? packagesAgg : [],
+                claimStatus: Array.isArray(claimStatusAgg) ? claimStatusAgg : []
+            }
+        });
+    } catch (err) {
+        return res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// ═══════════════════════════════════════════════════════════════════
 // STAFF CRUD API ROUTES (Admin Only)
 // ═══════════════════════════════════════════════════════════════════
 

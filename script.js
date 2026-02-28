@@ -304,13 +304,15 @@ document.addEventListener('DOMContentLoaded', () => {
         const membersNavLink = document.getElementById('membersNavLink');
         const shopsNavLink = document.getElementById('shopsNavLink');
 
-        if (viewName === 'dashboard' || viewName === 'members' || viewName === 'shops' || viewName === 'claims' || viewName === 'statusTracking' || viewName === 'approval' || viewName === 'staff') {
+        if (viewName === 'dashboard' || viewName === 'members' || viewName === 'shops' || viewName === 'claims' || viewName === 'statusTracking' || viewName === 'approval' || viewName === 'staff' || viewName === 'executive') {
             views.dashboard.style.display = 'block';
 
             // Hide all sub-views first
             dashMain.style.display = 'none';
             membersMain.style.display = 'none';
             shopsMain.style.display = 'none';
+            const executiveMain = document.getElementById('executiveMain');
+            if (executiveMain) executiveMain.style.display = 'none';
             const claimsMain = document.getElementById('claimsMain');
             if (claimsMain) claimsMain.style.display = 'none';
             const statusTrackingMain = document.getElementById('statusTrackingMain');
@@ -332,6 +334,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (approvalNavLinkEl) approvalNavLinkEl.classList.remove('active');
             const staffNavLinkEl = document.getElementById('staffNavLink');
             if (staffNavLinkEl) staffNavLinkEl.classList.remove('active');
+            const executiveNavLinkEl = document.getElementById('nav-executive');
+            if (executiveNavLinkEl) executiveNavLinkEl.classList.remove('active');
 
             if (viewName === 'dashboard') {
                 dashMain.style.display = 'block';
@@ -368,6 +372,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (staffNavLinkEl) staffNavLinkEl.classList.add('active');
                 fetchStaff();
                 stopApprovalAutoRefresh();
+            } else if (viewName === 'executive') {
+                const executiveMainEl = document.getElementById('executiveMain');
+                if (executiveMainEl) executiveMainEl.style.display = 'block';
+                const execNav = document.getElementById('nav-executive');
+                if (execNav) execNav.classList.add('active');
+                stopApprovalAutoRefresh();
+                loadExecutiveDashboard();
             } else {
                 // For other dashboard views, ensure approval refresh is stopped
                 stopApprovalAutoRefresh();
@@ -551,6 +562,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const staffNavLink = document.getElementById('staffNavLink');
     if (staffNavLink) staffNavLink.addEventListener('click', (e) => { e.preventDefault(); showView('staff'); });
 
+    const executiveNavLink = document.getElementById('nav-executive');
+    if (executiveNavLink) executiveNavLink.addEventListener('click', (e) => { e.preventDefault(); showView('executive'); });
+
     // Urgent Approval Notification (queue)
     if (socket) {
         socket.on('urgent_approval_needed', (payload) => {
@@ -590,6 +604,247 @@ document.addEventListener('DOMContentLoaded', () => {
             hideLoader();
         }
     }
+
+    // --- EXECUTIVE DASHBOARD LOGIC ---
+    let trendChartInstance = null;
+    let packagesChartInstance = null;
+    let claimStatusChartInstance = null;
+
+    function formatNumber(value) {
+        const n = Number(value || 0);
+        return n.toLocaleString('en-US');
+    }
+
+    async function populateExecutiveStaffDropdown() {
+        const staffSelect = document.getElementById('execStaff');
+        if (!staffSelect) return;
+        if (!currentUser || currentUser.role !== 'admin') return;
+
+        try {
+            const res = await fetch('/api/staff', {
+                headers: { 'x-user-role': currentUser.role }
+            });
+            const staffList = await res.json();
+
+            const previous = staffSelect.value;
+            staffSelect.innerHTML = '<option value="">ทั้งหมด</option>';
+            (Array.isArray(staffList) ? staffList : []).forEach(s => {
+                const name = (s && s.staffName) ? String(s.staffName) : '';
+                if (!name) return;
+                const opt = document.createElement('option');
+                opt.value = name;
+                opt.textContent = name;
+                staffSelect.appendChild(opt);
+            });
+            if (previous) staffSelect.value = previous;
+        } catch (err) {
+            console.error('Populate executive staff dropdown error:', err);
+        }
+    }
+
+    async function loadExecutiveDashboard() {
+        if (!currentUser || currentUser.role !== 'admin') {
+            showAlert('error', 'ไม่มีสิทธิ์เข้าถึงแดชบอร์ดผู้บริหาร');
+            showView('dashboard');
+            return;
+        }
+
+        const startDate = (document.getElementById('execStartDate') || {}).value || '';
+        const endDate = (document.getElementById('execEndDate') || {}).value || '';
+        const staff = (document.getElementById('execStaff') || {}).value || '';
+
+        const params = new URLSearchParams();
+        if (startDate) params.set('startDate', startDate);
+        if (endDate) params.set('endDate', endDate);
+        if (staff) params.set('staff', staff);
+
+        showLoader('กำลังวิเคราะห์ข้อมูล...');
+        try {
+            await populateExecutiveStaffDropdown();
+
+            const res = await fetch(`/api/dashboard/stats?${params.toString()}`, {
+                headers: { 'x-user-role': currentUser.role }
+            });
+            const data = await res.json();
+
+            if (!res.ok || !data || data.success === false) {
+                const msg = (data && data.message) ? data.message : 'ไม่สามารถโหลดข้อมูลแดชบอร์ดได้';
+                throw new Error(msg);
+            }
+
+            const kpi = data.kpi || {};
+            const elRevenue = document.getElementById('kpiTotalRevenue');
+            const elClaimCost = document.getElementById('kpiTotalClaimCost');
+            const elActive = document.getElementById('kpiActiveWarranties');
+            const elOverdue = document.getElementById('kpiOverdueClaims');
+
+            if (elRevenue) elRevenue.textContent = formatNumber(kpi.totalRevenue);
+            if (elClaimCost) elClaimCost.textContent = formatNumber(kpi.totalClaimCost);
+            if (elActive) elActive.textContent = formatNumber(kpi.activeWarranties);
+            if (elOverdue) elOverdue.textContent = formatNumber(kpi.overdueClaims);
+
+            renderCharts(data.charts || {});
+        } catch (err) {
+            console.error('Load executive dashboard error:', err);
+            showAlert('error', err.message || 'เกิดข้อผิดพลาดในการโหลดแดชบอร์ด');
+        } finally {
+            hideLoader();
+        }
+    }
+
+    function renderCharts(charts) {
+        const trendData = Array.isArray(charts.trend) ? charts.trend : [];
+        const packagesData = Array.isArray(charts.packages) ? charts.packages : [];
+        const claimStatusData = Array.isArray(charts.claimStatus) ? charts.claimStatus : [];
+
+        const trendCanvas = document.getElementById('trendChart');
+        const packagesCanvas = document.getElementById('packagesChart');
+        const claimStatusCanvas = document.getElementById('claimStatusChart');
+
+        if (trendChartInstance) {
+            trendChartInstance.destroy();
+            trendChartInstance = null;
+        }
+        if (packagesChartInstance) {
+            packagesChartInstance.destroy();
+            packagesChartInstance = null;
+        }
+        if (claimStatusChartInstance) {
+            claimStatusChartInstance.destroy();
+            claimStatusChartInstance = null;
+        }
+
+        if (trendCanvas && typeof Chart !== 'undefined') {
+            const labels = trendData.map(x => x.month);
+            const revenues = trendData.map(x => Number(x.revenue || 0));
+            const claimCosts = trendData.map(x => Number(x.claimCost || 0));
+
+            trendChartInstance = new Chart(trendCanvas, {
+                type: 'line',
+                data: {
+                    labels,
+                    datasets: [
+                        {
+                            label: 'ยอดขาย',
+                            data: revenues,
+                            borderColor: '#0d9488',
+                            backgroundColor: 'rgba(13, 148, 136, 0.15)',
+                            tension: 0.3,
+                            fill: true
+                        },
+                        {
+                            label: 'ต้นทุนเคลม',
+                            data: claimCosts,
+                            borderColor: '#ef4444',
+                            backgroundColor: 'rgba(239, 68, 68, 0.12)',
+                            tension: 0.3,
+                            fill: true
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { position: 'top' },
+                        tooltip: {
+                            callbacks: {
+                                label: (ctx) => `${ctx.dataset.label}: ${formatNumber(ctx.parsed.y)}`
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            ticks: {
+                                callback: (v) => formatNumber(v)
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        if (packagesCanvas && typeof Chart !== 'undefined') {
+            const labels = packagesData.map(x => x.plan);
+            const values = packagesData.map(x => Number(x.count || 0));
+
+            packagesChartInstance = new Chart(packagesCanvas, {
+                type: 'bar',
+                data: {
+                    labels,
+                    datasets: [
+                        {
+                            label: 'จำนวนที่ขาย',
+                            data: values,
+                            backgroundColor: 'rgba(59, 130, 246, 0.55)',
+                            borderColor: '#3b82f6',
+                            borderWidth: 1
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: (ctx) => `จำนวน: ${formatNumber(ctx.parsed.y)}`
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: (v) => formatNumber(v)
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        if (claimStatusCanvas && typeof Chart !== 'undefined') {
+            const labels = claimStatusData.map(x => x.status);
+            const values = claimStatusData.map(x => Number(x.count || 0));
+
+            claimStatusChartInstance = new Chart(claimStatusCanvas, {
+                type: 'doughnut',
+                data: {
+                    labels,
+                    datasets: [
+                        {
+                            data: values,
+                            backgroundColor: [
+                                'rgba(13, 148, 136, 0.7)',
+                                'rgba(59, 130, 246, 0.7)',
+                                'rgba(245, 158, 11, 0.7)',
+                                'rgba(239, 68, 68, 0.7)',
+                                'rgba(100, 116, 139, 0.7)'
+                            ],
+                            borderWidth: 1
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { position: 'right' },
+                        tooltip: {
+                            callbacks: {
+                                label: (ctx) => `${ctx.label}: ${formatNumber(ctx.parsed)}`
+                            }
+                        }
+                    }
+                }
+            });
+        }
+    }
+
+    const execAnalyzeBtn = document.getElementById('execAnalyzeBtn');
+    if (execAnalyzeBtn) execAnalyzeBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        loadExecutiveDashboard();
+    });
 
     // Client-side payment filter only (search/status/date are now server-side)
     function applyPaymentFilter() {
@@ -840,7 +1095,7 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('address').value = data.customer.address;
             document.getElementById('productType').value = data.device.type;
             toggleIMEIField();
-            document.getElementById('model').value = data.device.model;
+            updateModelOptions(data.device.model);
             document.getElementById('color').value = data.device.color;
             document.getElementById('capacity').value = data.device.capacity;
             document.getElementById('serialNumber').value = data.device.serial;
@@ -1004,13 +1259,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function updateModelOptions() {
+    function updateModelOptions(selectedModel = '') {
         const productTypeEl = document.getElementById('productType');
         const modelEl = document.getElementById('model');
         if (!productTypeEl || !modelEl) return;
 
         const type = productTypeEl.value;
-        const currentVal = modelEl.value;
+        const currentVal = selectedModel || modelEl.value;
 
         const MODELS = {
             iPhone: [
