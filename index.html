@@ -504,6 +504,33 @@
                 <aside class="sidebar" id="sidebar">
                     <img src="logo_easycare.png" alt="EasyCare Logo" class="logo">
                     <nav>
+                        <a href="#" id="nav-executive" data-permission="nav-executive">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <line x1="18" y1="20" x2="18" y2="10"></line>
+                                <line x1="12" y1="20" x2="12" y2="4"></line>
+                                <line x1="6" y1="20" x2="6" y2="14"></line>
+                            </svg>
+                            แดชบอร์ดผู้บริหาร
+                        </a>
+                        <a href="#" id="salesDashboardLink" data-permission="nav-dashboard-sales">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <line x1="12" y1="20" x2="12" y2="10"></line>
+                                <line x1="18" y1="20" x2="18" y2="4"></line>
+                                <line x1="6" y1="20" x2="6" y2="16"></line>
+                            </svg>
+                            แดชบอร์ด (ฝ่ายขาย)
+                        </a>
+                        <a href="#" id="approverDashboardLink" data-permission="nav-dashboard-approver">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <line x1="12" y1="20" x2="12" y2="10"></line>
+                                <line x1="18" y1="20" x2="18" y2="4"></line>
+                                <line x1="6" y1="20" x2="6" y2="16"></line>
+                            </svg>
+                            แดชบอร์ด (ฝ่ายอนุมัติ)
+                        </a>
                         <a href="#" id="dashNavLink" class="active" data-permission="nav-packages">
                             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -576,16 +603,6 @@
                                 <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
                             </svg>
                             การเงิน (Finance)
-                        </a>
-
-                        <a href="#" id="nav-executive" data-permission="nav-executive">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <line x1="18" y1="20" x2="18" y2="10"></line>
-                                <line x1="12" y1="20" x2="12" y2="4"></line>
-                                <line x1="6" y1="20" x2="6" y2="14"></line>
-                            </svg>
-                            แดชบอร์ดผู้บริหาร
                         </a>
                     </nav>
 
@@ -914,7 +931,6 @@
                                 <p>ยอดเงินทอน</p>
                             </div>
                         </div>
-
                         <div class="stat-card">
                             <div class="stat-icon orange">
                                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -928,6 +944,21 @@
                             <div class="stat-content">
                                 <h3 id="totalRevenueDisplay">0</h3>
                                 <p>รายรับรวมทั้งหมด</p>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon orange">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path
+                                        d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z">
+                                    </path>
+                                    <polyline points="22,6 12,13 2,6"></polyline>
+                                </svg>
+                            </div>
+                            <div class="stat-content">
+                                <h3 id="financeTotalClaimCostDisplay">0</h3>
+                                <p>ต้นทุนเคลมรวม</p>
                             </div>
                         </div>
                     </div>
@@ -1042,9 +1073,9 @@
                     <header class="dashboard-header">
                         <div class="header-titles">
                             <h1>ข้อมูลสมาชิก</h1>
-                            <p>จัดการข้อมูลลูกค้าและที่อยู่สำหรับจัดส่ง</p>
+                            <p>จัดการข้อมูลสมาชิกทั้งหมดในระบบ</p>
                         </div>
-                        <button id="addMemberBtn" class="add-btn">
+                        <button class="add-btn" id="addMemberBtn">
                             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                 <line x1="12" y1="5" x2="12" y2="19"></line>
@@ -1068,7 +1099,7 @@
                                     placeholder="ค้นหารหัสสมาชิก, ชื่อ, เบอร์โทร...">
                             </div>
                             <div class="filter-actions">
-                                <button type="button" class="filter-reset-btn" id="membersResetBtn">↻ ล้างค่า</button>
+                                <button type="button" class="filter-reset-btn" id="membersResetBtn"> ล้างค่า</button>
                             </div>
                         </div>
                     </div>
@@ -1080,12 +1111,14 @@
                                     <th>รหัสสมาชิก</th>
                                     <th>ชื่อ-นามสกุล</th>
                                     <th>เบอร์โทรศัพท์</th>
-                                    <th>ที่อยู่ตามบัตร (ID Card Address)</th>
+                                    <th>สถานะ</th>
+                                    <th>ที่อยู่ตามบัตร</th>
                                     <th>จัดการ</th>
                                 </tr>
                             </thead>
                             <tbody id="membersBody"></tbody>
                         </table>
+
                         <div id="membersEmptyState" class="empty-state" style="display: none;">
                             <p>ยังไม่มีข้อมูลสมาชิกในขณะนี้</p>
                         </div>
@@ -1123,7 +1156,7 @@
                                     placeholder="ค้นหารหัสร้านค้า, ชื่อร้าน, สถานที่...">
                             </div>
                             <div class="filter-actions">
-                                <button type="button" class="filter-reset-btn" id="shopsResetBtn">↻ ล้างค่า</button>
+                                <button type="button" class="filter-reset-btn" id="shopsResetBtn"> ล้างค่า</button>
                             </div>
                         </div>
                     </div>
@@ -1186,8 +1219,8 @@
                                 </select>
                             </div>
                             <div class="filter-actions">
-                                <button type="button" class="filter-search-btn" id="staffFilterBtn">🔍 ค้นหา</button>
-                                <button type="button" class="filter-reset-btn" id="staffResetBtn">↻ ล้างค่า</button>
+                                <button type="button" class="filter-search-btn" id="staffFilterBtn"> ค้นหา</button>
+                                <button type="button" class="filter-reset-btn" id="staffResetBtn"> ล้างค่า</button>
                             </div>
                         </div>
                     </div>
@@ -1282,8 +1315,8 @@
                                 <input type="date" id="claimsEndDate" class="filter-date-input">
                             </div>
                             <div class="filter-actions">
-                                <button type="button" class="filter-search-btn" id="claimsFilterBtn">🔍 ค้นหา</button>
-                                <button type="button" class="filter-reset-btn" id="claimsResetBtn">↻ ล้างค่า</button>
+                                <button type="button" class="filter-search-btn" id="claimsFilterBtn"> ค้นหา</button>
+                                <button type="button" class="filter-reset-btn" id="claimsResetBtn"> ล้างค่า</button>
                             </div>
                         </div>
                     </div>
@@ -1342,8 +1375,8 @@
                                 <input type="date" id="trackingEndDate" class="filter-date-input">
                             </div>
                             <div class="filter-actions">
-                                <button type="button" class="filter-search-btn" id="trackingFilterBtn">🔍 ค้นหา</button>
-                                <button type="button" class="filter-reset-btn" id="trackingResetBtn">↻ ล้างค่า</button>
+                                <button type="button" class="filter-search-btn" id="trackingFilterBtn"> ค้นหา</button>
+                                <button type="button" class="filter-reset-btn" id="trackingResetBtn"> ล้างค่า</button>
                             </div>
                         </div>
                     </div>
@@ -1365,6 +1398,126 @@
                         </table>
                         <div id="statusTrackingEmptyState" class="empty-state" style="display: none;">
                             <p>ไม่มีรายการเคลมที่อยู่ระหว่างดำเนินการ</p>
+                        </div>
+                    </div>
+                </main>
+
+                <main id="salesDashboardMain" class="main-content" style="display: none;">
+                    <header class="dashboard-header">
+                        <div class="header-titles">
+                            <h1>แดชบอร์ด (ฝ่ายขาย)</h1>
+                            <p>รายละเอียด</p>
+                        </div>
+                    </header>
+
+                    <div class="dashboard-meta" style="margin-bottom: 1rem;">
+                        <span>อัปเดตล่าสุด:</span>
+                        <strong id="salesDashboardLastUpdated">-</strong>
+                    </div>
+
+                    <div class="stats-overview" style="margin-bottom: 2rem;">
+                        <div class="stat-card">
+                            <div class="stat-icon red" style="background: rgba(239, 68, 68, 0.1); color: #ef4444;">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <circle cx="12" cy="12" r="10"></circle>
+                                    <polyline points="12 6 12 12 16 14"></polyline>
+                                </svg>
+                            </div>
+                            <div class="stat-content">
+                                <h3 id="salesOverdueCount">0</h3>
+                                <p>งานเคลมค้างอัปเดต (เกิน 5 วัน)</p>
+                            </div>
+                        </div>
+
+                        <div class="stat-card">
+                            <div class="stat-icon orange">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <circle cx="12" cy="12" r="10"></circle>
+                                    <polyline points="12 6 12 12 16 14"></polyline>
+                                </svg>
+                            </div>
+                            <div class="stat-content">
+                                <h3 id="salesPendingApprovalCount">0</h3>
+                                <p>รายการแพ็คเกจที่ยังไม่อนุมัติ</p>
+                            </div>
+                        </div>
+
+                        <div class="stat-card">
+                            <div class="stat-icon blue">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <circle cx="12" cy="12" r="10"></circle>
+                                    <polyline points="12 6 12 12 16 14"></polyline>
+                                </svg>
+                            </div>
+                            <div class="stat-content">
+                                <h3 id="salesUnpaidPackageCount">0</h3>
+                                <p>รายการแพ็คเกจที่ยังไม่ได้ชำระเงิน</p>
+                            </div>
+                        </div>
+
+                        <div class="stat-card">
+                            <div class="stat-icon red" style="background: rgba(239, 68, 68, 0.1); color: #ef4444;">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <circle cx="12" cy="12" r="10"></circle>
+                                    <polyline points="12 6 12 12 16 14"></polyline>
+                                </svg>
+                            </div>
+                            <div class="stat-content">
+                                <h3 id="salesInstallmentOverdueCount">0</h3>
+                                <p>รายการแพ็คเกจที่ครบกำหนดวันชำระแล้ว (ชำระเป็นงวด)</p>
+                            </div>
+                        </div>
+                    </div>
+                </main>
+
+                <main id="approverDashboardMain" class="main-content" style="display: none;">
+                    <header class="dashboard-header">
+                        <div class="header-titles">
+                            <h1>แดชบอร์ด (ฝ่ายอนุมัติ)</h1>
+                            <p>สัญญาที่รออนุมัติและงานค้างที่ต้องดำเนินการ</p>
+                        </div>
+                    </header>
+
+                    <div class="dashboard-meta" style="margin-bottom: 1rem;">
+                        <span>อัปเดตล่าสุด:</span>
+                        <strong id="approverDashboardLastUpdated">-</strong>
+                    </div>
+
+                    <div class="stats-overview" style="margin-bottom: 2rem;">
+                        <div class="stat-card">
+                            <div class="stat-icon orange">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <circle cx="12" cy="12" r="10"></circle>
+                                    <polyline points="12 6 12 12 16 14"></polyline>
+                                </svg>
+                            </div>
+                            <div class="stat-content">
+                                <h3 id="approverPendingCount">0</h3>
+                                <p>สัญญาที่รออนุมัติทั้งหมด</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="table-container">
+                        <table id="approverPendingWarrantiesTable">
+                            <thead>
+                                <tr>
+                                    <th>วันที่สร้าง</th>
+                                    <th>เลขที่สัญญา</th>
+                                    <th>ชื่อลูกค้า</th>
+                                    <th>พนักงานขาย</th>
+                                </tr>
+                            </thead>
+                            <tbody id="approverPendingWarrantiesBody"></tbody>
+                        </table>
+
+                        <div id="approverPendingWarrantiesEmpty" class="empty-state" style="display: none;">
+                            <p>ไม่มีสัญญาที่รออนุมัติในขณะนี้</p>
                         </div>
                     </div>
                 </main>
@@ -1924,6 +2077,12 @@
             </div>
             <form id="memberForm">
                 <input type="hidden" id="editMemberId">
+                <div id="memberBlacklistReasonsWrap" style="display: none; margin-bottom: 1rem;">
+                    <div style="padding: 12px; border-radius: 10px; background: #fff7ed; border: 1px solid #fed7aa;">
+                        <div style="font-weight: 700; color: #9a3412; margin-bottom: 6px;">เหตุผลที่ติดแบล็คลิสต์</div>
+                        <ul id="memberBlacklistReasonsList" style="margin: 0; padding-left: 1.2rem; color: #7c2d12;"></ul>
+                    </div>
+                </div>
                 <div id="smartCardPhotoContainer" style="display: none; text-align: center; margin-bottom: 1rem;">
                     <img id="smartCardPhoto" src="" alt="Member Photo"
                         style="width: 100px; height: 120px; object-fit: cover; border-radius: 8px; border: 2px solid #e2e8f0; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">

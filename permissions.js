@@ -5,6 +5,8 @@ const menuPermissions = {
     'nav-claims': ['sales', 'admin'],
     'nav-tracking': ['sales', 'admin'],
     'nav-approval': ['approver', 'admin'],
+    'nav-dashboard-sales': ['admin', 'sales'],
+    'nav-dashboard-approver': ['admin', 'approver'],
     'nav-staff': ['admin'],
     'nav-executive': ['admin'],
     'nav-finance': ['admin']

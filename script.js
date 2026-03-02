@@ -304,7 +304,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const membersNavLink = document.getElementById('membersNavLink');
         const shopsNavLink = document.getElementById('shopsNavLink');
 
-        if (viewName === 'dashboard' || viewName === 'members' || viewName === 'shops' || viewName === 'claims' || viewName === 'statusTracking' || viewName === 'approval' || viewName === 'staff' || viewName === 'executive' || viewName === 'finance') {
+        if (viewName === 'dashboard' || viewName === 'members' || viewName === 'shops' || viewName === 'claims' || viewName === 'statusTracking' || viewName === 'approval' || viewName === 'staff' || viewName === 'executive' || viewName === 'finance' || viewName === 'dashboard-sales' || viewName === 'dashboard-approver') {
             views.dashboard.style.display = 'block';
 
             // Hide all sub-views first
@@ -319,6 +319,10 @@ document.addEventListener('DOMContentLoaded', () => {
             if (claimsMain) claimsMain.style.display = 'none';
             const statusTrackingMain = document.getElementById('statusTrackingMain');
             if (statusTrackingMain) statusTrackingMain.style.display = 'none';
+            const salesDashboardMain = document.getElementById('salesDashboardMain');
+            if (salesDashboardMain) salesDashboardMain.style.display = 'none';
+            const approverDashboardMain = document.getElementById('approverDashboardMain');
+            if (approverDashboardMain) approverDashboardMain.style.display = 'none';
             const approvalMain = document.getElementById('approvalMain');
             if (approvalMain) approvalMain.style.display = 'none';
             const staffMain = document.getElementById('staffMain');
@@ -340,6 +344,10 @@ document.addEventListener('DOMContentLoaded', () => {
             if (executiveNavLinkEl) executiveNavLinkEl.classList.remove('active');
             const financeNavLinkEl = document.getElementById('financeNavLink');
             if (financeNavLinkEl) financeNavLinkEl.classList.remove('active');
+            const salesDashboardLinkEl = document.getElementById('salesDashboardLink');
+            if (salesDashboardLinkEl) salesDashboardLinkEl.classList.remove('active');
+            const approverDashboardLinkEl = document.getElementById('approverDashboardLink');
+            if (approverDashboardLinkEl) approverDashboardLinkEl.classList.remove('active');
 
             if (viewName === 'dashboard') {
                 dashMain.style.display = 'block';
@@ -389,7 +397,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 const financeNav = document.getElementById('financeNavLink');
                 if (financeNav) financeNav.classList.add('active');
                 stopApprovalAutoRefresh();
-                fetchFinanceData();
+                setFinanceTab('income');
+            } else if (viewName === 'dashboard-sales') {
+                const salesMainEl = document.getElementById('salesDashboardMain');
+                if (salesMainEl) salesMainEl.style.display = 'block';
+                const salesNav = document.getElementById('salesDashboardLink');
+                if (salesNav) salesNav.classList.add('active');
+                stopApprovalAutoRefresh();
+                fetchSalesDashboard();
+            } else if (viewName === 'dashboard-approver') {
+                const approverMainEl = document.getElementById('approverDashboardMain');
+                if (approverMainEl) approverMainEl.style.display = 'block';
+                const apprNav = document.getElementById('approverDashboardLink');
+                if (apprNav) apprNav.classList.add('active');
+                stopApprovalAutoRefresh();
+                fetchApproverDashboard();
             } else {
                 // For other dashboard views, ensure approval refresh is stopped
                 stopApprovalAutoRefresh();
@@ -439,6 +461,13 @@ document.addEventListener('DOMContentLoaded', () => {
         statusTrackingBadgeInterval = setInterval(() => updateStatusTrackingBadge(), 60000);
     }
 
+    function getDefaultViewForRole(role) {
+        if (role === 'admin') return 'executive';
+        if (role === 'sales') return 'dashboard-sales';
+        if (role === 'approver') return 'dashboard-approver';
+        return 'dashboard';
+    }
+
     // --- AUTH LOGIC ---
     const loginForm = document.getElementById('loginForm');
     if (loginForm) {
@@ -472,11 +501,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         applyMenuPermissions();
                     }
 
-                    if (data.user.role === 'approver') {
-                        showView('approval');
-                    } else {
-                        showView('dashboard');
-                    }
+                    showView(getDefaultViewForRole(data.user.role));
 
                     updateStatusTrackingBadge({ showToastIfOverdue: true });
                 } else {
@@ -579,12 +604,228 @@ document.addEventListener('DOMContentLoaded', () => {
     const financeNavLink = document.getElementById('financeNavLink');
     if (financeNavLink) financeNavLink.addEventListener('click', (e) => { e.preventDefault(); showView('finance'); });
 
+    const salesDashboardLink = document.getElementById('salesDashboardLink');
+    if (salesDashboardLink) salesDashboardLink.addEventListener('click', (e) => { e.preventDefault(); showView('dashboard-sales'); });
+
+    const approverDashboardLink = document.getElementById('approverDashboardLink');
+    if (approverDashboardLink) approverDashboardLink.addEventListener('click', (e) => { e.preventDefault(); showView('dashboard-approver'); });
+
     const financeExportExcelBtn = document.getElementById('financeExportExcelBtn');
     if (financeExportExcelBtn) {
         financeExportExcelBtn.addEventListener('click', (e) => {
             e.preventDefault();
             exportFinanceExcel();
         });
+    }
+
+    const financeTabIncome = document.getElementById('financeTabIncome');
+    if (financeTabIncome) {
+        financeTabIncome.addEventListener('click', (e) => {
+            e.preventDefault();
+            setFinanceTab('income');
+        });
+    }
+
+    const financeTabExpense = document.getElementById('financeTabExpense');
+    if (financeTabExpense) {
+        financeTabExpense.addEventListener('click', (e) => {
+            e.preventDefault();
+            setFinanceTab('expense');
+        });
+    }
+
+    const financeExpenseFilterBtn = document.getElementById('financeExpenseFilterBtn');
+    if (financeExpenseFilterBtn) {
+        financeExpenseFilterBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            fetchFinanceExpenseData();
+        });
+    }
+
+    const financeExpenseResetBtn = document.getElementById('financeExpenseResetBtn');
+    if (financeExpenseResetBtn) {
+        financeExpenseResetBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            const searchEl = document.getElementById('financeExpenseSearchInput');
+            const startEl = document.getElementById('financeExpenseStartDate');
+            const endEl = document.getElementById('financeExpenseEndDate');
+            if (searchEl) searchEl.value = '';
+            if (startEl) startEl.value = '';
+            if (endEl) endEl.value = '';
+            fetchFinanceExpenseData();
+        });
+    }
+
+    async function fetchSalesDashboard() {
+        const overdueEl = document.getElementById('salesOverdueCount');
+        const pendingApprovalEl = document.getElementById('salesPendingApprovalCount');
+        const unpaidEl = document.getElementById('salesUnpaidPackageCount');
+        const installmentOverdueEl = document.getElementById('salesInstallmentOverdueCount');
+        const lastUpdatedEl = document.getElementById('salesDashboardLastUpdated');
+        if (!overdueEl && !pendingApprovalEl && !unpaidEl && !installmentOverdueEl) return;
+
+        showLoader('กำลังโหลดข้อมูล...');
+        try {
+            const res = await fetch('/api/dashboard/sales/summary');
+            const data = await res.json();
+
+            const overdueClaims = (data && typeof data.overdueClaims === 'number') ? data.overdueClaims : 0;
+            const pendingApprovals = (data && typeof data.pendingApprovals === 'number') ? data.pendingApprovals : 0;
+            const unpaidPackages = (data && typeof data.unpaidPackages === 'number') ? data.unpaidPackages : 0;
+            const installmentOverdue = (data && typeof data.installmentOverdue === 'number') ? data.installmentOverdue : 0;
+
+            if (overdueEl) overdueEl.textContent = String(overdueClaims);
+            if (pendingApprovalEl) pendingApprovalEl.textContent = String(pendingApprovals);
+            if (unpaidEl) unpaidEl.textContent = String(unpaidPackages);
+            if (installmentOverdueEl) installmentOverdueEl.textContent = String(installmentOverdue);
+            if (lastUpdatedEl) lastUpdatedEl.textContent = new Date().toLocaleString('th-TH');
+        } catch (err) {
+            console.error('Fetch sales dashboard error:', err);
+            showAlert('error', 'ไม่สามารถโหลดข้อมูลแดชบอร์ดฝ่ายขายได้');
+        } finally {
+            hideLoader();
+        }
+    }
+
+    function setFinanceTab(tabName) {
+        const incomeTab = document.getElementById('financeTabIncome');
+        const expenseTab = document.getElementById('financeTabExpense');
+        const incomeSection = document.getElementById('financeIncomeSection');
+        const expenseSection = document.getElementById('financeExpenseSection');
+
+        const isExpense = tabName === 'expense';
+
+        if (incomeTab) incomeTab.classList.toggle('active', !isExpense);
+        if (expenseTab) expenseTab.classList.toggle('active', isExpense);
+
+        if (incomeSection) incomeSection.style.display = isExpense ? 'none' : 'block';
+        if (expenseSection) expenseSection.style.display = isExpense ? 'block' : 'none';
+
+        if (isExpense) {
+            fetchFinanceExpenseData();
+        } else {
+            fetchFinanceData();
+        }
+    }
+
+    function buildFinanceExpenseQueryString() {
+        const params = new URLSearchParams();
+        const search = (document.getElementById('financeExpenseSearchInput') || {}).value || '';
+        const startDate = (document.getElementById('financeExpenseStartDate') || {}).value || '';
+        const endDate = (document.getElementById('financeExpenseEndDate') || {}).value || '';
+
+        if (search) params.set('search', search);
+        if (startDate) params.set('startDate', startDate);
+        if (endDate) params.set('endDate', endDate);
+        const qs = params.toString();
+        return qs ? `?${qs}` : '';
+    }
+
+    async function fetchFinanceExpenseData() {
+        showLoader('กำลังโหลดข้อมูลรายจ่าย...');
+        try {
+            const qs = buildFinanceExpenseQueryString();
+            const [rowsRes, sumRes] = await Promise.all([
+                fetch(`/api/finance/expenses${qs}`),
+                fetch(`/api/finance/expenses/summary${qs}`)
+            ]);
+            const rows = await rowsRes.json();
+            const summary = await sumRes.json();
+
+            const totalExpenseEl = document.getElementById('totalExpenseDisplay');
+            if (totalExpenseEl) {
+                totalExpenseEl.textContent = formatNumber(summary.totalExpense || 0) + ' ฿';
+            }
+
+            renderFinanceExpenses(rows);
+        } catch (err) {
+            console.error('Fetch finance expense data error:', err);
+            showAlert('error', 'ไม่สามารถโหลดข้อมูลรายจ่ายได้');
+        } finally {
+            hideLoader();
+        }
+    }
+
+    function renderFinanceExpenses(rows) {
+        const tbody = document.getElementById('financeExpenseBody');
+        const emptyState = document.getElementById('financeExpenseEmptyState');
+        const table = document.getElementById('financeExpenseTable');
+
+        if (tbody) tbody.innerHTML = '';
+
+        if (!rows || rows.length === 0) {
+            if (emptyState) emptyState.style.display = 'block';
+            if (table) table.style.display = 'none';
+            return;
+        }
+
+        if (emptyState) emptyState.style.display = 'none';
+        if (table) table.style.display = '';
+
+        rows.forEach(r => {
+            const tr = document.createElement('tr');
+            const dateText = r.expenseDate ? new Date(r.expenseDate).toLocaleString('th-TH') : '-';
+            const amountText = '-' + formatNumber(r.amount || 0);
+            tr.innerHTML = `
+                <td>${dateText}</td>
+                <td style="font-weight: 600; color: var(--primary);">${r.claimId || '-'}</td>
+                <td>${r.policyNumber || '-'}</td>
+                <td>${r.customerName || '-'}</td>
+                <td>${r.deviceModel || '-'}</td>
+                <td>${r.claimShopName || '-'}</td>
+                <td>${r.expenseTitle || '-'}</td>
+                <td>${r.centerName || '-'}</td>
+                <td style="color:#ef4444; font-weight: 700;">${amountText}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    async function fetchApproverDashboard() {
+        const countEl = document.getElementById('approverPendingCount');
+        const body = document.getElementById('approverPendingWarrantiesBody');
+        const empty = document.getElementById('approverPendingWarrantiesEmpty');
+        const lastUpdatedEl = document.getElementById('approverDashboardLastUpdated');
+        if (!body) return;
+
+        showLoader('กำลังโหลดข้อมูล...');
+        try {
+            const res = await fetch('/api/dashboard/approver/pending-warranties');
+            const data = await res.json();
+            const items = (data && Array.isArray(data.items)) ? data.items : [];
+            const count = (data && typeof data.count === 'number') ? data.count : items.length;
+
+            if (countEl) countEl.textContent = String(count);
+            if (lastUpdatedEl) lastUpdatedEl.textContent = new Date().toLocaleString('th-TH');
+
+            if (!items || items.length === 0) {
+                body.innerHTML = '';
+                if (empty) empty.style.display = 'block';
+                return;
+            }
+
+            if (empty) empty.style.display = 'none';
+
+            body.innerHTML = items.map(w => {
+                const createdAt = w.createdAt ? new Date(w.createdAt) : null;
+                const policyNumber = w.policyNumber || '-';
+                const customerName = `${(w.customer && w.customer.firstName) ? w.customer.firstName : ''} ${(w.customer && w.customer.lastName) ? w.customer.lastName : ''}`.trim() || '-';
+                const staffName = w.staffName || '-';
+                return `
+                    <tr>
+                        <td>${createdAt ? createdAt.toLocaleString('th-TH') : '-'}</td>
+                        <td>${policyNumber}</td>
+                        <td>${customerName}</td>
+                        <td>${staffName}</td>
+                    </tr>
+                `;
+            }).join('');
+        } catch (err) {
+            console.error('Fetch approver dashboard error:', err);
+            showAlert('error', 'ไม่สามารถโหลดข้อมูลแดชบอร์ดฝ่ายอนุมัติได้');
+        } finally {
+            hideLoader();
+        }
     }
 
     // Urgent Approval Notification (queue)
@@ -698,6 +939,24 @@ document.addEventListener('DOMContentLoaded', () => {
             const changeDisplayEl = document.getElementById('totalChangeDisplay');
             if (changeDisplayEl) {
                 changeDisplayEl.textContent = formatNumber(summary.totalChange || 0) + ' ฿';
+            }
+
+            const financeClaimCostEl = document.getElementById('financeTotalClaimCostDisplay');
+            if (financeClaimCostEl) {
+                try {
+                    const res = await fetch('/api/dashboard/stats', {
+                        headers: { 'x-user-role': currentUser.role }
+                    });
+                    const data = await res.json();
+                    if (res.ok && data && data.success !== false) {
+                        const claimCost = Number((data.kpi || {}).totalClaimCost || 0);
+                        financeClaimCostEl.textContent = formatNumber(claimCost) + ' ฿';
+                    } else {
+                        financeClaimCostEl.textContent = '0 ฿';
+                    }
+                } catch (e) {
+                    financeClaimCostEl.textContent = '0 ฿';
+                }
             }
 
             const tbody = document.getElementById('financeBody');
@@ -1734,7 +1993,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             <span class="search-result-name">${m.firstName} ${m.lastName}</span>
                             <span class="search-result-sub">${m.phone} ${m.citizenId ? `| CID: ${m.citizenId}` : ''}</span>
                         </div>
-                        <span class="search-result-tag">${m.memberId}</span>
+                        <span class="search-result-tag">${m.memberId}${m.memberStatus ? ` <span class=\"status-badge ${m.memberStatus === 'ไม่ปกติ' ? 'status-expired' : 'status-active'}\">${m.memberStatus}</span>` : ''}</span>
                     </div>
                 `).join('');
                 resultsBox.style.display = 'block';
@@ -2450,6 +2709,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td data-label="รหัสสมาชิก" style="font-weight: 600;">${m.memberId || '-'}</td>
                 <td data-label="ชื่อ-นามสกุล">${m.firstName} ${m.lastName}</td>
                 <td data-label="เบอร์โทรศัพท์">${m.phone}</td>
+                <td data-label="สถานะ">${m.memberStatus === 'ไม่ปกติ' ? '<span class="status-badge status-expired">ไม่ปกติ</span>' : '<span class="status-badge status-active">ปกติ</span>'}</td>
                 <td data-label="ที่อยู่ตามบัตร">${m.idCardAddress || '-'}${m.postalCode ? ` (${m.postalCode})` : ''}</td>
                 <td data-label="จัดการ">
                     <div style="display: flex; gap: 0.5rem; justify-content: center;">
@@ -2503,6 +2763,25 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const res = await fetch(`/api/members/${id}`);
             const member = await res.json();
+
+            const reasonsWrap = document.getElementById('memberBlacklistReasonsWrap');
+            const reasonsList = document.getElementById('memberBlacklistReasonsList');
+            const reasons = (member && Array.isArray(member.blacklistReasons)) ? member.blacklistReasons : [];
+            if (reasonsWrap && reasonsList) {
+                if (!reasons || reasons.length === 0) {
+                    reasonsWrap.style.display = 'none';
+                    reasonsList.innerHTML = '';
+                } else {
+                    reasonsWrap.style.display = 'block';
+                    reasonsList.innerHTML = reasons.map(r => {
+                        const policyNumber = r.policyNumber || '-';
+                        const installmentNo = (typeof r.installmentNo === 'number' || typeof r.installmentNo === 'string') ? r.installmentNo : '-';
+                        const dueDate = r.dueDate ? new Date(r.dueDate) : null;
+                        const daysOverdue = (typeof r.daysOverdue === 'number') ? r.daysOverdue : '-';
+                        return `<li>เลขที่สัญญา ${policyNumber} งวด ${installmentNo} ครบกำหนด ${dueDate ? dueDate.toLocaleDateString('th-TH') : '-'} (ค้าง ${daysOverdue} วัน)</li>`;
+                    }).join('');
+                }
+            }
 
             document.getElementById('memberModalTitle').textContent = 'แก้ไขข้อมูลสมาชิก';
             document.getElementById('editMemberId').value = member._id;
@@ -2563,6 +2842,12 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('memberForm').reset();
             document.getElementById('editMemberId').value = '';
             document.getElementById('memberIdDisplay').value = ''; // Clear display
+
+            const reasonsWrap = document.getElementById('memberBlacklistReasonsWrap');
+            const reasonsList = document.getElementById('memberBlacklistReasonsList');
+            if (reasonsWrap) reasonsWrap.style.display = 'none';
+            if (reasonsList) reasonsList.innerHTML = '';
+
             document.getElementById('memberCitizenId').value = '';
             document.getElementById('memberPrefix').value = '';
             document.getElementById('memberGender').value = '';
@@ -5031,11 +5316,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- INITIALIZATION ---
     // Show login or dashboard initially
     if (currentUser) {
-        if (currentUser.role === 'approver') {
-            showView('approval');
-        } else {
-            showView('dashboard');
-        }
+        showView(getDefaultViewForRole(currentUser.role));
         updateStaffInfo();
         updateStatusTrackingBadge();
     } else {

@@ -50,6 +50,61 @@ const genericStorage = new CloudinaryStorage({
 
 const genericUpload = multer({ storage: genericStorage });
 
+async function expireOverdueInstallments() {
+    const now = new Date();
+    const overdueCutoff = new Date(Date.now() - (5 * 24 * 60 * 60 * 1000));
+    await Warranty.updateMany(
+        {
+            'payment.method': 'Installment',
+            'payment.schedule': {
+                $elemMatch: {
+                    status: 'Pending',
+                    dueDate: { $lt: overdueCutoff }
+                }
+            },
+            'warrantyDates.end': { $gte: now }
+        },
+        { $set: { 'warrantyDates.end': new Date(now.getTime() - 1000) } }
+    );
+}
+
+async function getMemberBlacklistReasonsByMemberId(memberId) {
+    const cutoff = new Date(Date.now() - (5 * 24 * 60 * 60 * 1000));
+    const warranties = await Warranty.find({
+        memberId: String(memberId),
+        'payment.method': 'Installment',
+        'payment.schedule': {
+            $elemMatch: {
+                status: 'Pending',
+                dueDate: { $lt: cutoff }
+            }
+        }
+    })
+        .select({ memberId: 1, policyNumber: 1, payment: 1 })
+        .lean();
+
+    const reasons = [];
+    for (const w of warranties) {
+        const schedule = (w && w.payment && Array.isArray(w.payment.schedule)) ? w.payment.schedule : [];
+        for (const s of schedule) {
+            const due = s && s.dueDate ? new Date(s.dueDate) : null;
+            if (!due) continue;
+            if (s.status === 'Pending' && due < cutoff) {
+                const daysOverdue = Math.floor((Date.now() - due.getTime()) / 86400000);
+                reasons.push({
+                    type: 'installment_overdue',
+                    policyNumber: w.policyNumber || '-',
+                    installmentNo: s.installmentNo,
+                    dueDate: s.dueDate,
+                    daysOverdue
+                });
+            }
+        }
+    }
+
+    return reasons;
+}
+
 // MongoDB Connection
 mongoose.connect(process.env.MONGO_URI)
     .then(() => {
@@ -288,6 +343,31 @@ const FinanceTransaction = mongoose.model('FinanceTransaction', FinanceTransacti
 // FILTER HELPER FUNCTIONS
 // ═══════════════════════════════════════════════════════════════════
 
+ function buildExpenseFilterMatch(query) {
+     const match = {};
+     const { search, startDate, endDate } = query || {};
+
+     if (search) {
+         const regex = { $regex: String(search), $options: 'i' };
+         match.$or = [
+             { claimId: regex },
+             { customerName: regex },
+             { customerPhone: regex },
+             { policyNumber: regex },
+             { deviceModel: regex }
+         ];
+     }
+
+     if (startDate) {
+         match.__expenseDate = { ...(match.__expenseDate || {}), $gte: new Date(String(startDate)) };
+     }
+     if (endDate) {
+         match.__expenseDate = { ...(match.__expenseDate || {}), $lte: new Date(String(endDate) + 'T23:59:59.999Z') };
+     }
+
+     return match;
+ }
+
 // Build dynamic $match for Warranty queries from query params
 function buildWarrantyFilterMatch(query, baseMatch = {}) {
     const match = { ...baseMatch };
@@ -349,6 +429,12 @@ app.post('/api/public/customer/portal', async (req, res) => {
             return res.status(400).json({ success: false, message: 'กรุณาระบุเลขบัตรประชาชนและรหัสสมาชิก' });
         }
 
+        try {
+            await expireOverdueInstallments();
+        } catch (e) {
+            console.error('expireOverdueInstallments failed:', e);
+        }
+
         const member = await Member.findOne({ citizenId: idCard, memberId }).lean();
         if (!member) {
             return res.status(404).json({ success: false, message: 'ไม่พบข้อมูลสมาชิก' });
@@ -364,6 +450,226 @@ app.post('/api/public/customer/portal', async (req, res) => {
         return res.json({ success: true, member, warranties, claims });
     } catch (err) {
         return res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+ app.get('/api/finance/expenses', async (req, res) => {
+     try {
+         const baseMatch = buildExpenseFilterMatch(req.query);
+
+         const pipeline = [
+             {
+                 $project: {
+                     claimId: 1,
+                     policyNumber: 1,
+                     customerName: 1,
+                     customerPhone: 1,
+                     deviceModel: 1,
+                     claimShopName: 1,
+                     claimDate: 1,
+                     totalCost: 1,
+                     updates: 1
+                 }
+             },
+             {
+                 $facet: {
+                     updateExpenses: [
+                         { $unwind: { path: '$updates', preserveNullAndEmptyArrays: false } },
+                         {
+                             $addFields: {
+                                 __expenseDate: '$updates.date',
+                                 __expenseAmount: { $ifNull: ['$updates.cost', 0] }
+                             }
+                         },
+                         { $match: { __expenseAmount: { $gt: 0 } } },
+                         ...(Object.keys(baseMatch).length > 0 ? [{ $match: baseMatch }] : []),
+                         {
+                             $project: {
+                                 _id: 0,
+                                 expenseDate: '$__expenseDate',
+                                 claimId: 1,
+                                 policyNumber: 1,
+                                 customerName: 1,
+                                 deviceModel: 1,
+                                 claimShopName: 1,
+                                 expenseTitle: { $ifNull: ['$updates.title', 'ค่าใช้จ่าย'] },
+                                 amount: '$__expenseAmount',
+                                 centerName: { $ifNull: ['$updates.centerName', ''] }
+                             }
+                         }
+                     ],
+                     totalCostExpenses: [
+                         {
+                             $addFields: {
+                                 __expenseDate: '$claimDate',
+                                 __expenseAmount: { $ifNull: ['$totalCost', 0] }
+                             }
+                         },
+                         { $match: { __expenseAmount: { $gt: 0 } } },
+                         ...(Object.keys(baseMatch).length > 0 ? [{ $match: baseMatch }] : []),
+                         {
+                             $project: {
+                                 _id: 0,
+                                 expenseDate: '$__expenseDate',
+                                 claimId: 1,
+                                 policyNumber: 1,
+                                 customerName: 1,
+                                 deviceModel: 1,
+                                 claimShopName: 1,
+                                 expenseTitle: { $literal: 'ค่าใช้จ่ายรวม (จากเคลม)' },
+                                 amount: '$__expenseAmount',
+                                 centerName: { $literal: '' }
+                             }
+                         }
+                     ]
+                 }
+             },
+             {
+                 $project: {
+                     expenses: { $concatArrays: ['$updateExpenses', '$totalCostExpenses'] }
+                 }
+             },
+             { $unwind: { path: '$expenses', preserveNullAndEmptyArrays: true } },
+             { $replaceRoot: { newRoot: '$expenses' } },
+             { $sort: { expenseDate: -1 } }
+         ];
+
+         const rows = await Claim.aggregate(pipeline);
+         res.json(Array.isArray(rows) ? rows : []);
+     } catch (err) {
+         res.status(500).json({ message: err.message });
+     }
+ });
+
+ app.get('/api/finance/expenses/summary', async (req, res) => {
+     try {
+         const baseMatch = buildExpenseFilterMatch(req.query);
+
+         const pipeline = [
+             {
+                 $project: {
+                     claimId: 1,
+                     policyNumber: 1,
+                     customerName: 1,
+                     customerPhone: 1,
+                     deviceModel: 1,
+                     claimShopName: 1,
+                     claimDate: 1,
+                     totalCost: 1,
+                     updates: 1
+                 }
+             },
+             {
+                 $facet: {
+                     updateAgg: [
+                         { $unwind: { path: '$updates', preserveNullAndEmptyArrays: false } },
+                         {
+                             $addFields: {
+                                 __expenseDate: '$updates.date',
+                                 __expenseAmount: { $ifNull: ['$updates.cost', 0] }
+                             }
+                         },
+                         { $match: { __expenseAmount: { $gt: 0 } } },
+                         ...(Object.keys(baseMatch).length > 0 ? [{ $match: baseMatch }] : []),
+                         { $group: { _id: null, totalExpense: { $sum: '$__expenseAmount' } } }
+                     ],
+                     totalCostAgg: [
+                         {
+                             $addFields: {
+                                 __expenseDate: '$claimDate',
+                                 __expenseAmount: { $ifNull: ['$totalCost', 0] }
+                             }
+                         },
+                         { $match: { __expenseAmount: { $gt: 0 } } },
+                         ...(Object.keys(baseMatch).length > 0 ? [{ $match: baseMatch }] : []),
+                         { $group: { _id: null, totalExpense: { $sum: '$__expenseAmount' } } }
+                     ]
+                 }
+             },
+             {
+                 $project: {
+                     totalExpense: {
+                         $add: [
+                             { $ifNull: [{ $arrayElemAt: ['$updateAgg.totalExpense', 0] }, 0] },
+                             { $ifNull: [{ $arrayElemAt: ['$totalCostAgg.totalExpense', 0] }, 0] }
+                         ]
+                     }
+                 }
+             }
+         ];
+
+         const rows = await Claim.aggregate(pipeline);
+         const totalExpense = rows && rows[0] ? Number(rows[0].totalExpense || 0) : 0;
+         res.json({ totalExpense });
+     } catch (err) {
+         res.status(500).json({ message: err.message });
+     }
+ });
+
+app.get('/api/dashboard/sales/overdue-claims', async (req, res) => {
+    try {
+        const cutoff = new Date(Date.now() - (5 * 24 * 60 * 60 * 1000));
+
+        const overdue = await Claim.find({
+            updatedAt: { $lt: cutoff },
+            status: { $nin: ['รับเครื่องแล้ว', 'เสร็จสิ้น', 'ลูกค้ามารับเครื่องแล้ว'] }
+        })
+            .sort({ updatedAt: 1 })
+            .lean();
+
+        res.json({ items: overdue });
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
+
+app.get('/api/dashboard/sales/summary', async (req, res) => {
+    try {
+        const cutoff = new Date(Date.now() - (5 * 24 * 60 * 60 * 1000));
+        const now = new Date();
+        const overdueInstallmentCutoff = new Date(Date.now() - (5 * 24 * 60 * 60 * 1000));
+
+        const [overdueClaims, pendingApprovals, unpaidPackages, installmentOverdue] = await Promise.all([
+            Claim.countDocuments({
+                updatedAt: { $lt: cutoff },
+                status: { $nin: ['รับเครื่องแล้ว', 'เสร็จสิ้น', 'ลูกค้ามารับเครื่องแล้ว'] }
+            }),
+            Warranty.countDocuments({ approvalStatus: 'pending' }),
+            Warranty.countDocuments({
+                'payment.method': 'Full Payment',
+                'payment.status': { $ne: 'Paid' }
+            }),
+            Warranty.countDocuments({
+                'payment.method': 'Installment',
+                'payment.schedule': {
+                    $elemMatch: {
+                        status: 'Pending',
+                        dueDate: { $lt: overdueInstallmentCutoff }
+                    }
+                }
+            })
+        ]);
+
+        return res.json({
+            overdueClaims,
+            pendingApprovals,
+            unpaidPackages,
+            installmentOverdue
+        });
+    } catch (err) {
+        return res.status(500).json({ message: err.message });
+    }
+});
+
+app.get('/api/dashboard/approver/pending-warranties', async (req, res) => {
+    try {
+        const items = await Warranty.find({ approvalStatus: 'pending' })
+            .sort({ createdAt: -1 })
+            .lean();
+
+        res.json({ count: items.length, items });
+    } catch (err) {
+        res.status(500).json({ message: err.message });
     }
 });
 
@@ -694,6 +1000,12 @@ app.delete('/api/staff/:id', checkAdminRole, async (req, res) => {
 // Get all warranties (Enriched with Member Data)
 app.get('/api/warranties', async (req, res) => {
     try {
+        try {
+            await expireOverdueInstallments();
+        } catch (e) {
+            console.error('expireOverdueInstallments failed:', e);
+        }
+
         // Build dynamic filter from query params
         const filterMatch = buildWarrantyFilterMatch(req.query);
 
@@ -2047,8 +2359,54 @@ app.put('/api/claims/:id/signatures', async (req, res) => {
 // Get all members
 app.get('/api/members', async (req, res) => {
     try {
-        const members = await Member.find().sort({ createdAt: -1 });
-        res.json(members);
+        const members = await Member.find().sort({ createdAt: -1 }).lean();
+
+        const cutoff = new Date(Date.now() - (5 * 24 * 60 * 60 * 1000));
+        const overdueWarranties = await Warranty.find({
+            'payment.method': 'Installment',
+            'payment.schedule': {
+                $elemMatch: {
+                    status: 'Pending',
+                    dueDate: { $lt: cutoff }
+                }
+            }
+        })
+            .select({ memberId: 1, policyNumber: 1, payment: 1 })
+            .lean();
+
+        const reasonsByMemberId = new Map();
+        for (const w of overdueWarranties) {
+            const mId = String(w.memberId || '');
+            if (!mId) continue;
+            const schedule = (w && w.payment && Array.isArray(w.payment.schedule)) ? w.payment.schedule : [];
+            for (const s of schedule) {
+                const due = s && s.dueDate ? new Date(s.dueDate) : null;
+                if (!due) continue;
+                if (s.status === 'Pending' && due < cutoff) {
+                    const daysOverdue = Math.floor((Date.now() - due.getTime()) / 86400000);
+                    const arr = reasonsByMemberId.get(mId) || [];
+                    arr.push({
+                        type: 'installment_overdue',
+                        policyNumber: w.policyNumber || '-',
+                        installmentNo: s.installmentNo,
+                        dueDate: s.dueDate,
+                        daysOverdue
+                    });
+                    reasonsByMemberId.set(mId, arr);
+                }
+            }
+        }
+
+        const enriched = members.map(m => {
+            const reasons = reasonsByMemberId.get(String(m.memberId || '')) || [];
+            return {
+                ...m,
+                memberStatus: reasons.length > 0 ? 'ไม่ปกติ' : 'ปกติ',
+                blacklistReasons: reasons
+            };
+        });
+
+        res.json(enriched);
     } catch (err) {
         res.status(500).json({ message: err.message });
     }
@@ -2121,9 +2479,19 @@ app.get('/api/members/lookup', async (req, res) => {
                 { firstName: searchRegex },
                 { lastName: searchRegex }
             ]
-        }).limit(10); // Limit results for UI performance
+        }).limit(10).lean(); // Limit results for UI performance
 
-        res.json({ success: true, members });
+        const enriched = await Promise.all(
+            members.map(async (m) => {
+                const reasons = await getMemberBlacklistReasonsByMemberId(m.memberId);
+                return {
+                    ...m,
+                    memberStatus: reasons.length > 0 ? 'ไม่ปกติ' : 'ปกติ'
+                };
+            })
+        );
+
+        res.json({ success: true, members: enriched });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }
@@ -2132,9 +2500,16 @@ app.get('/api/members/lookup', async (req, res) => {
 // Get single member
 app.get('/api/members/:id', async (req, res) => {
     try {
-        const member = await Member.findById(req.params.id);
+        const member = await Member.findById(req.params.id).lean();
         if (!member) return res.status(404).json({ success: false, message: 'ไม่พบข้อมูลสมาชิก' });
-        res.json(member);
+
+        const reasons = await getMemberBlacklistReasonsByMemberId(member.memberId);
+
+        res.json({
+            ...member,
+            memberStatus: reasons.length > 0 ? 'ไม่ปกติ' : 'ปกติ',
+            blacklistReasons: reasons
+        });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }
