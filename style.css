@@ -3493,12 +3493,30 @@ tr.new-row-highlight {
     background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(241, 245, 249, 0.95) 100%);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-    padding: 0.6rem 0.75rem;
-    margin-bottom: 0.75rem;
-    box-shadow: var(--shadow-xs);
+    border-radius: 16px;
+    padding: 1.25rem;
+    border: 1px solid rgba(148, 163, 184, 0.25);
+    box-shadow: var(--shadow-sm);
+    margin-bottom: 1.5rem;
     transition: var(--transition);
+}
+
+/* Finance Export Checkbox */
+.finance-export-field,
+#financeExportIncludeSummary {
+    width: 14px;
+    height: 14px;
+    margin: 0;
+    accent-color: var(--primary);
+    vertical-align: middle;
+    cursor: pointer;
+}
+
+.finance-export-field:focus-visible,
+#financeExportIncludeSummary:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.18);
+    border-radius: 4px;
 }
 
 .advanced-filter-bar:hover {

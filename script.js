@@ -304,7 +304,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const membersNavLink = document.getElementById('membersNavLink');
         const shopsNavLink = document.getElementById('shopsNavLink');
 
-        if (viewName === 'dashboard' || viewName === 'members' || viewName === 'shops' || viewName === 'claims' || viewName === 'statusTracking' || viewName === 'approval' || viewName === 'staff' || viewName === 'executive') {
+        if (viewName === 'dashboard' || viewName === 'members' || viewName === 'shops' || viewName === 'claims' || viewName === 'statusTracking' || viewName === 'approval' || viewName === 'staff' || viewName === 'executive' || viewName === 'finance') {
             views.dashboard.style.display = 'block';
 
             // Hide all sub-views first
@@ -313,6 +313,8 @@ document.addEventListener('DOMContentLoaded', () => {
             shopsMain.style.display = 'none';
             const executiveMain = document.getElementById('executiveMain');
             if (executiveMain) executiveMain.style.display = 'none';
+            const financeMain = document.getElementById('financeMain');
+            if (financeMain) financeMain.style.display = 'none';
             const claimsMain = document.getElementById('claimsMain');
             if (claimsMain) claimsMain.style.display = 'none';
             const statusTrackingMain = document.getElementById('statusTrackingMain');
@@ -336,6 +338,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (staffNavLinkEl) staffNavLinkEl.classList.remove('active');
             const executiveNavLinkEl = document.getElementById('nav-executive');
             if (executiveNavLinkEl) executiveNavLinkEl.classList.remove('active');
+            const financeNavLinkEl = document.getElementById('financeNavLink');
+            if (financeNavLinkEl) financeNavLinkEl.classList.remove('active');
 
             if (viewName === 'dashboard') {
                 dashMain.style.display = 'block';
@@ -379,6 +383,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (execNav) execNav.classList.add('active');
                 stopApprovalAutoRefresh();
                 loadExecutiveDashboard();
+            } else if (viewName === 'finance') {
+                const financeMainEl = document.getElementById('financeMain');
+                if (financeMainEl) financeMainEl.style.display = 'block';
+                const financeNav = document.getElementById('financeNavLink');
+                if (financeNav) financeNav.classList.add('active');
+                stopApprovalAutoRefresh();
+                fetchFinanceData();
             } else {
                 // For other dashboard views, ensure approval refresh is stopped
                 stopApprovalAutoRefresh();
@@ -565,6 +576,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const executiveNavLink = document.getElementById('nav-executive');
     if (executiveNavLink) executiveNavLink.addEventListener('click', (e) => { e.preventDefault(); showView('executive'); });
 
+    const financeNavLink = document.getElementById('financeNavLink');
+    if (financeNavLink) financeNavLink.addEventListener('click', (e) => { e.preventDefault(); showView('finance'); });
+
+    const financeExportExcelBtn = document.getElementById('financeExportExcelBtn');
+    if (financeExportExcelBtn) {
+        financeExportExcelBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            exportFinanceExcel();
+        });
+    }
+
     // Urgent Approval Notification (queue)
     if (socket) {
         socket.on('urgent_approval_needed', (payload) => {
@@ -600,6 +622,130 @@ document.addEventListener('DOMContentLoaded', () => {
             applyPaymentFilter(); // Apply client-side payment filter, then render
         } catch (err) {
             console.error('Fetch error:', err);
+        } finally {
+            hideLoader();
+        }
+    }
+
+    async function exportFinanceExcel() {
+        try {
+            const startDate = (document.getElementById('financeExportStartDate') || {}).value || '';
+            const endDate = (document.getElementById('financeExportEndDate') || {}).value || '';
+            const includeSummary = (document.getElementById('financeExportIncludeSummary') || {}).checked ? '1' : '0';
+            const paymentMethod = (document.getElementById('financeExportPaymentMethod') || {}).value || 'all';
+
+            const fieldEls = Array.from(document.querySelectorAll('.finance-export-field'));
+            const selectedFields = fieldEls.filter(el => el && el.checked).map(el => el.value).filter(Boolean);
+
+            if (selectedFields.length === 0) {
+                showAlert('warning', 'กรุณาเลือกข้อมูลที่ต้องการ Export อย่างน้อย 1 รายการ');
+                return;
+            }
+
+            const params = new URLSearchParams();
+            if (startDate) params.set('startDate', startDate);
+            if (endDate) params.set('endDate', endDate);
+            if (paymentMethod && paymentMethod !== 'all') params.set('paymentMethod', paymentMethod);
+            params.set('fields', selectedFields.join(','));
+            params.set('includeSummary', includeSummary);
+
+            showLoader('กำลังสร้างไฟล์ Excel...');
+
+            const res = await fetch(`/api/finance/export/excel?${params.toString()}`);
+            if (!res.ok) {
+                let msg = 'Export ไม่สำเร็จ';
+                try {
+                    const errData = await res.json();
+                    if (errData && errData.message) msg = errData.message;
+                } catch (e) {
+                    // ignore
+                }
+                throw new Error(msg);
+            }
+
+            const blob = await res.blob();
+            const url = window.URL.createObjectURL(blob);
+
+            const a = document.createElement('a');
+            a.href = url;
+            const fileName = `finance_${startDate || 'all'}_${endDate || 'all'}.xlsx`;
+            a.download = fileName;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            window.URL.revokeObjectURL(url);
+        } catch (err) {
+            console.error('Export finance excel error:', err);
+            showAlert('error', err.message || 'ไม่สามารถ Export Excel ได้');
+        } finally {
+            hideLoader();
+        }
+    }
+
+    async function fetchFinanceData() {
+        showLoader('กำลังโหลดข้อมูลการเงิน...');
+        try {
+            const [trxRes, sumRes] = await Promise.all([
+                fetch('/api/finance/transactions'),
+                fetch('/api/finance/summary')
+            ]);
+            const transactions = await trxRes.json();
+            const summary = await sumRes.json();
+
+            document.getElementById('totalCashDisplay').textContent = formatNumber(summary.totalCash || 0) + ' ฿';
+            document.getElementById('totalTransferDisplay').textContent = formatNumber(summary.totalTransfer || 0) + ' ฿';
+            document.getElementById('totalRevenueDisplay').textContent = formatNumber(summary.totalRevenue || 0) + ' ฿';
+            const changeDisplayEl = document.getElementById('totalChangeDisplay');
+            if (changeDisplayEl) {
+                changeDisplayEl.textContent = formatNumber(summary.totalChange || 0) + ' ฿';
+            }
+
+            const tbody = document.getElementById('financeBody');
+            const emptyState = document.getElementById('financeEmptyState');
+            const financeTable = document.getElementById('financeTable');
+            const financeTableContainer = financeTable ? financeTable.parentElement : null;
+
+            if (tbody) tbody.innerHTML = '';
+
+            if (!transactions || transactions.length === 0) {
+                if (emptyState) emptyState.style.display = 'block';
+                if (financeTableContainer) financeTableContainer.style.display = 'none';
+                hideLoader();
+                return;
+            }
+            if (emptyState) emptyState.style.display = 'none';
+            if (financeTableContainer) financeTableContainer.style.display = 'block';
+
+            transactions.forEach(tx => {
+                const tr = document.createElement('tr');
+                const dateText = new Date(tx.transactionDate).toLocaleString('th-TH');
+
+                const netColor = tx.netTotal > 0 ? 'color: #0d9488; font-weight: bold;' : '';
+                const changeColor = tx.changeAmount > 0 ? 'color: #ef4444;' : '';
+                const changeDisplay = tx.changeAmount > 0 ? '-' + formatNumber(tx.changeAmount) : '0';
+
+                const evidenceHtml = tx.evidenceUrl
+                    ? `<a href="${tx.evidenceUrl}" target="_blank" style="color: #3b82f6; text-decoration: underline;">ดูสลิป</a>`
+                    : '<span style="color: #94a3b8;">-</span>';
+
+                tr.innerHTML = `
+                    <td>${dateText}</td>
+                    <td><span class="status-badge" style="background: #e0e7ff; color: #4338ca;">${tx.actionType}</span></td>
+                    <td>${tx.policyNumber}</td>
+                    <td>${tx.customerName || '-'}</td>
+                    <td>${tx.paymentMethod}</td>
+                    <td>${formatNumber(tx.cashReceived)}</td>
+                    <td>${formatNumber(tx.transferAmount)}</td>
+                    <td style="${changeColor}">${changeDisplay}</td>
+                    <td style="${netColor}">${formatNumber(tx.netTotal)}</td>
+                    <td>${evidenceHtml}</td>
+                    <td>${tx.recordedBy || 'System'}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        } catch (err) {
+            console.error('Fetch finance data error:', err);
+            showAlert('error', 'ไม่สามารถโหลดข้อมูลการเงินได้');
         } finally {
             hideLoader();
         }
@@ -2111,6 +2257,37 @@ document.addEventListener('DOMContentLoaded', () => {
                 transferPaid = parseFloat(document.getElementById('splitTransferInput').value) || 0;
             }
 
+            let evidenceUrl = null;
+            let evidenceFile = null;
+            if (checkoutData.method === 'Transfer') {
+                const f = document.getElementById('transferEvidenceInput').files[0];
+                if (f) evidenceFile = f;
+            } else if (checkoutData.method === 'Split') {
+                const f = document.getElementById('splitEvidenceInput').files[0];
+                if (f) evidenceFile = f;
+            }
+
+            if (evidenceFile) {
+                const formData = new FormData();
+                formData.append('file', evidenceFile);
+                try {
+                    btn.innerHTML = '⌛ กำลังอัปโหลดสลิป...';
+                    const upRes = await fetch('/api/upload', { method: 'POST', body: formData });
+                    if (upRes.ok) {
+                        const upData = await upRes.json();
+                        evidenceUrl = upData.url;
+                    } else {
+                        throw new Error('Upload failed');
+                    }
+                } catch (e) {
+                    btn.disabled = false;
+                    btn.innerHTML = originalText;
+                    showAlert('error', 'อัปโหลดสลิปไม่สำเร็จ กรุณาลองใหม่');
+                    return;
+                }
+                btn.innerHTML = '⌛ กำลังยืนยัน...';
+            }
+
             const res = await fetch(`/api/warranties/${checkoutData.record._id}/payment`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
@@ -2119,6 +2296,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     payAllRemaining: checkoutData.payAllRemaining,
                     paidCash: cashPaid,
                     paidTransfer: transferPaid,
+                    changeAmount: Math.max(0, (cashPaid + transferPaid) - totalDue),
+                    evidenceUrl: evidenceUrl,
                     refId: refId
                 })
             });
@@ -4160,17 +4339,17 @@ document.addEventListener('DOMContentLoaded', () => {
                         </div>
                         <div style="margin-bottom: 0.5rem;">
                             ${(() => {
-                                const method = c.completedReturnMethod || c.returnMethod;
-                                const isPickup = method === 'pickup';
-                                const label = isPickup ? 'รับเองที่สาขา' : 'จัดส่งพัสดุ';
-                                const detail = isPickup
-                                    ? (c.completedReturnBranch || c.pickupBranch || '')
-                                    : (c.completedDeliveryAddressDetail || c.deliveryAddressDetail || '');
-                                const detailHtml = detail
-                                    ? `<div style="margin-top: 0.25rem; font-size: 0.85rem; color: #64748b; line-height: 1.35;">${detail}</div>`
-                                    : '';
-                                return `<strong>การคืนเครื่อง:</strong> ${label}${detailHtml}`;
-                            })()}
+                    const method = c.completedReturnMethod || c.returnMethod;
+                    const isPickup = method === 'pickup';
+                    const label = isPickup ? 'รับเองที่สาขา' : 'จัดส่งพัสดุ';
+                    const detail = isPickup
+                        ? (c.completedReturnBranch || c.pickupBranch || '')
+                        : (c.completedDeliveryAddressDetail || c.deliveryAddressDetail || '');
+                    const detailHtml = detail
+                        ? `<div style="margin-top: 0.25rem; font-size: 0.85rem; color: #64748b; line-height: 1.35;">${detail}</div>`
+                        : '';
+                    return `<strong>การคืนเครื่อง:</strong> ${label}${detailHtml}`;
+                })()}
                         </div>
                         
                         <div class="history-timeline">
@@ -4515,11 +4694,11 @@ document.addEventListener('DOMContentLoaded', () => {
                         <div class="approval-detail-item">
                             <label>วิธีชำระ</label>
                             <span>${(() => {
-                                const m = w.payment?.method;
-                                if (m === 'Installment') return 'แบ่งจ่าย';
-                                if (m === 'Full Payment') return 'เต็มจำนวน';
-                                return m || '-';
-                            })()}</span>
+                        const m = w.payment?.method;
+                        if (m === 'Installment') return 'แบ่งจ่าย';
+                        if (m === 'Full Payment') return 'เต็มจำนวน';
+                        return m || '-';
+                    })()}</span>
                         </div>
                         <div class="approval-detail-item">
                             <label>ร้านค้า</label>

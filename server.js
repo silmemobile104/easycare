@@ -7,6 +7,7 @@ const fs = require('fs');
 const multer = require('multer');
 const http = require('http');
 const { Server } = require('socket.io');
+const ExcelJS = require('exceljs');
 
 const app = express();
 const PORT = process.env.PORT || 3005;
@@ -38,6 +39,16 @@ const storage = new CloudinaryStorage({
 });
 
 const claimUpload = multer({ storage: storage });
+
+const genericStorage = new CloudinaryStorage({
+    cloudinary: cloudinary,
+    params: {
+        folder: 'easycare/finance',
+        allowed_formats: ['jpg', 'png', 'jpeg', 'pdf']
+    },
+});
+
+const genericUpload = multer({ storage: genericStorage });
 
 // MongoDB Connection
 mongoose.connect(process.env.MONGO_URI)
@@ -255,6 +266,23 @@ const ClaimSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 const Claim = mongoose.model('Claim', ClaimSchema);
+
+// FinanceTransaction Schema
+const FinanceTransactionSchema = new mongoose.Schema({
+    transactionDate: { type: Date, default: Date.now },
+    policyNumber: { type: String, index: true },
+    customerName: String,
+    actionType: String,
+    paymentMethod: String,
+    cashReceived: { type: Number, default: 0 },
+    transferAmount: { type: Number, default: 0 },
+    changeAmount: { type: Number, default: 0 },
+    netTotal: { type: Number, default: 0 },
+    evidenceUrl: String,
+    recordedBy: String
+}, { timestamps: true });
+
+const FinanceTransaction = mongoose.model('FinanceTransaction', FinanceTransactionSchema);
 
 // ═══════════════════════════════════════════════════════════════════
 // FILTER HELPER FUNCTIONS
@@ -829,6 +857,45 @@ app.post('/api/warranties', async (req, res) => {
             });
         }
 
+        // Create FinanceTransaction immediately after creation if payment is recorded
+        if (newWarranty.payment && (newWarranty.payment.paidCash > 0 || newWarranty.payment.paidTransfer > 0 || (newWarranty.payment.schedule && newWarranty.payment.schedule[0] && (newWarranty.payment.schedule[0].paidCash > 0 || newWarranty.payment.schedule[0].paidTransfer > 0)))) {
+            const isInstallment = newWarranty.payment.method === 'Installment';
+            const initialPayment = isInstallment && newWarranty.payment.schedule && newWarranty.payment.schedule[0] ? newWarranty.payment.schedule[0] : newWarranty.payment;
+
+            const cash = Number(initialPayment.paidCash || 0);
+            const transfer = Number(initialPayment.paidTransfer || 0);
+            // Frontend might send cashReceived, transferAmount, changeAmount at root or we use paidCash
+            const change = req.body.changeAmount ? Number(req.body.changeAmount) : 0;
+            const net = (cash - change) + transfer;
+
+            if (net > 0) {
+                const firstName = (newWarranty.customer && newWarranty.customer.firstName) ? newWarranty.customer.firstName : '';
+                const lastName = (newWarranty.customer && newWarranty.customer.lastName) ? newWarranty.customer.lastName : '';
+
+                let pMethod = 'ไม่ระบุ';
+                if (cash > 0 && transfer > 0) pMethod = 'เงินสด+โอนเงิน';
+                else if (cash > 0) pMethod = 'เงินสด';
+                else if (transfer > 0) pMethod = 'โอนเงิน';
+
+                try {
+                    await FinanceTransaction.create({
+                        policyNumber: newWarranty.policyNumber,
+                        customerName: `${firstName} ${lastName}`.trim() || '-',
+                        actionType: 'ซื้อแพ็กเกจใหม่',
+                        paymentMethod: pMethod,
+                        cashReceived: cash,
+                        transferAmount: transfer,
+                        changeAmount: change,
+                        netTotal: net,
+                        evidenceUrl: req.body.evidenceUrl || null,
+                        recordedBy: req.body.staffName || newWarranty.staffName || 'System'
+                    });
+                } catch (e) {
+                    console.error('Failed to create FinanceTransaction:', e);
+                }
+            }
+        }
+
         res.status(201).json(newWarranty);
     } catch (err) {
         res.status(400).json({ message: err.message });
@@ -1177,7 +1244,7 @@ app.put('/api/warranties/:id', async (req, res) => {
 // Update Payment Status
 app.patch('/api/warranties/:id/payment', async (req, res) => {
     try {
-        const { installmentNo, payAllRemaining, paidCash, paidTransfer, refId } = req.body;
+        const { installmentNo, payAllRemaining, paidCash, paidTransfer, refId, changeAmount, evidenceUrl, staffName } = req.body;
         const warranty = await Warranty.findById(req.params.id);
         if (!warranty) return res.status(404).json({ message: 'Record not found' });
 
@@ -1238,6 +1305,43 @@ app.patch('/api/warranties/:id/payment', async (req, res) => {
         } catch (e) {
             // If this fails, do not block payment update response
             console.error('Failed to recalc installmentsPaid:', e);
+        }
+
+        // Process Finance Transaction
+        const cash = Number(paidCash || 0);
+        const transfer = Number(paidTransfer || 0);
+        const change = Number(changeAmount || 0);
+        const net = (cash - change) + transfer;
+
+        if (net > 0) {
+            const firstName = (warranty.customer && warranty.customer.firstName) ? warranty.customer.firstName : '';
+            const lastName = (warranty.customer && warranty.customer.lastName) ? warranty.customer.lastName : '';
+
+            let pMethod = 'ไม่ระบุ';
+            if (cash > 0 && transfer > 0) pMethod = 'เงินสด+โอนเงิน';
+            else if (cash > 0) pMethod = 'เงินสด';
+            else if (transfer > 0) pMethod = 'โอนเงิน';
+
+            let actType = 'ชำระค่างวด';
+            if (payAllRemaining) actType = 'ชำระปิดยอด/จ่ายเต็ม';
+            else if (installmentNo) actType = `ชำระค่างวดที่ ${installmentNo}`;
+
+            try {
+                await FinanceTransaction.create({
+                    policyNumber: warranty.policyNumber,
+                    customerName: `${firstName} ${lastName}`.trim() || '-',
+                    actionType: actType,
+                    paymentMethod: pMethod,
+                    cashReceived: cash,
+                    transferAmount: transfer,
+                    changeAmount: change,
+                    netTotal: net,
+                    evidenceUrl: evidenceUrl || null,
+                    recordedBy: staffName || warranty.staffName || 'System'
+                });
+            } catch (e) {
+                console.error('Failed to create FinanceTransaction:', e);
+            }
         }
 
         res.json({ success: true, warranty });
@@ -1333,6 +1437,189 @@ app.delete('/api/warranties/:id', async (req, res) => {
 // ═══════════════════════════════════════════════════════════════════
 // CLAIM API ROUTES
 // ═══════════════════════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════════════════════
+// FINANCE API ROUTES
+// ═══════════════════════════════════════════════════════════════════
+
+app.post('/api/upload', genericUpload.single('file'), (req, res) => {
+    try {
+        if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
+        res.json({ url: req.file.path });
+    } catch (e) {
+        res.status(500).json({ message: e.message });
+    }
+});
+
+app.get('/api/finance/transactions', async (req, res) => {
+    try {
+        const transactions = await FinanceTransaction.find().sort({ transactionDate: -1 });
+        res.json(transactions);
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
+
+app.get('/api/finance/summary', async (req, res) => {
+    try {
+        const aggr = await FinanceTransaction.aggregate([
+            {
+                $group: {
+                    _id: null,
+                    totalCashReceived: { $sum: "$cashReceived" },
+                    totalChangeAmount: { $sum: "$changeAmount" },
+                    totalTransferAmount: { $sum: "$transferAmount" },
+                    totalRevenue: { $sum: "$netTotal" }
+                }
+            }
+        ]);
+
+        if (aggr && aggr.length > 0) {
+            const data = aggr[0];
+            const netCash = (data.totalCashReceived || 0) - (data.totalChangeAmount || 0);
+            res.json({
+                totalCash: netCash,
+                totalTransfer: data.totalTransferAmount || 0,
+                totalRevenue: data.totalRevenue || 0,
+                totalChange: data.totalChangeAmount || 0
+            });
+        } else {
+            res.json({ totalCash: 0, totalTransfer: 0, totalRevenue: 0, totalChange: 0 });
+        }
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
+
+app.get('/api/finance/export/excel', async (req, res) => {
+    try {
+        const { startDate, endDate, fields, includeSummary, paymentMethod } = req.query || {};
+
+        const match = {};
+        if (startDate) {
+            match.transactionDate = { ...(match.transactionDate || {}), $gte: new Date(String(startDate)) };
+        }
+        if (endDate) {
+            match.transactionDate = { ...(match.transactionDate || {}), $lte: new Date(String(endDate) + 'T23:59:59.999Z') };
+        }
+        if (paymentMethod && String(paymentMethod) !== 'all') {
+            match.paymentMethod = String(paymentMethod);
+        }
+
+        const selectedFields = String(fields || '')
+            .split(',')
+            .map(s => String(s || '').trim())
+            .filter(Boolean);
+
+        const fieldMeta = {
+            transactionDate: { header: 'วันที่', width: 22 },
+            actionType: { header: 'ประเภทรายการ', width: 18 },
+            policyNumber: { header: 'เลขที่สัญญา', width: 16 },
+            customerName: { header: 'ชื่อลูกค้า', width: 20 },
+            paymentMethod: { header: 'วิธีชำระ', width: 16 },
+            cashReceived: { header: 'รับเงินสด', width: 14 },
+            transferAmount: { header: 'เงินโอน', width: 14 },
+            changeAmount: { header: 'เงินทอน', width: 14 },
+            netTotal: { header: 'ยอดสุทธิ', width: 14 },
+            evidenceUrl: { header: 'หลักฐาน', width: 28 },
+            recordedBy: { header: 'ผู้ทำรายการ', width: 18 }
+        };
+
+        const defaultFieldOrder = [
+            'transactionDate',
+            'actionType',
+            'policyNumber',
+            'customerName',
+            'paymentMethod',
+            'cashReceived',
+            'transferAmount',
+            'changeAmount',
+            'netTotal',
+            'evidenceUrl',
+            'recordedBy'
+        ];
+
+        const finalFields = (selectedFields.length > 0 ? selectedFields : defaultFieldOrder)
+            .filter(f => Object.prototype.hasOwnProperty.call(fieldMeta, f));
+
+        const transactions = await FinanceTransaction.find(match).sort({ transactionDate: -1 }).lean();
+
+        const workbook = new ExcelJS.Workbook();
+        workbook.creator = 'EasyCare';
+        workbook.created = new Date();
+
+        const ws = workbook.addWorksheet('Transactions');
+        ws.columns = finalFields.map(f => ({ key: f, ...fieldMeta[f] }));
+        ws.getRow(1).font = { bold: true };
+
+        const moneyFields = new Set(['cashReceived', 'transferAmount', 'changeAmount', 'netTotal']);
+
+        for (const tx of (Array.isArray(transactions) ? transactions : [])) {
+            const rowData = {};
+            for (const f of finalFields) {
+                if (f === 'transactionDate') {
+                    rowData[f] = tx.transactionDate ? new Date(tx.transactionDate) : null;
+                } else if (moneyFields.has(f)) {
+                    rowData[f] = Number(tx[f] || 0);
+                } else {
+                    rowData[f] = tx[f] ?? '';
+                }
+            }
+            ws.addRow(rowData);
+        }
+
+        ws.columns.forEach(col => {
+            if (col && col.key === 'transactionDate') {
+                col.numFmt = 'dd/mm/yyyy hh:mm';
+            }
+            if (col && moneyFields.has(col.key)) {
+                col.numFmt = '#,##0.00';
+            }
+        });
+
+        if (String(includeSummary || '1') !== '0') {
+            const aggr = await FinanceTransaction.aggregate([
+                ...(Object.keys(match).length > 0 ? [{ $match: match }] : []),
+                {
+                    $group: {
+                        _id: null,
+                        totalCashReceived: { $sum: "$cashReceived" },
+                        totalChangeAmount: { $sum: "$changeAmount" },
+                        totalTransferAmount: { $sum: "$transferAmount" },
+                        totalRevenue: { $sum: "$netTotal" }
+                    }
+                }
+            ]);
+
+            const data = aggr && aggr.length > 0 ? aggr[0] : {};
+            const netCash = Number((data.totalCashReceived || 0) - (data.totalChangeAmount || 0));
+            const totalTransfer = Number(data.totalTransferAmount || 0);
+            const totalRevenue = Number(data.totalRevenue || 0);
+
+            const wsSum = workbook.addWorksheet('Summary');
+            wsSum.columns = [
+                { header: 'รายการ', key: 'label', width: 22 },
+                { header: 'ยอดรวม', key: 'value', width: 18 }
+            ];
+            wsSum.getRow(1).font = { bold: true };
+            wsSum.addRow({ label: 'ยอดรวมเงินสด', value: netCash });
+            wsSum.addRow({ label: 'ยอดรวมเงินโอน', value: totalTransfer });
+            wsSum.addRow({ label: 'รายรับรวมทั้งหมด', value: totalRevenue });
+            wsSum.getColumn('value').numFmt = '#,##0.00';
+        }
+
+        const safeStart = startDate ? String(startDate) : '';
+        const safeEnd = endDate ? String(endDate) : '';
+        const fileName = `finance_${safeStart || 'all'}_${safeEnd || 'all'}.xlsx`;
+
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+        await workbook.xlsx.write(res);
+        res.end();
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
 
 // Create new claim (with image upload)
 app.post('/api/claims', claimUpload.array('images', 10), async (req, res) => {

@@ -569,6 +569,15 @@
                             จัดการพนักงาน
                         </a>
 
+                        <a href="#" id="financeNavLink" data-permission="nav-finance">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <line x1="12" y1="1" x2="12" y2="23"></line>
+                                <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+                            </svg>
+                            การเงิน (Finance)
+                        </a>
+
                         <a href="#" id="nav-executive" data-permission="nav-executive">
                             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -765,7 +774,8 @@
                                 </select>
                             </div>
                             <div class="filter-actions">
-                                <button type="button" class="filter-search-btn" id="execAnalyzeBtn">วิเคราะห์ข้อมูล</button>
+                                <button type="button" class="filter-search-btn"
+                                    id="execAnalyzeBtn">วิเคราะห์ข้อมูล</button>
                             </div>
                         </div>
                     </div>
@@ -803,7 +813,9 @@
                             <div class="stat-icon purple">
                                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+                                    <path
+                                        d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z">
+                                    </path>
                                     <polyline points="3.29 7 12 12 20.71 7"></polyline>
                                     <line x1="12" y1="22" x2="12" y2="12"></line>
                                 </svg>
@@ -832,18 +844,195 @@
 
                     <div class="table-container">
                         <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 16px;">
-                            <div style="background: #fff; border-radius: 14px; padding: 16px; border: 1px solid rgba(148,163,184,.35);">
+                            <div
+                                style="background: #fff; border-radius: 14px; padding: 16px; border: 1px solid rgba(148,163,184,.35);">
                                 <h3 style="margin: 0 0 12px 0;">Trend: ยอดขาย vs การเคลม</h3>
                                 <canvas id="trendChart"></canvas>
                             </div>
-                            <div style="background: #fff; border-radius: 14px; padding: 16px; border: 1px solid rgba(148,163,184,.35);">
+                            <div
+                                style="background: #fff; border-radius: 14px; padding: 16px; border: 1px solid rgba(148,163,184,.35);">
                                 <h3 style="margin: 0 0 12px 0;">Packages: สัดส่วนแพ็กเกจ</h3>
                                 <canvas id="packagesChart"></canvas>
                             </div>
                         </div>
-                        <div style="margin-top: 16px; background: #fff; border-radius: 14px; padding: 16px; border: 1px solid rgba(148,163,184,.35);">
+                        <div
+                            style="margin-top: 16px; background: #fff; border-radius: 14px; padding: 16px; border: 1px solid rgba(148,163,184,.35);">
                             <h3 style="margin: 0 0 12px 0;">Claim Status</h3>
                             <canvas id="claimStatusChart"></canvas>
+                        </div>
+                    </div>
+                </main>
+
+                <!-- Finance Main Content -->
+                <main id="financeMain" class="main-content" style="display: none;">
+                    <header class="dashboard-header">
+                        <div class="header-titles">
+                            <h1>ข้อมูลการเงิน (Finance)</h1>
+                            <p>รายการเดินบัญชี, ประวัติรับชำระเงิน และสรุปรายรับ</p>
+                        </div>
+                    </header>
+
+                    <div class="stats-overview">
+                        <div class="stat-card">
+                            <div class="stat-icon green">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <line x1="12" y1="1" x2="12" y2="23"></line>
+                                    <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+                                </svg>
+                            </div>
+                            <div class="stat-content">
+                                <h3 id="totalCashDisplay">0</h3>
+                                <p>ยอดรวมเงินสด</p>
+                            </div>
+                        </div>
+
+                        <div class="stat-card">
+                            <div class="stat-icon purple">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <rect x="2" y="5" width="20" height="14" rx="2"></rect>
+                                    <path d="M2 10h20"></path>
+                                </svg>
+                            </div>
+                            <div class="stat-content">
+                                <h3 id="totalTransferDisplay">0</h3>
+                                <p>ยอดรวมเงินโอน</p>
+                            </div>
+                        </div>
+
+                        <div class="stat-card">
+                            <div class="stat-icon purple">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <rect x="2" y="5" width="20" height="14" rx="2"></rect>
+                                    <path d="M2 10h20"></path>
+                                </svg>
+                            </div>
+                            <div class="stat-content">
+                                <h3 id="totalChangeDisplay">0</h3>
+                                <p>ยอดเงินทอน</p>
+                            </div>
+                        </div>
+
+                        <div class="stat-card">
+                            <div class="stat-icon orange">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path
+                                        d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z">
+                                    </path>
+                                    <polyline points="22,6 12,13 2,6"></polyline>
+                                </svg>
+                            </div>
+                            <div class="stat-content">
+                                <h3 id="totalRevenueDisplay">0</h3>
+                                <p>รายรับรวมทั้งหมด</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="advanced-filter-bar" style="margin-top: 14px;">
+                        <div class="filter-bar-row" style="align-items: flex-end; flex-wrap: wrap; gap: 12px;">
+                            <div class="filter-group">
+                                <label>จากวันที่:</label>
+                                <input type="date" id="financeExportStartDate" class="filter-date-input">
+                            </div>
+                            <div class="filter-group">
+                                <label>ถึงวันที่:</label>
+                                <input type="date" id="financeExportEndDate" class="filter-date-input">
+                            </div>
+                            <div class="filter-group">
+                                <label>วิธีชำระ:</label>
+                                <select id="financeExportPaymentMethod" class="filter-select">
+                                    <option value="all">ทั้งหมด</option>
+                                    <option value="เงินสด">เงินสด</option>
+                                    <option value="โอนเงิน">โอนเงิน</option>
+                                    <option value="เงินสด+โอนเงิน">เงินสด+โอนเงิน</option>
+                                </select>
+                            </div>
+                            <div class="filter-actions" style="margin-left: auto; display: flex; gap: 10px; align-items: center;">
+                                <label style="display: inline-flex; align-items: center; gap: 8px; font-size: 0.9rem; color: var(--text-muted);">
+                                    <input type="checkbox" id="financeExportIncludeSummary" checked>
+                                    รวม Summary
+                                </label>
+                                <button type="button" class="add-btn" id="financeExportExcelBtn" style="white-space: nowrap;">
+                                    Export Excel
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="filter-bar-row" style="margin-top: 10px;">
+                            <div style="display: flex; flex-wrap: wrap; gap: 12px;">
+                                <label style="display:inline-flex; gap:8px; align-items:center;">
+                                    <input type="checkbox" class="finance-export-field" value="transactionDate" checked>
+                                    วันที่
+                                </label>
+                                <label style="display:inline-flex; gap:8px; align-items:center;">
+                                    <input type="checkbox" class="finance-export-field" value="actionType" checked>
+                                    ประเภทรายการ
+                                </label>
+                                <label style="display:inline-flex; gap:8px; align-items:center;">
+                                    <input type="checkbox" class="finance-export-field" value="policyNumber" checked>
+                                    เลขที่สัญญา
+                                </label>
+                                <label style="display:inline-flex; gap:8px; align-items:center;">
+                                    <input type="checkbox" class="finance-export-field" value="customerName" checked>
+                                    ชื่อลูกค้า
+                                </label>
+                                <label style="display:inline-flex; gap:8px; align-items:center;">
+                                    <input type="checkbox" class="finance-export-field" value="paymentMethod" checked>
+                                    วิธีชำระ
+                                </label>
+                                <label style="display:inline-flex; gap:8px; align-items:center;">
+                                    <input type="checkbox" class="finance-export-field" value="cashReceived" checked>
+                                    รับเงินสด
+                                </label>
+                                <label style="display:inline-flex; gap:8px; align-items:center;">
+                                    <input type="checkbox" class="finance-export-field" value="transferAmount" checked>
+                                    เงินโอน
+                                </label>
+                                <label style="display:inline-flex; gap:8px; align-items:center;">
+                                    <input type="checkbox" class="finance-export-field" value="changeAmount" checked>
+                                    เงินทอน
+                                </label>
+                                <label style="display:inline-flex; gap:8px; align-items:center;">
+                                    <input type="checkbox" class="finance-export-field" value="netTotal" checked>
+                                    ยอดสุทธิ
+                                </label>
+                                <label style="display:inline-flex; gap:8px; align-items:center;">
+                                    <input type="checkbox" class="finance-export-field" value="evidenceUrl" checked>
+                                    หลักฐาน
+                                </label>
+                                <label style="display:inline-flex; gap:8px; align-items:center;">
+                                    <input type="checkbox" class="finance-export-field" value="recordedBy" checked>
+                                    ผู้ทำรายการ
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="table-container">
+                        <table id="financeTable">
+                            <thead>
+                                <tr>
+                                    <th>วันที่</th>
+                                    <th>ประเภทรายการ</th>
+                                    <th>เลขกรมธรรม์</th>
+                                    <th>ชื่อลูกค้า</th>
+                                    <th>วิธีชำระ</th>
+                                    <th>รับเงินสด</th>
+                                    <th>เงินโอน</th>
+                                    <th>เงินทอน</th>
+                                    <th>ยอดสุทธิ</th>
+                                    <th>หลักฐาน</th>
+                                    <th>ผู้ทำรายการ</th>
+                                </tr>
+                            </thead>
+                            <tbody id="financeBody"></tbody>
+                        </table>
+                        <div id="financeEmptyState" class="empty-state" style="display: none;">
+                            <p>ไม่พบรายการบัญชีรายรับในขณะนี้</p>
                         </div>
                     </div>
                 </main>
@@ -1625,6 +1814,8 @@
                         style="font-size: 1.2rem;">
                     <label style="margin-top: 10px;">เลขที่อ้างอิง / Slip ID (ถ้ามี)</label>
                     <input type="text" id="transferRefInput" placeholder="Ref ID..." class="full-width">
+                    <label style="margin-top: 10px;">แนบสลิปการโอนเงิน</label>
+                    <input type="file" id="transferEvidenceInput" accept="image/*,application/pdf" class="full-width">
                 </div>
 
                 <div id="splitInputGroup" class="payment-group" style="display: none;">
@@ -1637,6 +1828,10 @@
                             <label>ส่วนโอน (บาท)</label>
                             <input type="number" id="splitTransferInput" placeholder="0.00" class="full-width">
                         </div>
+                    </div>
+                    <div style="margin-top: 10px;">
+                        <label>แนบสลิปการโอนเงิน (ส่วนโอน)</label>
+                        <input type="file" id="splitEvidenceInput" accept="image/*,application/pdf" class="full-width">
                     </div>
                     <div class="payment-summary-box" style="margin-top: 1rem; padding: 1rem;">
                         <div class="summary-row">
@@ -1755,13 +1950,14 @@
                     <div class="form-group"><label>วันหมดอายุบัตร</label><input type="date" id="memberCardExpiry"
                             readonly class="readonly-field"></div>
                     <div class="form-group"><label>เบอร์โทรศัพท์</label><input type="text" id="memberPhone"
-                            placeholder="กรอกเบอร์โทรศัพท์ 10 หลัก" maxlength="10" inputmode="numeric" pattern="\d{10}"></div>
+                            placeholder="กรอกเบอร์โทรศัพท์ 10 หลัก" maxlength="10" inputmode="numeric" pattern="\d{10}">
+                    </div>
                     <div class="form-group"><label>รหัสไปรษณีย์</label><input type="text" id="memberPostalCode"
                             placeholder="เช่น 10110" maxlength="5"></div>
                     <div class="form-group"><label>ชื่อเฟส</label><input type="text" id="memberFacebook"
                             placeholder="เช่น Smile Care"></div>
                     <div class="form-group"><label>ลิ้งค์เฟส</label><input type="text" id="memberFacebookLink"
-                            placeholder="https://facebook.com/..." ></div>
+                            placeholder="https://facebook.com/..."></div>
                     <div class="form-group full-width"><label>ที่อยู่ตามบัตรประชาชน</label>
                         <textarea id="memberIdCardAddress" rows="3" readonly class="readonly-field"></textarea>
                     </div>
@@ -1885,14 +2081,17 @@
 
             <div id="claimCoverageSummary"
                 style="background: linear-gradient(135deg, #eef2ff, #f8fafc); border-radius: 12px; padding: 1.25rem; margin-bottom: 1.5rem; border: 1px solid #e2e8f0;">
-                <h3 style="margin-bottom: 0.75rem; font-size: 1rem; color: var(--text-main);">💰 สรุปวงเงินความคุ้มครอง</h3>
+                <h3 style="margin-bottom: 0.75rem; font-size: 1rem; color: var(--text-main);">💰 สรุปวงเงินความคุ้มครอง
+                </h3>
                 <div id="claimCoverageText" style="font-size: 0.9rem; color: #334155; line-height: 1.6;"></div>
                 <div style="margin-top: 0.75rem;">
-                    <div style="display: flex; justify-content: space-between; font-size: 0.8rem; color: #64748b; margin-bottom: 0.35rem;">
+                    <div
+                        style="display: flex; justify-content: space-between; font-size: 0.8rem; color: #64748b; margin-bottom: 0.35rem;">
                         <span>ใช้ไป</span>
                         <span id="claimCoverageUsedText">0</span>
                     </div>
-                    <div style="width: 100%; height: 10px; background: #e2e8f0; border-radius: 999px; overflow: hidden;">
+                    <div
+                        style="width: 100%; height: 10px; background: #e2e8f0; border-radius: 999px; overflow: hidden;">
                         <div id="claimCoverageProgress" style="height: 100%; width: 0%; background: #3b82f6;"></div>
                     </div>
                 </div>
