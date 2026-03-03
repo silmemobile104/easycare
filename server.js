@@ -343,30 +343,30 @@ const FinanceTransaction = mongoose.model('FinanceTransaction', FinanceTransacti
 // FILTER HELPER FUNCTIONS
 // ═══════════════════════════════════════════════════════════════════
 
- function buildExpenseFilterMatch(query) {
-     const match = {};
-     const { search, startDate, endDate } = query || {};
+function buildExpenseFilterMatch(query) {
+    const match = {};
+    const { search, startDate, endDate } = query || {};
 
-     if (search) {
-         const regex = { $regex: String(search), $options: 'i' };
-         match.$or = [
-             { claimId: regex },
-             { customerName: regex },
-             { customerPhone: regex },
-             { policyNumber: regex },
-             { deviceModel: regex }
-         ];
-     }
+    if (search) {
+        const regex = { $regex: String(search), $options: 'i' };
+        match.$or = [
+            { claimId: regex },
+            { customerName: regex },
+            { customerPhone: regex },
+            { policyNumber: regex },
+            { deviceModel: regex }
+        ];
+    }
 
-     if (startDate) {
-         match.__expenseDate = { ...(match.__expenseDate || {}), $gte: new Date(String(startDate)) };
-     }
-     if (endDate) {
-         match.__expenseDate = { ...(match.__expenseDate || {}), $lte: new Date(String(endDate) + 'T23:59:59.999Z') };
-     }
+    if (startDate) {
+        match.__expenseDate = { ...(match.__expenseDate || {}), $gte: new Date(String(startDate)) };
+    }
+    if (endDate) {
+        match.__expenseDate = { ...(match.__expenseDate || {}), $lte: new Date(String(endDate) + 'T23:59:59.999Z') };
+    }
 
-     return match;
- }
+    return match;
+}
 
 // Build dynamic $match for Warranty queries from query params
 function buildWarrantyFilterMatch(query, baseMatch = {}) {
@@ -453,158 +453,134 @@ app.post('/api/public/customer/portal', async (req, res) => {
     }
 });
 
- app.get('/api/finance/expenses', async (req, res) => {
-     try {
-         const baseMatch = buildExpenseFilterMatch(req.query);
+app.get('/api/finance/expenses', async (req, res) => {
+    try {
+        const baseMatch = buildExpenseFilterMatch(req.query);
 
-         const pipeline = [
-             {
-                 $project: {
-                     claimId: 1,
-                     policyNumber: 1,
-                     customerName: 1,
-                     customerPhone: 1,
-                     deviceModel: 1,
-                     claimShopName: 1,
-                     claimDate: 1,
-                     totalCost: 1,
-                     updates: 1
-                 }
-             },
-             {
-                 $facet: {
-                     updateExpenses: [
-                         { $unwind: { path: '$updates', preserveNullAndEmptyArrays: false } },
-                         {
-                             $addFields: {
-                                 __expenseDate: '$updates.date',
-                                 __expenseAmount: { $ifNull: ['$updates.cost', 0] }
-                             }
-                         },
-                         { $match: { __expenseAmount: { $gt: 0 } } },
-                         ...(Object.keys(baseMatch).length > 0 ? [{ $match: baseMatch }] : []),
-                         {
-                             $project: {
-                                 _id: 0,
-                                 expenseDate: '$__expenseDate',
-                                 claimId: 1,
-                                 policyNumber: 1,
-                                 customerName: 1,
-                                 deviceModel: 1,
-                                 claimShopName: 1,
-                                 expenseTitle: { $ifNull: ['$updates.title', 'ค่าใช้จ่าย'] },
-                                 amount: '$__expenseAmount',
-                                 centerName: { $ifNull: ['$updates.centerName', ''] }
-                             }
-                         }
-                     ],
-                     totalCostExpenses: [
-                         {
-                             $addFields: {
-                                 __expenseDate: '$claimDate',
-                                 __expenseAmount: { $ifNull: ['$totalCost', 0] }
-                             }
-                         },
-                         { $match: { __expenseAmount: { $gt: 0 } } },
-                         ...(Object.keys(baseMatch).length > 0 ? [{ $match: baseMatch }] : []),
-                         {
-                             $project: {
-                                 _id: 0,
-                                 expenseDate: '$__expenseDate',
-                                 claimId: 1,
-                                 policyNumber: 1,
-                                 customerName: 1,
-                                 deviceModel: 1,
-                                 claimShopName: 1,
-                                 expenseTitle: { $literal: 'ค่าใช้จ่ายรวม (จากเคลม)' },
-                                 amount: '$__expenseAmount',
-                                 centerName: { $literal: '' }
-                             }
-                         }
-                     ]
-                 }
-             },
-             {
-                 $project: {
-                     expenses: { $concatArrays: ['$updateExpenses', '$totalCostExpenses'] }
-                 }
-             },
-             { $unwind: { path: '$expenses', preserveNullAndEmptyArrays: true } },
-             { $replaceRoot: { newRoot: '$expenses' } },
-             { $sort: { expenseDate: -1 } }
-         ];
+        const pipeline = [
+            {
+                $project: {
+                    claimId: 1,
+                    policyNumber: 1,
+                    customerName: 1,
+                    customerPhone: 1,
+                    deviceModel: 1,
+                    claimShopName: 1,
+                    claimDate: 1,
+                    totalCost: 1,
+                    updates: 1
+                }
+            },
+            {
+                $facet: {
+                    updateExpenses: [
+                        { $unwind: { path: '$updates', preserveNullAndEmptyArrays: false } },
+                        {
+                            $addFields: {
+                                __expenseDate: '$updates.date',
+                                __expenseAmount: { $ifNull: ['$updates.cost', 0] }
+                            }
+                        },
+                        { $match: { __expenseAmount: { $gt: 0 } } },
+                        ...(Object.keys(baseMatch).length > 0 ? [{ $match: baseMatch }] : []),
+                        {
+                            $project: {
+                                _id: 0,
+                                expenseDate: '$__expenseDate',
+                                claimId: 1,
+                                policyNumber: 1,
+                                customerName: 1,
+                                deviceModel: 1,
+                                claimShopName: 1,
+                                expenseTitle: { $ifNull: ['$updates.title', 'ค่าใช้จ่าย'] },
+                                amount: '$__expenseAmount',
+                                centerName: { $ifNull: ['$updates.centerName', ''] }
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                $project: {
+                    expenses: { $concatArrays: ['$updateExpenses'] }
+                }
+            },
+            { $unwind: { path: '$expenses', preserveNullAndEmptyArrays: true } },
+            { $replaceRoot: { newRoot: '$expenses' } },
+            { $sort: { expenseDate: -1 } }
+        ];
 
-         const rows = await Claim.aggregate(pipeline);
-         res.json(Array.isArray(rows) ? rows : []);
-     } catch (err) {
-         res.status(500).json({ message: err.message });
-     }
- });
+        const rows = await Claim.aggregate(pipeline);
+        res.json(Array.isArray(rows) ? rows : []);
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
 
- app.get('/api/finance/expenses/summary', async (req, res) => {
-     try {
-         const baseMatch = buildExpenseFilterMatch(req.query);
+app.get('/api/finance/expenses/summary', async (req, res) => {
+    try {
+        const baseMatch = buildExpenseFilterMatch(req.query);
 
-         const pipeline = [
-             {
-                 $project: {
-                     claimId: 1,
-                     policyNumber: 1,
-                     customerName: 1,
-                     customerPhone: 1,
-                     deviceModel: 1,
-                     claimShopName: 1,
-                     claimDate: 1,
-                     totalCost: 1,
-                     updates: 1
-                 }
-             },
-             {
-                 $facet: {
-                     updateAgg: [
-                         { $unwind: { path: '$updates', preserveNullAndEmptyArrays: false } },
-                         {
-                             $addFields: {
-                                 __expenseDate: '$updates.date',
-                                 __expenseAmount: { $ifNull: ['$updates.cost', 0] }
-                             }
-                         },
-                         { $match: { __expenseAmount: { $gt: 0 } } },
-                         ...(Object.keys(baseMatch).length > 0 ? [{ $match: baseMatch }] : []),
-                         { $group: { _id: null, totalExpense: { $sum: '$__expenseAmount' } } }
-                     ],
-                     totalCostAgg: [
-                         {
-                             $addFields: {
-                                 __expenseDate: '$claimDate',
-                                 __expenseAmount: { $ifNull: ['$totalCost', 0] }
-                             }
-                         },
-                         { $match: { __expenseAmount: { $gt: 0 } } },
-                         ...(Object.keys(baseMatch).length > 0 ? [{ $match: baseMatch }] : []),
-                         { $group: { _id: null, totalExpense: { $sum: '$__expenseAmount' } } }
-                     ]
-                 }
-             },
-             {
-                 $project: {
-                     totalExpense: {
-                         $add: [
-                             { $ifNull: [{ $arrayElemAt: ['$updateAgg.totalExpense', 0] }, 0] },
-                             { $ifNull: [{ $arrayElemAt: ['$totalCostAgg.totalExpense', 0] }, 0] }
-                         ]
-                     }
-                 }
-             }
-         ];
+        const pipeline = [
+            {
+                $project: {
+                    claimId: 1,
+                    policyNumber: 1,
+                    customerName: 1,
+                    customerPhone: 1,
+                    deviceModel: 1,
+                    claimShopName: 1,
+                    claimDate: 1,
+                    totalCost: 1,
+                    updates: 1
+                }
+            },
+            {
+                $facet: {
+                    updateAgg: [
+                        { $unwind: { path: '$updates', preserveNullAndEmptyArrays: false } },
+                        {
+                            $addFields: {
+                                __expenseDate: '$updates.date',
+                                __expenseAmount: { $ifNull: ['$updates.cost', 0] }
+                            }
+                        },
+                        { $match: { __expenseAmount: { $gt: 0 } } },
+                        ...(Object.keys(baseMatch).length > 0 ? [{ $match: baseMatch }] : []),
+                        { $group: { _id: null, totalExpense: { $sum: '$__expenseAmount' } } }
+                    ],
+                    totalCostAgg: [
+                        {
+                            $addFields: {
+                                __expenseDate: '$claimDate',
+                                __expenseAmount: { $ifNull: ['$totalCost', 0] }
+                            }
+                        },
+                        { $match: { __expenseAmount: { $gt: 0 } } },
+                        ...(Object.keys(baseMatch).length > 0 ? [{ $match: baseMatch }] : []),
+                        { $group: { _id: null, totalExpense: { $sum: '$__expenseAmount' } } }
+                    ]
+                }
+            },
+            {
+                $project: {
+                    totalExpense: {
+                        $add: [
+                            { $ifNull: [{ $arrayElemAt: ['$updateAgg.totalExpense', 0] }, 0] },
+                            { $ifNull: [{ $arrayElemAt: ['$totalCostAgg.totalExpense', 0] }, 0] }
+                        ]
+                    }
+                }
+            }
+        ];
 
-         const rows = await Claim.aggregate(pipeline);
-         const totalExpense = rows && rows[0] ? Number(rows[0].totalExpense || 0) : 0;
-         res.json({ totalExpense });
-     } catch (err) {
-         res.status(500).json({ message: err.message });
-     }
- });
+        const rows = await Claim.aggregate(pipeline);
+        const totalExpense = rows && rows[0] ? Number(rows[0].totalExpense || 0) : 0;
+        res.json({ totalExpense });
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
 
 app.get('/api/dashboard/sales/overdue-claims', async (req, res) => {
     try {
@@ -1322,6 +1298,111 @@ app.get('/api/warranties/pending-count', async (req, res) => {
     }
 });
 
+// ═══════════════════════════════════════════════════════════════════
+// SALES DASHBOARD SUMMARY API
+// ═══════════════════════════════════════════════════════════════════
+app.get('/api/dashboard/sales/summary', async (req, res) => {
+    try {
+        const now = new Date();
+        const fiveDaysAgo = new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000);
+
+        // 1. Overdue Claims (not เสร็จสิ้น and updatedAt > 5 days ago)
+        const overdueClaims = await Claim.countDocuments({
+            status: { $ne: 'เสร็จสิ้น' },
+            updatedAt: { $lt: fiveDaysAgo }
+        });
+
+        // 2. Pending Approvals
+        const pendingApprovals = await Warranty.countDocuments({ approvalStatus: 'pending' });
+
+        // 3. Unpaid Packages (payment status not Paid, or no payment recorded)
+        const unpaidPackages = await Warranty.countDocuments({
+            approvalStatus: { $ne: 'rejected' },
+            $or: [
+                { 'payment.status': 'Pending' },
+                { 'payment.status': { $exists: false } },
+                { 'payment.paidCash': { $in: [0, null] }, 'payment.paidTransfer': { $in: [0, null] }, 'payment.method': { $ne: 'Installment' } }
+            ]
+        });
+
+        // 4. Due Installments (installments with status Pending and dueDate <= today)
+        const dueInstallmentsResult = await Warranty.aggregate([
+            { $match: { 'payment.method': 'Installment' } },
+            { $unwind: '$payment.schedule' },
+            {
+                $match: {
+                    'payment.schedule.status': 'Pending',
+                    'payment.schedule.dueDate': { $lte: now }
+                }
+            },
+            { $count: 'total' }
+        ]);
+        const installmentOverdue = (dueInstallmentsResult.length > 0) ? dueInstallmentsResult[0].total : 0;
+
+        res.json({
+            overdueClaims,
+            pendingApprovals,
+            unpaidPackages,
+            installmentOverdue
+        });
+    } catch (err) {
+        console.error('Sales summary error:', err);
+        res.status(500).json({ message: err.message });
+    }
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// APPROVER DASHBOARD SUMMARY API
+// ═══════════════════════════════════════════════════════════════════
+app.get('/api/dashboard/approver/summary', async (req, res) => {
+    try {
+        const now = new Date();
+        const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
+
+        // Start of today (Thai time context usually, but local DB time for simplicity)
+        const startOfToday = new Date();
+        startOfToday.setHours(0, 0, 0, 0);
+
+        // 1. All Pending
+        const pendingApprovals = await Warranty.countDocuments({ approvalStatus: 'pending' });
+
+        // 2. Urgent Pending (> 3 days)
+        const urgentPending = await Warranty.countDocuments({
+            approvalStatus: 'pending',
+            createdAt: { $lt: threeDaysAgo }
+        });
+
+        // 3. Approved Today
+        const approvedToday = await Warranty.countDocuments({
+            approvalStatus: 'approved',
+            updatedAt: { $gte: startOfToday }
+        });
+
+        // 4. Rejected Today
+        const rejectedToday = await Warranty.countDocuments({
+            approvalStatus: 'rejected',
+            updatedAt: { $gte: startOfToday }
+        });
+
+        // 5. Recent Pending (Top 5 Oldest)
+        const recentPending = await Warranty.find({ approvalStatus: 'pending' })
+            .sort({ createdAt: 1 })
+            .limit(5)
+            .select('policyNumber customer staffName createdAt');
+
+        res.json({
+            pendingApprovals,
+            urgentPending,
+            approvedToday,
+            rejectedToday,
+            recentPending
+        });
+    } catch (err) {
+        console.error('Approver summary error:', err);
+        res.status(500).json({ message: err.message });
+    }
+});
+
 // Approve a warranty
 app.put('/api/warranties/:id/approve', async (req, res) => {
     try {
@@ -1760,6 +1841,79 @@ app.post('/api/upload', genericUpload.single('file'), (req, res) => {
         res.json({ url: req.file.path });
     } catch (e) {
         res.status(500).json({ message: e.message });
+    }
+});
+
+
+// ═══════════════════════════════════════════════════════════════════
+// FINANCE EXPENSE API (Detailed Claim Expenses)
+// ═══════════════════════════════════════════════════════════════════
+
+app.get('/api/finance/expenses', async (req, res) => {
+    try {
+        const matchQuery = buildExpenseFilterMatch(req.query);
+
+        // Convert __expenseDate to updates.date for matching
+        if (matchQuery.__expenseDate) {
+            matchQuery['updates.date'] = matchQuery.__expenseDate;
+            delete matchQuery.__expenseDate;
+        }
+
+        const expenses = await Claim.aggregate([
+            { $unwind: '$updates' },
+            { $match: { 'updates.cost': { $gt: 0 } } },
+            { $match: matchQuery },
+            { $sort: { 'updates.date': -1 } },
+            {
+                $project: {
+                    _id: 0,
+                    claimId: 1,
+                    policyNumber: 1,
+                    customerName: 1,
+                    deviceModel: 1,
+                    claimShopName: 1,
+                    expenseDate: '$updates.date',
+                    expenseTitle: '$updates.title',
+                    centerName: '$updates.centerName',
+                    amount: '$updates.cost'
+                }
+            }
+        ]);
+        res.json(expenses);
+    } catch (err) {
+        console.error('Fetch finance expenses error:', err);
+        res.status(500).json({ message: err.message });
+    }
+});
+
+app.get('/api/finance/expenses/summary', async (req, res) => {
+    try {
+        const matchQuery = buildExpenseFilterMatch(req.query);
+
+        // Convert __expenseDate to updates.date for matching
+        if (matchQuery.__expenseDate) {
+            matchQuery['updates.date'] = matchQuery.__expenseDate;
+            delete matchQuery.__expenseDate;
+        }
+
+        const summary = await Claim.aggregate([
+            { $unwind: '$updates' },
+            { $match: { 'updates.cost': { $gt: 0 } } },
+            { $match: matchQuery },
+            {
+                $group: {
+                    _id: null,
+                    totalExpense: { $sum: '$updates.cost' }
+                }
+            }
+        ]);
+
+        res.json({
+            totalExpense: (summary && summary.length > 0) ? summary[0].totalExpense : 0
+        });
+    } catch (err) {
+        console.error('Fetch finance expenses summary error:', err);
+        res.status(500).json({ message: err.message });
     }
 });
 

@@ -657,34 +657,62 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function fetchSalesDashboard() {
-        const overdueEl = document.getElementById('salesOverdueCount');
-        const pendingApprovalEl = document.getElementById('salesPendingApprovalCount');
-        const unpaidEl = document.getElementById('salesUnpaidPackageCount');
-        const installmentOverdueEl = document.getElementById('salesInstallmentOverdueCount');
-        const lastUpdatedEl = document.getElementById('salesDashboardLastUpdated');
-        if (!overdueEl && !pendingApprovalEl && !unpaidEl && !installmentOverdueEl) return;
-
         showLoader('กำลังโหลดข้อมูล...');
         try {
             const res = await fetch('/api/dashboard/sales/summary');
             const data = await res.json();
 
-            const overdueClaims = (data && typeof data.overdueClaims === 'number') ? data.overdueClaims : 0;
-            const pendingApprovals = (data && typeof data.pendingApprovals === 'number') ? data.pendingApprovals : 0;
-            const unpaidPackages = (data && typeof data.unpaidPackages === 'number') ? data.unpaidPackages : 0;
-            const installmentOverdue = (data && typeof data.installmentOverdue === 'number') ? data.installmentOverdue : 0;
+            const mappings = [
+                { id: 'countSalesOverdueClaims', key: 'overdueClaims' },
+                { id: 'countSalesPendingApproval', key: 'pendingApprovals' },
+                { id: 'countSalesUnpaid', key: 'unpaidPackages' },
+                { id: 'countSalesDueInstallments', key: 'installmentOverdue' }
+            ];
 
-            if (overdueEl) overdueEl.textContent = String(overdueClaims);
-            if (pendingApprovalEl) pendingApprovalEl.textContent = String(pendingApprovals);
-            if (unpaidEl) unpaidEl.textContent = String(unpaidPackages);
-            if (installmentOverdueEl) installmentOverdueEl.textContent = String(installmentOverdue);
-            if (lastUpdatedEl) lastUpdatedEl.textContent = new Date().toLocaleString('th-TH');
+            mappings.forEach(m => {
+                const el = document.getElementById(m.id);
+                const val = (data && typeof data[m.key] === 'number') ? data[m.key] : 0;
+                if (el) animateCountUp(el, val);
+            });
+
+            const lastUpdatedEl = document.getElementById('salesDashboardLastUpdated');
+            if (lastUpdatedEl) lastUpdatedEl.textContent = 'อัปเดตล่าสุด: ' + new Date().toLocaleString('th-TH');
         } catch (err) {
             console.error('Fetch sales dashboard error:', err);
             showAlert('error', 'ไม่สามารถโหลดข้อมูลแดชบอร์ดฝ่ายขายได้');
         } finally {
             hideLoader();
         }
+    }
+
+    /**
+     * Count-up animation from 0 to targetValue
+     * @param {HTMLElement} element - The DOM element to animate
+     * @param {number} targetValue - The final number
+     * @param {number} [duration=800] - Animation duration in ms
+     */
+    function animateCountUp(element, targetValue, duration = 800) {
+        if (!element) return;
+        if (targetValue === 0) { element.textContent = '0'; return; }
+
+        const startTime = performance.now();
+        const startValue = 0;
+
+        function easeOutQuart(t) { return 1 - Math.pow(1 - t, 4); }
+
+        function update(currentTime) {
+            const elapsed = currentTime - startTime;
+            const progress = Math.min(elapsed / duration, 1);
+            const easedProgress = easeOutQuart(progress);
+            const currentValue = Math.round(startValue + (targetValue - startValue) * easedProgress);
+            element.textContent = currentValue.toLocaleString();
+
+            if (progress < 1) {
+                requestAnimationFrame(update);
+            }
+        }
+
+        requestAnimationFrame(update);
     }
 
     function setFinanceTab(tabName) {
@@ -782,44 +810,53 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function fetchApproverDashboard() {
-        const countEl = document.getElementById('approverPendingCount');
-        const body = document.getElementById('approverPendingWarrantiesBody');
-        const empty = document.getElementById('approverPendingWarrantiesEmpty');
-        const lastUpdatedEl = document.getElementById('approverDashboardLastUpdated');
-        if (!body) return;
-
         showLoader('กำลังโหลดข้อมูล...');
         try {
-            const res = await fetch('/api/dashboard/approver/pending-warranties');
+            const res = await fetch('/api/dashboard/approver/summary');
             const data = await res.json();
-            const items = (data && Array.isArray(data.items)) ? data.items : [];
-            const count = (data && typeof data.count === 'number') ? data.count : items.length;
 
-            if (countEl) countEl.textContent = String(count);
-            if (lastUpdatedEl) lastUpdatedEl.textContent = new Date().toLocaleString('th-TH');
+            // 1. Update Counts
+            const mappings = [
+                { id: 'countApproverPending', key: 'pendingApprovals' },
+                { id: 'countApproverUrgent', key: 'urgentPending' },
+                { id: 'countApproverApprovedToday', key: 'approvedToday' },
+                { id: 'countApproverRejectedToday', key: 'rejectedToday' }
+            ];
 
-            if (!items || items.length === 0) {
-                body.innerHTML = '';
-                if (empty) empty.style.display = 'block';
-                return;
+            mappings.forEach(m => {
+                const el = document.getElementById(m.id);
+                const val = (data && typeof data[m.key] === 'number') ? data[m.key] : 0;
+                if (el) animateCountUp(el, val, 1000);
+            });
+
+            // 2. Update Queue List
+            const body = document.getElementById('approverDashboardQueueBody');
+            const empty = document.getElementById('approverDashboardQueueEmpty');
+            const items = (data && Array.isArray(data.recentPending)) ? data.recentPending : [];
+
+            if (body) {
+                if (items.length === 0) {
+                    body.innerHTML = '';
+                    if (empty) empty.style.display = 'block';
+                } else {
+                    if (empty) empty.style.display = 'none';
+                    body.innerHTML = items.map(w => {
+                        const date = w.createdAt ? new Date(w.createdAt).toLocaleDateString('th-TH') : '-';
+                        const customer = w.customer ? `${w.customer.firstName || ''} ${w.customer.lastName || ''}`.trim() : '-';
+                        return `
+                            <tr>
+                                <td><span class="text-muted"><i class="far fa-clock mr-1"></i> ${date}</span></td>
+                                <td class="font-weight-medium">${w.policyNumber || '-'}</td>
+                                <td>${customer}</td>
+                                <td><span class="badge badge-light-primary">${w.staffName || '-'}</span></td>
+                            </tr>
+                        `;
+                    }).join('');
+                }
             }
 
-            if (empty) empty.style.display = 'none';
-
-            body.innerHTML = items.map(w => {
-                const createdAt = w.createdAt ? new Date(w.createdAt) : null;
-                const policyNumber = w.policyNumber || '-';
-                const customerName = `${(w.customer && w.customer.firstName) ? w.customer.firstName : ''} ${(w.customer && w.customer.lastName) ? w.customer.lastName : ''}`.trim() || '-';
-                const staffName = w.staffName || '-';
-                return `
-                    <tr>
-                        <td>${createdAt ? createdAt.toLocaleString('th-TH') : '-'}</td>
-                        <td>${policyNumber}</td>
-                        <td>${customerName}</td>
-                        <td>${staffName}</td>
-                    </tr>
-                `;
-            }).join('');
+            const lastUpdatedEl = document.getElementById('approverDashboardLastUpdated');
+            if (lastUpdatedEl) lastUpdatedEl.textContent = 'อัปเดตล่าสุด: ' + new Date().toLocaleString('th-TH');
         } catch (err) {
             console.error('Fetch approver dashboard error:', err);
             showAlert('error', 'ไม่สามารถโหลดข้อมูลแดชบอร์ดฝ่ายอนุมัติได้');
