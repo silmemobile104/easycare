@@ -582,6 +582,114 @@ app.get('/api/finance/expenses/summary', async (req, res) => {
     }
 });
 
+app.get('/api/finance/expenses/export/excel', async (req, res) => {
+    try {
+        const { startDate, endDate } = req.query || {};
+        const baseMatch = buildExpenseFilterMatch(req.query);
+
+        const pipeline = [
+            {
+                $project: {
+                    claimId: 1,
+                    policyNumber: 1,
+                    customerName: 1,
+                    customerPhone: 1,
+                    deviceModel: 1,
+                    claimShopName: 1,
+                    claimDate: 1,
+                    totalCost: 1,
+                    updates: 1
+                }
+            },
+            {
+                $facet: {
+                    updateExpenses: [
+                        { $unwind: { path: '$updates', preserveNullAndEmptyArrays: false } },
+                        {
+                            $addFields: {
+                                __expenseDate: '$updates.date',
+                                __expenseAmount: { $ifNull: ['$updates.cost', 0] }
+                            }
+                        },
+                        { $match: { __expenseAmount: { $gt: 0 } } },
+                        ...(Object.keys(baseMatch).length > 0 ? [{ $match: baseMatch }] : []),
+                        {
+                            $project: {
+                                _id: 0,
+                                expenseDate: '$__expenseDate',
+                                claimId: 1,
+                                policyNumber: 1,
+                                customerName: 1,
+                                deviceModel: 1,
+                                claimShopName: 1,
+                                expenseTitle: { $ifNull: ['$updates.title', 'ค่าใช้จ่าย'] },
+                                amount: '$__expenseAmount',
+                                centerName: { $ifNull: ['$updates.centerName', ''] }
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                $project: {
+                    expenses: { $concatArrays: ['$updateExpenses'] }
+                }
+            },
+            { $unwind: { path: '$expenses', preserveNullAndEmptyArrays: true } },
+            { $replaceRoot: { newRoot: '$expenses' } },
+            { $sort: { expenseDate: -1 } }
+        ];
+
+        const rows = await Claim.aggregate(pipeline);
+
+        const workbook = new ExcelJS.Workbook();
+        workbook.creator = 'EasyCare';
+        workbook.created = new Date();
+
+        const ws = workbook.addWorksheet('Claim Expenses');
+        ws.columns = [
+            { header: 'วันที่ทำรายการ', key: 'expenseDate', width: 22 },
+            { header: 'เลขที่เคลม', key: 'claimId', width: 14 },
+            { header: 'เลขกรมธรรม์', key: 'policyNumber', width: 16 },
+            { header: 'ลูกค้า', key: 'customerName', width: 22 },
+            { header: 'สินค้า', key: 'deviceModel', width: 18 },
+            { header: 'ร้านค้า', key: 'claimShopName', width: 18 },
+            { header: 'รายการ', key: 'expenseTitle', width: 20 },
+            { header: 'สถานที่', key: 'centerName', width: 18 },
+            { header: 'จำนวนเงิน', key: 'amount', width: 14 }
+        ];
+        ws.getRow(1).font = { bold: true };
+
+        for (const r of (Array.isArray(rows) ? rows : [])) {
+            ws.addRow({
+                expenseDate: r && r.expenseDate ? new Date(r.expenseDate) : null,
+                claimId: (r && r.claimId) || '',
+                policyNumber: (r && r.policyNumber) || '',
+                customerName: (r && r.customerName) || '',
+                deviceModel: (r && r.deviceModel) || '',
+                claimShopName: (r && r.claimShopName) || '',
+                expenseTitle: (r && r.expenseTitle) || '',
+                centerName: (r && r.centerName) || '',
+                amount: Number((r && r.amount) || 0)
+            });
+        }
+
+        ws.getColumn('expenseDate').numFmt = 'dd/mm/yyyy hh:mm';
+        ws.getColumn('amount').numFmt = '#,##0.00';
+
+        const safeStart = startDate ? String(startDate) : '';
+        const safeEnd = endDate ? String(endDate) : '';
+        const fileName = `claim_expenses_${safeStart || 'all'}_${safeEnd || 'all'}.xlsx`;
+
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+        await workbook.xlsx.write(res);
+        res.end();
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
+
 app.get('/api/dashboard/sales/overdue-claims', async (req, res) => {
     try {
         const cutoff = new Date(Date.now() - (5 * 24 * 60 * 60 * 1000));
@@ -1715,7 +1823,7 @@ app.patch('/api/warranties/:id/payment', async (req, res) => {
             else if (cash > 0) pMethod = 'เงินสด';
             else if (transfer > 0) pMethod = 'โอนเงิน';
 
-            let actType = 'ชำระค่างวด';
+            let actType = 'ชำระเต็มจำนวน';
             if (payAllRemaining) actType = 'ชำระปิดยอด/จ่ายเต็ม';
             else if (installmentNo) actType = `ชำระค่างวดที่ ${installmentNo}`;
 

@@ -642,6 +642,14 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    const financeExpenseExportExcelBtn = document.getElementById('financeExpenseExportExcelBtn');
+    if (financeExpenseExportExcelBtn) {
+        financeExpenseExportExcelBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            exportFinanceExpenseExcel();
+        });
+    }
+
     const financeExpenseResetBtn = document.getElementById('financeExpenseResetBtn');
     if (financeExpenseResetBtn) {
         financeExpenseResetBtn.addEventListener('click', (e) => {
@@ -747,6 +755,45 @@ document.addEventListener('DOMContentLoaded', () => {
         if (endDate) params.set('endDate', endDate);
         const qs = params.toString();
         return qs ? `?${qs}` : '';
+    }
+
+    async function exportFinanceExpenseExcel() {
+        try {
+            const qs = buildFinanceExpenseQueryString();
+            const startDate = (document.getElementById('financeExpenseStartDate') || {}).value || '';
+            const endDate = (document.getElementById('financeExpenseEndDate') || {}).value || '';
+
+            showLoader('กำลังสร้างไฟล์ Excel...');
+
+            const res = await fetch(`/api/finance/expenses/export/excel${qs}`);
+            if (!res.ok) {
+                let msg = 'Export ไม่สำเร็จ';
+                try {
+                    const errData = await res.json();
+                    if (errData && errData.message) msg = errData.message;
+                } catch (e) {
+                    // ignore
+                }
+                throw new Error(msg);
+            }
+
+            const blob = await res.blob();
+            const url = window.URL.createObjectURL(blob);
+
+            const a = document.createElement('a');
+            a.href = url;
+            const fileName = `claim_expenses_${startDate || 'all'}_${endDate || 'all'}.xlsx`;
+            a.download = fileName;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            window.URL.revokeObjectURL(url);
+        } catch (err) {
+            console.error('Export finance expense excel error:', err);
+            showAlert('error', err.message || 'ไม่สามารถ Export Excel ได้');
+        } finally {
+            hideLoader();
+        }
     }
 
     async function fetchFinanceExpenseData() {
