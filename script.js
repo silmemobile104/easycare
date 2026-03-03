@@ -3031,21 +3031,42 @@ document.addEventListener('DOMContentLoaded', () => {
     const sidebarOverlay = document.getElementById('sidebarOverlay');
 
     if (menuToggle && sidebar && sidebarOverlay) {
+        const openMenu = () => {
+            sidebar.classList.add('sidebar-active');
+            sidebarOverlay.classList.add('active');
+            document.body.classList.add('sidebar-open');
+        };
+
+        const closeMenu = () => {
+            sidebar.classList.remove('sidebar-active');
+            sidebarOverlay.classList.remove('active');
+            document.body.classList.remove('sidebar-open');
+        };
+
         const toggleMenu = () => {
-            sidebar.classList.toggle('active');
-            sidebarOverlay.classList.toggle('active');
+            if (sidebar.classList.contains('sidebar-active')) {
+                closeMenu();
+            } else {
+                openMenu();
+            }
         };
 
         menuToggle.addEventListener('click', toggleMenu);
-        sidebarOverlay.addEventListener('click', toggleMenu);
+        sidebarOverlay.addEventListener('click', closeMenu);
 
         // Close menu when navigation links are clicked (on mobile)
         sidebar.querySelectorAll('nav a').forEach(link => {
             link.addEventListener('click', () => {
                 if (window.innerWidth <= 1024) {
-                    toggleMenu();
+                    closeMenu();
                 }
             });
+        });
+
+        window.addEventListener('resize', () => {
+            if (window.innerWidth > 1024) {
+                closeMenu();
+            }
         });
     }
 

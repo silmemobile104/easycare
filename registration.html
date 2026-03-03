@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Easy | Warranty Registration</title>
     <link rel="stylesheet" href="style.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -159,19 +159,21 @@
                 <!-- NEW: Installment Table Preview -->
                 <div id="installmentContainer" class="installment-preview" style="display: none;">
                     <h3>Installment Schedule Preview</h3>
-                    <table class="preview-table">
-                        <thead>
-                            <tr>
-                                <th>No.</th>
-                                <th>Amount (THB)</th>
-                                <th>Due Date</th>
-                                <th>Grace Period Ends</th>
-                            </tr>
-                        </thead>
-                        <tbody id="installmentBody">
-                            <!-- Injected via JS -->
-                        </tbody>
-                    </table>
+                    <div class="table-responsive">
+                        <table class="preview-table">
+                            <thead>
+                                <tr>
+                                    <th>No.</th>
+                                    <th>Amount (THB)</th>
+                                    <th>Due Date</th>
+                                    <th>Grace Period Ends</th>
+                                </tr>
+                            </thead>
+                            <tbody id="installmentBody">
+                                <!-- Injected via JS -->
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </section>
 

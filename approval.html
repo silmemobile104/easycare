@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Easy.Care | อนุมัติสัญญา</title>
     <link rel="icon" type="image/png" href="logo_easycare.png">
     <link rel="stylesheet" href="style.css">
@@ -451,21 +451,23 @@
                 </button>
             </div>
             <div class="table-container">
-                <table id="approvalTable">
-                    <thead>
-                        <tr>
-                            <th>เลขกรมธรรม์</th>
-                            <th>ชื่อลูกค้า</th>
-                            <th>รุ่นอุปกรณ์</th>
-                            <th>แพ็กเกจ</th>
-                            <th>ร้านค้า</th>
-                            <th>สถานะ</th>
-                            <th>ดำเนินการ</th>
-                        </tr>
-                    </thead>
-                    <tbody id="approvalBody">
-                    </tbody>
-                </table>
+                <div class="table-responsive">
+                    <table id="approvalTable">
+                        <thead>
+                            <tr>
+                                <th>เลขกรมธรรม์</th>
+                                <th>ชื่อลูกค้า</th>
+                                <th>รุ่นอุปกรณ์</th>
+                                <th>แพ็กเกจ</th>
+                                <th>ร้านค้า</th>
+                                <th>สถานะ</th>
+                                <th>ดำเนินการ</th>
+                            </tr>
+                        </thead>
+                        <tbody id="approvalBody">
+                        </tbody>
+                    </table>
+                </div>
                 <div id="approvalEmptyState" class="empty-state" style="display: none;">
                     <p>ไม่พบรายการสัญญาในหมวดนี้</p>
                 </div>
@@ -512,14 +514,39 @@
             const sidebar = document.getElementById('sidebar');
             const overlay = document.getElementById('sidebarOverlay');
             const mobileMenuBtn = document.getElementById('mobileMenuBtn');
-            if (mobileMenuBtn) {
-                mobileMenuBtn.addEventListener('click', () => {
-                    sidebar.classList.toggle('open');
-                    overlay.classList.toggle('active');
-                });
-                overlay.addEventListener('click', () => {
-                    sidebar.classList.remove('open');
+
+            if (mobileMenuBtn && sidebar && overlay) {
+                const openMenu = () => {
+                    sidebar.classList.add('sidebar-active');
+                    overlay.classList.add('active');
+                    document.body.classList.add('sidebar-open');
+                };
+
+                const closeMenu = () => {
+                    sidebar.classList.remove('sidebar-active');
                     overlay.classList.remove('active');
+                    document.body.classList.remove('sidebar-open');
+                };
+
+                const toggleMenu = () => {
+                    if (sidebar.classList.contains('sidebar-active')) {
+                        closeMenu();
+                    } else {
+                        openMenu();
+                    }
+                };
+
+                mobileMenuBtn.addEventListener('click', toggleMenu);
+                overlay.addEventListener('click', closeMenu);
+
+                sidebar.querySelectorAll('nav a').forEach(link => {
+                    link.addEventListener('click', () => {
+                        if (window.innerWidth <= 1024) closeMenu();
+                    });
+                });
+
+                window.addEventListener('resize', () => {
+                    if (window.innerWidth > 1024) closeMenu();
                 });
             }
 

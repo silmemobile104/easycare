@@ -2149,6 +2149,20 @@ section:hover {
     color: white;
 }
 
+body.sidebar-open {
+    overflow: hidden;
+}
+
+.table-responsive {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.table-responsive > table {
+    width: 100%;
+}
+
 /* ═══════════════════════════════════════════════════════════════════
    RESPONSIVE - TABLET (1024px)
 ═══════════════════════════════════════════════════════════════════ */
@@ -2158,17 +2172,23 @@ section:hover {
         grid-template-columns: 1fr;
     }
 
+    .mobile-header {
+        display: flex;
+    }
+
     .sidebar {
         position: fixed;
-        left: -220px;
-        width: 200px;
+        left: 0;
+        width: min(80vw, 280px);
         z-index: 1000;
         transition: var(--transition-slow);
         box-shadow: 10px 0 40px rgba(0, 0, 0, 0.15);
+        transform: translateX(-100%);
+        will-change: transform;
     }
 
-    .sidebar.active {
-        left: 0;
+    .sidebar.sidebar-active {
+        transform: translateX(0);
     }
 
     .sidebar-overlay {
@@ -2188,7 +2208,12 @@ section:hover {
     }
 
     .main-content {
+        margin-top: 65px;
         padding: 1.5rem;
+    }
+
+    .stats-overview {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 }
 
@@ -2247,87 +2272,21 @@ section:hover {
         flex: 1;
     }
 
-    /* ═══ Card View for Table ═══ */
     .table-container {
-        background: transparent;
-        border: none;
-        box-shadow: none;
-        backdrop-filter: none;
+        overflow: hidden;
     }
 
-    table,
-    thead,
-    tbody,
-    th,
-    td,
-    tr {
-        display: block;
+    .table-responsive {
+        max-width: 100%;
     }
 
-    thead {
-        display: none;
+    .table-responsive table {
+        min-width: 700px;
     }
 
-    tbody {
-        display: flex;
-        flex-direction: column;
-        gap: 1rem;
-    }
-
-    tr {
-        background: var(--glass-bg-strong);
-        backdrop-filter: var(--glass-blur-light);
-        border-radius: var(--radius-lg);
-        padding: 1.25rem;
-        border: 1px solid var(--glass-border);
-        box-shadow: var(--shadow-md);
-        display: flex;
-        flex-direction: column;
-        gap: 0.5rem;
-    }
-
-    tr:hover {
-        transform: translateY(-2px);
-        box-shadow: var(--shadow-lg);
-    }
-
-    td {
-        border: none;
-        padding: 0.625rem 0;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        white-space: normal;
-        gap: 1rem;
-    }
-
-    td:before {
-        content: attr(data-label);
-        font-weight: 600;
-        font-size: 0.8rem;
-        color: var(--text-muted);
-        font-family: var(--thai-font-title);
-        flex-shrink: 0;
-    }
-
-    td[data-label="รหัสสมาชิก"],
-    td[data-label="ชื่อลูกค้า"] {
-        font-size: 1rem;
-        font-weight: 600;
-        color: var(--primary-dark);
-    }
-
-    td:first-child {
-        border-bottom: 2px solid var(--border);
-        margin-bottom: 0.5rem;
-        padding-bottom: 0.75rem;
-    }
-
-    td:last-child {
-        margin-top: 0.75rem;
-        padding-top: 0.75rem;
-        border-top: 1px solid var(--border);
-        justify-content: center;
+    .table-responsive th,
+    .table-responsive td {
+        white-space: nowrap;
     }
 
     /* Container styling */
@@ -2347,6 +2306,36 @@ section:hover {
 
     .form-actions button {
         width: 100%;
+    }
+
+    .form-group input,
+    .form-group select,
+    .form-group textarea,
+    form button,
+    .btn,
+    .add-btn,
+    .login-submit-btn {
+        width: 100%;
+        min-height: 44px;
+    }
+
+    .modal {
+        padding: 1rem;
+    }
+
+    .modal-content {
+        max-width: 90%;
+        margin: 10px auto;
+    }
+}
+
+@media (max-width: 480px) {
+    .main-content {
+        padding: 0.75rem;
+    }
+
+    .mobile-header {
+        padding: 0.75rem;
     }
 }
 

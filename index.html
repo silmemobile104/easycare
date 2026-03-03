@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Easy | Care</title>
     <link rel="icon" type="image/png" href="icon_easycare.png">
     <link rel="stylesheet" href="style.css">
@@ -738,27 +738,29 @@
                     </div>
 
                     <div class="table-container">
-                        <table id="recordsTable">
-                            <thead>
-                                <tr>
-                                    <th>วันที่ทำรายการ</th>
-                                    <th>เลขกรมธรรม์</th>
-                                    <th>รหัสสมาชิก</th>
-                                    <th>ชื่อลูกค้า</th>
-                                    <th>เบอร์โทรศัพท์</th>
-                                    <th>รุ่นอุปกรณ์</th>
-                                    <th>แพ็กเกจ</th>
-                                    <th>ประกันคงเหลือ</th>
-                                    <th>วงเงินคงเหลือ</th>
-                                    <th>ร้านค้า</th>
-                                    <th>ผู้บันทึก</th>
-                                    <th>สถานะ</th>
-                                    <th>การชำระเงิน</th>
-                                    <th>จัดการ</th>
-                                </tr>
-                            </thead>
-                            <tbody id="recordsBody"></tbody>
-                        </table>
+                        <div class="table-responsive">
+                            <table id="recordsTable">
+                                <thead>
+                                    <tr>
+                                        <th>วันที่ทำรายการ</th>
+                                        <th>เลขกรมธรรม์</th>
+                                        <th>รหัสสมาชิก</th>
+                                        <th>ชื่อลูกค้า</th>
+                                        <th>เบอร์โทรศัพท์</th>
+                                        <th>รุ่นอุปกรณ์</th>
+                                        <th>แพ็กเกจ</th>
+                                        <th>ประกันคงเหลือ</th>
+                                        <th>วงเงินคงเหลือ</th>
+                                        <th>ร้านค้า</th>
+                                        <th>ผู้บันทึก</th>
+                                        <th>สถานะ</th>
+                                        <th>การชำระเงิน</th>
+                                        <th>จัดการ</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="recordsBody"></tbody>
+                            </table>
+                        </div>
                         <div id="emptyState" class="empty-state" style="display: none;">
                             <p>ไม่พบข้อมูลในขณะนี้ คลิก "สร้างสัญญาใหม่"</p>
                         </div>
@@ -1050,24 +1052,26 @@
                         </div>
 
                         <div class="table-container">
-                            <table id="financeTable">
-                                <thead>
-                                    <tr>
-                                        <th>วันที่</th>
-                                        <th>ประเภทรายการ</th>
-                                        <th>เลขกรมธรรม์</th>
-                                        <th>ชื่อลูกค้า</th>
-                                        <th>วิธีชำระ</th>
-                                        <th>รับเงินสด</th>
-                                        <th>เงินโอน</th>
-                                        <th>เงินทอน</th>
-                                        <th>ยอดสุทธิ</th>
-                                        <th>หลักฐาน</th>
-                                        <th>ผู้ทำรายการ</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="financeBody"></tbody>
-                            </table>
+                            <div class="table-responsive">
+                                <table id="financeTable">
+                                    <thead>
+                                        <tr>
+                                            <th>วันที่</th>
+                                            <th>ประเภทรายการ</th>
+                                            <th>เลขกรมธรรม์</th>
+                                            <th>ชื่อลูกค้า</th>
+                                            <th>วิธีชำระ</th>
+                                            <th>รับเงินสด</th>
+                                            <th>เงินโอน</th>
+                                            <th>เงินทอน</th>
+                                            <th>ยอดสุทธิ</th>
+                                            <th>หลักฐาน</th>
+                                            <th>ผู้ทำรายการ</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="financeBody"></tbody>
+                                </table>
+                            </div>
                             <div id="financeEmptyState" class="empty-state" style="display: none;">
                                 <p>ไม่พบรายการบัญชีรายรับในขณะนี้</p>
                             </div>
@@ -1117,22 +1121,24 @@
                         </div>
 
                         <div class="table-container">
-                            <table class="custom-table" id="financeExpenseTable">
-                                <thead>
-                                    <tr>
-                                        <th>วันที่ทำรายการ</th>
-                                        <th>เลขที่เคลม</th>
-                                        <th>เลขกรมธรรม์</th>
-                                        <th>ลูกค้า</th>
-                                        <th>สินค้า</th>
-                                        <th>ร้านค้า</th>
-                                        <th>รายการ</th>
-                                        <th>สถานที่</th>
-                                        <th>จำนวนเงิน</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="financeExpenseBody"></tbody>
-                            </table>
+                            <div class="table-responsive">
+                                <table class="custom-table" id="financeExpenseTable">
+                                    <thead>
+                                        <tr>
+                                            <th>วันที่ทำรายการ</th>
+                                            <th>เลขที่เคลม</th>
+                                            <th>เลขกรมธรรม์</th>
+                                            <th>ลูกค้า</th>
+                                            <th>สินค้า</th>
+                                            <th>ร้านค้า</th>
+                                            <th>รายการ</th>
+                                            <th>สถานที่</th>
+                                            <th>จำนวนเงิน</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="financeExpenseBody"></tbody>
+                                </table>
+                            </div>
                             <div id="financeExpenseEmptyState" class="empty-state" style="display: none;">
                                 <i class="fas fa-search"
                                     style="font-size: 3rem; opacity: 0.1; display: block; margin-bottom: 1rem;"></i>
@@ -1149,8 +1155,6 @@
                             <h1>แดชบอร์ด (ฝ่ายขาย)</h1>
                             <p>สรุปภาพรวมข้อมูลสำหรับฝ่ายขาย</p>
                         </div>
-                        <span class="dashboard-last-updated" id="salesDashboardLastUpdated"
-                            style="font-size:.8rem;color:var(--text-muted);"></span>
                     </header>
 
                     <div class="dashboard-cards-container">
@@ -1220,8 +1224,6 @@
                             <h1>แดชบอร์ด (ฝ่ายอนุมัติ)</h1>
                             <p>สรุปสัญญาที่รอการอนุมัติ</p>
                         </div>
-                        <span class="dashboard-last-updated" id="approverDashboardLastUpdated"
-                            style="font-size:.8rem;color:var(--text-muted);"></span>
                     </header>
 
                     <div class="dashboard-cards-container"
@@ -1359,22 +1361,23 @@
                     </div>
 
                     <div class="table-container">
-                        <table id="membersTable">
-                            <thead>
-                                <tr>
-                                    <th>รหัสสมาชิก</th>
-                                    <th>ชื่อ-นามสกุล</th>
-                                    <th>เบอร์โทรศัพท์</th>
-                                    <th>สถานะ</th>
-                                    <th>ที่อยู่ตามบัตร</th>
-                                    <th>จัดการ</th>
-                                </tr>
-                            </thead>
-                            <tbody id="membersBody"></tbody>
-                        </table>
-
+                        <div class="table-responsive">
+                            <table id="membersTable">
+                                <thead>
+                                    <tr>
+                                        <th>รหัสสมาชิก</th>
+                                        <th>ชื่อ-นามสกุล</th>
+                                        <th>เบอร์โทร</th>
+                                        <th>เลขบัตรประชาชน</th>
+                                        <th>วันที่สมัคร</th>
+                                        <th>จัดการ</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="membersBody"></tbody>
+                            </table>
+                        </div>
                         <div id="membersEmptyState" class="empty-state" style="display: none;">
-                            <p>ยังไม่มีข้อมูลสมาชิกในขณะนี้</p>
+                            <p>ยังไม่มีข้อมูลสมาชิก</p>
                         </div>
                     </div>
                 </main>
@@ -1416,19 +1419,21 @@
                     </div>
 
                     <div class="table-container">
-                        <table id="shopsTable">
-                            <thead>
-                                <tr>
-                                    <th>รหัสร้านค้า</th>
-                                    <th>ชื่อร้านค้า</th>
-                                    <th>สถานที่ตั้ง (Location)</th>
-                                    <th>จัดการ</th>
-                                </tr>
-                            </thead>
-                            <tbody id="shopsBody"></tbody>
-                        </table>
+                        <div class="table-responsive">
+                            <table id="shopsTable">
+                                <thead>
+                                    <tr>
+                                        <th>รหัสร้านค้า</th>
+                                        <th>ชื่อร้านค้า</th>
+                                        <th>สถานที่ตั้ง (Location)</th>
+                                        <th>จัดการ</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="shopsBody"></tbody>
+                            </table>
+                        </div>
                         <div id="shopsEmptyState" class="empty-state" style="display: none;">
-                            <p>ยังไม่มีข้อมูลร้านค้าในขณะนี้</p>
+                            <p>ยังไม่มีข้อมูลร้านค้า</p>
                         </div>
                     </div>
                 </main>
@@ -1480,19 +1485,21 @@
                     </div>
 
                     <div class="table-container">
-                        <table id="staffTable">
-                            <thead>
-                                <tr>
-                                    <th>ชื่อผู้ใช้งาน (Username)</th>
-                                    <th>ชื่อ-นามสกุล</th>
-                                    <th>สิทธิ์การใช้งาน (Role)</th>
-                                    <th>จัดการ</th>
-                                </tr>
-                            </thead>
-                            <tbody id="staffBody"></tbody>
-                        </table>
+                        <div class="table-responsive">
+                            <table id="staffTable">
+                                <thead>
+                                    <tr>
+                                        <th>ชื่อผู้ใช้งาน (Username)</th>
+                                        <th>ชื่อ-นามสกุล</th>
+                                        <th>สิทธิ์การใช้งาน (Role)</th>
+                                        <th>จัดการ</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="staffBody"></tbody>
+                            </table>
+                        </div>
                         <div id="staffEmptyState" class="empty-state" style="display: none;">
-                            <p>ยังไม่มีข้อมูลพนักงานในขณะนี้</p>
+                            <p>ยังไม่มีข้อมูลพนักงาน</p>
                         </div>
                     </div>
                 </main>
@@ -1576,23 +1583,25 @@
                     </div>
 
                     <div class="table-container">
-                        <table id="claimsTable">
-                            <thead>
-                                <tr>
-                                    <th>วันที่ลงทะเบียน</th>
-                                    <th>เลขกรมธรรม์</th>
-                                    <th>รหัสสมาชิก</th>
-                                    <th>ชื่อลูกค้า</th>
-                                    <th>เบอร์โทรศัพท์</th>
-                                    <th>รุ่นอุปกรณ์</th>
-                                    <th>แพ็กเกจ</th>
-                                    <th>ประกันคงเหลือ</th>
-                                    <th>สถานะ</th>
-                                    <th>ทำรายการ</th>
-                                </tr>
-                            </thead>
-                            <tbody id="claimsBody"></tbody>
-                        </table>
+                        <div class="table-responsive">
+                            <table id="claimsTable">
+                                <thead>
+                                    <tr>
+                                        <th>วันที่ลงทะเบียน</th>
+                                        <th>เลขกรมธรรม์</th>
+                                        <th>รหัสเคลม</th>
+                                        <th>ชื่อลูกค้า</th>
+                                        <th>เบอร์โทรศัพท์</th>
+                                        <th>รุ่นอุปกรณ์</th>
+                                        <th>แพ็กเกจ</th>
+                                        <th>ประกันคงเหลือ</th>
+                                        <th>สถานะ</th>
+                                        <th>ทำรายการ</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="claimsBody"></tbody>
+                            </table>
+                        </div>
                         <div id="claimsEmptyState" class="empty-state" style="display: none;">
                             <p>ไม่มีกรมธรรม์ที่มีสถานะปกติในขณะนี้</p>
                         </div>
@@ -1636,20 +1645,22 @@
                     </div>
 
                     <div class="table-container">
-                        <table id="statusTrackingTable">
-                            <thead>
-                                <tr>
-                                    <th>รหัสเคลม</th>
-                                    <th>วันที่แจ้งเคลม</th>
-                                    <th>ชื่อลูกค้า</th>
-                                    <th>เบอร์โทรศัพท์</th>
-                                    <th>อุปกรณ์</th>
-                                    <th>สถานะ</th>
-                                    <th>จัดการ</th>
-                                </tr>
-                            </thead>
-                            <tbody id="statusTrackingBody"></tbody>
-                        </table>
+                        <div class="table-responsive">
+                            <table id="statusTrackingTable">
+                                <thead>
+                                    <tr>
+                                        <th>รหัสเคลม</th>
+                                        <th>วันที่แจ้งเคลม</th>
+                                        <th>ชื่อลูกค้า</th>
+                                        <th>เบอร์โทรศัพท์</th>
+                                        <th>อุปกรณ์</th>
+                                        <th>สถานะ</th>
+                                        <th>จัดการ</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="statusTrackingBody"></tbody>
+                            </table>
+                        </div>
                         <div id="statusTrackingEmptyState" class="empty-state" style="display: none;">
                             <p>ไม่มีรายการเคลมที่อยู่ระหว่างดำเนินการ</p>
                         </div>
@@ -1758,17 +1769,19 @@
                     </div>
 
                     <div class="table-container">
-                        <table id="approverPendingWarrantiesTable">
-                            <thead>
-                                <tr>
-                                    <th>วันที่สร้าง</th>
-                                    <th>เลขที่สัญญา</th>
-                                    <th>ชื่อลูกค้า</th>
-                                    <th>พนักงานขาย</th>
-                                </tr>
-                            </thead>
-                            <tbody id="approverPendingWarrantiesBody"></tbody>
-                        </table>
+                        <div class="table-responsive">
+                            <table id="approverPendingWarrantiesTable">
+                                <thead>
+                                    <tr>
+                                        <th>วันที่สร้าง</th>
+                                        <th>เลขที่สัญญา</th>
+                                        <th>ชื่อลูกค้า</th>
+                                        <th>พนักงานขาย</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="approverPendingWarrantiesBody"></tbody>
+                            </table>
+                        </div>
 
                         <div id="approverPendingWarrantiesEmpty" class="empty-state" style="display: none;">
                             <p>ไม่มีสัญญาที่รออนุมัติในขณะนี้</p>
@@ -1869,20 +1882,22 @@
                     </div>
 
                     <div class="table-container">
-                        <table id="approvalTable">
-                            <thead>
-                                <tr>
-                                    <th>เลขกรมธรรม์</th>
-                                    <th>ชื่อลูกค้า</th>
-                                    <th>รุ่นอุปกรณ์</th>
-                                    <th>แพ็กเกจ</th>
-                                    <th>ร้านค้า</th>
-                                    <th>สถานะ</th>
-                                    <th>ดำเนินการ</th>
-                                </tr>
-                            </thead>
-                            <tbody id="approvalBody"></tbody>
-                        </table>
+                        <div class="table-responsive">
+                            <table id="approvalTable">
+                                <thead>
+                                    <tr>
+                                        <th>เลขกรมธรรม์</th>
+                                        <th>ชื่อลูกค้า</th>
+                                        <th>รุ่นอุปกรณ์</th>
+                                        <th>แพ็กเกจ</th>
+                                        <th>ร้านค้า</th>
+                                        <th>สถานะ</th>
+                                        <th>ดำเนินการ</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="approvalBody"></tbody>
+                            </table>
+                        </div>
                         <div id="approvalEmptyState" class="empty-state" style="display: none;">
                             <p>ไม่พบรายการสัญญาในหมวดนี้</p>
                         </div>
@@ -1892,6 +1907,7 @@
         </div>
     </div>
     </div>
+```
 
     <!-- Registration View -->
     <div id="registrationView" class="view" style="display: none; padding: 2rem 1rem;">

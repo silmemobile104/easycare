@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Smile | Dashboard</title>
     <link rel="stylesheet" href="style.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -26,8 +26,23 @@
         </div>
     </div>
 
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+    <div class="mobile-header">
+        <button class="mobile-menu-btn" id="mobileMenuBtn">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round">
+                <line x1="3" y1="12" x2="21" y2="12"></line>
+                <line x1="3" y1="6" x2="21" y2="6"></line>
+                <line x1="3" y1="18" x2="21" y2="18"></line>
+            </svg>
+        </button>
+        <div class="mobile-logo-text">Smile<span>Care</span></div>
+        <div style="width: 40px;"></div>
+    </div>
+
     <div class="dashboard-container">
-        <aside class="sidebar">
+        <aside class="sidebar" id="sidebar">
             <div class="logo">Smile<span>Care</span></div>
             <nav>
                 <a href="#" class="active">
@@ -95,23 +110,25 @@
             </div>
 
             <div class="table-container">
-                <table id="recordsTable">
-                    <thead>
-                        <tr>
-                            <th>Member ID</th>
-                            <th>Customer Name</th>
-                            <th>Device Model</th>
-                            <th>Package</th>
-                            <th>Expiry Date</th>
-                            <th>วงเงินคงเหลือ</th>
-                            <th>Recorded By</th>
-                            <th>Status</th>
-                        </tr>
-                    </thead>
-                    <tbody id="recordsBody">
-                        <!-- Data will be injected here -->
-                    </tbody>
-                </table>
+                <div class="table-responsive">
+                    <table id="recordsTable">
+                        <thead>
+                            <tr>
+                                <th>Member ID</th>
+                                <th>Customer Name</th>
+                                <th>Device Model</th>
+                                <th>Package</th>
+                                <th>Expiry Date</th>
+                                <th>วงเงินคงเหลือ</th>
+                                <th>Recorded By</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="recordsBody">
+                            <!-- Data will be injected here -->
+                        </tbody>
+                    </table>
+                </div>
                 <div id="emptyState" class="empty-state" style="display: none;">
                     <p>No records found. Click "Add New Record" to get started.</p>
                 </div>
