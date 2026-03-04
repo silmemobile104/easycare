@@ -3408,10 +3408,41 @@ document.addEventListener('DOMContentLoaded', () => {
             const now = new Date();
             const end = new Date(r.warrantyDates.end);
             const diffMs = end - now;
-            const totalHours = Math.floor(diffMs / (1000 * 60 * 60));
-            const days = Math.floor(totalHours / 24);
-            const hours = totalHours % 24;
-            const timeRemainingText = `${days} วัน, ${hours} ชม.`;
+            const isExpired = diffMs <= 0;
+
+            let timeRemainingText = '';
+            if (isExpired) {
+                timeRemainingText = '<span style="color: #6b7280; font-weight: 500;">หมดอายุ</span>';
+            } else {
+                const totalHours = Math.floor(diffMs / (1000 * 60 * 60));
+                const days = Math.floor(totalHours / 24);
+                const hours = totalHours % 24;
+                timeRemainingText = `${days} วัน, ${hours} ชม.`;
+            }
+
+            let statusBadge = '';
+            if (r.claimStatus === 'pending') {
+                statusBadge = `<span class="status-badge" style="background: linear-gradient(135deg, #ef4444, #dc2626); color: white; box-shadow: 0 2px 8px rgba(239, 68, 68, 0.4); font-weight: 700;">รอเคลม</span>`;
+            } else if (isExpired) {
+                statusBadge = `<span class="status-badge" style="background: #f3f4f6; color: #6b7280; border: 1px solid #d1d5db;">หมดอายุ</span>`;
+            } else {
+                statusBadge = `<span class="status-badge status-active">ปกติ</span>`;
+            }
+
+            let claimButton = '';
+            if (r.claimStatus === 'pending') {
+                claimButton = `<button onclick="printClaimByWarrantyId('${r._id}')" style="background: linear-gradient(135deg, #3b82f6, #2563eb); color: white; border: none; padding: 6px 12px; border-radius: 8px; cursor: pointer; font-size: 0.85rem; font-weight: 600; white-space: nowrap;">
+                                    🖨️ พิมพ์เอกสาร
+                                   </button>`;
+            } else if (isExpired) {
+                claimButton = `<button style="background: #e5e7eb; color: #9ca3af; border: none; padding: 6px 12px; border-radius: 8px; cursor: not-allowed; font-size: 0.85rem; font-weight: 600; white-space: nowrap;" disabled>
+                                    📋 แจ้งเคลม (หมดอายุ)
+                                   </button>`;
+            } else {
+                claimButton = `<button class="claim-action-btn" data-id="${r._id}" style="background: linear-gradient(135deg, #f59e0b, #d97706); color: white; border: none; padding: 6px 12px; border-radius: 8px; cursor: pointer; font-size: 0.85rem; font-weight: 600; white-space: nowrap;">
+                                    📋 แจ้งเคลม
+                                   </button>`;
+            }
 
             return `
                 <tr>
@@ -3424,21 +3455,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     <td data-label="แพ็กเกจ"><span style="color: var(--primary); font-weight: 500;">${r.package.plan}</span></td>
                     <td data-label="ประกันคงเหลือ">${timeRemainingText}</td>
                     <td data-label="สถานะ">
-                        ${r.claimStatus === 'pending'
-                    ? `<span class="status-badge" style="background: linear-gradient(135deg, #ef4444, #dc2626); color: white; box-shadow: 0 2px 8px rgba(239, 68, 68, 0.4); font-weight: 700;">รอเคลม</span>`
-                    : `<span class="status-badge status-active">ปกติ</span>`
-                }
+                        ${statusBadge}
                     </td>
                     <td data-label="ทำรายการ">
                         <div style="display: flex; gap: 0.5rem; justify-content: center; align-items: center; flex-wrap: wrap;">
-                            ${r.claimStatus === 'pending'
-                    ? `<button onclick="printClaimByWarrantyId('${r._id}')" style="background: linear-gradient(135deg, #3b82f6, #2563eb); color: white; border: none; padding: 6px 12px; border-radius: 8px; cursor: pointer; font-size: 0.85rem; font-weight: 600; white-space: nowrap;">
-                                    🖨️ พิมพ์เอกสาร
-                                   </button>`
-                    : `<button class="claim-action-btn" data-id="${r._id}" style="background: linear-gradient(135deg, #f59e0b, #d97706); color: white; border: none; padding: 6px 12px; border-radius: 8px; cursor: pointer; font-size: 0.85rem; font-weight: 600; white-space: nowrap;">
-                                    📋 แจ้งเคลม
-                                   </button>`
-                }
+                            ${claimButton}
                             <button class="btn-history" onclick="openClaimHistoryModal('${r._id}')">
                                 📜 ประวัติ
                             </button>
@@ -4130,6 +4151,116 @@ document.addEventListener('DOMContentLoaded', () => {
             const claim = await res.json();
             if (!res.ok) throw new Error(claim.message);
 
+            const overLimitBlock = document.getElementById('overLimitDecisionBlock');
+            const btnPayExcess = document.getElementById('btnPayExcess');
+            const btnRefund = document.getElementById('btnRefund');
+            if (overLimitBlock) overLimitBlock.style.display = 'none';
+
+            const excessCost = Number(claim && claim.excessCost ? claim.excessCost : 0);
+            const refundAmount = Number(claim && claim.refundAmount ? claim.refundAmount : 0);
+            const isWaitingDecision = String(claim && claim.status ? claim.status : '') === 'รอการตัดสินใจจากลูกค้า';
+
+            if (isWaitingDecision && overLimitBlock && btnPayExcess && btnRefund) {
+                overLimitBlock.style.display = 'block';
+                const btnPayExcessText = document.getElementById('btnPayExcessText');
+                const btnRefundText = document.getElementById('btnRefundText');
+
+                if (btnPayExcessText) {
+                    btnPayExcessText.textContent = `รับเครื่องคืน + จ่ายส่วนต่าง (${(Number.isFinite(excessCost) ? excessCost : 0).toLocaleString()} บาท)`;
+                } else {
+                    btnPayExcess.textContent = `รับเครื่องคืน + จ่ายส่วนต่าง (${(Number.isFinite(excessCost) ? excessCost : 0).toLocaleString()} บาท)`;
+                }
+
+                if (btnRefundText) {
+                    btnRefundText.textContent = `ไม่รับเครื่อง + รับเงินคืน (${(Number.isFinite(refundAmount) ? refundAmount : 0).toLocaleString()} บาท)`;
+                } else {
+                    btnRefund.textContent = `ไม่รับเครื่อง + รับเงินคืน (${(Number.isFinite(refundAmount) ? refundAmount : 0).toLocaleString()} บาท)`;
+                }
+
+                btnPayExcess.onclick = async () => {
+                    const x = Number.isFinite(excessCost) ? excessCost : 0;
+                    const staffName = currentUser ? currentUser.staffName : '';
+
+                    const result = await SwalTheme.fire({
+                        icon: 'warning',
+                        title: 'ยืนยันการตัดสินใจลูกค้า',
+                        html: `ลูกค้ายินยอมจ่ายเงินส่วนต่างจำนวน <strong>${x.toLocaleString()} บาท</strong> ใช่หรือไม่?`,
+                        input: 'select',
+                        inputOptions: {
+                            cash: 'เงินสด',
+                            transfer: 'โอนเงิน'
+                        },
+                        inputPlaceholder: 'เลือกรูปแบบการชำระเงิน',
+                        inputAttributes: {
+                            style: 'width: 100%; max-width: 100%; box-sizing: border-box; margin: 15px 0 0 0; padding: 0.5rem;'
+                        },
+                        showCancelButton: true,
+                        confirmButtonText: 'ยืนยัน',
+                        cancelButtonText: 'ยกเลิก',
+                        reverseButtons: true
+                    });
+                    if (!result.isConfirmed) return;
+
+                    const method = result.value;
+                    const payload = {
+                        decision: 'pay_excess',
+                        staffName,
+                        paymentMethod: method === 'cash' ? 'เงินสด' : (method === 'transfer' ? 'โอนเงิน' : '')
+                    };
+                    if (method === 'cash') payload.cashReceived = x;
+                    if (method === 'transfer') payload.transferAmount = x;
+
+                    showLoader('กำลังบันทึกการตัดสินใจ...');
+                    try {
+                        const dRes = await fetch(`/api/claims/${claim._id}/decision`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload)
+                        });
+                        const data = await dRes.json();
+                        if (!dRes.ok || !data.success) throw new Error(data.message || 'ไม่สามารถบันทึกการตัดสินใจได้');
+                        showToast('success', 'บันทึกการตัดสินใจสำเร็จ');
+                        await openStatusUpdateModal(claim._id);
+                    } catch (e) {
+                        console.error('Decision pay_excess error:', e);
+                        showAlert('error', e.message || 'เกิดข้อผิดพลาด');
+                    } finally {
+                        hideLoader();
+                    }
+                };
+
+                btnRefund.onclick = async () => {
+                    const y = Number.isFinite(refundAmount) ? refundAmount : 0;
+                    const staffName = currentUser ? currentUser.staffName : '';
+
+                    const confirmed = await showConfirm(
+                        'ยืนยันการตัดสินใจลูกค้า',
+                        `ลูกค้าสละสิทธิ์เครื่องเพื่อรับเงินชดเชยจำนวน ${y.toLocaleString()} บาท ใช่หรือไม่?`,
+                        'ยืนยัน',
+                        'ยกเลิก'
+                    );
+                    if (!confirmed) return;
+
+                    showLoader('กำลังบันทึกการตัดสินใจ...');
+                    try {
+                        const dRes = await fetch(`/api/claims/${claim._id}/decision`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ decision: 'refund', staffName })
+                        });
+                        const data = await dRes.json();
+                        if (!dRes.ok || !data.success) throw new Error(data.message || 'ไม่สามารถบันทึกการตัดสินใจได้');
+                        showToast('success', 'บันทึกการตัดสินใจสำเร็จ');
+                        await openStatusUpdateModal(claim._id);
+                    } catch (e) {
+                        console.error('Decision refund error:', e);
+                        showAlert('error', e.message || 'เกิดข้อผิดพลาด');
+                    } finally {
+                        hideLoader();
+                    }
+                };
+            }
+
             const isIPadModel = (model) => {
                 if (!model) return false;
                 return String(model).toLowerCase().includes('ipad');
@@ -4159,6 +4290,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Render timeline
             renderTimeline(claim);
+
+            // Update total cost summary
+            updateStatusTotalCost(claim);
 
             // Reset form
             document.getElementById('updateTitle').value = '';
@@ -4328,6 +4462,22 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         timeline.innerHTML = html;
+    }
+
+    function updateStatusTotalCost(claim) {
+        const totalEl = document.getElementById('statusTotalCost');
+        if (!totalEl) return;
+
+        const baseTotal = Number(claim && claim.totalCost ? claim.totalCost : 0);
+        const excessCost = Number(claim && claim.excessCost ? claim.excessCost : 0);
+        const refundAmount = Number(claim && claim.refundAmount ? claim.refundAmount : 0);
+
+        const waitingDecision = String(claim && claim.status ? claim.status : '') === 'รอการตัดสินใจจากลูกค้า';
+        const computed = waitingDecision
+            ? (Math.max(0, baseTotal) + Math.max(0, refundAmount) + Math.max(0, excessCost))
+            : Math.max(0, baseTotal);
+
+        totalEl.textContent = `${computed.toLocaleString()} บาท`;
     }
 
     function isCostEnabled() {

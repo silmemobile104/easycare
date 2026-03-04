@@ -1,7 +1,7 @@
 const menuPermissions = {
     'nav-packages': ['sales', 'admin'],
-    'nav-members': ['sales', 'admin'],
-    'nav-shops': ['sales', 'admin'],
+    'nav-members': ['sales','approver', 'admin'],
+    'nav-shops': ['admin'],
     'nav-claims': ['sales', 'admin'],
     'nav-tracking': ['sales', 'admin'],
     'nav-approval': ['approver', 'admin'],

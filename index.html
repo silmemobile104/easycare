@@ -1911,7 +1911,6 @@
         </div>
     </div>
     </div>
-```
 
     <!-- Registration View -->
     <div id="registrationView" class="view" style="display: none; padding: 2rem 1rem;">
@@ -2928,6 +2927,35 @@
             <div id="statusCostSummary" class="status-cost-summary">
                 <span>สรุปยอดการซ่อมครั้งนี้ทั้งหมด:</span>
                 <span id="statusTotalCost" style="font-size: 1.4rem; font-weight: 700;">0 บาท</span>
+            </div>
+
+            <div id="overLimitDecisionBlock"
+                style="display: none; margin-top: 1rem; padding: 1rem; border-radius: 12px; border: 2px solid #f59e0b; background: #fffbeb;">
+                <div style="font-weight: 800; color: #b45309; margin-bottom: 0.75rem;">ค่าซ่อมเกินวงเงิน!
+                    กรุณาสอบถามลูกค้า</div>
+                <div style="display: flex; gap: 1rem; flex-wrap: wrap; margin-top: 1rem;">
+                    <button id="btnPayExcess" type="button"
+                        style="flex: 1; min-width: 250px; padding: 1rem 1.5rem; background: linear-gradient(135deg, #f59e0b, #ea580c); color: white; border: none; border-radius: 50px; font-weight: 700; font-size: 1rem; box-shadow: 0 4px 15px rgba(245, 158, 11, 0.4); cursor: pointer; transition: all 0.2s ease; display: inline-flex; align-items: center; justify-content: center; gap: 8px;">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path
+                                d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z">
+                            </path>
+                            <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+                            <line x1="12" y1="22.08" x2="12" y2="12"></line>
+                        </svg>
+                        <span id="btnPayExcessText">รับเครื่องคืน + จ่ายส่วนต่าง (0 บาท)</span>
+                    </button>
+                    <button id="btnRefund" type="button"
+                        style="flex: 1; min-width: 250px; padding: 1rem 1.5rem; background: linear-gradient(135deg, #ef4444, #b91c1c); color: white; border: none; border-radius: 50px; font-weight: 700; font-size: 1rem; box-shadow: 0 4px 15px rgba(239, 68, 68, 0.4); cursor: pointer; transition: all 0.2s ease; display: inline-flex; align-items: center; justify-content: center; gap: 8px;">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="12" y1="1" x2="12" y2="23"></line>
+                            <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+                        </svg>
+                        <span id="btnRefundText">ไม่รับเครื่อง + รับเงินคืน (0 บาท)</span>
+                    </button>
+                </div>
             </div>
 
             <!-- Update Form -->

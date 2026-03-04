@@ -209,6 +209,19 @@ WarrantySchema.set('toObject', { virtuals: true });
 
 const Warranty = mongoose.model('Warranty', WarrantySchema);
 
+async function expireWarrantyIfNoRemaining(warrantyId) {
+    if (!warrantyId) return;
+    const w = await Warranty.findById(warrantyId);
+    if (!w) return;
+    const remaining = Number(w.remainingLimit ?? 0);
+    if (Number.isFinite(remaining) && remaining <= 0) {
+        await Warranty.findByIdAndUpdate(w._id, {
+            'warrantyDates.end': new Date(),
+            claimStatus: 'completed'
+        });
+    }
+}
+
 // Member Schema
 const MemberSchema = new mongoose.Schema({
     memberId: { type: String, unique: true, index: true, required: true },
@@ -279,8 +292,11 @@ const ClaimSchema = new mongoose.Schema({
     customerSignature: String,
     staffSignature: String,
     managerSignature: String,
-    status: { type: String, default: 'รอเคลม', enum: ['รอเคลม', 'รับเครื่องแล้ว'] },
+    status: { type: String, default: 'รอเคลม', enum: ['รอเคลม', 'รับเครื่องแล้ว', 'รอการตัดสินใจจากลูกค้า', 'ลูกค้าสละสิทธิ์เครื่อง'] },
     totalCost: { type: Number, default: 0 },
+    excessCost: { type: Number, default: 0 },
+    refundAmount: { type: Number, default: 0 },
+    customerDecision: { type: String, default: '' },
     completedReturnMethod: { type: String, enum: ['pickup', 'delivery'] },
     completedReturnBranch: String,
     completedDeliveryAddressType: { type: String, enum: ['card', 'memberShipping', 'new', 'original'] },
@@ -1579,13 +1595,11 @@ app.get('/api/warranties/check-duplicate', async (req, res) => {
     }
 });
 
-// Get active warranties only (approved + not expired) — for claim menu
+// Get active warranties only (approved) — for claim menu, including expired
 app.get('/api/warranties/active', async (req, res) => {
     try {
-        const now = new Date();
         const baseMatch = {
-            approvalStatus: 'approved',
-            'warrantyDates.end': { $gte: now }
+            approvalStatus: 'approved'
         };
 
         // Merge with search/date filters
@@ -2307,7 +2321,7 @@ app.get('/api/claims/warranty/:warrantyId', async (req, res) => {
 app.get('/api/claims/pending', async (req, res) => {
     try {
         // Merge base status filter with search/date filters
-        const matchQuery = buildClaimFilterMatch(req.query, { status: 'รอเคลม' });
+        const matchQuery = buildClaimFilterMatch(req.query, { status: { $in: ['รอเคลม', 'รอการตัดสินใจจากลูกค้า'] } });
 
         const claims = await Claim.aggregate([
             { $match: matchQuery },
@@ -2410,6 +2424,30 @@ app.post('/api/claims/:id/updates', claimUpload.fields([
             return res.status(400).json({ success: false, message: 'หากมีค่าใช้จ่าย กรุณาแนบรูปหลักฐานอย่างน้อย 1 รูป' });
         }
 
+        let shouldApplyCost = true;
+        let currentCoverageLeft = null;
+        if (cost > 0 && claim.warrantyId) {
+            const warranty = await Warranty.findById(claim.warrantyId);
+            if (warranty) {
+                const remaining = Number(warranty.remainingLimit ?? 0);
+                currentCoverageLeft = Number.isFinite(remaining) ? remaining : 0;
+                if (cost > currentCoverageLeft) {
+                    const refundAmount = currentCoverageLeft;
+                    const excessCost = cost - currentCoverageLeft;
+                    claim.excessCost = excessCost;
+                    claim.refundAmount = refundAmount;
+                    claim.customerDecision = 'รอตัดสินใจ';
+                    claim.status = 'รอการตัดสินใจจากลูกค้า';
+                    shouldApplyCost = false;
+
+                    // Append (เกินวงเงิน) to the title
+                    if (req.body.title && !req.body.title.includes('(เกินวงเงิน)')) {
+                        req.body.title = `${req.body.title} (เกินวงเงิน)`;
+                    }
+                }
+            }
+        }
+
         claim.updates.push({
             step: nextStep,
             title: req.body.title || '',
@@ -2424,7 +2462,9 @@ app.post('/api/claims/:id/updates', claimUpload.fields([
             evidenceImages: evidenceImages
         });
 
-        claim.totalCost = (claim.totalCost || 0) + cost;
+        if (shouldApplyCost) {
+            claim.totalCost = (claim.totalCost || 0) + cost;
+        }
         await claim.save();
 
         // Sync usedCoverage on Warranty based on total claim cost
@@ -2436,6 +2476,7 @@ app.post('/api/claims/:id/updates', claimUpload.fields([
                 ]);
                 const totalUsed = agg && agg[0] ? Number(agg[0].totalUsed || 0) : 0;
                 await Warranty.findByIdAndUpdate(claim.warrantyId, { usedCoverage: totalUsed });
+                await expireWarrantyIfNoRemaining(claim.warrantyId);
             }
         } catch (e) {
             console.error('Failed to sync usedCoverage from claims:', e);
@@ -2446,6 +2487,115 @@ app.post('/api/claims/:id/updates', claimUpload.fields([
         res.json({ success: true, claim });
     } catch (err) {
         res.status(400).json({ success: false, message: err.message });
+    }
+});
+
+// Customer decision when repair cost exceeds remaining coverage
+app.post('/api/claims/:id/decision', async (req, res) => {
+    try {
+        const claim = await Claim.findById(req.params.id);
+        if (!claim) return res.status(404).json({ success: false, message: 'ไม่พบข้อมูลการเคลม' });
+
+        const warranty = claim.warrantyId ? await Warranty.findById(claim.warrantyId) : null;
+        if (!warranty) return res.status(400).json({ success: false, message: 'ไม่พบข้อมูลสัญญาประกัน' });
+
+        const decision = String(req.body.decision || '').trim();
+        const staffName = String(req.body.staffName || claim.staffName || warranty.staffName || 'System').trim();
+
+        const excessCost = Number(claim.excessCost || 0);
+        const refundAmount = Number(claim.refundAmount || 0);
+
+        if (claim.status !== 'รอการตัดสินใจจากลูกค้า') {
+            return res.status(400).json({ success: false, message: 'สถานะเคลมไม่อยู่ในขั้นตอนรอการตัดสินใจ' });
+        }
+        if (!Number.isFinite(excessCost) || excessCost < 0 || !Number.isFinite(refundAmount) || refundAmount < 0) {
+            return res.status(400).json({ success: false, message: 'ข้อมูลวงเงินส่วนต่างไม่ถูกต้อง' });
+        }
+
+        if (decision === 'pay_excess') {
+            const paymentMethod = String(req.body.paymentMethod || '').trim();
+            const cashReceived = Math.max(0, Number(req.body.cashReceived || 0));
+            const transferAmount = Math.max(0, Number(req.body.transferAmount || 0));
+
+            let pMethod = paymentMethod;
+            if (!pMethod) {
+                if (cashReceived > 0) pMethod = 'เงินสด';
+                else if (transferAmount > 0) pMethod = 'โอนเงิน';
+            }
+
+            await FinanceTransaction.create({
+                policyNumber: claim.policyNumber,
+                customerName: claim.customerName || warranty.customer?.firstName || '-',
+                actionType: 'ชำระค่าซ่อมส่วนต่าง',
+                paymentMethod: pMethod,
+                cashReceived: cashReceived,
+                transferAmount: transferAmount,
+                changeAmount: 0,
+                netTotal: excessCost,
+                recordedBy: staffName
+            });
+
+            claim.customerDecision = 'จ่ายส่วนต่าง';
+            claim.status = 'รอเคลม';
+            claim.totalCost = (claim.totalCost || 0) + refundAmount;
+            claim.updates.push({
+                step: (claim.updates ? claim.updates.length : 0) + 2,
+                title: 'ลูกค้าตกลงรับเครื่องคืนและชำระเงินส่วนต่าง',
+                date: new Date(),
+                cost: excessCost,
+                images: [],
+                evidenceImages: []
+            });
+
+            await claim.save();
+
+            const warrantyNewUsed = Number(warranty.usedCoverage || 0) + refundAmount;
+            await Warranty.findByIdAndUpdate(warranty._id, { usedCoverage: warrantyNewUsed });
+            await expireWarrantyIfNoRemaining(warranty._id);
+
+            if (io) io.emit('claimUpdate', { claimId: claim.claimId, id: claim._id.toString(), warrantyId: claim.warrantyId?.toString() });
+            return res.json({ success: true, claim });
+        }
+
+        if (decision === 'refund') {
+            await FinanceTransaction.create({
+                policyNumber: claim.policyNumber,
+                customerName: claim.customerName || warranty.customer?.firstName || '-',
+                actionType: 'คืนเงินชดเชยสละสิทธิ์เครื่อง',
+                paymentMethod: 'คืนเงิน',
+                cashReceived: 0,
+                transferAmount: 0,
+                changeAmount: 0,
+                netTotal: -Math.abs(refundAmount),
+                recordedBy: staffName
+            });
+
+            claim.customerDecision = 'รับเงินชดเชย';
+            claim.status = 'ลูกค้าสละสิทธิ์เครื่อง';
+            claim.updates.push({
+                step: (claim.updates ? claim.updates.length : 0) + 2,
+                title: 'ลูกค้าสละสิทธิ์เครื่องและรับเงินชดเชย',
+                date: new Date(),
+                cost: 0,
+                images: [],
+                evidenceImages: []
+            });
+            await claim.save();
+
+            const warrantyNewUsed = Number(warranty.usedCoverage || 0) + refundAmount;
+            await Warranty.findByIdAndUpdate(warranty._id, {
+                usedCoverage: warrantyNewUsed,
+                claimStatus: 'completed'
+            });
+            await expireWarrantyIfNoRemaining(warranty._id);
+
+            if (io) io.emit('claimUpdate', { claimId: claim.claimId, id: claim._id.toString(), warrantyId: claim.warrantyId?.toString() });
+            return res.json({ success: true, claim });
+        }
+
+        return res.status(400).json({ success: false, message: 'decision ไม่ถูกต้อง' });
+    } catch (err) {
+        return res.status(400).json({ success: false, message: err.message });
     }
 });
 
