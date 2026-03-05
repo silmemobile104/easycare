@@ -174,7 +174,7 @@ const WarrantySchema = new mongoose.Schema({
     },
     approvalStatus: {
         type: String,
-        enum: ['pending', 'approved', 'rejected'],
+        enum: ['pending', 'approved', 'Approved_Unpaid', 'Approved_Paid', 'rejected'],
         default: 'pending'
     },
     approver: String,
@@ -1498,7 +1498,7 @@ app.get('/api/dashboard/approver/summary', async (req, res) => {
 
         // 3. Approved Today
         const approvedToday = await Warranty.countDocuments({
-            approvalStatus: 'approved',
+            approvalStatus: { $in: ['approved', 'Approved_Unpaid', 'Approved_Paid'] },
             updatedAt: { $gte: startOfToday }
         });
 
@@ -1527,20 +1527,24 @@ app.get('/api/dashboard/approver/summary', async (req, res) => {
     }
 });
 
-// Approve a warranty
+// Approve a warranty (2-Step: check payment status)
 app.put('/api/warranties/:id/approve', async (req, res) => {
     try {
         const { approver } = req.body;
-        const warranty = await Warranty.findByIdAndUpdate(
-            req.params.id,
-            {
-                approvalStatus: 'approved',
-                approver: approver,
-                approvalDate: new Date()
-            },
-            { new: true }
-        );
+        const warranty = await Warranty.findById(req.params.id);
         if (!warranty) return res.status(404).json({ message: 'Record not found' });
+
+        // Determine approval status based on payment
+        const paymentStatus = (warranty.payment && warranty.payment.status) ? warranty.payment.status : 'Pending';
+        const paidCash = Number((warranty.payment && warranty.payment.paidCash) || 0);
+        const paidTransfer = Number((warranty.payment && warranty.payment.paidTransfer) || 0);
+        const isPaid = paymentStatus === 'Paid' || paymentStatus === 'Partial' || (paidCash + paidTransfer) > 0;
+
+        warranty.approvalStatus = isPaid ? 'Approved_Paid' : 'Approved_Unpaid';
+        warranty.approver = approver;
+        warranty.approvalDate = new Date();
+        await warranty.save();
+
         res.json({ success: true, warranty });
     } catch (err) {
         res.status(400).json({ message: err.message });
@@ -1599,7 +1603,7 @@ app.get('/api/warranties/check-duplicate', async (req, res) => {
 app.get('/api/warranties/active', async (req, res) => {
     try {
         const baseMatch = {
-            approvalStatus: 'approved'
+            approvalStatus: { $in: ['approved', 'Approved_Paid'] }
         };
 
         // Merge with search/date filters
@@ -1806,6 +1810,12 @@ app.patch('/api/warranties/:id/payment', async (req, res) => {
         }
 
         await warranty.save();
+
+        // Auto-upgrade: Approved_Unpaid → Approved_Paid when payment is recorded
+        if (warranty.approvalStatus === 'Approved_Unpaid') {
+            warranty.approvalStatus = 'Approved_Paid';
+            await warranty.save();
+        }
 
         // Recalculate installmentsPaid based on DB payment schedule
         try {
@@ -2744,7 +2754,17 @@ app.get('/api/claims/:id', async (req, res) => {
         if (!claims || claims.length === 0) {
             return res.status(404).json({ message: 'ไม่พบข้อมูลการเคลม' });
         }
-        res.json(claims[0]);
+
+        const claimDoc = claims[0];
+
+        if (claimDoc.warrantyId) {
+            const w = await Warranty.findById(claimDoc.warrantyId);
+            if (w) {
+                claimDoc.remainingWarranty = Number(w.remainingLimit ?? 0).toLocaleString();
+            }
+        }
+
+        res.json(claimDoc);
     } catch (err) {
         res.status(500).json({ message: err.message });
     }

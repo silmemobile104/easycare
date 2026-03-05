@@ -2355,7 +2355,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                     const pollRes = await fetch(`/api/warranties/${savedWarrantyId}`);
                                     const pollData = await pollRes.json();
 
-                                    if (pollData.approvalStatus === 'approved') {
+                                    if (pollData.approvalStatus === 'approved' || pollData.approvalStatus === 'Approved_Unpaid' || pollData.approvalStatus === 'Approved_Paid') {
                                         clearInterval(pollInterval);
                                         Swal.close();
 
@@ -3388,14 +3388,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Render active policies table with "ทำรายการเคลม" button
     function renderClaimsTable(records) {
         const body = document.getElementById('claimsBody');
         const empty = document.getElementById('claimsEmptyState');
         if (!body) return;
 
         records = Array.isArray(records) ? records : [];
-        records = records.filter(r => r && r.approvalStatus === 'approved');
+        records = records.filter(r => r && (r.approvalStatus === 'approved' || r.approvalStatus === 'Approved_Paid'));
 
         if (records.length === 0) {
             if (empty) empty.style.display = 'block';
@@ -4285,6 +4284,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div><strong>สี:</strong> ${claim.color}</div>
                     <div><strong>อาการ:</strong> ${claim.symptoms || '-'}</div>
                     <div><strong>วันที่แจ้งเคลม:</strong> ${new Date(claim.claimDate).toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' })}</div>
+                    <div><strong>วงเงินคงเหลือ:</strong> ${claim.remainingWarranty}</div>
                 `;
             }
 
@@ -4930,17 +4930,20 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Fetch Stats Counts (silent) ---
     async function fetchApprovalCounts() {
         try {
-            const [pendingRes, approvedRes, rejectedRes] = await Promise.all([
+            const [pendingRes, unpaidRes, paidRes, rejectedRes] = await Promise.all([
                 fetch('/api/warranties/pending?status=pending'),
-                fetch('/api/warranties/pending?status=approved'),
+                fetch('/api/warranties/pending?status=Approved_Unpaid'),
+                fetch('/api/warranties/pending?status=Approved_Paid'),
                 fetch('/api/warranties/pending?status=rejected')
             ]);
             const pending = await pendingRes.json();
-            const approved = await approvedRes.json();
+            const unpaid = await unpaidRes.json();
+            const paid = await paidRes.json();
             const rejected = await rejectedRes.json();
 
             if (document.getElementById('badgePending')) document.getElementById('badgePending').textContent = pending.length;
-            if (document.getElementById('badgeApproved')) document.getElementById('badgeApproved').textContent = approved.length;
+            if (document.getElementById('badgeApprovedUnpaid')) document.getElementById('badgeApprovedUnpaid').textContent = unpaid.length;
+            if (document.getElementById('badgeApprovedPaid')) document.getElementById('badgeApprovedPaid').textContent = paid.length;
             if (document.getElementById('badgeRejected')) document.getElementById('badgeRejected').textContent = rejected.length;
         } catch (err) {
             console.error('Error fetching approval counts:', err);
@@ -5021,6 +5024,11 @@ document.addEventListener('DOMContentLoaded', () => {
             if (w.approvalStatus === 'approved') {
                 const isExpired = new Date(w.warrantyDates?.end) < new Date();
                 st = isExpired ? { text: 'หมดอายุ', class: 'expired' } : { text: 'ปกติ', class: 'active' };
+            } else if (w.approvalStatus === 'Approved_Unpaid') {
+                st = { text: 'รอชำระเงิน', class: 'warning' };
+            } else if (w.approvalStatus === 'Approved_Paid') {
+                const isExpired = new Date(w.warrantyDates?.end) < new Date();
+                st = isExpired ? { text: 'หมดอายุ', class: 'expired' } : { text: 'สมบูรณ์', class: 'active' };
             } else if (w.approvalStatus === 'rejected') {
                 st = { text: 'ไม่อนุมัติ', class: 'rejected' };
             }
@@ -5083,8 +5091,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     let action = 'รออนุมัติ';
                     let actionTime = '-';
                     let actor = '-';
-                    if (w.approvalStatus === 'approved') {
-                        action = 'อนุมัติ';
+                    if (w.approvalStatus === 'approved' || w.approvalStatus === 'Approved_Unpaid' || w.approvalStatus === 'Approved_Paid') {
+                        action = w.approvalStatus === 'Approved_Unpaid' ? 'อนุมัติ (รอชำระเงิน)' : (w.approvalStatus === 'Approved_Paid' ? 'อนุมัติ (สมบูรณ์)' : 'อนุมัติ');
                         actionTime = formatThaiDateTime(w.approvalDate);
                         actor = w.approver || '-';
                     } else if (w.approvalStatus === 'rejected') {
@@ -5360,13 +5368,24 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 const data = await res.json();
                 if (res.ok) {
-                    SwalTheme.fire({
-                        icon: 'success',
-                        title: 'อนุมัติสำเร็จ!',
-                        text: 'สัญญาได้รับการอนุมัติแล้ว',
-                        timer: 2000,
-                        showConfirmButton: false
-                    });
+                    const newStatus = data.warranty?.approvalStatus || data.warranty?.approvalStatus;
+                    if (newStatus === 'Approved_Unpaid') {
+                        SwalTheme.fire({
+                            icon: 'success',
+                            title: 'อนุมัติสัญญาสำเร็จ!',
+                            text: 'สัญญานี้กำลังรอการชำระเงินจากลูกค้า',
+                            timer: 3000,
+                            showConfirmButton: false
+                        });
+                    } else {
+                        SwalTheme.fire({
+                            icon: 'success',
+                            title: 'อนุมัติสำเร็จ!',
+                            text: 'สัญญาเริ่มความคุ้มครองทันที',
+                            timer: 2000,
+                            showConfirmButton: false
+                        });
+                    }
                     fetchApprovalWarranties(approvalCurrentFilter);
                 } else {
                     SwalTheme.fire('เกิดข้อผิดพลาด', data.message || 'ไม่สามารถอนุมัติได้', 'error');

@@ -1816,6 +1816,12 @@ tbody tr:last-child td {
     box-shadow: 0 2px 8px rgba(14, 116, 144, 0.15);
 }
 
+.status-badge.warning {
+    background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+    color: #92400e;
+    box-shadow: 0 2px 8px rgba(245, 158, 11, 0.2);
+}
+
 /* ═══════════════════════════════════════════════════════════════════
    ACTION BUTTONS IN TABLE
 ═══════════════════════════════════════════════════════════════════ */
@@ -2159,7 +2165,7 @@ body.sidebar-open {
     -webkit-overflow-scrolling: touch;
 }
 
-.table-responsive > table {
+.table-responsive>table {
     width: 100%;
 }
 

@@ -9,7 +9,7 @@ const menuPermissions = {
     'nav-dashboard-approver': ['admin', 'approver'],
     'nav-staff': ['admin'],
     'nav-executive': ['admin'],
-    'nav-finance': ['admin']
+    'nav-finance': ['approver', 'admin']
 };
 
 /**

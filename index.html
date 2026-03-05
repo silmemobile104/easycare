@@ -1286,45 +1286,6 @@
                                 <div id="countApproverRejectedToday" class="summary-number text-secondary">0</div>
                             </div>
                         </div>
-
-                        <!-- Recent Queue Preview -->
-                        <div class="summary-card"
-                            style="width: 100%; max-width: 900px; text-align: left; padding: 1.5rem 2rem;">
-                            <div
-                                style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
-                                <h3 style="font-family: var(--thai-font-title); margin: 0; font-size: 1.1rem;">
-                                    <i class="fas fa-list-ul"
-                                        style="margin-right: 8px; color: var(--primary-color);"></i>
-                                    รายการรออนุมัติล่าสุด
-                                </h3>
-                                <button onclick="showView('approval')" class="btn-text"
-                                    style="color: var(--primary-color); font-size: 0.9rem;">
-                                    ดูทั้งหมด <i class="fas fa-chevron-right"
-                                        style="font-size: 0.7rem; margin-left: 4px;"></i>
-                                </button>
-                            </div>
-                            <div class="table-responsive">
-                                <table class="custom-table" style="font-size: 0.85rem;">
-                                    <thead>
-                                        <tr>
-                                            <th>วันที่ส่ง</th>
-                                            <th>เลขที่สัญญา</th>
-                                            <th>ลูกค้า</th>
-                                            <th>พนักงาน</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="approverDashboardQueueBody">
-                                        <!-- Will be populated by JS -->
-                                    </tbody>
-                                </table>
-                            </div>
-                            <div id="approverDashboardQueueEmpty"
-                                style="display: none; text-align: center; padding: 2rem; color: var(--text-muted);">
-                                <i class="fas fa-check-circle"
-                                    style="font-size: 2rem; display: block; margin-bottom: 10px; opacity: 0.3;"></i>
-                                <p>ไม่มีรายการรออนุมัติในขณะนี้</p>
-                            </div>
-                        </div>
                     </div>
                 </main>
 
@@ -1818,7 +1779,22 @@
                                 <p>รออนุมัติ (Pending)</p>
                             </div>
                         </div>
-                        <div class="stat-card approval-tab-btn" data-status="approved"
+                        <div class="stat-card approval-tab-btn" data-status="Approved_Unpaid"
+                            style="cursor: pointer; transition: all 0.3s ease;">
+                            <div class="stat-icon orange" style="background: rgba(245, 158, 11, 0.1); color: #f59e0b;">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <circle cx="12" cy="12" r="10"></circle>
+                                    <line x1="12" y1="8" x2="12" y2="12"></line>
+                                    <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                                </svg>
+                            </div>
+                            <div class="stat-content">
+                                <h3 id="badgeApprovedUnpaid">0</h3>
+                                <p>รอการชำระเงิน</p>
+                            </div>
+                        </div>
+                        <div class="stat-card approval-tab-btn" data-status="Approved_Paid"
                             style="cursor: pointer; transition: all 0.3s ease;">
                             <div class="stat-icon green">
                                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -1828,8 +1804,8 @@
                                 </svg>
                             </div>
                             <div class="stat-content">
-                                <h3 id="badgeApproved">0</h3>
-                                <p>อนุมัติแล้ว (Approved)</p>
+                                <h3 id="badgeApprovedPaid">0</h3>
+                                <p>เสร็จสมบูรณ์</p>
                             </div>
                         </div>
                         <div class="stat-card approval-tab-btn" data-status="rejected"
@@ -2944,7 +2920,7 @@
                             <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
                             <line x1="12" y1="22.08" x2="12" y2="12"></line>
                         </svg>
-                        <span id="btnPayExcessText">รับเครื่องคืน + จ่ายส่วนต่าง (0 บาท)</span>
+                        <span id="btnPayExcessText">ประสงค์เคลม + จ่ายส่วนต่าง (0 บาท)</span>
                     </button>
                     <button id="btnRefund" type="button"
                         style="flex: 1; min-width: 250px; padding: 1rem 1.5rem; background: linear-gradient(135deg, #ef4444, #b91c1c); color: white; border: none; border-radius: 50px; font-weight: 700; font-size: 1rem; box-shadow: 0 4px 15px rgba(239, 68, 68, 0.4); cursor: pointer; transition: all 0.2s ease; display: inline-flex; align-items: center; justify-content: center; gap: 8px;">
@@ -2953,7 +2929,7 @@
                             <line x1="12" y1="1" x2="12" y2="23"></line>
                             <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
                         </svg>
-                        <span id="btnRefundText">ไม่รับเครื่อง + รับเงินคืน (0 บาท)</span>
+                        <span id="btnRefundText">ไม่ประสงค์เคลม + รับเงินคืน (0 บาท)</span>
                     </button>
                 </div>
             </div>
