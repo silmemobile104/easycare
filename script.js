@@ -147,10 +147,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- APP STATE ---
     let currentUser = JSON.parse(localStorage.getItem('smilecare_staff_session'));
-    const canApproveContracts = (typeof hasPermission === 'function' && hasPermission('nav-approval')) || !!(
-        currentUser &&
-        (currentUser.staffPosition === 'อนุมัติสัญญา' || currentUser.staffId === 'STF000' || currentUser.staffName === 'Admin')
-    );
+    const canApproveContracts = function () {
+        const user = JSON.parse(localStorage.getItem('smilecare_staff_session')) || currentUser;
+        return (typeof hasPermission === 'function' && hasPermission('nav-approval')) || !!(
+            user &&
+            (user.staffPosition === 'อนุมัติสัญญา' || user.staffId === 'STF000' || user.staffName === 'Admin' || user.role === 'approver')
+        );
+    };
 
     // --- SOCKET.IO (for real-time notifications) ---
     let socket = null;
@@ -290,7 +293,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- VIEW CONTROLLER ---
     function showView(viewName) {
-        if (viewName === 'approval' && !canApproveContracts) {
+        if (viewName === 'approval' && !canApproveContracts()) {
             showAlert('warning', 'บัญชีของคุณไม่มีสิทธิ์เข้าเมนูอนุมัติสัญญา');
             viewName = 'dashboard';
         }
@@ -588,11 +591,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const approvalNavLink = document.getElementById('approvalNavLink');
     if (approvalNavLink) {
-        if (!canApproveContracts) {
-            approvalNavLink.style.display = 'none';
-        } else {
-            approvalNavLink.addEventListener('click', (e) => { e.preventDefault(); showView('approval'); });
-        }
+        approvalNavLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            if (canApproveContracts()) {
+                showView('approval');
+            } else {
+                showAlert('warning', 'บัญชีของคุณไม่มีสิทธิ์เข้าเมนูอนุมัติสัญญา');
+            }
+        });
     }
 
     const staffNavLink = document.getElementById('staffNavLink');
@@ -607,8 +613,144 @@ document.addEventListener('DOMContentLoaded', () => {
     const salesDashboardLink = document.getElementById('salesDashboardLink');
     if (salesDashboardLink) salesDashboardLink.addEventListener('click', (e) => { e.preventDefault(); showView('dashboard-sales'); });
 
+    // Sales Dashboard Card Clicks -> Navigation & Filter
+    window.goToSalesFilteredTab = function (type) {
+        if (type === 'overdue_claims') {
+            showView('statusTracking');
+            // Normally status tracking shows pending claims. Here we might just want to highlight overdue.
+            // But we don't have a direct filter for overdue, we will just show the section.
+            // If the user wants specific filtering, update the status tracking endpoint.
+        } else if (type === 'pending_approval') {
+            showView('dashboard');
+            const statusFilter = document.getElementById('dashStatusFilter');
+            const search = document.getElementById('dashSearchInput');
+            const startDate = document.getElementById('dashStartDate');
+            const endDate = document.getElementById('dashEndDate');
+            const payment = document.getElementById('dashPaymentFilter');
+
+            if (search) search.value = '';
+            if (startDate) startDate.value = '';
+            if (endDate) endDate.value = '';
+            if (payment) payment.value = 'all';
+
+            if (statusFilter) {
+                statusFilter.value = 'approval_pending';
+            }
+            if (typeof fetchWarranties !== 'undefined') {
+                fetchWarranties();
+            }
+        } else if (type === 'unpaid_packages') {
+            showView('dashboard');
+            const statusFilter = document.getElementById('dashStatusFilter');
+            const payment = document.getElementById('dashPaymentFilter');
+            const search = document.getElementById('dashSearchInput');
+            const startDate = document.getElementById('dashStartDate');
+            const endDate = document.getElementById('dashEndDate');
+
+            if (search) search.value = '';
+            if (startDate) startDate.value = '';
+            if (endDate) endDate.value = '';
+            if (statusFilter) statusFilter.value = 'all';
+
+            // "unpaid" specifically is when they haven't paid at all or owe money.
+            // In the dashboard filter, let's just show 'all' and let payment filter be 'installment' or handled otherwise.
+            // the requirement says "รายการแพ็คเกจที่ยังไม่ได้ชำระเงิน". There's no direct dropdown option for "unpaid" in the base filters,
+            // we will need to add an 'unpaid' option to dashPaymentFilter in index.html if it doesn't exist, but 'all' works as a fallback.
+            if (payment) payment.value = 'all'; // Fallback
+
+            if (typeof fetchWarranties !== 'undefined') fetchWarranties();
+        } else if (type === 'due_installments') {
+            showView('dashboard');
+            const statusFilter = document.getElementById('dashStatusFilter');
+            const payment = document.getElementById('dashPaymentFilter');
+            const search = document.getElementById('dashSearchInput');
+            const startDate = document.getElementById('dashStartDate');
+            const endDate = document.getElementById('dashEndDate');
+
+            if (search) search.value = '';
+            if (startDate) startDate.value = '';
+            if (endDate) endDate.value = '';
+            if (statusFilter) statusFilter.value = 'all';
+            if (payment) payment.value = 'installment';
+            if (typeof fetchWarranties !== 'undefined') fetchWarranties();
+        }
+    };
+
+    const cardSalesOverdueClaims = document.getElementById('cardSalesOverdueClaims');
+    if (cardSalesOverdueClaims) cardSalesOverdueClaims.addEventListener('click', () => goToSalesFilteredTab('overdue_claims'));
+
+    const cardSalesPendingApproval = document.getElementById('cardSalesPendingApproval');
+    if (cardSalesPendingApproval) cardSalesPendingApproval.addEventListener('click', () => goToSalesFilteredTab('pending_approval'));
+
+    const cardSalesUnpaid = document.getElementById('cardSalesUnpaid');
+    if (cardSalesUnpaid) cardSalesUnpaid.addEventListener('click', () => goToSalesFilteredTab('unpaid_packages'));
+
+    const cardSalesDueInstallments = document.getElementById('cardSalesDueInstallments');
+    if (cardSalesDueInstallments) cardSalesDueInstallments.addEventListener('click', () => goToSalesFilteredTab('due_installments'));
+
     const approverDashboardLink = document.getElementById('approverDashboardLink');
     if (approverDashboardLink) approverDashboardLink.addEventListener('click', (e) => { e.preventDefault(); showView('dashboard-approver'); });
+
+    // Approver Dashboard Card Clicks -> Navigation & Filter
+    window.goToApprovalTab = function (statusFilter, dateFilter) {
+        if (!canApproveContracts()) {
+            showAlert('warning', 'บัญชีของคุณไม่มีสิทธิ์เข้าเมนูอนุมัติสัญญา');
+            return;
+        }
+        showView('approval');
+
+        const startDate = document.getElementById('approvalStartDate');
+        const endDate = document.getElementById('approvalEndDate');
+        const search = document.getElementById('approvalSearchInput');
+        if (search) search.value = '';
+        if (startDate) startDate.value = '';
+        if (endDate) endDate.value = '';
+
+        if (dateFilter === 'today') {
+            const d = new Date();
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            const todayStr = `${year}-${month}-${day}`;
+            if (startDate) startDate.value = todayStr;
+            if (endDate) endDate.value = todayStr;
+        }
+
+        const tabs = document.querySelectorAll('.approval-tab-btn');
+        let foundTab = false;
+        tabs.forEach(b => {
+            if (b.dataset.status === statusFilter || (statusFilter === 'approved' && b.dataset.status === 'Approved_Paid')) {
+                b.classList.add('active');
+                try { approvalCurrentFilter = b.dataset.status; } catch (e) { }
+                statusFilter = b.dataset.status;
+                foundTab = true;
+            } else {
+                b.classList.remove('active');
+            }
+        });
+
+        if (typeof approvalCurrentFilter === 'undefined') {
+            window.approvalCurrentFilter = statusFilter;
+        } else if (!foundTab) {
+            approvalCurrentFilter = statusFilter;
+        }
+
+        if (typeof fetchApprovalWarranties !== 'undefined') {
+            fetchApprovalWarranties(statusFilter);
+        }
+    };
+
+    const cardApproverPending = document.getElementById('cardApproverPending');
+    if (cardApproverPending) cardApproverPending.addEventListener('click', () => goToApprovalTab('pending', null));
+
+    const cardApproverUrgent = document.getElementById('cardApproverUrgent');
+    if (cardApproverUrgent) cardApproverUrgent.addEventListener('click', () => goToApprovalTab('Approved_Unpaid', null));
+
+    const cardApproverApprovedToday = document.getElementById('cardApproverApprovedToday');
+    if (cardApproverApprovedToday) cardApproverApprovedToday.addEventListener('click', () => goToApprovalTab('Approved_Paid', 'today'));
+
+    const cardApproverRejectedToday = document.getElementById('cardApproverRejectedToday');
+    if (cardApproverRejectedToday) cardApproverRejectedToday.addEventListener('click', () => goToApprovalTab('rejected', 'today'));
 
     const financeExportExcelBtn = document.getElementById('financeExportExcelBtn');
     if (financeExportExcelBtn) {
@@ -915,7 +1057,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Urgent Approval Notification (queue)
     if (socket) {
         socket.on('urgent_approval_needed', (payload) => {
-            if (!canApproveContracts) return;
+            if (!canApproveContracts()) return;
             urgentApprovalQueue.push(payload || {});
             processUrgentApprovalQueue();
         });
@@ -1334,6 +1476,175 @@ document.addEventListener('DOMContentLoaded', () => {
         e.preventDefault();
         loadExecutiveDashboard();
     });
+
+    // Executive Dashboard Report Listeners
+    const cardExecTotalRevenue = document.getElementById('cardExecTotalRevenue');
+    const cardExecTotalClaimCost = document.getElementById('cardExecTotalClaimCost');
+    const cardExecActiveWarranties = document.getElementById('cardExecActiveWarranties');
+    const cardExecOverdueClaims = document.getElementById('cardExecOverdueClaims');
+
+    if (cardExecTotalRevenue) cardExecTotalRevenue.addEventListener('click', () => fetchExecutiveReport('revenue'));
+    if (cardExecTotalClaimCost) cardExecTotalClaimCost.addEventListener('click', () => fetchExecutiveReport('claimCost'));
+    if (cardExecActiveWarranties) cardExecActiveWarranties.addEventListener('click', () => fetchExecutiveReport('active'));
+    if (cardExecOverdueClaims) cardExecOverdueClaims.addEventListener('click', () => fetchExecutiveReport('overdue'));
+
+    async function fetchExecutiveReport(type) {
+        if (!currentUser || currentUser.role !== 'admin') return;
+
+        const startDate = (document.getElementById('execStartDate') || {}).value || '';
+        const endDate = (document.getElementById('execEndDate') || {}).value || '';
+        const staff = (document.getElementById('execStaff') || {}).value || '';
+
+        const params = new URLSearchParams();
+        params.set('type', type);
+        if (startDate) params.set('startDate', startDate);
+        if (endDate) params.set('endDate', endDate);
+        if (staff) params.set('staff', staff);
+
+        showLoader('กำลังโหลดรายงาน...');
+        const tbody = document.getElementById('execReportModalBody');
+        if (tbody) tbody.innerHTML = '<tr><td colspan="5" class="empty-state">กำลังโหลดข้อมูล...</td></tr>';
+
+        try {
+            const res = await fetch(`/api/dashboard/executive/report?${params.toString()}`, {
+                headers: { 'x-user-role': currentUser.role }
+            });
+            const data = await res.json();
+
+            if (!res.ok || !data.success) {
+                throw new Error(data.message || 'ไม่สามารถโหลดข้อมูลรายงานได้');
+            }
+
+            renderExecutiveReport(type, data.items || []);
+            const modal = document.getElementById('executiveReportModal');
+            if (modal) modal.style.display = 'flex';
+        } catch (err) {
+            console.error('fetchExecutiveReport error:', err);
+            showAlert('error', err.message);
+        } finally {
+            hideLoader();
+        }
+    }
+
+    function renderExecutiveReport(type, items) {
+        const titleEl = document.getElementById('execReportModalTitle');
+        const theadEl = document.getElementById('execReportModalHead');
+        const tbodyEl = document.getElementById('execReportModalBody');
+
+        if (!titleEl || !theadEl || !tbodyEl) return;
+
+        let title = '';
+        let headHtml = '';
+        let bodyHtml = '';
+
+        const fmtDate = (d) => {
+            if (!d) return '-';
+            const dt = new Date(d);
+            return isNaN(dt.getTime()) ? '-' : dt.toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' });
+        };
+        const fmtNum = (n) => typeof formatNumber === 'function' ? formatNumber(n) : Number(n || 0).toLocaleString();
+
+        if (items.length === 0) {
+            bodyHtml = '<tr><td colspan="5" class="empty-state">ไม่พบข้อมูลตามเงื่อนไขที่เลือก</td></tr>';
+        }
+
+        if (type === 'revenue') {
+            title = 'รายงานรายละเอียด: ยอดขายรวม';
+            headHtml = `
+                <tr>
+                    <th>วันที่อนุมัติ</th>
+                    <th>เลขกรมธรรม์</th>
+                    <th>ลูกค้า</th>
+                    <th>แพ็กเกจ</th>
+                    <th style="text-align: right;">ยอดขาย (บาท)</th>
+                </tr>
+            `;
+            if (items.length > 0) {
+                bodyHtml = items.map(item => `
+                    <tr>
+                        <td>${fmtDate(item.createdAt)}</td>
+                        <td>${item.policyNumber || '-'}</td>
+                        <td>${item.customer?.firstName || ''} ${item.customer?.lastName || ''}</td>
+                        <td>${item.package?.plan || '-'}</td>
+                        <td style="text-align: right; font-weight: 500;">${fmtNum(item.package?.price || 0)}</td>
+                    </tr>
+                `).join('');
+            }
+        } else if (type === 'claimCost') {
+            title = 'รายงานรายละเอียด: ต้นทุนเคลมรวม';
+            headHtml = `
+                <tr>
+                    <th>วันที่เคลม</th>
+                    <th>รหัสเคลม</th>
+                    <th>ลูกค้า</th>
+                    <th>อุปกรณ์</th>
+                    <th style="text-align: right;">ต้นทุน (บาท)</th>
+                </tr>
+            `;
+            if (items.length > 0) {
+                bodyHtml = items.map(item => `
+                    <tr>
+                        <td>${fmtDate(item.claimDate)}</td>
+                        <td>${item.claimId || '-'}</td>
+                        <td>${item.customerName || '-'}</td>
+                        <td>${item.deviceModel || '-'}</td>
+                        <td style="text-align: right; color: var(--danger); font-weight: 500;">${fmtNum(item.totalCost || 0)}</td>
+                    </tr>
+                `).join('');
+            }
+        } else if (type === 'active') {
+            title = 'รายงานรายละเอียด: กรมธรรม์ใช้งานอยู่';
+            headHtml = `
+                <tr>
+                    <th>เลขกรมธรรม์</th>
+                    <th>ลูกค้า</th>
+                    <th>วันหมดอายุ</th>
+                    <th style="text-align: right;">วงเงินคุ้มครอง (ประเมิน)</th>
+                    <th style="text-align: right;">ยอดใช้ไป (บาท)</th>
+                </tr>
+            `;
+            if (items.length > 0) {
+                bodyHtml = items.map(item => {
+                    const maxLimit = Math.floor((item.devicePrice || 0) * 0.7);
+                    return `
+                    <tr>
+                        <td>${item.policyNumber || '-'}</td>
+                        <td>${item.customer?.firstName || ''} ${item.customer?.lastName || ''}</td>
+                        <td>${fmtDate(item.warrantyDates?.end)}</td>
+                        <td style="text-align: right;">${fmtNum(maxLimit)}</td>
+                        <td style="text-align: right; color: var(--danger);">${fmtNum(item.usedCoverage || 0)}</td>
+                    </tr>
+                `}).join('');
+            }
+        } else if (type === 'overdue') {
+            title = 'รายงานรายละเอียด: งานซ่อมล่าช้า (> 5 วัน)';
+            headHtml = `
+                <tr>
+                    <th>รหัสเคลม</th>
+                    <th>ลูกค้า</th>
+                    <th>สถานะล่าสุด</th>
+                    <th>วันที่อัปเดตล่าสุด</th>
+                    <th style="text-align: center; color: var(--danger);">จำนวนวันล่าช้า</th>
+                </tr>
+            `;
+            if (items.length > 0) {
+                bodyHtml = items.map(item => `
+                    <tr>
+                        <td>${item.claimId || '-'}</td>
+                        <td>${item.customerName || '-'}</td>
+                        <td><span class="status-badge" style="background-color: #ef4444; color: white;">${item.status || 'รอเคลม'}</span></td>
+                        <td>${fmtDate(item.lastUpdateDate)}</td>
+                        <td style="text-align: center; font-weight: bold; color: var(--danger);">${item.daysSinceUpdate} วัน</td>
+                    </tr>
+                `).join('');
+            }
+        }
+
+        titleEl.textContent = title;
+        theadEl.innerHTML = headHtml;
+        tbodyEl.innerHTML = bodyHtml;
+    }
+
 
     // Client-side payment filter only (search/status/date are now server-side)
     function applyPaymentFilter() {

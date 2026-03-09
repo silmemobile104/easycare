@@ -1,3 +1,5 @@
+const dns = require('dns');
+dns.setServers(['8.8.8.8', '1.1.1.1']);
 require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
@@ -1016,6 +1018,88 @@ app.get('/api/dashboard/stats', checkAdminRole, async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════════════════
+// EXECUTIVE REPORT MODAL API (Admin Only)
+// ═══════════════════════════════════════════════════════════════════
+
+app.get('/api/dashboard/executive/report', checkAdminRole, async (req, res) => {
+    try {
+        const { type, startDate, endDate, staff } = req.query || {};
+
+        const warrantyMatch = {};
+        const claimMatch = {};
+
+        if (staff) {
+            warrantyMatch.staffName = String(staff);
+            claimMatch.staffName = String(staff);
+        }
+
+        if (startDate) {
+            warrantyMatch.createdAt = { ...(warrantyMatch.createdAt || {}), $gte: new Date(startDate) };
+            claimMatch.claimDate = { ...(claimMatch.claimDate || {}), $gte: new Date(startDate) };
+        }
+        if (endDate) {
+            const end = new Date(endDate + 'T23:59:59.999Z');
+            warrantyMatch.createdAt = { ...(warrantyMatch.createdAt || {}), $lte: end };
+            claimMatch.claimDate = { ...(claimMatch.claimDate || {}), $lte: end };
+        }
+
+        const now = new Date();
+        let items = [];
+
+        if (type === 'revenue') {
+            items = await Warranty.find({ ...warrantyMatch, 'package.price': { $gt: 0 } })
+                .select('policyNumber customer.firstName customer.lastName package.price createdAt package.plan')
+                .sort({ createdAt: -1 })
+                .lean();
+
+        } else if (type === 'claimCost') {
+            items = await Claim.find({ ...claimMatch, totalCost: { $gt: 0 } })
+                .select('claimId customerName deviceModel claimDate totalCost')
+                .sort({ claimDate: -1 })
+                .lean();
+
+        } else if (type === 'active') {
+            // Need to populate the warranty list. Note that devicePrice / maxLimit / usedCoverage might need manual calc here or in pipeline.
+            // Simplified using straightforward find + lean, and calculating remaining limit on the fly based on maxLimit = price * 0.7 
+            // but the warranty aggregate has complex logic for currentLimit depending on installmentsPaid.
+            // Let's use the same logic we used for the active aggregate count, but fetch docs.
+            items = await Warranty.find({
+                ...warrantyMatch,
+                'warrantyDates.end': { $gte: now }
+            })
+                .sort({ 'warrantyDates.end': 1 })
+                .lean();
+
+        } else if (type === 'overdue') {
+            const claims = await Claim.find({
+                ...claimMatch,
+                status: 'รอเคลม'
+            }).lean();
+
+            items = claims.filter(c => {
+                const lastUpdate = c.updates && c.updates.length > 0
+                    ? c.updates[c.updates.length - 1].date
+                    : (c.claimDate || c.createdAt);
+                const lastUpdateDate = new Date(lastUpdate);
+                const daysSinceUpdate = Math.floor((now - lastUpdateDate.getTime()) / 86400000);
+                if (daysSinceUpdate >= 5) {
+                    c.daysSinceUpdate = daysSinceUpdate;
+                    c.lastUpdateDate = lastUpdateDate;
+                    return true;
+                }
+                return false;
+            }).sort((a, b) => b.daysSinceUpdate - a.daysSinceUpdate);
+        } else {
+            return res.status(400).json({ success: false, message: 'Invalid report type' });
+        }
+
+        return res.json({ success: true, items });
+    } catch (err) {
+        return res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// ═══════════════════════════════════════════════════════════════════
 // STAFF CRUD API ROUTES (Admin Only)
 // ═══════════════════════════════════════════════════════════════════
 
@@ -1490,10 +1574,9 @@ app.get('/api/dashboard/approver/summary', async (req, res) => {
         // 1. All Pending
         const pendingApprovals = await Warranty.countDocuments({ approvalStatus: 'pending' });
 
-        // 2. Urgent Pending (> 3 days)
+        // 2. Approved but Unpaid
         const urgentPending = await Warranty.countDocuments({
-            approvalStatus: 'pending',
-            createdAt: { $lt: threeDaysAgo }
+            approvalStatus: 'Approved_Unpaid'
         });
 
         // 3. Approved Today

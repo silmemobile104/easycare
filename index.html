@@ -573,7 +573,7 @@
                                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                 <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
                             </svg>
-                            ติดตามสถานะ
+                            ติดตามสถานะงานเคลม
                             <span id="statusTrackingBadge" class="nav-badge" style="display: none;">0</span>
                         </a>
                         <a href="#" id="approvalNavLink" data-permission="nav-approval">
@@ -771,7 +771,7 @@
                 <main id="executiveMain" class="main-content" style="display: none;">
                     <header class="dashboard-header">
                         <div class="header-titles">
-                            <h1>Executive Dashboard</h1>
+                            <h1>แดชบอร์ดผู้บริหาร</h1>
                             <p>ภาพรวมสถิติธุรกิจและวิเคราะห์ข้อมูล (Business Intelligence)</p>
                         </div>
                     </header>
@@ -800,7 +800,10 @@
                     </div>
 
                     <div class="stats-overview">
-                        <div class="stat-card">
+                        <div class="stat-card" id="cardExecTotalRevenue"
+                            style="cursor: pointer; transition: transform 0.2s;"
+                            onmouseover="this.style.transform='scale(1.02)'"
+                            onmouseout="this.style.transform='scale(1)'">
                             <div class="stat-icon green">
                                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -814,7 +817,10 @@
                             </div>
                         </div>
 
-                        <div class="stat-card">
+                        <div class="stat-card" id="cardExecTotalClaimCost"
+                            style="cursor: pointer; transition: transform 0.2s;"
+                            onmouseover="this.style.transform='scale(1.02)'"
+                            onmouseout="this.style.transform='scale(1)'">
                             <div class="stat-icon orange">
                                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -828,7 +834,10 @@
                             </div>
                         </div>
 
-                        <div class="stat-card">
+                        <div class="stat-card" id="cardExecActiveWarranties"
+                            style="cursor: pointer; transition: transform 0.2s;"
+                            onmouseover="this.style.transform='scale(1.02)'"
+                            onmouseout="this.style.transform='scale(1)'">
                             <div class="stat-icon purple">
                                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -845,7 +854,10 @@
                             </div>
                         </div>
 
-                        <div class="stat-card">
+                        <div class="stat-card" id="cardExecOverdueClaims"
+                            style="cursor: pointer; transition: transform 0.2s;"
+                            onmouseover="this.style.transform='scale(1.02)'"
+                            onmouseout="this.style.transform='scale(1)'">
                             <div class="stat-icon red">
                                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -1164,7 +1176,10 @@
                     <div class="dashboard-cards-container">
                         <div class="dashboard-cards-grid">
                             <!-- Card 1: Overdue Claims -->
-                            <div class="summary-card">
+                            <div class="summary-card" id="cardSalesOverdueClaims"
+                                style="cursor: pointer; transition: transform 0.2s;"
+                                onmouseover="this.style.transform='scale(1.02)'"
+                                onmouseout="this.style.transform='scale(1)'">
                                 <div class="summary-card-icon danger">
                                     <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                         stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -1178,7 +1193,10 @@
                             </div>
 
                             <!-- Card 2: Pending Approval -->
-                            <div class="summary-card">
+                            <div class="summary-card" id="cardSalesPendingApproval"
+                                style="cursor: pointer; transition: transform 0.2s;"
+                                onmouseover="this.style.transform='scale(1.02)'"
+                                onmouseout="this.style.transform='scale(1)'">
                                 <div class="summary-card-icon warning">
                                     <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                         stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -1191,7 +1209,10 @@
                             </div>
 
                             <!-- Card 3: Unpaid Packages -->
-                            <div class="summary-card">
+                            <div class="summary-card" id="cardSalesUnpaid"
+                                style="cursor: pointer; transition: transform 0.2s;"
+                                onmouseover="this.style.transform='scale(1.02)'"
+                                onmouseout="this.style.transform='scale(1)'">
                                 <div class="summary-card-icon secondary">
                                     <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                         stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -1204,7 +1225,10 @@
                             </div>
 
                             <!-- Card 4: Due Installments -->
-                            <div class="summary-card">
+                            <div class="summary-card" id="cardSalesDueInstallments"
+                                style="cursor: pointer; transition: transform 0.2s;"
+                                onmouseover="this.style.transform='scale(1.02)'"
+                                onmouseout="this.style.transform='scale(1)'">
                                 <div class="summary-card-icon primary">
                                     <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                         stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -1234,7 +1258,10 @@
                         style="flex-direction: column; min-height: auto; padding-top: 1rem;">
                         <div class="dashboard-cards-grid" style="margin-bottom: 3rem;">
                             <!-- Card 1: Total Pending -->
-                            <div class="summary-card">
+                            <div class="summary-card" id="cardApproverPending"
+                                style="cursor: pointer; transition: transform 0.2s;"
+                                onmouseover="this.style.transform='scale(1.02)'"
+                                onmouseout="this.style.transform='scale(1)'">
                                 <div class="summary-card-icon info">
                                     <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                         stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -1247,7 +1274,10 @@
                             </div>
 
                             <!-- Card 2: Urgent -->
-                            <div class="summary-card">
+                            <div class="summary-card" id="cardApproverUrgent"
+                                style="cursor: pointer; transition: transform 0.2s;"
+                                onmouseover="this.style.transform='scale(1.02)'"
+                                onmouseout="this.style.transform='scale(1)'">
                                 <div class="summary-card-icon danger">
                                     <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                         stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -1256,12 +1286,15 @@
                                         <line x1="12" y1="16" x2="12.01" y2="16"></line>
                                     </svg>
                                 </div>
-                                <p class="summary-card-title">เคสเร่งด่วน (&gt; 3 วัน)</p>
+                                <p class="summary-card-title">อนุมัติแล้ว (รอชำระเงิน)</p>
                                 <div id="countApproverUrgent" class="summary-number text-danger">0</div>
                             </div>
 
                             <!-- Card 3: Approved Today -->
-                            <div class="summary-card">
+                            <div class="summary-card" id="cardApproverApprovedToday"
+                                style="cursor: pointer; transition: transform 0.2s;"
+                                onmouseover="this.style.transform='scale(1.02)'"
+                                onmouseout="this.style.transform='scale(1)'">
                                 <div class="summary-card-icon primary">
                                     <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                         stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -1273,7 +1306,10 @@
                             </div>
 
                             <!-- Card 4: Rejected Today -->
-                            <div class="summary-card">
+                            <div class="summary-card" id="cardApproverRejectedToday"
+                                style="cursor: pointer; transition: transform 0.2s;"
+                                onmouseover="this.style.transform='scale(1.02)'"
+                                onmouseout="this.style.transform='scale(1)'">
                                 <div class="summary-card-icon secondary">
                                     <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                         stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -1646,7 +1682,9 @@
                     </div>
 
                     <div class="stats-overview" style="margin-bottom: 2rem;">
-                        <div class="stat-card">
+                        <div class="stat-card" style="cursor: pointer; transition: transform 0.2s;"
+                            onmouseover="this.style.transform='scale(1.02)'"
+                            onmouseout="this.style.transform='scale(1)'">
                             <div class="stat-icon red" style="background: rgba(239, 68, 68, 0.1); color: #ef4444;">
                                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -1655,12 +1693,14 @@
                                 </svg>
                             </div>
                             <div class="stat-content">
-                                <h3 id="salesOverdueCount">0</h3>
+                                <h3 id="salesOverdueCount_dup">0</h3>
                                 <p>งานเคลมค้างอัปเดต (เกิน 5 วัน)</p>
                             </div>
                         </div>
 
-                        <div class="stat-card">
+                        <div class="stat-card" style="cursor: pointer; transition: transform 0.2s;"
+                            onmouseover="this.style.transform='scale(1.02)'"
+                            onmouseout="this.style.transform='scale(1)'">
                             <div class="stat-icon orange">
                                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -1669,12 +1709,14 @@
                                 </svg>
                             </div>
                             <div class="stat-content">
-                                <h3 id="salesPendingApprovalCount">0</h3>
+                                <h3 id="salesPendingApprovalCount_dup">0</h3>
                                 <p>รายการแพ็คเกจที่ยังไม่อนุมัติ</p>
                             </div>
                         </div>
 
-                        <div class="stat-card">
+                        <div class="stat-card" style="cursor: pointer; transition: transform 0.2s;"
+                            onmouseover="this.style.transform='scale(1.02)'"
+                            onmouseout="this.style.transform='scale(1)'">
                             <div class="stat-icon blue">
                                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -1683,12 +1725,14 @@
                                 </svg>
                             </div>
                             <div class="stat-content">
-                                <h3 id="salesUnpaidPackageCount">0</h3>
+                                <h3 id="salesUnpaidPackageCount_dup">0</h3>
                                 <p>รายการแพ็คเกจที่ยังไม่ได้ชำระเงิน</p>
                             </div>
                         </div>
 
-                        <div class="stat-card">
+                        <div class="stat-card" style="cursor: pointer; transition: transform 0.2s;"
+                            onmouseover="this.style.transform='scale(1.02)'"
+                            onmouseout="this.style.transform='scale(1)'">
                             <div class="stat-icon red" style="background: rgba(239, 68, 68, 0.1); color: #ef4444;">
                                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -1697,7 +1741,7 @@
                                 </svg>
                             </div>
                             <div class="stat-content">
-                                <h3 id="salesInstallmentOverdueCount">0</h3>
+                                <h3 id="salesInstallmentOverdueCount_dup">0</h3>
                                 <p>รายการแพ็คเกจที่ครบกำหนดวันชำระแล้ว (ชำระเป็นงวด)</p>
                             </div>
                         </div>
@@ -3352,6 +3396,37 @@
         </div>
     </div>
     <!-- =================== END CLAIM RECEIPT VIEW =================== -->
+
+    <!-- =================== EXECUTIVE REPORT MODAL =================== -->
+    <div id="executiveReportModal" class="modal">
+        <div class="modal-content" style="max-width: 1000px; max-height: 90vh; overflow-y: auto;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h2 id="execReportModalTitle" style="color: var(--primary); margin: 0;">รายงานรายละเอียด</h2>
+                <div class="modal-actions" style="margin: 0;">
+                    <button type="button" class="btn-cancel"
+                        onclick="document.getElementById('executiveReportModal').style.display='none'">ปิดหน้าต่าง</button>
+                    <!-- <button type="button" class="btn-submit" onclick="exportExecReportExcel()">Export Excel</button> -->
+                </div>
+            </div>
+
+            <div class="table-container" style="box-shadow: none; border: 1px solid rgba(148,163,184,.35); padding: 0;">
+                <table class="data-table">
+                    <thead id="execReportModalHead">
+                        <!-- Dynamic Headers go here -->
+                        <tr>
+                            <th>กำลังโหลดข้อมูล...</th>
+                        </tr>
+                    </thead>
+                    <tbody id="execReportModalBody">
+                        <!-- Dynamic Rows go here -->
+                        <tr>
+                            <td class="empty-state">กรุณารอสักครู่...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
 
     <script src="permissions.js"></script>
     <script src="script.js"></script>
