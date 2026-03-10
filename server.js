@@ -357,6 +357,24 @@ const FinanceTransactionSchema = new mongoose.Schema({
 
 const FinanceTransaction = mongoose.model('FinanceTransaction', FinanceTransactionSchema);
 
+// AuditLog Schema
+const AuditLogSchema = new mongoose.Schema({
+    action: { type: String, required: true },
+    detail: { type: String, required: true },
+    staffName: { type: String, required: true },
+    timestamp: { type: Date, default: Date.now }
+});
+const AuditLog = mongoose.model('AuditLog', AuditLogSchema);
+
+// Helper function สำหรับบันทึก Log
+async function logAction(action, detail, staffName) {
+    try {
+        await new AuditLog({ action, detail, staffName: staffName || 'System' }).save();
+    } catch (err) {
+        console.error('Failed to save audit log:', err);
+    }
+}
+
 // ═══════════════════════════════════════════════════════════════════
 // FILTER HELPER FUNCTIONS
 // ═══════════════════════════════════════════════════════════════════
@@ -806,6 +824,7 @@ app.post('/api/login', async (req, res) => {
         const staff = await Staff.findOne({ username, password });
 
         if (staff) {
+            await logAction('Login', `เข้าสู่ระบบสำเร็จ (${staff.role})`, staff.staffName);
             res.json({
                 success: true,
                 user: { staffName: staff.staffName, staffId: staff.staffId, staffPosition: staff.staffPosition, role: staff.role }
@@ -813,6 +832,7 @@ app.post('/api/login', async (req, res) => {
         } else {
             // Fallback for admin if no staff exists yet (optional, but keep for convenience as per requirement)
             if (username === 'admin' && password === '1234') {
+                await logAction('Login', 'เข้าสู่ระบบสำเร็จ (admin fallback)', 'Admin');
                 return res.json({
                     success: true,
                     user: { staffName: 'Admin', staffId: 'STF000', role: 'admin' }
@@ -834,6 +854,19 @@ const checkAdminRole = (req, res, next) => {
     }
     next();
 };
+
+// ═══════════════════════════════════════════════════════════════════
+// AUDIT LOG API (Admin Only)
+// ═══════════════════════════════════════════════════════════════════
+
+app.get('/api/logs', checkAdminRole, async (req, res) => {
+    try {
+        const logs = await AuditLog.find().sort({ timestamp: -1 }).limit(100).lean();
+        res.json({ success: true, logs });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
 
 // ═══════════════════════════════════════════════════════════════════
 // EXECUTIVE DASHBOARD (Admin Only)
@@ -1392,6 +1425,7 @@ app.post('/api/warranties', async (req, res) => {
             }
         }
 
+        await logAction('Create Warranty', `สร้างสัญญาใหม่เลขที่: ${newWarranty.policyNumber}`, req.body.staffName || newWarranty.staffName || 'System');
         res.status(201).json(newWarranty);
     } catch (err) {
         res.status(400).json({ message: err.message });
@@ -1628,6 +1662,7 @@ app.put('/api/warranties/:id/approve', async (req, res) => {
         warranty.approvalDate = new Date();
         await warranty.save();
 
+        await logAction('Approve Warranty', `อนุมัติสัญญาเลขที่: ${warranty.policyNumber || req.params.id} (${warranty.approvalStatus})`, approver || 'System');
         res.json({ success: true, warranty });
     } catch (err) {
         res.status(400).json({ message: err.message });
@@ -2365,6 +2400,7 @@ app.post('/api/claims', claimUpload.array('images', 10), async (req, res) => {
         // Update Warranty status to 'Wait for Claim'
         await Warranty.findByIdAndUpdate(warrantyId, { claimStatus: 'pending' });
 
+        await logAction('Open Claim', `เปิดงานเคลมใหม่ ID: ${newClaim.claimId}, ลูกค้า: ${customerName || '-'}`, staffName || 'System');
         res.status(201).json({ success: true, claim: newClaim });
     } catch (err) {
         res.status(400).json({ success: false, message: err.message });

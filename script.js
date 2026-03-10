@@ -1645,6 +1645,86 @@ document.addEventListener('DOMContentLoaded', () => {
         tbodyEl.innerHTML = bodyHtml;
     }
 
+    // ═══════════════════════════════════════════════════════════════════
+    // AUDIT LOG — SweetAlert2 Modal
+    // ═══════════════════════════════════════════════════════════════════
+
+    const btnViewAuditLogs = document.getElementById('btnViewAuditLogs');
+    if (btnViewAuditLogs) {
+        btnViewAuditLogs.addEventListener('click', async () => {
+            if (!currentUser || currentUser.role !== 'admin') {
+                showAlert('error', 'คุณไม่มีสิทธิ์เข้าถึงประวัติการใช้งานระบบ');
+                return;
+            }
+
+            try {
+                showLoader('กำลังโหลดประวัติการใช้งาน...');
+
+                const res = await fetch('/api/logs', {
+                    headers: { 'x-user-role': currentUser.role }
+                });
+                const data = await res.json();
+
+                if (!res.ok || !data.success) {
+                    throw new Error(data.message || 'ไม่สามารถโหลด Audit Logs ได้');
+                }
+
+                let tableRows = '';
+                if (data.logs && data.logs.length > 0) {
+                    tableRows = data.logs.map(log => {
+                        const dateStr = new Date(log.timestamp).toLocaleString('th-TH');
+                        return `
+                            <tr>
+                                <td style="padding: 10px; border-bottom: 1px solid #eee; font-size: 0.85em; white-space: nowrap;">${dateStr}</td>
+                                <td style="padding: 10px; border-bottom: 1px solid #eee; font-size: 0.85em;">${log.staffName || '-'}</td>
+                                <td style="padding: 10px; border-bottom: 1px solid #eee; font-size: 0.85em; font-weight: bold; color: var(--primary);">${log.action}</td>
+                                <td style="padding: 10px; border-bottom: 1px solid #eee; font-size: 0.85em;">${log.detail}</td>
+                            </tr>
+                        `;
+                    }).join('');
+                } else {
+                    tableRows = '<tr><td colspan="4" style="text-align: center; padding: 20px; color: #94a3b8;">ไม่พบประวัติการใช้งาน</td></tr>';
+                }
+
+                const htmlContent = `
+                    <div style="max-height: 60vh; overflow-y: auto; text-align: left;">
+                        <table style="width: 100%; border-collapse: collapse; text-align: left;">
+                            <thead style="position: sticky; top: 0; background: #f8fafc; z-index: 1;">
+                                <tr>
+                                    <th style="padding: 12px 10px; border-bottom: 2px solid #e2e8f0; white-space: nowrap;">วัน-เวลา</th>
+                                    <th style="padding: 12px 10px; border-bottom: 2px solid #e2e8f0;">พนักงาน</th>
+                                    <th style="padding: 12px 10px; border-bottom: 2px solid #e2e8f0;">รายการ</th>
+                                    <th style="padding: 12px 10px; border-bottom: 2px solid #e2e8f0;">รายละเอียด</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${tableRows}
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+
+                hideLoader();
+
+                Swal.fire({
+                    title: 'ประวัติการใช้งานระบบ (Audit Log — 100 ล่าสุด)',
+                    html: htmlContent,
+                    width: '850px',
+                    showCloseButton: true,
+                    showConfirmButton: false,
+                    customClass: {
+                        popup: 'swal-wide'
+                    }
+                });
+
+            } catch (err) {
+                hideLoader();
+                console.error('Audit Log Error:', err);
+                showAlert('error', err.message);
+            }
+        });
+    }
+
 
     // Client-side payment filter only (search/status/date are now server-side)
     function applyPaymentFilter() {
