@@ -3837,7 +3837,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return `
                 <tr>
                     <td data-label="วันที่ลงทะเบียน">${r.createdAt ? new Date(r.createdAt).toLocaleString('th-TH') : '-'}</td>
-                    <td data-label="เลขกรมธรรม์" style="font-weight: 600; color: var(--primary);">${r.policyNumber || '-'}</td>
+                    <td data-label="รหัสการเคลม" style="font-weight: 600; color: var(--primary);">${r.claimId || '-'}</td>
                     <td data-label="รหัสสมาชิก">${r.memberId || '-'}</td>
                     <td data-label="ชื่อลูกค้า">${r.customer.firstName} ${r.customer.lastName}</td>
                     <td data-label="เบอร์โทรศัพท์">${r.customer.phone}</td>

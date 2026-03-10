@@ -503,7 +503,9 @@ app.get('/api/finance/expenses', async (req, res) => {
                     deviceModel: 1,
                     claimShopName: 1,
                     claimDate: 1,
+                    claimDate: 1,
                     totalCost: 1,
+                    status: 1,
                     updates: 1
                 }
             },
@@ -518,6 +520,8 @@ app.get('/api/finance/expenses', async (req, res) => {
                             }
                         },
                         { $match: { __expenseAmount: { $gt: 0 } } },
+                        { $match: { 'updates.title': { $ne: 'ลูกค้าตกลงรับเครื่องคืนและชำระเงินส่วนต่าง' } } },
+                        { $match: { $or: [{ 'updates.title': { $not: /\(เกินวงเงิน\)/ } }, { status: { $ne: 'ลูกค้าสละสิทธิ์เครื่อง' } }] } },
                         ...(Object.keys(baseMatch).length > 0 ? [{ $match: baseMatch }] : []),
                         {
                             $project: {
@@ -541,13 +545,39 @@ app.get('/api/finance/expenses', async (req, res) => {
                     expenses: { $concatArrays: ['$updateExpenses'] }
                 }
             },
-            { $unwind: { path: '$expenses', preserveNullAndEmptyArrays: true } },
+            { $unwind: { path: '$expenses', preserveNullAndEmptyArrays: false } },
             { $replaceRoot: { newRoot: '$expenses' } },
             { $sort: { expenseDate: -1 } }
         ];
 
-        const rows = await Claim.aggregate(pipeline);
-        res.json(Array.isArray(rows) ? rows : []);
+        let rows = await Claim.aggregate(pipeline);
+        rows = Array.isArray(rows) ? rows : [];
+
+        // Fetch refund transactions and map them to match the expense schema
+        const refundTxQuery = { actionType: 'คืนเงินชดเชยสละสิทธิ์เครื่อง' };
+        if (req.query.startDate) {
+            refundTxQuery.transactionDate = { ...(refundTxQuery.transactionDate || {}), $gte: new Date(String(req.query.startDate)) };
+        }
+        if (req.query.endDate) {
+            refundTxQuery.transactionDate = { ...(refundTxQuery.transactionDate || {}), $lte: new Date(String(req.query.endDate) + 'T23:59:59.999Z') };
+        }
+        // Simplified mapping for refund transactions
+        const refundRows = await FinanceTransaction.find(refundTxQuery).lean();
+        const formattedRefunds = refundRows.map(tx => ({
+            expenseDate: tx.transactionDate,
+            claimId: '-',
+            policyNumber: tx.policyNumber || '-',
+            customerName: tx.customerName || '-',
+            deviceModel: '-',
+            claimShopName: '-',
+            expenseTitle: tx.actionType,
+            amount: Math.abs(tx.netTotal),
+            centerName: '-'
+        }));
+
+        rows = [...rows, ...formattedRefunds].sort((a, b) => new Date(b.expenseDate) - new Date(a.expenseDate));
+
+        res.json(rows);
     } catch (err) {
         res.status(500).json({ message: err.message });
     }
@@ -567,7 +597,9 @@ app.get('/api/finance/expenses/summary', async (req, res) => {
                     deviceModel: 1,
                     claimShopName: 1,
                     claimDate: 1,
+                    claimDate: 1,
                     totalCost: 1,
+                    status: 1,
                     updates: 1
                 }
             },
@@ -582,6 +614,8 @@ app.get('/api/finance/expenses/summary', async (req, res) => {
                             }
                         },
                         { $match: { __expenseAmount: { $gt: 0 } } },
+                        { $match: { 'updates.title': { $ne: 'ลูกค้าตกลงรับเครื่องคืนและชำระเงินส่วนต่าง' } } },
+                        { $match: { $or: [{ 'updates.title': { $not: /\(เกินวงเงิน\)/ } }, { status: { $ne: 'ลูกค้าสละสิทธิ์เครื่อง' } }] } },
                         ...(Object.keys(baseMatch).length > 0 ? [{ $match: baseMatch }] : []),
                         { $group: { _id: null, totalExpense: { $sum: '$__expenseAmount' } } }
                     ],
@@ -611,7 +645,24 @@ app.get('/api/finance/expenses/summary', async (req, res) => {
         ];
 
         const rows = await Claim.aggregate(pipeline);
-        const totalExpense = rows && rows[0] ? Number(rows[0].totalExpense || 0) : 0;
+        let totalExpense = rows && rows[0] ? Number(rows[0].totalExpense || 0) : 0;
+
+        // Add refund transaction amounts
+        const refundTxQuery = { actionType: 'คืนเงินชดเชยสละสิทธิ์เครื่อง' };
+        if (req.query.startDate) {
+            refundTxQuery.transactionDate = { ...(refundTxQuery.transactionDate || {}), $gte: new Date(String(req.query.startDate)) };
+        }
+        if (req.query.endDate) {
+            refundTxQuery.transactionDate = { ...(refundTxQuery.transactionDate || {}), $lte: new Date(String(req.query.endDate) + 'T23:59:59.999Z') };
+        }
+        const refundRows = await FinanceTransaction.aggregate([
+            { $match: refundTxQuery },
+            { $group: { _id: null, totalRefund: { $sum: '$netTotal' } } }
+        ]);
+        if (refundRows && refundRows.length > 0) {
+            totalExpense += Math.abs(refundRows[0].totalRefund);
+        }
+
         res.json({ totalExpense });
     } catch (err) {
         res.status(500).json({ message: err.message });
@@ -634,6 +685,7 @@ app.get('/api/finance/expenses/export/excel', async (req, res) => {
                     claimShopName: 1,
                     claimDate: 1,
                     totalCost: 1,
+                    status: 1,
                     updates: 1
                 }
             },
@@ -648,6 +700,8 @@ app.get('/api/finance/expenses/export/excel', async (req, res) => {
                             }
                         },
                         { $match: { __expenseAmount: { $gt: 0 } } },
+                        { $match: { 'updates.title': { $ne: 'ลูกค้าตกลงรับเครื่องคืนและชำระเงินส่วนต่าง' } } },
+                        { $match: { $or: [{ 'updates.title': { $not: /\(เกินวงเงิน\)/ } }, { status: { $ne: 'ลูกค้าสละสิทธิ์เครื่อง' } }] } },
                         ...(Object.keys(baseMatch).length > 0 ? [{ $match: baseMatch }] : []),
                         {
                             $project: {
@@ -671,12 +725,37 @@ app.get('/api/finance/expenses/export/excel', async (req, res) => {
                     expenses: { $concatArrays: ['$updateExpenses'] }
                 }
             },
-            { $unwind: { path: '$expenses', preserveNullAndEmptyArrays: true } },
+            { $unwind: { path: '$expenses', preserveNullAndEmptyArrays: false } },
             { $replaceRoot: { newRoot: '$expenses' } },
             { $sort: { expenseDate: -1 } }
         ];
 
-        const rows = await Claim.aggregate(pipeline);
+        let rows = await Claim.aggregate(pipeline);
+        rows = Array.isArray(rows) ? rows : [];
+
+        // Fetch refund transactions and map to export schema
+        const refundTxQuery = { actionType: 'คืนเงินชดเชยสละสิทธิ์เครื่อง' };
+        if (startDate) {
+            refundTxQuery.transactionDate = { ...(refundTxQuery.transactionDate || {}), $gte: new Date(String(startDate)) };
+        }
+        if (endDate) {
+            refundTxQuery.transactionDate = { ...(refundTxQuery.transactionDate || {}), $lte: new Date(String(endDate) + 'T23:59:59.999Z') };
+        }
+        const refundRows = await FinanceTransaction.find(refundTxQuery).lean();
+        const formattedRefunds = refundRows.map(tx => ({
+            expenseDate: tx.transactionDate,
+            claimId: '-',
+            policyNumber: tx.policyNumber || '-',
+            customerName: tx.customerName || '-',
+            customerPhone: '-',
+            deviceModel: '-',
+            claimShopName: '-',
+            expenseTitle: tx.actionType,
+            amount: Math.abs(tx.netTotal),
+            centerName: '-'
+        }));
+
+        rows = [...rows, ...formattedRefunds].sort((a, b) => new Date(b.expenseDate) - new Date(a.expenseDate));
 
         const workbook = new ExcelJS.Workbook();
         workbook.creator = 'EasyCare';
@@ -909,10 +988,14 @@ app.get('/api/dashboard/stats', checkAdminRole, async (req, res) => {
             ]),
             Claim.aggregate([
                 { $match: claimMatch },
+                { $unwind: { path: '$updates', preserveNullAndEmptyArrays: false } },
+                { $match: { 'updates.cost': { $gt: 0 } } },
+                { $match: { 'updates.title': { $ne: 'ลูกค้าตกลงรับเครื่องคืนและชำระเงินส่วนต่าง' } } },
+                { $match: { $or: [{ 'updates.title': { $not: /\(เกินวงเงิน\)/ } }, { status: { $ne: 'ลูกค้าสละสิทธิ์เครื่อง' } }] } },
                 {
                     $group: {
                         _id: null,
-                        totalClaimCost: { $sum: { $ifNull: ['$totalCost', 0] } }
+                        totalClaimCost: { $sum: '$updates.cost' }
                     }
                 },
                 { $project: { _id: 0, totalClaimCost: 1 } }
@@ -1019,7 +1102,23 @@ app.get('/api/dashboard/stats', checkAdminRole, async (req, res) => {
         ]);
 
         const totalRevenue = Number(revenueAgg?.[0]?.totalRevenue || 0);
-        const totalClaimCost = Number(claimCostAgg?.[0]?.totalClaimCost || 0);
+        let totalClaimCost = Number(claimCostAgg?.[0]?.totalClaimCost || 0);
+
+        // Include refunds in total claim cost
+        const refundMatch = { actionType: 'คืนเงินชดเชยสละสิทธิ์เครื่อง' };
+        if (startDate) {
+            refundMatch.transactionDate = { ...(refundMatch.transactionDate || {}), $gte: new Date(startDate) };
+        }
+        if (endDate) {
+            refundMatch.transactionDate = { ...(refundMatch.transactionDate || {}), $lte: new Date(endDate + 'T23:59:59.999Z') };
+        }
+        const refundTx = await FinanceTransaction.aggregate([
+            { $match: refundMatch },
+            { $group: { _id: null, totalRefund: { $sum: '$netTotal' } } }
+        ]);
+        if (refundTx && refundTx.length > 0) {
+            totalClaimCost += Math.abs(refundTx[0].totalRefund);
+        }
         const activeWarranties = Number(activeAgg?.[0]?.activeWarranties || 0);
         const overdueClaims = Number(overdueAgg?.[0]?.overdueClaims || 0);
 
@@ -1086,10 +1185,42 @@ app.get('/api/dashboard/executive/report', checkAdminRole, async (req, res) => {
                 .lean();
 
         } else if (type === 'claimCost') {
-            items = await Claim.find({ ...claimMatch, totalCost: { $gt: 0 } })
-                .select('claimId customerName deviceModel claimDate totalCost')
-                .sort({ claimDate: -1 })
-                .lean();
+            const rawClaims = await Claim.aggregate([
+                { $match: claimMatch },
+                { $unwind: { path: '$updates', preserveNullAndEmptyArrays: false } },
+                { $match: { 'updates.cost': { $gt: 0 } } },
+                { $match: { 'updates.title': { $ne: 'ลูกค้าตกลงรับเครื่องคืนและชำระเงินส่วนต่าง' } } },
+                { $match: { $or: [{ 'updates.title': { $not: /\(เกินวงเงิน\)/ } }, { status: { $ne: 'ลูกค้าสละสิทธิ์เครื่อง' } }] } },
+                {
+                    $group: {
+                        _id: '$_id',
+                        claimId: { $first: '$claimId' },
+                        customerName: { $first: '$customerName' },
+                        deviceModel: { $first: '$deviceModel' },
+                        claimDate: { $first: '$claimDate' },
+                        totalCost: { $sum: '$updates.cost' }
+                    }
+                }
+            ]);
+
+            const refundMatch = { actionType: 'คืนเงินชดเชยสละสิทธิ์เครื่อง' };
+            if (startDate) {
+                refundMatch.transactionDate = { ...(refundMatch.transactionDate || {}), $gte: new Date(startDate) };
+            }
+            if (endDate) {
+                refundMatch.transactionDate = { ...(refundMatch.transactionDate || {}), $lte: new Date(endDate + 'T23:59:59.999Z') };
+            }
+            const refundTx = await FinanceTransaction.find(refundMatch).lean();
+            const formattedRefunds = refundTx.map(tx => ({
+                _id: tx._id,
+                claimId: '-',
+                customerName: tx.customerName || '-',
+                deviceModel: 'คืนเงินสละสิทธิ์เครื่อง',
+                claimDate: tx.transactionDate,
+                totalCost: Math.abs(tx.netTotal)
+            }));
+
+            items = [...rawClaims, ...formattedRefunds].sort((a, b) => new Date(b.claimDate) - new Date(a.claimDate));
 
         } else if (type === 'active') {
             // Need to populate the warranty list. Note that devicePrice / maxLimit / usedCoverage might need manual calc here or in pipeline.
@@ -1273,7 +1404,8 @@ app.get('/api/warranties', async (req, res) => {
                     'customer.citizenId': { $arrayElemAt: ['$memberInfo.citizenId', 0] },
                     'customer.facebook': { $arrayElemAt: ['$memberInfo.facebook', 0] },
                     'customer.id': '$memberId',
-                    'totalClaimAmount': { $sum: '$claims.totalCost' }
+                    'totalClaimAmount': { $sum: '$claims.totalCost' },
+                    claimId: { $arrayElemAt: ['$claims.claimId', -1] }
                 }
             },
             {
@@ -1753,7 +1885,8 @@ app.get('/api/warranties/active', async (req, res) => {
                     'customer.id': '$memberId',
                     'customer.idCardAddress': { $arrayElemAt: ['$memberInfo.idCardAddress', 0] },
                     'customer.shippingAddress': { $arrayElemAt: ['$memberInfo.shippingAddress', 0] },
-                    'totalClaimAmount': { $sum: '$claims.totalCost' }
+                    'totalClaimAmount': { $sum: '$claims.totalCost' },
+                    claimId: { $arrayElemAt: ['$claims.claimId', -1] }
                 }
             },
             { $project: { memberInfo: 0, claims: 0 } }
@@ -1792,7 +1925,8 @@ app.get('/api/warranties/:id', async (req, res) => {
                     'customer.id': '$memberId',
                     'customer.idCardAddress': { $arrayElemAt: ['$memberInfo.idCardAddress', 0] },
                     'customer.shippingAddress': { $arrayElemAt: ['$memberInfo.shippingAddress', 0] },
-                    'totalClaimAmount': { $sum: '$claims.totalCost' }
+                    'totalClaimAmount': { $sum: '$claims.totalCost' },
+                    claimId: { $arrayElemAt: ['$claims.claimId', -1] }
                 }
             },
             {
@@ -2109,9 +2243,10 @@ app.get('/api/finance/expenses', async (req, res) => {
             delete matchQuery.__expenseDate;
         }
 
-        const expenses = await Claim.aggregate([
+        let expenses = await Claim.aggregate([
             { $unwind: '$updates' },
             { $match: { 'updates.cost': { $gt: 0 } } },
+            { $match: { 'updates.title': { $ne: 'ลูกค้าตกลงรับเครื่องคืนและชำระเงินส่วนต่าง' } } },
             { $match: matchQuery },
             { $sort: { 'updates.date': -1 } },
             {
@@ -2129,6 +2264,31 @@ app.get('/api/finance/expenses', async (req, res) => {
                 }
             }
         ]);
+
+        // Add refund transactions
+        const refundMatch = { actionType: 'คืนเงินชดเชยสละสิทธิ์เครื่อง' };
+        if (req.query.startDate) {
+            refundMatch.transactionDate = { ...(refundMatch.transactionDate || {}), $gte: new Date(req.query.startDate) };
+        }
+        if (req.query.endDate) {
+            refundMatch.transactionDate = { ...(refundMatch.transactionDate || {}), $lte: new Date(req.query.endDate + 'T23:59:59.999Z') };
+        }
+
+        const refundTx = await FinanceTransaction.find(refundMatch).lean();
+        const refundExpenses = refundTx.map(tx => ({
+            claimId: '-',
+            policyNumber: tx.policyNumber || '-',
+            customerName: tx.customerName || '-',
+            deviceModel: '-',
+            claimShopName: '-',
+            expenseDate: tx.transactionDate,
+            expenseTitle: tx.actionType,
+            centerName: '-',
+            amount: Math.abs(tx.netTotal)
+        }));
+
+        expenses = [...expenses, ...refundExpenses].sort((a, b) => new Date(b.expenseDate) - new Date(a.expenseDate));
+
         res.json(expenses);
     } catch (err) {
         console.error('Fetch finance expenses error:', err);
@@ -2149,6 +2309,8 @@ app.get('/api/finance/expenses/summary', async (req, res) => {
         const summary = await Claim.aggregate([
             { $unwind: '$updates' },
             { $match: { 'updates.cost': { $gt: 0 } } },
+            { $match: { 'updates.title': { $ne: 'ลูกค้าตกลงรับเครื่องคืนและชำระเงินส่วนต่าง' } } },
+            { $match: { $or: [{ 'updates.title': { $not: /\(เกินวงเงิน\)/ } }, { status: { $ne: 'ลูกค้าสละสิทธิ์เครื่อง' } }] } },
             { $match: matchQuery },
             {
                 $group: {
@@ -2158,9 +2320,26 @@ app.get('/api/finance/expenses/summary', async (req, res) => {
             }
         ]);
 
-        res.json({
-            totalExpense: (summary && summary.length > 0) ? summary[0].totalExpense : 0
-        });
+        let totalExpense = (summary && summary.length > 0) ? summary[0].totalExpense : 0;
+
+        // Add refund transactions
+        const refundMatch = { actionType: 'คืนเงินชดเชยสละสิทธิ์เครื่อง' };
+        if (req.query.startDate) {
+            refundMatch.transactionDate = { ...(refundMatch.transactionDate || {}), $gte: new Date(req.query.startDate) };
+        }
+        if (req.query.endDate) {
+            refundMatch.transactionDate = { ...(refundMatch.transactionDate || {}), $lte: new Date(req.query.endDate + 'T23:59:59.999Z') };
+        }
+        const refundTx = await FinanceTransaction.aggregate([
+            { $match: refundMatch },
+            { $group: { _id: null, totalRefund: { $sum: '$netTotal' } } }
+        ]);
+
+        if (refundTx && refundTx.length > 0) {
+            totalExpense += Math.abs(refundTx[0].totalRefund);
+        }
+
+        res.json({ totalExpense });
     } catch (err) {
         console.error('Fetch finance expenses summary error:', err);
         res.status(500).json({ message: err.message });
@@ -2169,7 +2348,9 @@ app.get('/api/finance/expenses/summary', async (req, res) => {
 
 app.get('/api/finance/transactions', async (req, res) => {
     try {
-        const transactions = await FinanceTransaction.find().sort({ transactionDate: -1 });
+        const transactions = await FinanceTransaction.find({
+            actionType: { $ne: 'คืนเงินชดเชยสละสิทธิ์เครื่อง' }
+        }).sort({ transactionDate: -1 });
         res.json(transactions);
     } catch (err) {
         res.status(500).json({ message: err.message });
@@ -2179,6 +2360,7 @@ app.get('/api/finance/transactions', async (req, res) => {
 app.get('/api/finance/summary', async (req, res) => {
     try {
         const aggr = await FinanceTransaction.aggregate([
+            { $match: { actionType: { $ne: 'คืนเงินชดเชยสละสิทธิ์เครื่อง' } } },
             {
                 $group: {
                     _id: null,
@@ -2211,7 +2393,7 @@ app.get('/api/finance/export/excel', async (req, res) => {
     try {
         const { startDate, endDate, fields, includeSummary, paymentMethod } = req.query || {};
 
-        const match = {};
+        const match = { actionType: { $ne: 'คืนเงินชดเชยสละสิทธิ์เครื่อง' } };
         if (startDate) {
             match.transactionDate = { ...(match.transactionDate || {}), $gte: new Date(String(startDate)) };
         }
