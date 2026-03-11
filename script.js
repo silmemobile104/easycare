@@ -3713,31 +3713,28 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function populateMemberFormFromCard(data) {
-        if (document.getElementById('memberCitizenId')) document.getElementById('memberCitizenId').value = data.citizenId || '';
-        if (document.getElementById('memberPrefix')) document.getElementById('memberPrefix').value = data.prefix || '';
-        if (document.getElementById('memberFirstName')) document.getElementById('memberFirstName').value = data.firstName || '';
-        if (document.getElementById('memberLastName')) document.getElementById('memberLastName').value = data.lastName || '';
-        if (document.getElementById('memberFirstNameEn')) document.getElementById('memberFirstNameEn').value = data.firstNameEn || '';
-        if (document.getElementById('memberLastNameEn')) document.getElementById('memberLastNameEn').value = data.lastNameEn || '';
-        if (document.getElementById('memberBirthdate')) document.getElementById('memberBirthdate').value = data.birthdate || '';
-        if (document.getElementById('memberGender')) document.getElementById('memberGender').value = data.gender || '';
-        if (document.getElementById('memberIdCardAddress')) document.getElementById('memberIdCardAddress').value = data.address || data.idCardAddress || '';
-        
+        document.getElementById('memberCitizenId').value = data.citizenId;
+        document.getElementById('memberPrefix').value = data.prefix;
+        document.getElementById('memberFirstName').value = data.firstName;
+        document.getElementById('memberLastName').value = data.lastName;
+        document.getElementById('memberFirstNameEn').value = data.firstNameEn;
+        document.getElementById('memberLastNameEn').value = data.lastNameEn;
+        document.getElementById('memberBirthdate').value = data.birthdate;
+        document.getElementById('memberGender').value = data.gender;
+        document.getElementById('memberIdCardAddress').value = data.address;
         const memberIssueDateEl = document.getElementById('memberIssueDate');
-        if (memberIssueDateEl) memberIssueDateEl.value = data.issueDate || '';
+        if (memberIssueDateEl) memberIssueDateEl.value = data.issueDate;
         const memberExpiryDateEl = document.getElementById('memberExpiryDate');
-        if (memberExpiryDateEl) memberExpiryDateEl.value = data.expiryDate || '';
+        if (memberExpiryDateEl) memberExpiryDateEl.value = data.expiryDate;
         const memberCardExpiryEl = document.getElementById('memberCardExpiry');
-        if (memberCardExpiryEl) memberCardExpiryEl.value = data.expiryDate || '';
-        const memberPostalCode = document.getElementById('memberPostalCode');
-        if (memberPostalCode && data.postalCode) memberPostalCode.value = data.postalCode || '';
+        if (memberCardExpiryEl) memberCardExpiryEl.value = data.expiryDate;
 
         const photoContainer = document.getElementById('smartCardPhotoContainer');
         const photoImg = document.getElementById('smartCardPhoto');
-        if (data.photo && photoImg && photoContainer) {
+        if (data.photo) {
             photoImg.src = data.photo;
             photoContainer.style.display = 'block';
-        } else if (photoContainer) {
+        } else {
             photoContainer.style.display = 'none';
         }
     }
@@ -3751,69 +3748,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const readSmartCardBtn = document.getElementById('readSmartCardBtn');
     if (readSmartCardBtn) {
         readSmartCardBtn.addEventListener('click', connectSmartCard);
-    }
-
-    // --- ID CARD OCR LOGIC ---
-    const btnScanIdCard = document.getElementById('btnScanIdCard');
-    const idCardImageInput = document.getElementById('idCardImageInput');
-
-    if (btnScanIdCard && idCardImageInput) {
-        btnScanIdCard.addEventListener('click', () => {
-            idCardImageInput.click();
-        });
-
-        idCardImageInput.addEventListener('change', async (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
-
-            // Show loading overlay
-            Swal.fire({
-                title: 'กำลังสแกนบัตรประชาชน...',
-                html: 'กรุณารอสักครู่ ระบบกำลังดึงข้อมูลจากรูปภาพ',
-                allowOutsideClick: false,
-                didOpen: () => {
-                    Swal.showLoading();
-                }
-            });
-
-            const formData = new FormData();
-            formData.append('file', file);
-
-            try {
-                const response = await fetch('/api/members/scan-id', {
-                    method: 'POST',
-                    body: formData
-                });
-
-                const result = await response.json();
-
-                if (response.ok && result.success && result.data) {
-                    populateMemberFormFromCard(result.data);
-                    
-                    // Reset file input
-                    idCardImageInput.value = '';
-
-                    Swal.fire({
-                        icon: 'success',
-                        title: 'สแกนสำเร็จ',
-                        text: 'ดึงข้อมูลจากบัตรประชาชนเรียบร้อยแล้ว',
-                        timer: 2000,
-                        showConfirmButton: false
-                    });
-                } else {
-                    throw new Error(result.message || 'ไม่สามารถอ่านข้อมูลจากรูปภาพได้');
-                }
-            } catch (error) {
-                console.error('OCR Error:', error);
-                Swal.fire({
-                    icon: 'error',
-                    title: 'เกิดข้อผิดพลาด',
-                    text: error.message || 'ไม่สามารถเชื่อมต่อกับระบบ OCR ได้',
-                    confirmButtonText: 'ตกลง'
-                });
-                idCardImageInput.value = '';
-            }
-        });
     }
 
     const memberPhoneInput = document.getElementById('memberPhone');

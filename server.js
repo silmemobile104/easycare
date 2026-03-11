@@ -3216,7 +3216,7 @@ app.post('/api/claims/:id/decision', async (req, res) => {
             claim.customerDecision = 'จ่ายส่วนต่าง';
             claim.status = 'รอเคลม';
             claim.totalCost = (claim.totalCost || 0) + refundAmount;
-            
+
             // นำ evidenceUrl ไปผูกกับอัปเดตเคลมด้วยเพื่อให้มีรูปแสดงใน Timeline
             claim.updates.push({
                 step: (claim.updates ? claim.updates.length : 0) + 2,
@@ -3224,7 +3224,7 @@ app.post('/api/claims/:id/decision', async (req, res) => {
                 date: new Date(),
                 cost: excessCost,
                 images: [],
-                evidenceImages: evidenceUrl ? [evidenceUrl] : [] 
+                evidenceImages: evidenceUrl ? [evidenceUrl] : []
             });
 
             await claim.save();
@@ -3461,42 +3461,6 @@ app.put('/api/claims/:id/signatures', async (req, res) => {
 });
 
 // Member API Routes
-
-// OCR Scan Thai ID Card (Mockup)
-app.post('/api/members/scan-id', genericUpload.single('file'), async (req, res) => {
-    try {
-        if (!req.file) {
-            return res.status(400).json({ success: false, message: 'กรุณาอัปโหลดรูปภาพบัตรประชาชน' });
-        }
-
-        // Simulate OCR Processing Delay (2 seconds)
-        setTimeout(() => {
-            // Mockup OCR Data
-            const mockupData = {
-                citizenId: '1234567890123',
-                prefix: 'นาย',
-                firstName: 'สมมติ',
-                lastName: 'ทดสอบ',
-                firstNameEn: 'Sommot',
-                lastNameEn: 'Test',
-                birthdate: '1990-01-01',
-                gender: 'ชาย',
-                idCardAddress: '123/45 หมู่ 6 ถ.สุขุมวิท ต.บางเมือง อ.เมือง จ.สมุทรปราการ',
-                postalCode: '10270',
-                issueDate: '2020-01-01',
-                expiryDate: '2030-01-01'
-            };
-
-            // TODO: Call real external OCR API (e.g., Google Vision, iApp)
-            // const ocrResult = await callExternalOcrApi(req.file.path);
-            
-            res.json({ success: true, data: mockupData, imageUrl: req.file.path });
-        }, 2000);
-
-    } catch (err) {
-        res.status(500).json({ success: false, message: 'เกิดข้อผิดพลาดในการสแกนบัตร: ' + err.message });
-    }
-});
 
 // Get all members
 app.get('/api/members', async (req, res) => {
