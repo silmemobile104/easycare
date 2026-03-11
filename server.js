@@ -805,6 +805,367 @@ app.get('/api/finance/expenses/export/excel', async (req, res) => {
     }
 });
 
+// ==========================================
+// EXCEL EXPORT APIs
+// ==========================================
+
+// 1. Export Warranties
+app.get('/api/warranties/export/excel', checkAdminRole, async (req, res) => {
+    try {
+        const match = buildWarrantyFilterMatch(req.query);
+        const rows = await Warranty.find(match).sort({ createdAt: -1 }).lean();
+
+        const workbook = new ExcelJS.Workbook();
+        const ws = workbook.addWorksheet('Warranties');
+
+        ws.columns = [
+            { header: 'รหัสระบบ (_id)', key: '_id', width: 25 },
+            { header: 'วันที่สร้าง (CreatedAt)', key: 'createdAt', width: 22 },
+            { header: 'เลขกรมธรรม์', key: 'policyNumber', width: 22 },
+            { header: 'รหัสสมาชิก', key: 'memberId', width: 15 },
+            { header: 'ร้านค้า', key: 'shopName', width: 20 },
+            { header: 'ประเภทการคุ้มครอง', key: 'protectionType', width: 20 },
+            { header: 'พนักงานขาย', key: 'staffName', width: 20 },
+            { header: 'ราคาเครื่อง (ที่กรอก)', key: 'devicePrice', width: 15 },
+            { header: 'จ่ายแล้ว (งวด)', key: 'installmentsPaid', width: 15 },
+            { header: 'ยอดเคลมใช้ไป', key: 'usedCoverage', width: 15 },
+            { header: 'ชื่อลูกค้า', key: 'customerName', width: 25 },
+            { header: 'เบอร์โทร', key: 'phone', width: 15 },
+            { header: 'วันเกิด', key: 'dob', width: 15 },
+            { header: 'อายุ', key: 'age', width: 10 },
+            { header: 'ที่อยู่', key: 'address', width: 40 },
+            { header: 'อุปกรณ์ (ประเภท)', key: 'deviceType', width: 15 },
+            { header: 'รุ่นสินค้า', key: 'deviceModel', width: 20 },
+            { header: 'สี', key: 'deviceColor', width: 15 },
+            { header: 'ความจุ', key: 'deviceCapacity', width: 15 },
+            { header: 'Serial', key: 'serial', width: 20 },
+            { header: 'IMEI', key: 'imei', width: 20 },
+            { header: 'มูลค่าเครื่อง (อ้างอิง)', key: 'deviceValue', width: 15 },
+            { header: 'สิ้นสุดประกันศูนย์', key: 'officialWarrantyEnd', width: 15 },
+            { header: 'แพ็กเกจ', key: 'packagePlan', width: 20 },
+            { header: 'ราคาแพ็กเกจ', key: 'packagePrice', width: 15 },
+            { header: 'วันเริ่มคุ้มครอง', key: 'warrantyStart', width: 22 },
+            { header: 'วันสิ้นสุดคุ้มครอง', key: 'warrantyEnd', width: 22 },
+            { header: 'วิธีชำระเงิน', key: 'paymentMethod', width: 15 },
+            { header: 'สถานะชำระเงิน', key: 'paymentStatus', width: 15 },
+            { header: 'วันที่ชำระเงิน', key: 'paidDate', width: 22 },
+            { header: 'ยอดเงินสด', key: 'paidCash', width: 15 },
+            { header: 'ยอดโอน', key: 'paidTransfer', width: 15 },
+            { header: 'เลขอ้างอิงชำระเงิน', key: 'refId', width: 20 },
+            { header: 'ตารางผ่อนชำระ', key: 'paymentSchedule', width: 40 },
+            { header: 'สถานะการอนุมัติ', key: 'approvalStatus', width: 15 },
+            { header: 'ผู้อนุมัติ', key: 'approver', width: 20 },
+            { header: 'วันที่อนุมัติ', key: 'approvalDate', width: 22 },
+            { header: 'สถานะการเคลม', key: 'claimStatus', width: 15 },
+            { header: 'ผู้ปฏิเสธ', key: 'rejectBy', width: 20 },
+            { header: 'วันที่ปฏิเสธ', key: 'rejectDate', width: 22 },
+            { header: 'เหตุผลปฏิเสธ', key: 'rejectReason', width: 30 },
+            { header: 'วันที่แก้ไข (UpdatedAt)', key: 'updatedAt', width: 22 }
+        ];
+        ws.getRow(1).font = { bold: true };
+
+        for (const r of rows) {
+            ws.addRow({
+                _id: String(r._id || ''),
+                createdAt: r.createdAt ? new Date(r.createdAt) : null,
+                policyNumber: r.policyNumber || '-',
+                memberId: r.memberId || '-',
+                shopName: r.shopName || '-',
+                protectionType: r.protectionType || '-',
+                staffName: r.staffName || '-',
+                devicePrice: Number(r.devicePrice || 0),
+                installmentsPaid: r.installmentsPaid || 0,
+                usedCoverage: Number(r.usedCoverage || 0),
+                customerName: `${r.customer?.firstName || ''} ${r.customer?.lastName || ''}`.trim() || '-',
+                phone: r.customer?.phone || '-',
+                dob: r.customer?.dob ? new Date(r.customer.dob) : null,
+                age: r.customer?.age || '-',
+                address: r.customer?.address || '-',
+                deviceType: r.device?.type || '-',
+                deviceModel: r.device?.model || '-',
+                deviceColor: r.device?.color || '-',
+                deviceCapacity: r.device?.capacity || '-',
+                serial: r.device?.serial || '-',
+                imei: r.device?.imei || '-',
+                deviceValue: Number(r.device?.deviceValue || 0),
+                officialWarrantyEnd: r.device?.officialWarrantyEnd ? new Date(r.device.officialWarrantyEnd) : null,
+                packagePlan: r.package?.plan || '-',
+                packagePrice: Number(r.package?.price || 0),
+                warrantyStart: r.warrantyDates?.start ? new Date(r.warrantyDates.start) : null,
+                warrantyEnd: r.warrantyDates?.end ? new Date(r.warrantyDates.end) : null,
+                paymentMethod: r.payment?.method || '-',
+                paymentStatus: r.payment?.status || '-',
+                paidDate: r.payment?.paidDate ? new Date(r.payment.paidDate) : null,
+                paidCash: Number(r.payment?.paidCash || 0),
+                paidTransfer: Number(r.payment?.paidTransfer || 0),
+                refId: r.payment?.refId || '-',
+                paymentSchedule: r.payment?.schedule ? JSON.stringify(r.payment.schedule) : '-',
+                approvalStatus: r.approvalStatus || '-',
+                approver: r.approver || '-',
+                approvalDate: r.approvalDate ? new Date(r.approvalDate) : null,
+                claimStatus: r.claimStatus || '-',
+                rejectBy: r.rejectBy || '-',
+                rejectDate: r.rejectDate ? new Date(r.rejectDate) : null,
+                rejectReason: r.rejectReason || '-',
+                updatedAt: r.updatedAt ? new Date(r.updatedAt) : null
+            });
+        }
+
+        ['createdAt', 'warrantyStart', 'warrantyEnd', 'paidDate', 'approvalDate', 'rejectDate', 'updatedAt'].forEach(col => {
+            if (ws.getColumn(col)) ws.getColumn(col).numFmt = 'dd/mm/yyyy hh:mm';
+        });
+        ['dob', 'officialWarrantyEnd'].forEach(col => {
+            if (ws.getColumn(col)) ws.getColumn(col).numFmt = 'dd/mm/yyyy';
+        });
+        ['devicePrice', 'usedCoverage', 'deviceValue', 'packagePrice', 'paidCash', 'paidTransfer'].forEach(col => {
+            if (ws.getColumn(col)) ws.getColumn(col).numFmt = '#,##0.00';
+        });
+
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', 'attachment; filename="Warranties.xlsx"');
+        await workbook.xlsx.write(res);
+        res.end();
+    } catch (err) {
+        console.error('Export Warranties Error:', err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// 2. Export Claims
+app.get('/api/claims/export/excel', checkAdminRole, async (req, res) => {
+    try {
+        const match = buildClaimFilterMatch(req.query);
+        const rows = await Claim.find(match).sort({ claimDate: -1 }).lean();
+
+        const workbook = new ExcelJS.Workbook();
+        const ws = workbook.addWorksheet('Claims');
+
+        ws.columns = [
+            { header: 'รหัสระบบ (_id)', key: '_id', width: 25 },
+            { header: 'วันที่สร้าง (CreatedAt)', key: 'createdAt', width: 22 },
+            { header: 'เลขที่เคลม', key: 'claimId', width: 15 },
+            { header: 'รหัสกรมธรรม์เอกสาร (warrantyId)', key: 'warrantyId', width: 25 },
+            { header: 'เลขกรมธรรม์', key: 'policyNumber', width: 22 },
+            { header: 'รหัสสมาชิก', key: 'memberId', width: 15 },
+            { header: 'ร้านที่เคลม', key: 'claimShopName', width: 20 },
+            { header: 'ชื่อลูกค้า', key: 'customerName', width: 25 },
+            { header: 'เบอร์โทรศัพท์ลูกค้า', key: 'customerPhone', width: 15 },
+            { header: 'รุ่นอุปกรณ์', key: 'deviceModel', width: 20 },
+            { header: 'สถานะเปิด/ปิดเครื่อง', key: 'devicePowerState', width: 15 },
+            { header: 'IMEI', key: 'imei', width: 20 },
+            { header: 'Serial Number', key: 'serialNumber', width: 20 },
+            { header: 'สี', key: 'color', width: 15 },
+            { header: 'วันที่แจ้งเคลม', key: 'claimDate', width: 22 },
+            { header: 'อาการเสีย', key: 'symptoms', width: 40 },
+            { header: 'รูปภาพอาการเสีย', key: 'images', width: 30 },
+            { header: 'เจ้าหน้าที่', key: 'staffName', width: 20 },
+            { header: 'วิธีรับเครื่องคืน', key: 'returnMethod', width: 15 },
+            { header: 'สาขาที่รับคืน', key: 'pickupBranch', width: 20 },
+            { header: 'ประเภทที่อยู่จัดส่ง', key: 'deliveryAddressType', width: 20 },
+            { header: 'รายละเอียดที่อยู่จัดส่ง', key: 'deliveryAddressDetail', width: 40 },
+            { header: 'สถานะงานซ่อม', key: 'status', width: 20 },
+            { header: 'ค่าใช้จ่ายรวม', key: 'totalCost', width: 15 },
+            { header: 'ค่าส่วนต่าง', key: 'excessCost', width: 15 },
+            { header: 'ยอดคืนเงิน', key: 'refundAmount', width: 15 },
+            { header: 'การตัดสินใจของลูกค้า', key: 'customerDecision', width: 20 },
+            { header: 'วิธีรับเครื่องคืน (ส่งมอบจริง)', key: 'completedReturnMethod', width: 20 },
+            { header: 'สาขาที่รับคืน (ส่งมอบจริง)', key: 'completedReturnBranch', width: 20 },
+            { header: 'ประเภทที่อยู่จัดส่ง (ส่งมอบจริง)', key: 'completedDeliveryAddressType', width: 20 },
+            { header: 'รายละเอียดที่อยู่จัดส่ง (ส่งมอบจริง)', key: 'completedDeliveryAddressDetail', width: 40 },
+            { header: 'วันที่ลูกค้ามารับ/จัดส่ง', key: 'pickupDate', width: 22 },
+            { header: 'ประวัติอัปเดต (JSON)', key: 'updates', width: 40 },
+            { header: 'สภาพเครื่องตรวจสอบ (JSON)', key: 'deviceCondition', width: 40 },
+            { header: 'วันที่แก้ไข (UpdatedAt)', key: 'updatedAt', width: 22 }
+        ];
+        ws.getRow(1).font = { bold: true };
+
+        for (const r of rows) {
+            ws.addRow({
+                _id: String(r._id || ''),
+                createdAt: r.createdAt ? new Date(r.createdAt) : null,
+                claimId: r.claimId || '-',
+                warrantyId: String(r.warrantyId || '-'),
+                policyNumber: r.policyNumber || '-',
+                memberId: r.memberId || '-',
+                claimShopName: r.claimShopName || '-',
+                customerName: r.customerName || '-',
+                customerPhone: r.customerPhone || '-',
+                deviceModel: r.deviceModel || '-',
+                devicePowerState: r.devicePowerState || '-',
+                imei: r.imei || '-',
+                serialNumber: r.serialNumber || '-',
+                color: r.color || '-',
+                claimDate: r.claimDate ? new Date(r.claimDate) : null,
+                symptoms: r.symptoms || '-',
+                images: r.images ? r.images.join(', ') : '-',
+                staffName: r.staffName || '-',
+                returnMethod: r.returnMethod || '-',
+                pickupBranch: r.pickupBranch || '-',
+                deliveryAddressType: r.deliveryAddressType || '-',
+                deliveryAddressDetail: r.deliveryAddressDetail || '-',
+                status: r.status || '-',
+                totalCost: Number(r.totalCost || 0),
+                excessCost: Number(r.excessCost || 0),
+                refundAmount: Number(r.refundAmount || 0),
+                customerDecision: r.customerDecision || '-',
+                completedReturnMethod: r.completedReturnMethod || '-',
+                completedReturnBranch: r.completedReturnBranch || '-',
+                completedDeliveryAddressType: r.completedDeliveryAddressType || '-',
+                completedDeliveryAddressDetail: r.completedDeliveryAddressDetail || '-',
+                pickupDate: r.pickupDate ? new Date(r.pickupDate) : null,
+                updates: r.updates ? JSON.stringify(r.updates) : '-',
+                deviceCondition: r.deviceCondition ? JSON.stringify(r.deviceCondition) : '-',
+                updatedAt: r.updatedAt ? new Date(r.updatedAt) : null
+            });
+        }
+
+        ['createdAt', 'claimDate', 'pickupDate', 'updatedAt'].forEach(col => {
+            if (ws.getColumn(col)) ws.getColumn(col).numFmt = 'dd/mm/yyyy hh:mm';
+        });
+        ['totalCost', 'excessCost', 'refundAmount'].forEach(col => {
+            if (ws.getColumn(col)) ws.getColumn(col).numFmt = '#,##0.00';
+        });
+
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', 'attachment; filename="Claims.xlsx"');
+        await workbook.xlsx.write(res);
+        res.end();
+    } catch (err) {
+        console.error('Export Claims Error:', err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// 3. Export Members
+app.get('/api/members/export/excel', checkAdminRole, async (req, res) => {
+    try {
+        const { search } = req.query;
+        let match = {};
+        if (search) {
+            const regex = { $regex: search, $options: 'i' };
+            match.$or = [
+                { memberId: regex },
+                { citizenId: regex },
+                { firstName: regex },
+                { lastName: regex },
+                { phone: regex }
+            ];
+        }
+
+        const rows = await Member.find(match).sort({ createdAt: -1 }).lean();
+
+        const workbook = new ExcelJS.Workbook();
+        const ws = workbook.addWorksheet('Members');
+
+        ws.columns = [
+            { header: 'รหัสระบบ (_id)', key: '_id', width: 25 },
+            { header: 'วันที่สร้าง (CreatedAt)', key: 'createdAt', width: 22 },
+            { header: 'รหัสสมาชิก', key: 'memberId', width: 15 },
+            { header: 'เลขบัตรประชาชน', key: 'citizenId', width: 20 },
+            { header: 'คำนำหน้า', key: 'prefix', width: 10 },
+            { header: 'ชื่อ (ไทย)', key: 'firstName', width: 20 },
+            { header: 'นามสกุล (ไทย)', key: 'lastName', width: 20 },
+            { header: 'ชื่อ (Eng)', key: 'firstNameEn', width: 20 },
+            { header: 'นามสกุล (Eng)', key: 'lastNameEn', width: 20 },
+            { header: 'เบอร์โทรศัพท์', key: 'phone', width: 15 },
+            { header: 'วันเกิด', key: 'birthdate', width: 15 },
+            { header: 'เพศ', key: 'gender', width: 10 },
+            { header: 'ที่อยู่ปัจจุบัน', key: 'address', width: 40 },
+            { header: 'ที่อยู่ตามบัตร ปชช', key: 'idCardAddress', width: 40 },
+            { header: 'ที่อยู่จัดส่ง', key: 'shippingAddress', width: 40 },
+            { header: 'รหัสไปรษณีย์', key: 'postalCode', width: 10 },
+            { header: 'วันออกบัตร ปชช', key: 'issueDate', width: 15 },
+            { header: 'วันหมดอายุบัตร ปชช', key: 'expiryDate', width: 15 },
+            { header: 'บัญชี Facebook', key: 'facebook', width: 20 },
+            { header: 'ลิงก์ Facebook', key: 'facebookLink', width: 30 },
+            { header: 'ช่องทางรูปภาพ (Base64)', key: 'photo', width: 15 },
+            { header: 'วันที่แก้ไข (UpdatedAt)', key: 'updatedAt', width: 22 }
+        ];
+        ws.getRow(1).font = { bold: true };
+
+        for (const r of rows) {
+            ws.addRow({
+                _id: String(r._id || ''),
+                createdAt: r.createdAt ? new Date(r.createdAt) : null,
+                memberId: r.memberId || '-',
+                citizenId: r.citizenId || '-',
+                prefix: r.prefix || '-',
+                firstName: r.firstName || '-',
+                lastName: r.lastName || '-',
+                firstNameEn: r.firstNameEn || '-',
+                lastNameEn: r.lastNameEn || '-',
+                phone: r.phone || '-',
+                birthdate: r.birthdate ? new Date(r.birthdate) : null,
+                gender: r.gender || '-',
+                address: r.address || '-',
+                idCardAddress: r.idCardAddress || '-',
+                shippingAddress: r.shippingAddress || '-',
+                postalCode: r.postalCode || '-',
+                issueDate: r.issueDate ? new Date(r.issueDate) : null,
+                expiryDate: r.expiryDate ? new Date(r.expiryDate) : null,
+                facebook: r.facebook || '-',
+                facebookLink: r.facebookLink || '-',
+                photo: r.photo ? 'มีข้อมูลรูปภาพ' : 'ไม่มี',
+                updatedAt: r.updatedAt ? new Date(r.updatedAt) : null
+            });
+        }
+
+        ['createdAt', 'updatedAt'].forEach(col => {
+            if (ws.getColumn(col)) ws.getColumn(col).numFmt = 'dd/mm/yyyy hh:mm';
+        });
+        ['birthdate', 'issueDate', 'expiryDate'].forEach(col => {
+            if (ws.getColumn(col)) ws.getColumn(col).numFmt = 'dd/mm/yyyy';
+        });
+
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', 'attachment; filename="Members.xlsx"');
+        await workbook.xlsx.write(res);
+        res.end();
+    } catch (err) {
+        console.error('Export Members Error:', err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// 4. Export Audit Logs (จำกัดสิทธิ์ Admin)
+app.get('/api/logs/export/excel', checkAdminRole, async (req, res) => {
+    try {
+        const rows = await AuditLog.find({}).sort({ timestamp: -1 }).lean();
+
+        const workbook = new ExcelJS.Workbook();
+        const ws = workbook.addWorksheet('Audit Logs');
+
+        ws.columns = [
+            { header: 'รหัสระบบ (_id)', key: '_id', width: 25 },
+            { header: 'วัน-เวลา', key: 'timestamp', width: 22 },
+            { header: 'พนักงาน', key: 'staffName', width: 20 },
+            { header: 'รายการ (Action)', key: 'action', width: 30 },
+            { header: 'รายละเอียด (Detail)', key: 'detail', width: 80 }
+        ];
+        ws.getRow(1).font = { bold: true };
+
+        for (const r of rows) {
+            ws.addRow({
+                _id: String(r._id || ''),
+                timestamp: r.timestamp ? new Date(r.timestamp) : null,
+                staffName: r.staffName || '-',
+                action: r.action || '-',
+                detail: r.detail || '-'
+            });
+        }
+
+        ws.getColumn('timestamp').numFmt = 'dd/mm/yyyy hh:mm';
+
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', 'attachment; filename="AuditLogs.xlsx"');
+        await workbook.xlsx.write(res);
+        res.end();
+    } catch (err) {
+        console.error('Export Logs Error:', err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
 app.get('/api/dashboard/sales/overdue-claims', async (req, res) => {
     try {
         const cutoff = new Date(Date.now() - (5 * 24 * 60 * 60 * 1000));
@@ -925,14 +1286,14 @@ app.post('/api/login', async (req, res) => {
 });
 
 // Middleware to check Admin Role (simplified for this context)
-const checkAdminRole = (req, res, next) => {
+function checkAdminRole(req, res, next) {
     // In a real app we'd use JWT. Here, since it's a simple app, we can expect the role in headers
     const userRole = req.headers['x-user-role'];
     if (userRole !== 'admin') {
         return res.status(403).json({ success: false, message: 'Forbidden: Admin access required' });
     }
     next();
-};
+}
 
 // ═══════════════════════════════════════════════════════════════════
 // AUDIT LOG API (Admin Only)
@@ -2827,6 +3188,8 @@ app.post('/api/claims/:id/decision', async (req, res) => {
             const paymentMethod = String(req.body.paymentMethod || '').trim();
             const cashReceived = Math.max(0, Number(req.body.cashReceived || 0));
             const transferAmount = Math.max(0, Number(req.body.transferAmount || 0));
+            const changeAmount = Math.max(0, Number(req.body.changeAmount || 0));
+            const evidenceUrl = String(req.body.evidenceUrl || '').trim();
 
             let pMethod = paymentMethod;
             if (!pMethod) {
@@ -2834,28 +3197,34 @@ app.post('/api/claims/:id/decision', async (req, res) => {
                 else if (transferAmount > 0) pMethod = 'โอนเงิน';
             }
 
-            await FinanceTransaction.create({
+            // คำนวณ netTotal = (รับเงินสด - เงินทอน) + โอนเงิน
+            const netTotal = (cashReceived - changeAmount) + transferAmount;
+
+            const transaction = await FinanceTransaction.create({
                 policyNumber: claim.policyNumber,
                 customerName: claim.customerName || warranty.customer?.firstName || '-',
                 actionType: 'ชำระค่าซ่อมส่วนต่าง',
                 paymentMethod: pMethod,
                 cashReceived: cashReceived,
                 transferAmount: transferAmount,
-                changeAmount: 0,
-                netTotal: excessCost,
+                changeAmount: changeAmount,
+                netTotal: netTotal,
+                evidenceUrl: evidenceUrl,
                 recordedBy: staffName
             });
 
             claim.customerDecision = 'จ่ายส่วนต่าง';
             claim.status = 'รอเคลม';
             claim.totalCost = (claim.totalCost || 0) + refundAmount;
+            
+            // นำ evidenceUrl ไปผูกกับอัปเดตเคลมด้วยเพื่อให้มีรูปแสดงใน Timeline
             claim.updates.push({
                 step: (claim.updates ? claim.updates.length : 0) + 2,
                 title: 'ลูกค้าตกลงรับเครื่องคืนและชำระเงินส่วนต่าง',
                 date: new Date(),
                 cost: excessCost,
                 images: [],
-                evidenceImages: []
+                evidenceImages: evidenceUrl ? [evidenceUrl] : [] 
             });
 
             await claim.save();
@@ -2865,19 +3234,23 @@ app.post('/api/claims/:id/decision', async (req, res) => {
             await expireWarrantyIfNoRemaining(warranty._id);
 
             if (io) io.emit('claimUpdate', { claimId: claim.claimId, id: claim._id.toString(), warrantyId: claim.warrantyId?.toString() });
-            return res.json({ success: true, claim });
+            return res.json({ success: true, claim, transaction });
         }
 
         if (decision === 'refund') {
-            await FinanceTransaction.create({
+            const paymentMethod = String(req.body.paymentMethod || 'คืนเงิน').trim();
+            const evidenceUrl = String(req.body.evidenceUrl || '').trim();
+
+            const transaction = await FinanceTransaction.create({
                 policyNumber: claim.policyNumber,
                 customerName: claim.customerName || warranty.customer?.firstName || '-',
                 actionType: 'คืนเงินชดเชยสละสิทธิ์เครื่อง',
-                paymentMethod: 'คืนเงิน',
+                paymentMethod: paymentMethod,
                 cashReceived: 0,
                 transferAmount: 0,
                 changeAmount: 0,
                 netTotal: -Math.abs(refundAmount),
+                evidenceUrl: evidenceUrl,
                 recordedBy: staffName
             });
 
@@ -2889,7 +3262,7 @@ app.post('/api/claims/:id/decision', async (req, res) => {
                 date: new Date(),
                 cost: 0,
                 images: [],
-                evidenceImages: []
+                evidenceImages: evidenceUrl ? [evidenceUrl] : []
             });
             await claim.save();
 
@@ -2901,7 +3274,7 @@ app.post('/api/claims/:id/decision', async (req, res) => {
             await expireWarrantyIfNoRemaining(warranty._id);
 
             if (io) io.emit('claimUpdate', { claimId: claim.claimId, id: claim._id.toString(), warrantyId: claim.warrantyId?.toString() });
-            return res.json({ success: true, claim });
+            return res.json({ success: true, claim, transaction });
         }
 
         return res.status(400).json({ success: false, message: 'decision ไม่ถูกต้อง' });
@@ -3088,6 +3461,42 @@ app.put('/api/claims/:id/signatures', async (req, res) => {
 });
 
 // Member API Routes
+
+// OCR Scan Thai ID Card (Mockup)
+app.post('/api/members/scan-id', genericUpload.single('file'), async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ success: false, message: 'กรุณาอัปโหลดรูปภาพบัตรประชาชน' });
+        }
+
+        // Simulate OCR Processing Delay (2 seconds)
+        setTimeout(() => {
+            // Mockup OCR Data
+            const mockupData = {
+                citizenId: '1234567890123',
+                prefix: 'นาย',
+                firstName: 'สมมติ',
+                lastName: 'ทดสอบ',
+                firstNameEn: 'Sommot',
+                lastNameEn: 'Test',
+                birthdate: '1990-01-01',
+                gender: 'ชาย',
+                idCardAddress: '123/45 หมู่ 6 ถ.สุขุมวิท ต.บางเมือง อ.เมือง จ.สมุทรปราการ',
+                postalCode: '10270',
+                issueDate: '2020-01-01',
+                expiryDate: '2030-01-01'
+            };
+
+            // TODO: Call real external OCR API (e.g., Google Vision, iApp)
+            // const ocrResult = await callExternalOcrApi(req.file.path);
+            
+            res.json({ success: true, data: mockupData, imageUrl: req.file.path });
+        }, 2000);
+
+    } catch (err) {
+        res.status(500).json({ success: false, message: 'เกิดข้อผิดพลาดในการสแกนบัตร: ' + err.message });
+    }
+});
 
 // Get all members
 app.get('/api/members', async (req, res) => {

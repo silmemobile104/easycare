@@ -339,8 +339,9 @@
             document.getElementById('displayCustomerAddress').textContent = receiptData.customerAddress || '-';
 
             // Signature names
-            document.getElementById('displayReceiverName').textContent = receiptData.staffName || '-';
-            document.getElementById('displayPayerName').textContent = receiptData.customerName || '-';
+            const isRefund = receiptData.description && receiptData.description.includes('คืนเงิน');
+            document.getElementById('displayReceiverName').textContent = isRefund ? (receiptData.customerName || '-') : (receiptData.staffName || '-');
+            document.getElementById('displayPayerName').textContent = isRefund ? (receiptData.staffName || '-') : (receiptData.customerName || '-');
 
             const itemsBody = document.getElementById('itemsBody');
             itemsBody.innerHTML = `

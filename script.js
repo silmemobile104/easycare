@@ -3702,7 +3702,7 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error('Smart Card Error:', err);
             // Specific error message if agent is not running
             if (err.name === 'TypeError' && err.message.toLowerCase().includes('failed to fetch')) {
-                showAlert('warning', 'ไม่สามารถเชื่อมต่อกับ Smart Card Agent ได้ กรุณารันคำสั่ง npm start ในโฟลเดอร์ smartcard-agent', 'ไม่สามารถเชื่อมต่อ');
+                showAlert('warning', 'ไม่สามารถเชื่อมต่อกับ เครื่องอ่านบัตรประชาชน ได้ กรุณาตรวจสอบการเชื่อมต่อหรืออาจจะยังไม่เปิดใช้งานโปรแกรมอ่านบัตรประชาชน', 'ไม่สามารถเชื่อมต่อ');
             } else {
                 showAlert('error', err.message);
             }
@@ -3713,28 +3713,31 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function populateMemberFormFromCard(data) {
-        document.getElementById('memberCitizenId').value = data.citizenId;
-        document.getElementById('memberPrefix').value = data.prefix;
-        document.getElementById('memberFirstName').value = data.firstName;
-        document.getElementById('memberLastName').value = data.lastName;
-        document.getElementById('memberFirstNameEn').value = data.firstNameEn;
-        document.getElementById('memberLastNameEn').value = data.lastNameEn;
-        document.getElementById('memberBirthdate').value = data.birthdate;
-        document.getElementById('memberGender').value = data.gender;
-        document.getElementById('memberIdCardAddress').value = data.address;
+        if (document.getElementById('memberCitizenId')) document.getElementById('memberCitizenId').value = data.citizenId || '';
+        if (document.getElementById('memberPrefix')) document.getElementById('memberPrefix').value = data.prefix || '';
+        if (document.getElementById('memberFirstName')) document.getElementById('memberFirstName').value = data.firstName || '';
+        if (document.getElementById('memberLastName')) document.getElementById('memberLastName').value = data.lastName || '';
+        if (document.getElementById('memberFirstNameEn')) document.getElementById('memberFirstNameEn').value = data.firstNameEn || '';
+        if (document.getElementById('memberLastNameEn')) document.getElementById('memberLastNameEn').value = data.lastNameEn || '';
+        if (document.getElementById('memberBirthdate')) document.getElementById('memberBirthdate').value = data.birthdate || '';
+        if (document.getElementById('memberGender')) document.getElementById('memberGender').value = data.gender || '';
+        if (document.getElementById('memberIdCardAddress')) document.getElementById('memberIdCardAddress').value = data.address || data.idCardAddress || '';
+        
         const memberIssueDateEl = document.getElementById('memberIssueDate');
-        if (memberIssueDateEl) memberIssueDateEl.value = data.issueDate;
+        if (memberIssueDateEl) memberIssueDateEl.value = data.issueDate || '';
         const memberExpiryDateEl = document.getElementById('memberExpiryDate');
-        if (memberExpiryDateEl) memberExpiryDateEl.value = data.expiryDate;
+        if (memberExpiryDateEl) memberExpiryDateEl.value = data.expiryDate || '';
         const memberCardExpiryEl = document.getElementById('memberCardExpiry');
-        if (memberCardExpiryEl) memberCardExpiryEl.value = data.expiryDate;
+        if (memberCardExpiryEl) memberCardExpiryEl.value = data.expiryDate || '';
+        const memberPostalCode = document.getElementById('memberPostalCode');
+        if (memberPostalCode && data.postalCode) memberPostalCode.value = data.postalCode || '';
 
         const photoContainer = document.getElementById('smartCardPhotoContainer');
         const photoImg = document.getElementById('smartCardPhoto');
-        if (data.photo) {
+        if (data.photo && photoImg && photoContainer) {
             photoImg.src = data.photo;
             photoContainer.style.display = 'block';
-        } else {
+        } else if (photoContainer) {
             photoContainer.style.display = 'none';
         }
     }
@@ -3748,6 +3751,69 @@ document.addEventListener('DOMContentLoaded', () => {
     const readSmartCardBtn = document.getElementById('readSmartCardBtn');
     if (readSmartCardBtn) {
         readSmartCardBtn.addEventListener('click', connectSmartCard);
+    }
+
+    // --- ID CARD OCR LOGIC ---
+    const btnScanIdCard = document.getElementById('btnScanIdCard');
+    const idCardImageInput = document.getElementById('idCardImageInput');
+
+    if (btnScanIdCard && idCardImageInput) {
+        btnScanIdCard.addEventListener('click', () => {
+            idCardImageInput.click();
+        });
+
+        idCardImageInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            // Show loading overlay
+            Swal.fire({
+                title: 'กำลังสแกนบัตรประชาชน...',
+                html: 'กรุณารอสักครู่ ระบบกำลังดึงข้อมูลจากรูปภาพ',
+                allowOutsideClick: false,
+                didOpen: () => {
+                    Swal.showLoading();
+                }
+            });
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const response = await fetch('/api/members/scan-id', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (response.ok && result.success && result.data) {
+                    populateMemberFormFromCard(result.data);
+                    
+                    // Reset file input
+                    idCardImageInput.value = '';
+
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'สแกนสำเร็จ',
+                        text: 'ดึงข้อมูลจากบัตรประชาชนเรียบร้อยแล้ว',
+                        timer: 2000,
+                        showConfirmButton: false
+                    });
+                } else {
+                    throw new Error(result.message || 'ไม่สามารถอ่านข้อมูลจากรูปภาพได้');
+                }
+            } catch (error) {
+                console.error('OCR Error:', error);
+                Swal.fire({
+                    icon: 'error',
+                    title: 'เกิดข้อผิดพลาด',
+                    text: error.message || 'ไม่สามารถเชื่อมต่อกับระบบ OCR ได้',
+                    confirmButtonText: 'ตกลง'
+                });
+                idCardImageInput.value = '';
+            }
+        });
     }
 
     const memberPhoneInput = document.getElementById('memberPhone');
@@ -4534,6 +4600,190 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // ฟังก์ชันสำหรับเปิด SweetAlert2 Modal ควบคุมการรับชำระเงิน/คืนเงิน
+    async function showFinanceModal(title, amountToPay, isRefund = false) {
+        return new Promise((resolve) => {
+            const htmlContent = `
+                <div style="text-align: left; font-size: 0.95rem;">
+                    <div style="background: #f1f5f9; padding: 10px; border-radius: 8px; margin-bottom: 15px; text-align: center;">
+                        <span style="color: #64748b; font-size: 0.85rem;">${isRefund ? 'ยอดที่ต้องคืนลูกค้า' : 'ยอดที่ต้องชำระส่วนต่าง'}</span><br>
+                        <strong style="font-size: 1.5rem; color: ${isRefund ? '#eab308' : '#3b82f6'};">${amountToPay.toLocaleString()} บาท</strong>
+                    </div>
+
+                    <div style="margin-bottom: 10px;">
+                        <label style="display: block; margin-bottom: 5px; font-weight: 600;">วิธีการ${isRefund ? 'คืนเงิน' : 'ชำระเงิน'}</label>
+                        <select id="swal-payment-method" class="swal2-select" style="width: 100%; margin: 0; padding: 8px; font-size: 0.95rem;">
+                            <option value="เงินสด">เงินสด</option>
+                            <option value="โอนเงิน">โอนเงิน</option>
+                            ${!isRefund ? '<option value="เงินสด+โอนเงิน">เงินสด + โอนเงิน (แบ่งจ่าย)</option>' : ''}
+                        </select>
+                    </div>
+
+                    <div id="swal-cash-group" style="margin-bottom: 10px;">
+                        <label style="display: block; margin-bottom: 5px;">จำนวนเงินสด${isRefund ? ' (คืนลูกค้า)' : ' (รับมา)'}</label>
+                        <input type="number" id="swal-cash" class="swal2-input" style="width: 100%; margin: 0; height: 40px; font-size: 1rem;" placeholder="0" value="${isRefund ? amountToPay : ''}">
+                    </div>
+
+                    <div id="swal-transfer-group" style="margin-bottom: 10px; display: none;">
+                        <label style="display: block; margin-bottom: 5px;">จำนวนเงินโอน</label>
+                        <input type="number" id="swal-transfer" class="swal2-input" style="width: 100%; margin: 0; height: 40px; font-size: 1rem;" placeholder="0" value="${!isRefund ? amountToPay : ''}">
+                    </div>
+
+                    ${!isRefund ? `
+                    <div style="background: #ecfdf5; padding: 10px; border-radius: 8px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #a7f3d0;">
+                        <strong style="color: #065f46;">เงินทอน:</strong>
+                        <strong id="swal-change-amount" style="font-size: 1.25rem; color: #059669;">0 บาท</strong>
+                    </div>
+                    ` : ''}
+
+                    <div style="margin-top: 15px; border-top: 1px solid #e2e8f0; padding-top: 15px;">
+                        <label style="display: block; margin-bottom: 5px; font-weight: 600;">แนบสลิป/หลักฐานการโอน (ถ้ามี)</label>
+                        <input type="file" id="swal-evidence-file" accept="image/*" style="display: block; width: 100%; font-size: 0.85rem; margin-bottom: 10px;">
+                        <div id="swal-upload-status" style="font-size: 0.8rem; color: #3b82f6; display: none;">กำลังอัปโหลด...</div>
+                        <img id="swal-evidence-preview" style="max-width: 100%; max-height: 150px; border-radius: 8px; display: none; margin-top: 10px;">
+                        <input type="hidden" id="swal-evidence-url">
+                    </div>
+                </div>
+            `;
+
+            SwalTheme.fire({
+                title: title,
+                html: htmlContent,
+                showCancelButton: true,
+                confirmButtonText: 'ยืนยัน',
+                cancelButtonText: 'ยกเลิก',
+                didOpen: () => {
+                    const methodSelect = document.getElementById('swal-payment-method');
+                    const cashGroup = document.getElementById('swal-cash-group');
+                    const transferGroup = document.getElementById('swal-transfer-group');
+                    const cashInput = document.getElementById('swal-cash');
+                    const transferInput = document.getElementById('swal-transfer');
+                    const changeDisplay = document.getElementById('swal-change-amount');
+                    const fileInput = document.getElementById('swal-evidence-file');
+                    const uploadStatus = document.getElementById('swal-upload-status');
+                    const evidencePreview = document.getElementById('swal-evidence-preview');
+                    const evidenceUrlInput = document.getElementById('swal-evidence-url');
+
+                    // จัดการ UI ตามสิ่งที่เลือก
+                    methodSelect.addEventListener('change', (e) => {
+                        const method = e.target.value;
+                        if (method === 'เงินสด') {
+                            cashGroup.style.display = 'block';
+                            transferGroup.style.display = 'none';
+                            cashInput.value = '';
+                            transferInput.value = 0;
+                        } else if (method === 'โอนเงิน') {
+                            cashGroup.style.display = 'none';
+                            transferGroup.style.display = 'block';
+                            cashInput.value = 0;
+                            transferInput.value = amountToPay;
+                        } else {
+                            cashGroup.style.display = 'block';
+                            transferGroup.style.display = 'block';
+                            cashInput.value = '';
+                            transferInput.value = '';
+                        }
+                        calculateChange();
+                    });
+
+                    // การคำนวณเงินทอนออกแบบ Real-time
+                    const calculateChange = () => {
+                        if (isRefund) return;
+                        const cash = Number(cashInput.value) || 0;
+                        const transfer = Number(transferInput.value) || 0;
+                        const totalReceived = cash + transfer;
+                        const change = totalReceived > amountToPay ? totalReceived - amountToPay : 0;
+                        if (changeDisplay) {
+                            changeDisplay.textContent = change.toLocaleString() + ' บาท';
+                            changeDisplay.style.color = change > 0 ? '#059669' : '#64748b';
+                        }
+                    };
+
+                    cashInput.addEventListener('input', calculateChange);
+                    transferInput.addEventListener('input', calculateChange);
+
+                    // ระบบอัปโหลดรูปภาพ
+                    fileInput.addEventListener('change', async (e) => {
+                        const file = e.target.files[0];
+                        if (!file) {
+                            evidencePreview.style.display = 'none';
+                            evidenceUrlInput.value = '';
+                            return;
+                        }
+
+                        // สร้าง FileReader เพื่อ Preview ภาพสลิป
+                        const reader = new FileReader();
+                        reader.onload = (ev) => {
+                            evidencePreview.src = ev.target.result;
+                            evidencePreview.style.display = 'block';
+                        };
+                        reader.readAsDataURL(file);
+
+                        uploadStatus.style.display = 'block';
+                        uploadStatus.textContent = 'กำลังอัปโหลด... ⏳';
+                        uploadStatus.style.color = '#3b82f6';
+
+                        const formData = new FormData();
+                        formData.append('file', file); // ใช้ Endpoint /api/upload ของโปรเจกต์คุณ
+
+                        try {
+                            const res = await fetch('/api/upload', {
+                                method: 'POST',
+                                body: formData
+                            });
+                            const data = await res.json();
+                            if (res.ok && data.url) {
+                                evidenceUrlInput.value = data.url;
+                                uploadStatus.textContent = 'อัปโหลดสลิปเรียบร้อยแล้ว ✅';
+                                uploadStatus.style.color = '#10b981';
+                            } else {
+                                throw new Error(data.message || 'อัปโหลดไม่สำเร็จ');
+                            }
+                        } catch (err) {
+                            console.error('Upload Error:', err);
+                            uploadStatus.textContent = 'อัปโหลดล้มเหลว ❌';
+                            uploadStatus.style.color = '#ef4444';
+                        }
+                    });
+
+                    // Trigger ให้เซ็ตค่าเริ่มต้นของช่อง
+                    methodSelect.dispatchEvent(new Event('change'));
+                },
+                preConfirm: () => {
+                    const method = document.getElementById('swal-payment-method').value;
+                    const cash = Number(document.getElementById('swal-cash').value) || 0;
+                    const transfer = Number(document.getElementById('swal-transfer').value) || 0;
+                    const totalReceived = cash + transfer;
+                    const evidenceUrl = document.getElementById('swal-evidence-url').value;
+
+                    if (!isRefund && totalReceived < amountToPay) {
+                        Swal.showValidationMessage(`ยอดเงินไม่ครบถ้วน (ขาด ${(amountToPay - totalReceived).toLocaleString()} บาท)`);
+                        return false;
+                    }
+
+                    if ((method === 'โอนเงิน' || method === 'เงินสด+โอนเงิน') && transfer > 0 && !evidenceUrl) {
+                        Swal.showValidationMessage('กรุณาแนบสลิปการโอนเงิน');
+                        return false;
+                    }
+
+                    return {
+                        paymentMethod: method,
+                        cashReceived: method === 'โอนเงิน' ? 0 : cash,
+                        transferAmount: method === 'เงินสด' ? 0 : transfer,
+                        changeAmount: isRefund ? 0 : (totalReceived > amountToPay ? totalReceived - amountToPay : 0),
+                        evidenceUrl: evidenceUrl
+                    };
+                }
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    resolve(result.value);
+                } else {
+                    resolve(null);
+                }
+            });
+        });
+    }
+
     async function openStatusUpdateModal(claimId) {
         showLoader('กำลังโหลดข้อมูล...');
         try {
@@ -4571,36 +4821,20 @@ document.addEventListener('DOMContentLoaded', () => {
                     const x = Number.isFinite(excessCost) ? excessCost : 0;
                     const staffName = currentUser ? currentUser.staffName : '';
 
-                    const result = await SwalTheme.fire({
-                        icon: 'warning',
-                        title: 'ยืนยันการตัดสินใจลูกค้า',
-                        html: `ลูกค้ายินยอมจ่ายเงินส่วนต่างจำนวน <strong>${x.toLocaleString()} บาท</strong> ใช่หรือไม่?`,
-                        input: 'select',
-                        inputOptions: {
-                            cash: 'เงินสด',
-                            transfer: 'โอนเงิน'
-                        },
-                        inputPlaceholder: 'เลือกรูปแบบการชำระเงิน',
-                        inputAttributes: {
-                            style: 'width: 100%; max-width: 100%; box-sizing: border-box; margin: 15px 0 0 0; padding: 0.5rem;'
-                        },
-                        showCancelButton: true,
-                        confirmButtonText: 'ยืนยัน',
-                        cancelButtonText: 'ยกเลิก',
-                        reverseButtons: true
-                    });
-                    if (!result.isConfirmed) return;
+                    const result = await showFinanceModal('รับเงินส่วนต่างลูกค้า', x, false);
+                    if (!result) return; // ลูกค้ายกเลิกการทำรายการ Modal
 
-                    const method = result.value;
                     const payload = {
                         decision: 'pay_excess',
-                        staffName,
-                        paymentMethod: method === 'cash' ? 'เงินสด' : (method === 'transfer' ? 'โอนเงิน' : '')
+                        staffName: staffName,
+                        paymentMethod: result.paymentMethod,
+                        cashReceived: result.cashReceived,
+                        transferAmount: result.transferAmount,
+                        changeAmount: result.changeAmount,
+                        evidenceUrl: result.evidenceUrl
                     };
-                    if (method === 'cash') payload.cashReceived = x;
-                    if (method === 'transfer') payload.transferAmount = x;
 
-                    showLoader('กำลังบันทึกการตัดสินใจ...');
+                    showLoader('กำลังบันทึกการตัดสินใจและข้อมูลการชำระเงิน...');
                     try {
                         const dRes = await fetch(`/api/claims/${claim._id}/decision`, {
                             method: 'POST',
@@ -4609,7 +4843,38 @@ document.addEventListener('DOMContentLoaded', () => {
                         });
                         const data = await dRes.json();
                         if (!dRes.ok || !data.success) throw new Error(data.message || 'ไม่สามารถบันทึกการตัดสินใจได้');
-                        showToast('success', 'บันทึกการตัดสินใจสำเร็จ');
+
+                        showToast('success', 'บันทึกการตัดสินใจและรับชำระเงินสำเร็จ');
+
+                        const printConfirm = await SwalTheme.fire({
+                            title: 'ออกใบเสร็จรับเงิน?',
+                            text: "ต้องการพิมพ์ใบเสร็จรับเงินให้ลูกค้าหรือไม่?",
+                            icon: 'question',
+                            showCancelButton: true,
+                            confirmButtonColor: '#3085d6',
+                            cancelButtonColor: '#d33',
+                            confirmButtonText: 'พิมพ์ใบเสร็จ',
+                            cancelButtonText: 'ไม่เป็นไร'
+                        });
+
+                        if (printConfirm.isConfirmed) {
+                            const receiptData = {
+                                paidDate: new Date().toLocaleString('th-TH'),
+                                receiptNo: data.transaction ? data.transaction.transactionId : 'RC' + Date.now(),
+                                policyNumber: claim.policyNumber,
+                                shopName: (currentUser && currentUser.shop) ? currentUser.shop.shopName : claim.claimShopName,
+                                customerName: claim.customerName,
+                                customerPhone: claim.customerPhone,
+                                staffName: staffName,
+                                description: `ชำระค่าซ่อมส่วนต่างเคลม (เคลมเลขที่ ${claim.claimId})`,
+                                amount: x,
+                                cashReceived: result.cashReceived,
+                                transferAmount: result.transferAmount,
+                                change: result.changeAmount
+                            };
+                            openReceipt(receiptData);
+                        }
+
                         await openStatusUpdateModal(claim._id);
                     } catch (e) {
                         console.error('Decision pay_excess error:', e);
@@ -4623,24 +4888,57 @@ document.addEventListener('DOMContentLoaded', () => {
                     const y = Number.isFinite(refundAmount) ? refundAmount : 0;
                     const staffName = currentUser ? currentUser.staffName : '';
 
-                    const confirmed = await showConfirm(
-                        'ยืนยันการตัดสินใจลูกค้า',
-                        `ลูกค้าสละสิทธิ์เครื่องเพื่อรับเงินชดเชยจำนวน ${y.toLocaleString()} บาท ใช่หรือไม่?`,
-                        'ยืนยัน',
-                        'ยกเลิก'
-                    );
-                    if (!confirmed) return;
+                    const result = await showFinanceModal('คืนเงินชดเชยให้ลูกค้า', y, true);
+                    if (!result) return; // ลูกค้ายกเลิกการทำรายการ Modal
 
-                    showLoader('กำลังบันทึกการตัดสินใจ...');
+                    const payload = {
+                        decision: 'refund',
+                        staffName: staffName,
+                        paymentMethod: result.paymentMethod,
+                        evidenceUrl: result.evidenceUrl // สำหรับคืนเงินจะส่งแค่ Url เพราะเป็นฝั่งร้านโอนเงินออกไปให้ลูกค้า
+                    };
+
+                    showLoader('กำลังบันทึกการตัดสินใจคืนเงิน...');
                     try {
                         const dRes = await fetch(`/api/claims/${claim._id}/decision`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ decision: 'refund', staffName })
+                            body: JSON.stringify(payload)
                         });
                         const data = await dRes.json();
                         if (!dRes.ok || !data.success) throw new Error(data.message || 'ไม่สามารถบันทึกการตัดสินใจได้');
-                        showToast('success', 'บันทึกการตัดสินใจสำเร็จ');
+
+                        showToast('success', 'บันทึกการตัดสินใจและคืนเงินสำเร็จ');
+
+                        const printConfirm = await SwalTheme.fire({
+                            title: 'ออกใบเสร็จคืนเงิน?',
+                            text: "ต้องการพิมพ์ใบเสร็จการคืนเงินให้ลูกค้าหรือไม่?",
+                            icon: 'question',
+                            showCancelButton: true,
+                            confirmButtonColor: '#3085d6',
+                            cancelButtonColor: '#d33',
+                            confirmButtonText: 'พิมพ์ใบเสร็จ',
+                            cancelButtonText: 'ไม่เป็นไร'
+                        });
+
+                        if (printConfirm.isConfirmed) {
+                            const receiptData = {
+                                paidDate: new Date().toLocaleString('th-TH'),
+                                receiptNo: data.transaction ? data.transaction.transactionId : 'RC' + Date.now(),
+                                policyNumber: claim.policyNumber,
+                                shopName: (currentUser && currentUser.shop) ? currentUser.shop.shopName : claim.claimShopName,
+                                customerName: claim.customerName,
+                                customerPhone: claim.customerPhone,
+                                staffName: staffName,
+                                description: `คืนเงินชดเชยสละสิทธิ์เครื่อง (เคลมเลขที่ ${claim.claimId})`,
+                                amount: y,
+                                cashReceived: 0,
+                                transferAmount: y,
+                                change: 0
+                            };
+                            openReceipt(receiptData);
+                        }
+
                         await openStatusUpdateModal(claim._id);
                     } catch (e) {
                         console.error('Decision refund error:', e);
@@ -6248,5 +6546,124 @@ document.addEventListener('DOMContentLoaded', () => {
             showAlert('error', err.message);
         }
     };
+    // --- EXPORT TO EXCEL ---
+    async function handleExportExcel(endpoint, filename, searchInputId) {
+        try {
+            const searchInput = document.getElementById(searchInputId);
+            const searchQuery = searchInput ? searchInput.value.trim() : '';
+
+            // แสดง Loading Alert
+            Swal.fire({
+                title: 'กำลังสร้างไฟล์ Excel...',
+                text: 'กรุณารอสักครู่',
+                allowOutsideClick: false,
+                didOpen: () => {
+                    Swal.showLoading();
+                }
+            });
+
+            // สร้าง URL พร้อม Query String
+            let url = endpoint;
+            let queryParams = [];
+            if (searchQuery) queryParams.push(`search=${encodeURIComponent(searchQuery)}`);
+
+            // เพิ่ม Query สำหรับ Filter ตาม module
+            if (searchInputId === 'dashSearchInput') {
+                const startDate = document.getElementById('dashStartDate')?.value;
+                const endDate = document.getElementById('dashEndDate')?.value;
+                const status = document.getElementById('dashStatusFilter')?.value;
+                const payment = document.getElementById('dashPaymentFilter')?.value;
+                if (startDate) queryParams.push(`startDate=${startDate}`);
+                if (endDate) queryParams.push(`endDate=${endDate}`);
+                if (status) queryParams.push(`status=${status}`);
+                if (payment) queryParams.push(`paymentStatus=${payment}`);
+            } else if (searchInputId === 'claimsSearchInput') {
+                const startDate = document.getElementById('claimsStartDate')?.value;
+                const endDate = document.getElementById('claimsEndDate')?.value;
+                if (startDate) queryParams.push(`startDate=${startDate}`);
+                if (endDate) queryParams.push(`endDate=${endDate}`);
+                const status = document.getElementById('claimsStatusFilter')?.value;
+                if (status) queryParams.push(`status=${status}`);
+            }
+
+            if (queryParams.length > 0) {
+                url += `?${queryParams.join('&')}`;
+            }
+
+            // ส่ง Role สำหรับ Endpoint ที่บังคับเช็ค
+            const headers = {};
+            if (currentUser && currentUser.role) {
+                headers['x-user-role'] = currentUser.role;
+            }
+
+            const response = await fetch(url, { method: 'GET', headers });
+
+            if (!response.ok) {
+                let errMsg = 'เกิดข้อผิดพลาดในการ Export Data';
+                try {
+                    const errData = await response.json();
+                    if (errData.message) errMsg = errData.message;
+                } catch (e) {
+                    console.error("No JSON error message", e);
+                }
+                throw new Error(errMsg);
+            }
+
+            const blob = await response.blob();
+
+            const downloadUrl = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = downloadUrl;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+
+            window.URL.revokeObjectURL(downloadUrl);
+            document.body.removeChild(a);
+
+            Swal.close();
+
+        } catch (error) {
+            console.error('Export Error:', error);
+            Swal.fire({
+                icon: 'error',
+                title: 'ผิดพลาด',
+                text: error.message || 'ไม่สามารถดาวน์โหลดไฟล์ได้'
+            });
+        }
+    }
+    const isExportAdmin = currentUser && currentUser.role === 'admin';
+
+    const btnExportWarrantiesExcel = document.getElementById('btnExportWarrantiesExcel');
+    if (btnExportWarrantiesExcel) {
+        if (!isExportAdmin) btnExportWarrantiesExcel.style.display = 'none';
+        btnExportWarrantiesExcel.addEventListener('click', () => {
+            handleExportExcel('/api/warranties/export/excel', 'Warranties.xlsx', 'dashSearchInput');
+        });
+    }
+
+    const btnExportClaimsExcel = document.getElementById('btnExportClaimsExcel');
+    if (btnExportClaimsExcel) {
+        if (!isExportAdmin) btnExportClaimsExcel.style.display = 'none';
+        btnExportClaimsExcel.addEventListener('click', () => {
+            handleExportExcel('/api/claims/export/excel', 'Claims.xlsx', 'claimsSearchInput');
+        });
+    }
+
+    const btnExportMembersExcel = document.getElementById('btnExportMembersExcel');
+    if (btnExportMembersExcel) {
+        if (!isExportAdmin) btnExportMembersExcel.style.display = 'none';
+        btnExportMembersExcel.addEventListener('click', () => {
+            handleExportExcel('/api/members/export/excel', 'Members.xlsx', 'membersSearchInput');
+        });
+    }
+
+    const btnExportLogsExcel = document.getElementById('btnExportLogsExcel');
+    if (btnExportLogsExcel) {
+        if (!isExportAdmin) btnExportLogsExcel.style.display = 'none';
+        btnExportLogsExcel.addEventListener('click', () => {
+            handleExportExcel('/api/logs/export/excel', 'AuditLogs.xlsx', null);
+        });
+    }
 });
 

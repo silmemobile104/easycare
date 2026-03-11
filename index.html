@@ -733,6 +733,10 @@
                             <div class="filter-actions">
                                 <button type="button" class="filter-search-btn" id="dashFilterBtn"> ค้นหา</button>
                                 <button type="button" class="filter-reset-btn" id="dashResetBtn"> ล้างค่า</button>
+                                <button type="button" class="add-btn" id="btnExportWarrantiesExcel"
+                                    style="margin-left:auto; display:flex; align-items:center; gap:8px;">
+                                    <i class="fas fa-file-excel"></i> Export Excel
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -775,7 +779,7 @@
                             <h1>แดชบอร์ดผู้บริหาร</h1>
                             <p>ภาพรวมสถิติธุรกิจและวิเคราะห์ข้อมูล (Business Intelligence)</p>
                         </div>
-                        <div class="header-actions">
+                        <div class="header-actions" style="display: flex; gap: 10px;">
                             <button id="btnViewAuditLogs" style="display: inline-flex; align-items: center; gap: 10px; padding: 10px 22px;
                                        background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a78bfa 100%);
                                        color: #fff; border: none; border-radius: 12px; cursor: pointer;
@@ -794,6 +798,12 @@
                                     <polyline points="10 9 9 9 8 9"></polyline>
                                 </svg>
                                 Log
+                            </button>
+                            <button id="btnExportLogsExcel"
+                                style="display: inline-flex; align-items: center; gap: 10px; padding: 10px 22px; background: #10b981; color: #fff; border: none; border-radius: 12px; cursor: pointer; font-size: 0.92rem; font-weight: 600; letter-spacing: 0.3px; box-shadow: 0 4px 15px rgba(16, 185, 129, 0.35); transition: all 0.3s cubic-bezier(.4,0,.2,1); white-space: nowrap;"
+                                onmouseover="this.style.transform='translateY(-2px) scale(1.03)'; this.style.boxShadow='0 8px 25px rgba(16,185,129,0.45)'"
+                                onmouseout="this.style.transform='translateY(0) scale(1)'; this.style.boxShadow='0 4px 15px rgba(16,185,129,0.35)'">
+                                <i class="fas fa-file-excel"></i> Export Logs (Excel)
                             </button>
                         </div>
                     </header>
@@ -1377,8 +1387,12 @@
                                 <input type="text" id="membersSearchInput"
                                     placeholder="ค้นหารหัสสมาชิก, ชื่อ, เบอร์โทร...">
                             </div>
-                            <div class="filter-actions">
+                            <div class="filter-actions" style="margin-left: auto; display: flex; gap: 10px;">
                                 <button type="button" class="filter-reset-btn" id="membersResetBtn"> ล้างค่า</button>
+                                <button type="button" class="add-btn" id="btnExportMembersExcel"
+                                    style="display:flex; align-items:center; gap:8px;">
+                                    <i class="fas fa-file-excel"></i> Export Excel
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -1601,6 +1615,10 @@
                             <div class="filter-actions">
                                 <button type="button" class="filter-search-btn" id="claimsFilterBtn"> ค้นหา</button>
                                 <button type="button" class="filter-reset-btn" id="claimsResetBtn"> ล้างค่า</button>
+                                <button type="button" class="add-btn" id="btnExportClaimsExcel"
+                                    style="margin-left:auto; display:flex; align-items:center; gap:8px;">
+                                    <i class="fas fa-file-excel"></i> Export Excel
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -2389,6 +2407,20 @@
                     </svg>
                     🪪 เสียบบัตรประชาชน (Read Smart Card)
                 </button>
+                
+                <!-- OCR Scan Button Container -->
+                <div class="d-flex justify-content-center" style="margin-bottom: 1rem;">
+                    <input type="file" id="idCardImageInput" accept="image/*" capture="environment" style="display: none;">
+                    
+                    <button type="button" id="btnScanIdCard" class="submit-btn full-width" 
+                            style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); display: flex; align-items: center; justify-content: center; gap: 8px;">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+                            <circle cx="12" cy="13" r="4"></circle>
+                        </svg>
+                        📸 สแกนข้อมูลจากบัตรประชาชน (Auto-fill)
+                    </button>
+                </div>
             </div>
             <form id="memberForm">
                 <input type="hidden" id="editMemberId">
