@@ -1127,6 +1127,229 @@ app.get('/api/members/export/excel', checkAdminRole, async (req, res) => {
     }
 });
 
+// ═══════════════════════════════════════════════════════════════════
+// THAI ID CARD OCR — สแกนบัตรประชาชน (iApp Technology API v3)
+// ═══════════════════════════════════════════════════════════════════
+// ใช้ multer memoryStorage เพื่อเก็บไฟล์ใน RAM (ไม่ต้องอัพขึ้น Cloudinary)
+// แล้วส่งต่อไปยัง iApp OCR API โดยตรง
+
+const scanUpload = multer({ storage: multer.memoryStorage() });
+
+app.post('/api/members/scan-id', scanUpload.single('file'), async (req, res) => {
+    try {
+        // ตรวจสอบว่ามีไฟล์ส่งมาหรือไม่
+        if (!req.file) {
+            return res.status(400).json({
+                success: false,
+                message: 'กรุณาอัพโหลดรูปภาพบัตรประชาชน'
+            });
+        }
+
+        // ตรวจสอบว่ามี API Key หรือไม่
+        const apiKey = process.env.IAPP_API_KEY;
+        if (!apiKey) {
+            return res.status(500).json({
+                success: false,
+                message: 'ยังไม่ได้ตั้งค่า IAPP_API_KEY ใน .env'
+            });
+        }
+
+        console.log('Scan ID Card: uploading to iApp OCR API...');
+
+        // ═══════════════════════════════════════════════════════
+        // เรียก iApp Technology Thai National ID Card OCR API v3
+        // ═══════════════════════════════════════════════════════
+        const https = require('https');
+        const boundary = '----FormBoundary' + Date.now().toString(16);
+
+        // สร้าง multipart/form-data body ด้วย Buffer
+        const fileField = Buffer.concat([
+            Buffer.from(
+                `--${boundary}\r\n` +
+                `Content-Disposition: form-data; name="file"; filename="${req.file.originalname}"\r\n` +
+                `Content-Type: ${req.file.mimetype}\r\n\r\n`
+            ),
+            req.file.buffer,
+            Buffer.from(`\r\n--${boundary}--\r\n`)
+        ]);
+
+        const iAppResponse = await new Promise((resolve, reject) => {
+            const options = {
+                hostname: 'api.iapp.co.th',
+                path: '/v3/store/ekyc/thai-national-id-card/front',
+                method: 'POST',
+                headers: {
+                    'apikey': apiKey,
+                    'Content-Type': `multipart/form-data; boundary=${boundary}`,
+                    'Content-Length': fileField.length
+                }
+            };
+
+            const request = https.request(options, (response) => {
+                let data = '';
+                response.on('data', chunk => { data += chunk; });
+                response.on('end', () => {
+                    try {
+                        resolve({ statusCode: response.statusCode, data: JSON.parse(data) });
+                    } catch (e) {
+                        reject(new Error('ไม่สามารถอ่าน response จาก iApp API: ' + data.substring(0, 200)));
+                    }
+                });
+            });
+
+            request.on('error', reject);
+            request.write(fileField);
+            request.end();
+        });
+
+        console.log('iApp OCR Response status:', iAppResponse.statusCode);
+
+        // ตรวจสอบ response
+        const ocrResult = iAppResponse.data;
+        if (iAppResponse.statusCode !== 200 || !ocrResult) {
+            return res.status(400).json({
+                success: false,
+                message: 'iApp OCR API ตอบกลับผิดพลาด: ' + (ocrResult?.message || 'Unknown error')
+            });
+        }
+
+        // ═══════════════════════════════════════════════════════
+        // แปลงข้อมูลจาก iApp API → format ที่ Frontend ต้องการ
+        // ═══════════════════════════════════════════════════════
+        // DEBUG: แสดง raw response จาก iApp เพื่อตรวจสอบ field names
+        console.log('===== RAW iApp OCR Response =====');
+        console.log(JSON.stringify(ocrResult, null, 2));
+        console.log('=================================');
+
+        const raw = ocrResult;
+
+        // ═══════════════════════════════════════════════════════
+        // iApp API v3 actual field names:
+        // th_init     = คำนำหน้า (เช่น "นาย")
+        // th_fname    = ชื่อ (ไทย)
+        // th_lname    = นามสกุล (ไทย)
+        // en_fname    = ชื่อ (อังกฤษ)
+        // en_lname    = นามสกุล (อังกฤษ)
+        // th_dob      = วันเกิด (เช่น "24 มี.ค. 2546")
+        // th_expire   = วันหมดอายุบัตร
+        // th_issue    = วันออกบัตร
+        // id_number   = เลขบัตรประชาชน
+        // gender      = "Male" / "Female"
+        // home_address, house_no, road, sub_district, district, province, postal_code = ที่อยู่
+        // ═══════════════════════════════════════════════════════
+
+        const prefix = (raw.th_init || '').trim();
+        const firstName = (raw.th_fname || '').trim();
+        const lastName = (raw.th_lname || '').trim();
+        const firstNameEn = (raw.en_fname || '').trim();
+        const lastNameEn = (raw.en_lname || '').trim();
+
+        // แปลงเพศ Male/Female → ชาย/หญิง
+        let gender = '';
+        const rawGender = (raw.gender || '').trim().toLowerCase();
+        if (rawGender === 'male') gender = 'ชาย';
+        else if (rawGender === 'female') gender = 'หญิง';
+
+        // แปลงวันที่ภาษาไทย (เช่น "24 มี.ค. 2546") → ISO format (YYYY-MM-DD)
+        function parseThaiDate(dateStr) {
+            if (!dateStr) return '';
+            const str = dateStr.trim();
+
+            // ถ้าเป็น ISO format อยู่แล้ว
+            if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+
+            // ถ้าเป็น dd/mm/yyyy
+            const slashMatch = str.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+            if (slashMatch) {
+                let year = parseInt(slashMatch[3]);
+                if (year > 2400) year -= 543;
+                return `${year}-${slashMatch[2].padStart(2, '0')}-${slashMatch[1].padStart(2, '0')}`;
+            }
+
+            // แปลงจากรูปแบบไทย เช่น "24 มี.ค. 2546" หรือ "3 ม.ค. 2568"
+            const thaiMonths = {
+                'ม.ค.': '01', 'มกราคม': '01',
+                'ก.พ.': '02', 'กุมภาพันธ์': '02',
+                'มี.ค.': '03', 'มีนาคม': '03',
+                'เม.ย.': '04', 'เมษายน': '04',
+                'พ.ค.': '05', 'พฤษภาคม': '05',
+                'มิ.ย.': '06', 'มิถุนายน': '06',
+                'ก.ค.': '07', 'กรกฎาคม': '07',
+                'ส.ค.': '08', 'สิงหาคม': '08',
+                'ก.ย.': '09', 'กันยายน': '09',
+                'ต.ค.': '10', 'ตุลาคม': '10',
+                'พ.ย.': '11', 'พฤศจิกายน': '11',
+                'ธ.ค.': '12', 'ธันวาคม': '12'
+            };
+
+            for (const [thMonth, mmNum] of Object.entries(thaiMonths)) {
+                if (str.includes(thMonth)) {
+                    const parts = str.split(/\s+/);
+                    const day = parts[0] ? parts[0].replace(/\D/g, '') : '';
+                    // หาปี (ตัวเลข 4 หลักสุดท้าย)
+                    const yearMatch = str.match(/(\d{4})/);
+                    if (day && yearMatch) {
+                        let year = parseInt(yearMatch[1]);
+                        if (year > 2400) year -= 543; // แปลง พ.ศ. → ค.ศ.
+                        return `${year}-${mmNum}-${day.padStart(2, '0')}`;
+                    }
+                }
+            }
+
+            // Fallback: ลอง parse ด้วย JS Date
+            const d = new Date(str);
+            if (!isNaN(d.getTime())) return d.toISOString().split('T')[0];
+            return str;
+        }
+
+        // ประกอบที่อยู่เต็ม จาก fields ย่อย (ถ้ามี) หรือใช้ address ที่ iApp รวมมาให้
+        let fullAddress = (raw.address || '').trim();
+        if (!fullAddress) {
+            const addrParts = [
+                raw.house_no,
+                raw.village ? `หมู่ ${raw.village}` : '',
+                raw.village_no ? `หมู่ที่ ${raw.village_no}` : '',
+                raw.lane ? `ซ.${raw.lane}` : '',
+                raw.road ? `ถ.${raw.road}` : '',
+                raw.sub_district ? `ต.${raw.sub_district}` : '',
+                raw.district ? `อ.${raw.district}` : '',
+                raw.province ? `จ.${raw.province}` : '',
+                raw.postal_code || ''
+            ].filter(p => p && p.trim());
+            fullAddress = addrParts.join(' ');
+        }
+
+        const mappedData = {
+            citizenId: (raw.id_number || '').replace(/\D/g, ''),
+            prefix: prefix,
+            firstName: firstName,
+            lastName: lastName,
+            firstNameEn: firstNameEn,
+            lastNameEn: lastNameEn,
+            gender: gender,
+            birthdate: parseThaiDate(raw.th_dob),
+            expiryDate: parseThaiDate(raw.th_expire),
+            issueDate: parseThaiDate(raw.th_issue),
+            address: fullAddress
+        };
+
+        console.log('OCR Mapped Data:', JSON.stringify(mappedData, null, 2));
+
+        return res.json({
+            success: true,
+            message: 'ดึงข้อมูลจากบัตรประชาชนสำเร็จ',
+            data: mappedData
+        });
+
+    } catch (err) {
+        console.error('Scan ID Card Error:', err);
+        return res.status(500).json({
+            success: false,
+            message: 'เกิดข้อผิดพลาดในการอ่านบัตรประชาชน: ' + err.message
+        });
+    }
+});
+
 // 4. Export Audit Logs (จำกัดสิทธิ์ Admin)
 app.get('/api/logs/export/excel', checkAdminRole, async (req, res) => {
     try {

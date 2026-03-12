@@ -803,7 +803,7 @@
                                 style="display: inline-flex; align-items: center; gap: 10px; padding: 10px 22px; background: #10b981; color: #fff; border: none; border-radius: 12px; cursor: pointer; font-size: 0.92rem; font-weight: 600; letter-spacing: 0.3px; box-shadow: 0 4px 15px rgba(16, 185, 129, 0.35); transition: all 0.3s cubic-bezier(.4,0,.2,1); white-space: nowrap;"
                                 onmouseover="this.style.transform='translateY(-2px) scale(1.03)'; this.style.boxShadow='0 8px 25px rgba(16,185,129,0.45)'"
                                 onmouseout="this.style.transform='translateY(0) scale(1)'; this.style.boxShadow='0 4px 15px rgba(16,185,129,0.35)'">
-                                <i class="fas fa-file-excel"></i> Export Logs (Excel)
+                                <i class="fas fa-file-excel"></i> Export Logs
                             </button>
                         </div>
                     </header>
@@ -2397,7 +2397,7 @@
             <h2 id="memberModalTitle">เพิ่มข้อมูลสมาชิก</h2>
             <div style="margin-bottom: 1.5rem;">
                 <button type="button" id="readSmartCardBtn" class="submit-btn full-width"
-                    style="background: linear-gradient(135deg, #4f46e5 0%, #3730a3 100%); margin-bottom: 1rem;">
+                    style="background: linear-gradient(135deg, #4f46e5 0%, #3730a3 100%); margin-bottom: 0.75rem;">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                         stroke-linecap="round" stroke-linejoin="round">
                         <rect x="3" y="4" width="18" height="16" rx="2"></rect>
@@ -2407,6 +2407,20 @@
                     </svg>
                     🪪 เสียบบัตรประชาชน (Read Smart Card)
                 </button>
+                <!-- ปุ่มสแกนบัตรประชาชนจากกล้อง (Thai ID Card OCR)
+                <button type="button" id="scanIdCardBtn" class="submit-btn full-width"
+                    style="background: linear-gradient(135deg, #059669 0%, #047857 50%, #065f46 100%); margin-bottom: 1rem; display: flex; align-items: center; justify-content: center; gap: 10px; padding: 12px 20px; border: none; border-radius: 12px; color: #fff; font-size: 0.95rem; font-weight: 600; cursor: pointer; box-shadow: 0 4px 15px rgba(5, 150, 105, 0.35); transition: all 0.3s ease;"
+                    onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 8px 25px rgba(5,150,105,0.45)'"
+                    onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 15px rgba(5,150,105,0.35)'">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+                        <circle cx="12" cy="13" r="4"></circle>
+                    </svg>
+                    📷 สแกนบัตรประชาชนจากกล้อง
+                </button>
+                Hidden file input สำหรับเรียกกล้องหลัง -->
+                <input type="file" id="scanIdCardInput" accept="image/*" capture="environment" style="display: none;">
             </div>
             <form id="memberForm">
                 <input type="hidden" id="editMemberId">
@@ -2441,7 +2455,7 @@
                     <div class="form-group"><label>วันเกิด</label><input type="date" id="memberBirthdate" readonly
                             class="readonly-field"></div>
                     <div class="form-group"><label>วันหมดอายุบัตร</label><input type="date" id="memberCardExpiry"
-                            readonly class="readonly-field"></div>
+                            class="readonly-field"></div>
                     <div class="form-group"><label>เบอร์โทรศัพท์</label><input type="text" id="memberPhone"
                             placeholder="กรอกเบอร์โทรศัพท์ 10 หลัก" maxlength="10" inputmode="numeric" pattern="\d{10}">
                     </div>

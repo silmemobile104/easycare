@@ -3360,6 +3360,103 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // ═══════════════════════════════════════════════════════════════════
+    // SCAN ID CARD (Thai ID OCR) — สแกนบัตรจากกล้อง
+    // ═══════════════════════════════════════════════════════════════════
+
+    const scanIdCardBtn = document.getElementById('scanIdCardBtn');
+    const scanIdCardInput = document.getElementById('scanIdCardInput');
+
+    if (scanIdCardBtn && scanIdCardInput) {
+        // คลิกปุ่ม → เรียก file input (เปิดกล้อง / เลือกรูป)
+        scanIdCardBtn.addEventListener('click', () => {
+            scanIdCardInput.value = ''; // reset เพื่อรองรับการเลือกไฟล์ซ้ำ
+            scanIdCardInput.click();
+        });
+
+        // เมื่อเลือกรูป / ถ่ายรูปเสร็จ
+        scanIdCardInput.addEventListener('change', async () => {
+            const file = scanIdCardInput.files[0];
+            if (!file) return;
+
+            // แสดง SweetAlert2 Loading
+            Swal.fire({
+                title: 'กำลังอ่านข้อมูลจากบัตร...',
+                html: '<div style="margin-top: 10px; color: #64748b;">กรุณารอสักครู่ ระบบกำลังประมวลผลรูปภาพ</div>',
+                allowOutsideClick: false,
+                allowEscapeKey: false,
+                showConfirmButton: false,
+                didOpen: () => {
+                    Swal.showLoading();
+                }
+            });
+
+            try {
+                // สร้าง FormData แนบไฟล์
+                const formData = new FormData();
+                formData.append('file', file);
+
+                // ยิง Fetch API ไปที่ Mock OCR Endpoint
+                const response = await fetch('/api/members/scan-id', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (result.success && result.data) {
+                    const data = result.data;
+
+                    // Auto-fill ข้อมูลลงฟอร์ม
+                    const setVal = (id, val) => {
+                        const el = document.getElementById(id);
+                        if (el && val !== undefined && val !== null) el.value = val;
+                    };
+
+                    setVal('memberCitizenId', data.citizenId);
+                    setVal('memberPrefix', data.prefix);
+                    setVal('memberFirstName', data.firstName);
+                    setVal('memberLastName', data.lastName);
+                    setVal('memberFirstNameEn', data.firstNameEn);
+                    setVal('memberLastNameEn', data.lastNameEn);
+                    setVal('memberGender', data.gender);
+                    setVal('memberBirthdate', data.birthdate);
+                    setVal('memberCardExpiry', data.expiryDate);
+                    setVal('memberIdCardAddress', data.address);
+
+                    // ปิด Loading → แสดง Success
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'ดึงข้อมูลสำเร็จ!',
+                        text: 'ระบบดึงข้อมูลจากบัตรประชาชนเรียบร้อยแล้ว กรุณาตรวจสอบข้อมูลอีกครั้ง',
+                        confirmButtonText: 'ตกลง',
+                        confirmButtonColor: '#0d9488',
+                        timer: 4000,
+                        timerProgressBar: true
+                    });
+                } else {
+                    // API ตอบกลับไม่สำเร็จ
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'ไม่สามารถอ่านข้อมูลได้',
+                        text: result.message || 'กรุณาลองถ่ายรูปใหม่ให้ชัดเจนยิ่งขึ้น',
+                        confirmButtonText: 'ตกลง',
+                        confirmButtonColor: '#ef4444'
+                    });
+                }
+            } catch (err) {
+                console.error('Scan ID Card Error:', err);
+                Swal.fire({
+                    icon: 'error',
+                    title: 'เกิดข้อผิดพลาด',
+                    text: 'ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้ กรุณาลองใหม่อีกครั้ง',
+                    confirmButtonText: 'ตกลง',
+                    confirmButtonColor: '#ef4444'
+                });
+            }
+        });
+    }
+
     const closeMemberModal = document.getElementById('closeMemberModal');
     if (closeMemberModal) {
         closeMemberModal.addEventListener('click', () => {
