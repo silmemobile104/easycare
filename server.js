@@ -3989,7 +3989,7 @@ app.get('*', (req, res) => {
 // Server Startup Section (Usually at the end)
 const startServer = () => {
     const server = http.createServer(app);
-    io = new Server(server, { cors: { origin: '*' } });
+    io = new Server(server, { cors: { origin: '*' }, pingTimeout: 60000, pingInterval: 25000 });
     server.listen(PORT, () => {
         console.log(`Server running on http://localhost:${PORT}`);
     });

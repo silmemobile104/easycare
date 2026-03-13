@@ -145,6 +145,32 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
+    /**
+     * fetch API wrapper with timeout to prevent Render.com infinite pending
+     * @param {string} url - API endpoint
+     * @param {object} [options] - fetch options
+     * @param {number} [timeout=15000] - timeout in milliseconds (default: 15 seconds)
+     */
+    window.fetchWithTimeout = async function(url, options = {}, timeout = 15000) {
+        const controller = new AbortController();
+        const id = setTimeout(() => controller.abort(), timeout);
+
+        try {
+            const response = await fetch(url, {
+                ...options,
+                signal: controller.signal
+            });
+            return response;
+        } catch (error) {
+            if (error.name === 'AbortError') {
+                throw new Error('การเชื่อมต่อใช้เวลานานเกินไป (Timeout) รันคำสั่งไม่สำเร็จ กรุณาลองใหม่อีกครั้ง');
+            }
+            throw error;
+        } finally {
+            clearTimeout(id);
+        }
+    };
+
     // --- APP STATE ---
     let currentUser = JSON.parse(localStorage.getItem('smilecare_staff_session'));
     const canApproveContracts = function () {
@@ -1100,13 +1126,16 @@ document.addEventListener('DOMContentLoaded', () => {
         showLoader('กำลังโหลดข้อมูล...');
         try {
             const qs = buildFilterQueryString('dash');
-            const res = await fetch(`/api/warranties${qs}`);
+            // เปลี่ยนมาใช้ fetchWithTimeout แทน fetch เดิม
+            const res = await fetchWithTimeout(`/api/warranties${qs}`);
             const data = await res.json();
             allRecords = data; // Save to global state
             applyPaymentFilter(); // Apply client-side payment filter, then render
         } catch (err) {
             console.error('Fetch error:', err);
+            showAlert('error', err.message || 'เกิดข้อผิดพลาดในการโหลดข้อมูลสัญญา');
         } finally {
+            // การันตีว่าปิด loader เสมอ ไม่ว่าจะ success หรือ error
             hideLoader();
         }
     }
