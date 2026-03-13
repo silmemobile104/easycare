@@ -145,7 +145,8 @@ const WarrantySchema = new mongoose.Schema({
         serial: String,
         imei: String,
         deviceValue: Number,
-        officialWarrantyEnd: Date
+        officialWarrantyEnd: Date,
+        images: [String]
     },
     package: {
         plan: String,
@@ -2051,6 +2052,19 @@ app.get('/api/warranties', async (req, res) => {
         res.json(warranties);
     } catch (err) {
         res.status(500).json({ message: err.message });
+    }
+});
+
+// Upload multiple images
+app.post('/api/upload', genericUpload.array('images', 10), (req, res) => {
+    try {
+        if (!req.files || req.files.length === 0) {
+            return res.status(400).json({ success: false, message: 'No files uploaded' });
+        }
+        const fileUrls = req.files.map(file => file.path);
+        res.json({ success: true, urls: fileUrls });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
     }
 });
 

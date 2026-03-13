@@ -555,6 +555,23 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // Image preview for device images (new warranty)
+    const deviceImagesInput = document.getElementById('deviceImagesInput');
+    if (deviceImagesInput) {
+        deviceImagesInput.addEventListener('change', function () {
+            const preview = document.getElementById('deviceImagesPreview');
+            if (!preview) return;
+            preview.innerHTML = '';
+            Array.from(this.files).forEach(file => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    preview.innerHTML += `<img src="${e.target.result}" style="width: 80px; height: 80px; object-fit: cover; border-radius: 8px; border: 2px solid var(--primary);">`;
+                };
+                reader.readAsDataURL(file);
+            });
+        });
+    }
+
     function updateStaffInfo() {
         if (!currentUser) return;
         const nameElem = document.getElementById('displayStaffName');
@@ -2666,6 +2683,49 @@ document.addEventListener('DOMContentLoaded', () => {
         const dobYearBE = parseInt(document.getElementById('dobYear').value);
         const dob = new Date(dobYearBE - 543, dobMonth - 1, dobDay);
 
+        // Upload device images if any
+        let uploadedImageUrls = [];
+        let existingImages = (isEditMode && currentEditData && currentEditData.device.images) ? currentEditData.device.images : [];
+        const deviceImagesInput = document.getElementById('deviceImagesInput');
+        
+        if (!isEditMode && (!deviceImagesInput || deviceImagesInput.files.length === 0)) {
+            showAlert('warning', 'กรุณาอัปโหลดรูปภาพอุปกรณ์เพิ่มเติมอย่างน้อย 1 รูป');
+            return;
+        }
+
+        if (isEditMode && existingImages.length === 0 && (!deviceImagesInput || deviceImagesInput.files.length === 0)) {
+            showAlert('warning', 'กรุณาอัปโหลดรูปภาพอุปกรณ์เพิ่มเติมอย่างน้อย 1 รูป');
+            return;
+        }
+
+        if (deviceImagesInput && deviceImagesInput.files.length > 0) {
+            showLoader('กำลังอัปโหลดรูปภาพ...');
+            const formData = new FormData();
+            Array.from(deviceImagesInput.files).forEach(file => {
+                formData.append('images', file);
+            });
+
+            try {
+                const uploadRes = await fetch('/api/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                const uploadData = await uploadRes.json();
+                if (uploadData.success) {
+                    uploadedImageUrls = uploadData.urls;
+                } else {
+                    hideLoader();
+                    showAlert('error', 'อัปโหลดรูปภาพล้มเหลว: ' + uploadData.message);
+                    return;
+                }
+            } catch (err) {
+                hideLoader();
+                console.error('Image upload error:', err);
+                showAlert('error', 'เกิดข้อผิดพลาดในการอัปโหลดรูปภาพ');
+                return;
+            }
+        }
+        
         const payload = {
             memberId: document.getElementById('memberId').value,
             shopName: document.getElementById('shopName').value,
@@ -2688,7 +2748,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 serial: document.getElementById('serialNumber').value,
                 imei: document.getElementById('imei').value || undefined,
                 deviceValue: parseFloat(document.getElementById('deviceValue').value) || 0,
-                officialWarrantyEnd: document.getElementById('officialWarrantyEnd').value
+                officialWarrantyEnd: document.getElementById('officialWarrantyEnd').value,
+                images: [...existingImages, ...uploadedImageUrls]
             },
             package: { plan, price },
             warrantyDates: {
@@ -5980,6 +6041,14 @@ document.addEventListener('DOMContentLoaded', () => {
                             <label>สถานะ</label>
                             <span class="status-badge ${st.class}">${st.text}</span>
                         </div>
+                        ${w.device?.images && w.device.images.length > 0 ? `
+                        <div class="approval-detail-item" style="grid-column: 1 / -1;">
+                            <label>รูปภาพอุปกรณ์เพิ่มเติม</label>
+                            <div style="display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap;">
+                                ${w.device.images.map(img => `<img src="${escapeHtml(img)}" style="width: 100px; height: 100px; object-fit: cover; border-radius: 8px; border: 1px solid #ddd; cursor: pointer;" alt="Device image" onclick="window.open(this.src, '_blank')">`).join('')}
+                            </div>
+                        </div>
+                        ` : ''}
                         ${w.approvalStatus === 'approved' ? `
                         <div class="approval-detail-item">
                             <label>ผู้อนุมัติ</label>
