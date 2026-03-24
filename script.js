@@ -3096,7 +3096,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 formData.append('file', evidenceFile);
                 try {
                     btn.innerHTML = '⌛ กำลังอัปโหลดสลิป...';
-                    const upRes = await fetch('/api/upload', { method: 'POST', body: formData });
+                    const upRes = await fetch('/api/upload/single', { method: 'POST', body: formData });
                     if (upRes.ok) {
                         const upData = await upRes.json();
                         evidenceUrl = upData.url;
@@ -4845,10 +4845,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         uploadStatus.style.color = '#3b82f6';
 
                         const formData = new FormData();
-                        formData.append('file', file); // ใช้ Endpoint /api/upload ของโปรเจกต์คุณ
+                        formData.append('file', file); // ใช้ Endpoint /api/upload/single ของโปรเจกต์คุณ
 
                         try {
-                            const res = await fetch('/api/upload', {
+                            const res = await fetch('/api/upload/single', {
                                 method: 'POST',
                                 body: formData
                             });

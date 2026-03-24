@@ -2817,7 +2817,7 @@ app.delete('/api/warranties/:id', async (req, res) => {
 // FINANCE API ROUTES
 // ═══════════════════════════════════════════════════════════════════
 
-app.post('/api/upload', genericUpload.single('file'), (req, res) => {
+app.post('/api/upload/single', genericUpload.single('file'), (req, res) => {
     try {
         if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
         res.json({ url: req.file.path });
