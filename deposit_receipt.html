@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ใบเสร็จมัดจำสินค้า (Deposit Receipt)</title>
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --border-color: #000;
+            --font-family: 'Angsana New', 'TH Sarabun New', 'Sarabun', sans-serif;
+        }
+
+        * {
+            box-sizing: border-box;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+
+        body {
+            font-family: var(--font-family);
+            margin: 0;
+            padding: 0;
+            background-color: #f0f0f0;
+            font-size: 18px;
+        }
+
+        .page {
+            width: 210mm;
+            min-height: auto;
+            padding: 10mm 15mm;
+            margin: 5mm auto;
+            background: white;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            position: relative;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .page-content {
+            flex-grow: 1;
+        }
+
+        @media print {
+            body {
+                background: none;
+                padding: 0;
+            }
+
+            .page {
+                margin: 0;
+                box-shadow: none;
+                page-break-after: always;
+            }
+
+            .no-print {
+                display: none !important;
+            }
+        }
+
+        /* Header Styles */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 15px;
+        }
+
+        .logo-section {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .company-name {
+            text-align: center;
+            flex-grow: 1;
+        }
+
+        .company-name h1 {
+            margin: 0;
+            font-size: 26px;
+            font-weight: bold;
+        }
+
+        .company-name h2 {
+            margin: 5px 0;
+            font-size: 22px;
+            font-weight: normal;
+        }
+
+        .date-section {
+            text-align: right;
+            padding-top: 40px;
+        }
+
+        /* Form Table Layout */
+        .form-container {
+            border: 1.5px solid var(--border-color);
+            width: 100%;
+        }
+
+        .row {
+            display: flex;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .row:last-child {
+            border-bottom: none;
+        }
+
+        .col {
+            padding: 8px 10px;
+            border-right: 1px solid var(--border-color);
+        }
+
+        .col:last-child {
+            border-right: none;
+        }
+
+        .section-title {
+            font-weight: bold;
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        .section-header-row {
+            background-color: #f9f9f9;
+        }
+
+        /* Width Classes */
+        .w-25 { width: 25%; }
+        .w-30 { width: 30%; }
+        .w-33 { width: 33.33%; }
+        .w-40 { width: 40%; }
+        .w-50 { width: 50%; }
+        .w-60 { width: 60%; }
+        .w-70 { width: 70%; }
+        .w-100 { width: 100%; }
+
+        .field {
+            margin-bottom: 6px;
+            display: flex;
+            align-items: baseline;
+        }
+
+        .label {
+            margin-right: 5px;
+        }
+
+        .dotted-line {
+            border-bottom: 1px dotted #000;
+            display: inline-block;
+            min-height: 1.2em;
+            padding: 0 5px;
+            flex: 1;
+        }
+
+        /* Signature Section */
+        .signature-section {
+            margin-top: 20px;
+            display: flex;
+            justify-content: space-around;
+            text-align: center;
+            border-top: 1px solid #eee;
+            padding-top: 15px;
+        }
+
+        .sig-block {
+            width: 30%;
+        }
+
+        .sig-line {
+            border-bottom: 1px dotted #000;
+            margin-bottom: 5px;
+            padding-top: 50px;
+            min-height: 70px;
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+        }
+
+        .sig-name {
+            margin-top: 5px;
+            font-size: 16px;
+        }
+
+        /* Terms List */
+        .terms-list {
+            list-style: none;
+            counter-reset: terms-counter;
+            font-size: 15px;
+            line-height: 1.6;
+            margin: 10px 0;
+            padding-left: 0;
+        }
+
+        .terms-list li {
+            counter-increment: terms-counter;
+            margin-bottom: 6px;
+            padding-left: 25px;
+            position: relative;
+        }
+
+        .terms-list li::before {
+            content: counter(terms-counter) ".";
+            position: absolute;
+            left: 0;
+            font-weight: bold;
+        }
+
+        /* Evidence Image */
+        .evidence-img {
+            max-width: 200px;
+            max-height: 150px;
+            object-fit: contain;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin-top: 5px;
+        }
+
+        /* Print Buttons */
+        .print-button {
+            background: #1e40af;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .print-button:hover {
+            background: #1e3a8a;
+        }
+
+        .close-button {
+            background: #64748b;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 16px;
+        }
+
+        .close-button:hover {
+            background: #475569;
+        }
+
+        /* Amount highlight */
+        .amount-highlight {
+            font-size: 24px;
+            font-weight: bold;
+            color: #0f172a;
+            background: #f0fdf4;
+            padding: 5px 15px;
+            border: 2px solid #22c55e;
+            border-radius: 8px;
+            display: inline-block;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- Print Buttons -->
+    <div class="no-print" style="position: fixed; top: 20px; right: 20px; display: flex; gap: 10px; z-index: 1000;">
+        <button onclick="window.print()" class="print-button">
+            <svg style="width: 20px; height: 20px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z">
+                </path>
+            </svg>
+            พิมพ์ใบเสร็จ
+        </button>
+        <button onclick="window.close()" class="close-button">
+            ปิดหน้าต่าง
+        </button>
+    </div>
+
+    <div class="page" id="page1">
+        <div class="page-content">
+            <!-- Header -->
+            <div class="header">
+                <div class="logo-section">
+                    <img src="logo_easycare.png" alt="EASYCARE Logo" style="height: 30px; object-fit: contain;">
+                </div>
+                <div class="company-name">
+                    <h1>อีซี่แคร์</h1>
+                    <h2>EASY.CARE</h2>
+                </div>
+                <div class="date-section">
+                    วันที่ <span id="depositDate">..................................</span>
+                </div>
+            </div>
+
+            <div style="text-align: center; margin-bottom: 10px;">
+                <strong style="font-size: 22px;">ใบเสร็จรับเงินมัดจำสินค้า (Deposit Receipt)</strong>
+            </div>
+
+            <div style="margin-bottom: 8px;">
+                <span class="label">สาขา</span>
+                <span id="doc_shopBranch" style="font-weight: bold;"></span>
+            </div>
+
+            <div class="form-container">
+                <!-- 1. Customer Information -->
+                <div class="row section-header-row">
+                    <div class="col w-100">
+                        <span class="section-title">1. ข้อมูลลูกค้า (Customer Information)</span>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col w-60" style="border-right: 1.5px solid #000;">
+                        <div class="field">
+                            <span class="label">ชื่อ-นามสกุล</span>
+                            <span id="customerName" class="dotted-line" style="width: 250px;"></span>
+                        </div>
+                        <div class="field">
+                            <span class="label">เบอร์โทรศัพท์</span>
+                            <span id="customerPhone" class="dotted-line" style="width: 200px;"></span>
+                        </div>
+                    </div>
+                    <div class="col w-40">
+                        <span class="section-title">สถานที่ตั้งบริษัท</span>
+                        <div style="padding: 5px; line-height: 1.4; font-size: 16px;">
+                            62 ถนนพิพิธภักดี ตำบลสะเตง<br>
+                            อำเภอเมืองยะลา จังหวัดยะลา
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 2. Device Information -->
+                <div class="row section-header-row">
+                    <div class="col w-100">
+                        <span class="section-title">2. ข้อมูลสินค้าที่มัดจำ (Product Information)</span>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col w-100">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                            <div>
+                                <div class="field">
+                                    <span class="label">ประเภทเครื่อง</span>
+                                    <span id="deviceType" class="dotted-line" style="width: 180px;"></span>
+                                </div>
+                            </div>
+                            <div>
+                                <div class="field">
+                                    <span class="label">รุ่นเครื่อง</span>
+                                    <span id="deviceModel" class="dotted-line" style="width: 250px;"></span>
+                                </div>
+                            </div>
+                            <div>
+                                <div class="field">
+                                    <span class="label">วันที่ซื้อเครื่อง</span>
+                                    <span id="deviceDate" class="dotted-line" style="width: 250px;"></span>
+                                </div>
+                            </div>
+                            <div>
+                                <div class="field">
+                                    <span class="label">วันที่สิ้นสุดการมัดจำ</span>
+                                    <span id="deviceEndDate" class="dotted-line" style="width: 250px;"></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 3. Deposit Details -->
+                <div class="row section-header-row">
+                    <div class="col w-100">
+                        <span class="section-title">3. รายละเอียดการมัดจำ (Deposit Details)</span>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col w-50" style="border-right: 1.5px solid #000;">
+                        <div class="field">
+                            <span class="label">จำนวนเงินมัดจำ</span>
+                            <div style="text-align: center; padding: 10px 0;">
+                                <span id="depositAmount"></span>
+                                <span style="font-size: 18px; margin-left: 5px;">บาท</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col w-50">
+                        <div class="field" style="margin-bottom: 10px;">
+                            <span class="label">วิธีชำระเงิน</span>
+                            <span id="paymentMethod" class="dotted-line" style="width: 200px;"></span>
+                        </div>
+                        <div class="field">
+                            <span class="label">ผู้ทำรายการ</span>
+                            <span id="staffName" class="dotted-line" style="width: 200px;"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 5. Remark -->
+                <div id="remarkSection" class="row" style="display: none;">
+                    <div class="col w-100">
+                        <div class="field">
+                            <span class="label" style="font-weight: bold;">หมายเหตุ:</span>
+                            <span id="depositRemark"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 6. Terms & Conditions -->
+                <div class="row section-header-row">
+                    <div class="col w-100">
+                        <span class="section-title">4. เงื่อนไขการมัดจำ (Terms & Conditions)</span>
+                    </div>
+                </div>
+                <div class="row" style="border-bottom: none;">
+                    <div class="col w-100">
+                        <ul class="terms-list">
+                            <li>กรุณานำใบเสร็จฉบับนี้มาแสดงทุกครั้งเมื่อมารับสินค้า</li>
+                            <li>หากไม่มารับสินค้าภายใน 30 วัน นับจากวันที่แจ้งสินค้าพร้อม ทางร้านขอสงวนสิทธิ์ในการยกเลิกรายการ</li>
+                            <li>กรณียกเลิกการมัดจำ ทางร้านขอสงวนสิทธิ์ไม่คืนเงินมัดจำ ยกเว้นกรณีสินค้าหมดสต็อก</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Signatures -->
+        <div class="signature-section">
+            <div class="sig-block">
+                <span style="font-weight: bold;">ลูกค้า</span>
+                <div class="sig-line"></div>
+                <div class="sig-name">(<span id="signCustomerName">..................................................</span>)</div>
+            </div>
+            <div class="sig-block">
+                <span style="font-weight: bold;">พนักงาน</span>
+                <div class="sig-line"></div>
+                <div class="sig-name">(<span id="signStaffName">..................................................</span>)</div>
+            </div>
+            <div class="sig-block">
+                <span style="font-weight: bold;">ผู้อนุมัติ</span>
+                <div><img src="ceo.png" alt="CEO" style="width: 120px; height: 60px;"></div>
+                <div class="sig-name">(อัสมา ปอโต๊ะ)</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            let deposit = null;
+            const params = new URLSearchParams(window.location.search);
+            const depositId = params.get('depositId');
+
+            if (depositId) {
+                try {
+                    const res = await fetch(`/api/deposits`);
+                    const deposits = await res.json();
+                    deposit = deposits.find(d => d._id === depositId);
+                    if (!deposit) throw new Error('Not found');
+                } catch (err) {
+                    console.error('Error fetching deposit:', err);
+                    alert('ไม่พบข้อมูลการมัดจำ กรุณาลองใหม่อีกครั้ง');
+                    window.close();
+                    return;
+                }
+            } else {
+                const dataStr = localStorage.getItem('smilecare_current_deposit');
+                if (!dataStr) {
+                    alert('ไม่พบข้อมูลการมัดจำ กรุณาลองใหม่อีกครั้ง');
+                    window.close();
+                    return;
+                }
+                deposit = JSON.parse(dataStr);
+            }
+
+            // Format Date Helper
+            const formatThaiDate = (dateStr) => {
+                if (!dateStr) return '';
+                const d = new Date(dateStr);
+                return d.toLocaleDateString('th-TH', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+            };
+
+            // Populate Fields
+            const dateEl = document.getElementById('depositDate');
+            if (dateEl) dateEl.textContent = formatThaiDate(deposit.transactionDate || deposit.createdAt);
+
+            const shopEl = document.getElementById('doc_shopBranch');
+            if (shopEl) shopEl.textContent = deposit.shopBranch || '-';
+
+            const fullName = `${deposit.customerFirstName || ''} ${deposit.customerLastName || ''}`.trim();
+            document.getElementById('customerName').textContent = fullName || '-';
+            document.getElementById('customerPhone').textContent = deposit.customerPhone || '-';
+
+            document.getElementById('deviceType').textContent = deposit.deviceType || '-';
+            document.getElementById('deviceModel').textContent = deposit.deviceModel || '-';
+
+            if (deposit.deviceDate) {
+                const devDate = new Date(deposit.deviceDate);
+                const endDate = new Date(devDate);
+                endDate.setDate(endDate.getDate() + 30);
+                
+                document.getElementById('deviceDate').textContent = formatThaiDate(devDate);
+                document.getElementById('deviceEndDate').textContent = formatThaiDate(endDate);
+            } else {
+                document.getElementById('deviceDate').textContent = '-';
+                document.getElementById('deviceEndDate').textContent = '-';
+            }
+
+            const amount = Number(deposit.depositAmount || 0).toLocaleString('th-TH');
+            document.getElementById('depositAmount').textContent = amount;
+
+            const paymentEl = document.getElementById('paymentMethod');
+            if (paymentEl) {
+                const paymentStr = deposit.paymentMethod === 'โอนและสด' 
+                    ? `โอนและสด (โอน ${Number(deposit.transferAmount || 0).toLocaleString('th-TH')}, สด ${Number(deposit.cashAmount || 0).toLocaleString('th-TH')})`
+                    : (deposit.paymentMethod || 'โอนเงิน');
+                paymentEl.textContent = paymentStr;
+            }
+
+            document.getElementById('staffName').textContent = deposit.staffName || '-';
+
+            // Status badge
+            const statusEl = document.getElementById('depositStatus');
+            if (statusEl) {
+                const status = deposit.status || 'Active';
+                statusEl.textContent = status;
+                if (status === 'Active') {
+                    statusEl.style.background = '#f59e0b';
+                    statusEl.style.color = '#fff';
+                } else if (status === 'Completed') {
+                    statusEl.style.background = '#10b981';
+                    statusEl.style.color = '#fff';
+                } else if (status === 'Cancelled') {
+                    statusEl.style.background = '#ef4444';
+                    statusEl.style.color = '#fff';
+                }
+            }
+
+            // Evidence image
+            if (deposit.evidenceUrl) {
+                const evSection = document.getElementById('evidenceSection');
+                const evContainer = document.getElementById('evidenceContainer');
+                if (evSection && evContainer) {
+                    evSection.style.display = 'flex';
+                    evContainer.innerHTML = `<img src="${deposit.evidenceUrl}" class="evidence-img" alt="หลักฐานการรับเงิน">`;
+                }
+            }
+
+            // Remark
+            if (deposit.remark && deposit.remark.trim()) {
+                const remarkSection = document.getElementById('remarkSection');
+                const remarkEl = document.getElementById('depositRemark');
+                if (remarkSection && remarkEl) {
+                    remarkSection.style.display = 'flex';
+                    remarkEl.textContent = deposit.remark;
+                }
+            }
+
+            // Signature names
+            document.getElementById('signCustomerName').textContent = fullName || '..................................................';
+            document.getElementById('signStaffName').textContent = deposit.staffName || '..................................................';
+
+            // Auto print after a short delay
+            setTimeout(() => {
+                window.print();
+            }, 800);
+        });
+    </script>
+
+</body>
+
+</html>

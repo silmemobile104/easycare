@@ -151,7 +151,7 @@ document.addEventListener('DOMContentLoaded', () => {
      * @param {object} [options] - fetch options
      * @param {number} [timeout=15000] - timeout in milliseconds (default: 15 seconds)
      */
-    window.fetchWithTimeout = async function(url, options = {}, timeout = 15000) {
+    window.fetchWithTimeout = async function (url, options = {}, timeout = 15000) {
         const controller = new AbortController();
         const id = setTimeout(() => controller.abort(), timeout);
 
@@ -333,7 +333,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const membersNavLink = document.getElementById('membersNavLink');
         const shopsNavLink = document.getElementById('shopsNavLink');
 
-        if (viewName === 'dashboard' || viewName === 'members' || viewName === 'shops' || viewName === 'claims' || viewName === 'statusTracking' || viewName === 'approval' || viewName === 'staff' || viewName === 'executive' || viewName === 'finance' || viewName === 'dashboard-sales' || viewName === 'dashboard-approver') {
+        if (viewName === 'dashboard' || viewName === 'members' || viewName === 'shops' || viewName === 'claims' || viewName === 'statusTracking' || viewName === 'approval' || viewName === 'staff' || viewName === 'executive' || viewName === 'finance' || viewName === 'deposit' || viewName === 'dashboard-sales' || viewName === 'dashboard-approver') {
             views.dashboard.style.display = 'block';
 
             // Hide all sub-views first
@@ -356,6 +356,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (approvalMain) approvalMain.style.display = 'none';
             const staffMain = document.getElementById('staffMain');
             if (staffMain) staffMain.style.display = 'none';
+            const depositMainEl = document.getElementById('depositMain');
+            if (depositMainEl) depositMainEl.style.display = 'none';
 
             // Remove active class from all nav links
             if (dashNavLink) dashNavLink.classList.remove('active');
@@ -377,6 +379,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (salesDashboardLinkEl) salesDashboardLinkEl.classList.remove('active');
             const approverDashboardLinkEl = document.getElementById('approverDashboardLink');
             if (approverDashboardLinkEl) approverDashboardLinkEl.classList.remove('active');
+            const depositNavLinkEl = document.getElementById('depositNavLink');
+            if (depositNavLinkEl) depositNavLinkEl.classList.remove('active');
 
             if (viewName === 'dashboard') {
                 dashMain.style.display = 'block';
@@ -441,6 +445,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (apprNav) apprNav.classList.add('active');
                 stopApprovalAutoRefresh();
                 fetchApproverDashboard();
+            } else if (viewName === 'deposit') {
+                const depositMainView = document.getElementById('depositMain');
+                if (depositMainView) depositMainView.style.display = 'block';
+                const depositNav = document.getElementById('depositNavLink');
+                if (depositNav) depositNav.classList.add('active');
+                stopApprovalAutoRefresh();
+                loadDeposits();
             } else {
                 // For other dashboard views, ensure approval refresh is stopped
                 stopApprovalAutoRefresh();
@@ -652,6 +663,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const financeNavLink = document.getElementById('financeNavLink');
     if (financeNavLink) financeNavLink.addEventListener('click', (e) => { e.preventDefault(); showView('finance'); });
+
+    const depositNavLink = document.getElementById('depositNavLink');
+    if (depositNavLink) depositNavLink.addEventListener('click', (e) => { e.preventDefault(); showView('deposit'); });
 
     const salesDashboardLink = document.getElementById('salesDashboardLink');
     if (salesDashboardLink) salesDashboardLink.addEventListener('click', (e) => { e.preventDefault(); showView('dashboard-sales'); });
@@ -2145,6 +2159,48 @@ document.addEventListener('DOMContentLoaded', () => {
         updateRemainingDays();
         updatePaymentUI();
         populateShopsDropdown();
+        populateDepositOptionsForPackage();
+    }
+
+    let globalActiveDeposits = [];
+
+    function renderDepositOptions(depositsList, selectedDeposit = '') {
+        const depositSelect = document.getElementById('deposit');
+        if (!depositSelect) return;
+
+        depositSelect.innerHTML = '<option value="" selected>ไม่มัดจำ</option>';
+        depositsList.forEach(d => {
+            const option = document.createElement('option');
+            option.value = d.depositAmount;
+            option.dataset.id = d._id;
+            const phoneStr = d.customerPhone ? ` (เบอร์: ${d.customerPhone})` : '';
+            option.textContent = `${d.customerFirstName} ${d.customerLastName} - ${d.deviceModel}${phoneStr} (${Number(d.depositAmount).toLocaleString()} บาท)`;
+            if (selectedDeposit && d.depositAmount == selectedDeposit) {
+                option.selected = true;
+            }
+            depositSelect.appendChild(option);
+        });
+    }
+
+    async function populateDepositOptionsForPackage(selectedDeposit = '') {
+        const depositSelect = document.getElementById('deposit');
+        if (!depositSelect) return;
+
+        try {
+            const res = await fetchWithTimeout('/api/deposits');
+            const deposits = await res.json();
+
+            if (Array.isArray(deposits)) {
+                // กรองอัญมัดจำที่ Active เพื่อนำมาใช้งาน
+                globalActiveDeposits = deposits.filter(d => d.status === 'Active');
+                renderDepositOptions(globalActiveDeposits, selectedDeposit);
+            } else {
+                depositSelect.innerHTML = '<option value="" selected>ไม่มัดจำ</option>';
+            }
+        } catch (err) {
+            console.error('Populate deposit error:', err);
+            depositSelect.innerHTML = '<option value="" selected>ไม่มัดจำ</option>';
+        }
     }
 
     async function populateShopsDropdown(selectedShop = '') {
@@ -2271,16 +2327,23 @@ document.addEventListener('DOMContentLoaded', () => {
         const method = document.querySelector('input[name="paymentMethod"]:checked').value;
         const price = PACKAGE_PRICES[plan] || 0;
 
+        let depositVal = 0;
+        const depositEl = document.getElementById('deposit');
+        if (depositEl && depositEl.value) {
+            depositVal = Number(depositEl.value) || 0;
+        }
+        const netPrice = Math.max(0, price - depositVal);
+
         document.getElementById('packagePriceText').textContent = `${price.toLocaleString()} บาท`;
-        document.getElementById('totalPriceText').textContent = `${price.toLocaleString()} บาท`;
+        document.getElementById('totalPriceText').textContent = `${netPrice.toLocaleString()} บาท`;
 
         const instContainer = document.getElementById('installmentContainer');
         const instBody = document.getElementById('installmentBody');
 
-        if (method === 'Installment' && price > 0) {
+        if (method === 'Installment' && netPrice > 0) {
             instContainer.style.display = 'block';
-            const perMonth = Math.floor(price / 3);
-            const remainder = price % 3;
+            const perMonth = Math.floor(netPrice / 3);
+            const remainder = netPrice % 3;
             const start = new Date(document.getElementById('startDate').value);
 
             let html = '';
@@ -2494,6 +2557,7 @@ document.addEventListener('DOMContentLoaded', () => {
     updateModelOptions();
     document.getElementById('package').addEventListener('change', updatePaymentUI);
     document.getElementById('protectionType').addEventListener('change', updatePaymentUI);
+    document.getElementById('deposit').addEventListener('change', updatePaymentUI);
     document.getElementsByName('paymentMethod').forEach(r => r.addEventListener('change', updatePaymentUI));
 
     async function searchMembers(query) {
@@ -2640,7 +2704,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const plan = document.getElementById('package').value;
         const method = document.querySelector('input[name="paymentMethod"]:checked').value;
-        const price = PACKAGE_PRICES[plan];
+        let price = PACKAGE_PRICES[plan];
+
+        let depositVal = 0;
+        const depositEl = document.getElementById('deposit');
+        if (depositEl && depositEl.value) {
+            depositVal = Number(depositEl.value) || 0;
+        }
+        const netPrice = Math.max(0, price - depositVal);
+        price = netPrice; // Override price with netPrice so that schedule and payload uses the discounted price
 
         // Auto-generate coverage dates strictly at submission
         const start = isEditMode ? new Date(document.getElementById('startDate').value) : new Date();
@@ -2716,7 +2788,7 @@ document.addEventListener('DOMContentLoaded', () => {
         let uploadedImageUrls = [];
         let existingImages = (isEditMode && currentEditData && currentEditData.device.images) ? currentEditData.device.images : [];
         const deviceImagesInput = document.getElementById('deviceImagesInput');
-        
+
         if (!isEditMode && (!deviceImagesInput || deviceImagesInput.files.length === 0)) {
             showAlert('warning', 'กรุณาอัปโหลดรูปภาพอุปกรณ์เพิ่มเติมอย่างน้อย 1 รูป');
             return;
@@ -2754,7 +2826,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
         }
-        
+
         const payload = {
             memberId: document.getElementById('memberId').value,
             shopName: document.getElementById('shopName').value,
@@ -2799,6 +2871,21 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             const data = await res.json();
             if (res.ok) {
+                // หากมีการใช้มัดจำและเป็นการสร้างใหม่ (ไม่ใช่แก้ไข) ให้อัปเดตสถานะมัดจำเป็น Completed
+                const depositEl = document.getElementById('deposit');
+                const selectedDepositId = depositEl && depositEl.options[depositEl.selectedIndex] ? depositEl.options[depositEl.selectedIndex].dataset.id : null;
+                if (selectedDepositId && !isEditMode) {
+                    try {
+                        await fetch(`/api/deposits/${selectedDepositId}/status`, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ status: 'Completed' })
+                        });
+                    } catch (depErr) {
+                        console.error('Failed to update deposit status:', depErr);
+                    }
+                }
+
                 const modalTitle = document.getElementById('successModalTitle');
                 const modalText = document.getElementById('successModalText');
                 const printBtn = document.getElementById('printReceiptBtn');
@@ -3272,10 +3359,12 @@ document.addEventListener('DOMContentLoaded', () => {
         body.innerHTML = members.map(m => `
             <tr>
                 <td data-label="รหัสสมาชิก" style="font-weight: 600;">${m.memberId || '-'}</td>
+                <td data-label="วันที่สมัคร">${m.createdAt ? new Date(m.createdAt).toLocaleDateString('th-TH') : '-'}</td>
                 <td data-label="ชื่อ-นามสกุล">${m.firstName} ${m.lastName}</td>
                 <td data-label="เบอร์โทรศัพท์">${m.phone}</td>
-                <td data-label="สถานะ">${m.memberStatus === 'ไม่ปกติ' ? '<span class="status-badge status-expired">ไม่ปกติ</span>' : '<span class="status-badge status-active">ปกติ</span>'}</td>
+                <td data-label="เลขบัตรประชาชน">${m.citizenId || '-'}</td>
                 <td data-label="ที่อยู่ตามบัตร">${m.idCardAddress || '-'}${m.postalCode ? ` (${m.postalCode})` : ''}</td>
+                <td data-label="สถานะ">${m.memberStatus === 'ไม่ปกติ' ? '<span class="status-badge status-expired">ไม่ปกติ</span>' : '<span class="status-badge status-active">ปกติ</span>'}</td>
                 <td data-label="จัดการ">
                     <div style="display: flex; gap: 0.5rem; justify-content: center;">
                         <button class="edit-member-btn edit-btn" data-id="${m._id}" title="แก้ไข">
@@ -6042,6 +6131,10 @@ document.addEventListener('DOMContentLoaded', () => {
                             <span>${w.device?.imei || '-'}</span>
                         </div>
                         <div class="approval-detail-item">
+                            <label>วันสิ้นสุดประกันศูนย์</label>
+                            <span>${w.device?.officialWarrantyEnd ? new Date(w.device.officialWarrantyEnd).toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' }) : '-'}</span>
+                        </div>
+                        <div class="approval-detail-item">
                             <label>มูลค่าเครื่อง</label>
                             <span>${w.device?.deviceValue?.toLocaleString() || 0} บาท</span>
                         </div>
@@ -6535,6 +6628,7 @@ document.addEventListener('DOMContentLoaded', () => {
             let roleBadgeStr = '';
             if (staff.role === 'admin') roleBadgeStr = '<span class="status-badge" style="background:#8b5cf6;color:white;">ผู้ดูแลระบบ</span>';
             else if (staff.role === 'approver') roleBadgeStr = '<span class="status-badge" style="background:#0ea5e9;color:white;">ผู้อนุมัติ</span>';
+            else if (staff.role === 'finance') roleBadgeStr = '<span class="status-badge" style="background:#f43f5e;color:white;">ฝ่ายการเงิน</span>';
             else roleBadgeStr = '<span class="status-badge" style="background:#10b981;color:white;">พนักงานขาย</span>';
 
             // Prevent admin from deleting themselves
@@ -6713,6 +6807,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (endDate) queryParams.push(`endDate=${endDate}`);
                 const status = document.getElementById('claimsStatusFilter')?.value;
                 if (status) queryParams.push(`status=${status}`);
+            } else if (searchInputId === 'depositsSearchInput') {
+                const status = document.getElementById('depositsStatusFilter')?.value;
+                if (status && status !== 'all') queryParams.push(`status=${status}`);
             }
 
             if (queryParams.length > 0) {
@@ -6794,5 +6891,331 @@ document.addEventListener('DOMContentLoaded', () => {
             handleExportExcel('/api/logs/export/excel', 'AuditLogs.xlsx', null);
         });
     }
-});
 
+    const btnExportDepositsExcel = document.getElementById('btnExportDepositsExcel');
+    if (btnExportDepositsExcel) {
+        if (!isExportAdmin) btnExportDepositsExcel.style.display = 'none';
+        btnExportDepositsExcel.addEventListener('click', () => {
+            handleExportExcel('/api/deposits/export/excel', 'Deposits.xlsx', 'depositsSearchInput');
+        });
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // DEPOSIT (การมัดจำ) FUNCTIONS
+    // ═══════════════════════════════════════════════════════════════════
+
+    // Global data array to hold all deposits for client-side filtering
+    window.allDepositsData = [];
+
+    async function loadDeposits() {
+        try {
+            const res = await fetchWithTimeout('/api/deposits');
+            const deposits = await res.json();
+
+            if (!Array.isArray(deposits) || deposits.length === 0) {
+                window.allDepositsData = [];
+            } else {
+                window.allDepositsData = deposits;
+            }
+            applyDepositsFilter();
+
+        } catch (err) {
+            console.error('Load deposits error:', err);
+            showAlert('error', 'ไม่สามารถโหลดข้อมูลมัดจำได้: ' + err.message);
+        }
+    }
+    window.loadDeposits = loadDeposits;
+
+    function renderDeposits(deposits) {
+        const tbody = document.getElementById('depositsBody');
+        const emptyState = document.getElementById('depositsEmptyState');
+        if (!tbody) return;
+
+        if (!deposits || deposits.length === 0) {
+            tbody.innerHTML = '';
+            if (emptyState) emptyState.style.display = 'block';
+            return;
+        }
+
+        if (emptyState) emptyState.style.display = 'none';
+
+        tbody.innerHTML = deposits.map(d => {
+            const date = d.transactionDate ? new Date(d.transactionDate).toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-';
+            const fullName = `${d.customerFirstName || ''} ${d.customerLastName || ''}`.trim();
+            const amount = Number(d.depositAmount || 0).toLocaleString('th-TH');
+
+            let currentStatus = d.status || 'Active';
+            let endDateStr = '-';
+            
+            // Calculate End Date and dynammically check expiration
+            if (d.deviceDate) {
+                const devDate = new Date(d.deviceDate);
+                const endDate = new Date(devDate);
+                endDate.setDate(endDate.getDate() + 30);
+                endDateStr = endDate.toLocaleDateString('th-TH', {
+                    year: 'numeric', month: 'short', day: 'numeric'
+                });
+                
+                // If past 30 days and still active, mark as Expired
+                if (currentStatus === 'Active' && new Date() > endDate) {
+                    currentStatus = 'Expired';
+                }
+            }
+
+            // Status badge colors
+            let badgeColor = '#f59e0b'; // Active = orange
+            let badgeText = 'Active';
+            if (currentStatus === 'Completed') { badgeColor = '#10b981'; badgeText = 'Completed'; }
+            if (currentStatus === 'Cancelled') { badgeColor = '#ef4444'; badgeText = 'Cancelled'; }
+            if (currentStatus === 'Expired') { badgeColor = '#64748b'; badgeText = 'Expired'; }
+
+            return `<tr>
+                <td>${date}</td>
+                <td>${fullName}</td>
+                <td>${d.customerPhone || '-'}</td>
+                <td>${d.deviceType || '-'}</td>
+                <td>${d.deviceModel || '-'}</td>
+                <td>${endDateStr}</td>
+                <td>${amount} ฿</td>
+                <td>${d.shopBranch || '-'}</td>
+                <td><span style="background:${badgeColor};color:#fff;padding:3px 10px;border-radius:20px;font-size:0.8rem;font-weight:600;">${badgeText}</span></td>
+                <td>${d.evidenceUrl ? `<a href="${d.evidenceUrl}" target="_blank" style="color:#0d9488;text-decoration:none;font-weight:600;">ดูหลักฐาน</a>` : '-'}</td>
+                <td>
+                    <button onclick="printDepositReceipt('${d._id}')" 
+                            style="background:#0d9488;color:#fff;border:none;padding:5px 10px;border-radius:6px;cursor:pointer;font-size:0.8rem;font-weight:600;">
+                        พิมพ์ใบเสร็จ
+                    </button>
+                </td>
+                <td>${d.staffName || '-'}</td>
+            </tr>`;
+        }).join('');
+    }
+
+    // Deposits Filtering Logic
+    const depositsSearchInput = document.getElementById('depositsSearchInput');
+    const depositsStatusFilter = document.getElementById('depositsStatusFilter');
+    const depositsResetBtn = document.getElementById('depositsResetBtn');
+
+    if (depositsSearchInput) {
+        depositsSearchInput.addEventListener('input', applyDepositsFilter); // Real-time search
+    }
+    if (depositsStatusFilter) {
+        depositsStatusFilter.addEventListener('change', applyDepositsFilter);
+    }
+    if (depositsResetBtn) {
+        depositsResetBtn.addEventListener('click', () => {
+            if (depositsSearchInput) depositsSearchInput.value = '';
+            if (depositsStatusFilter) depositsStatusFilter.value = 'all';
+            applyDepositsFilter();
+        });
+    }
+
+    function applyDepositsFilter() {
+        if (!window.allDepositsData) return;
+
+        const searchTerm = (document.getElementById('depositsSearchInput')?.value || '').trim().toLowerCase();
+        const statusFilter = document.getElementById('depositsStatusFilter')?.value || 'all';
+
+        let filtered = window.allDepositsData;
+
+        // Apply Search Term Filter
+        if (searchTerm) {
+            filtered = filtered.filter(d => {
+                const fullName = `${d.customerFirstName || ''} ${d.customerLastName || ''}`.toLowerCase();
+                const phone = (d.customerPhone || '').toLowerCase();
+                const model = (d.deviceModel || '').toLowerCase();
+                const type = (d.deviceType || '').toLowerCase();
+                return fullName.includes(searchTerm) || phone.includes(searchTerm) || model.includes(searchTerm) || type.includes(searchTerm);
+            });
+        }
+
+        // Apply Status Filter
+        if (statusFilter !== 'all') {
+            filtered = filtered.filter(d => {
+                let currentStatus = d.status || 'Active'; // default to Active if missing
+                
+                // Dynamically evaluate Expired status based on 30 day rule
+                if (d.deviceDate) {
+                    const devDate = new Date(d.deviceDate);
+                    const endDate = new Date(devDate);
+                    endDate.setDate(endDate.getDate() + 30);
+                    if (currentStatus === 'Active' && new Date() > endDate) {
+                        currentStatus = 'Expired';
+                    }
+                }
+                
+                return currentStatus === statusFilter;
+            });
+        }
+
+        renderDeposits(filtered);
+    }
+
+    window.printDepositReceipt = async function (id) {
+        try {
+            Swal.fire({ title: 'กำลังโหลดข้อมูล...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+            const res = await fetchWithTimeout(`/api/deposits/${id}`);
+            const depositDetail = await res.json();
+            Swal.close();
+
+            if (res.ok && depositDetail) {
+                localStorage.setItem('smilecare_current_deposit', JSON.stringify(depositDetail));
+                window.open('deposit_receipt.html', '_blank');
+            } else {
+                showAlert('error', depositDetail.message || 'ไม่พบข้อมูลใบเสร็จ');
+            }
+        } catch (err) {
+            Swal.close();
+            console.error('Print receipt error:', err);
+            showAlert('error', 'เกิดข้อผิดพลาดในการโหลดข้อมูลใบเสร็จ');
+        }
+    };
+
+
+    // Open / Close deposit modal
+    const addDepositBtn = document.getElementById('addDepositBtn');
+    const depositFormModal = document.getElementById('depositFormModal');
+    const closeDepositModal = document.getElementById('closeDepositModal');
+    const cancelDepositBtn = document.getElementById('cancelDepositBtn');
+
+    function openDepositModal() {
+        const form = document.getElementById('depositForm');
+        if (form) form.reset();
+        
+        // Reset payment method split fields
+        const depSplitPaymentGroup = document.getElementById('depSplitPaymentGroup');
+        const depTransferAmount = document.getElementById('depTransferAmount');
+        const depCashAmount = document.getElementById('depCashAmount');
+        if (depSplitPaymentGroup) depSplitPaymentGroup.style.display = 'none';
+        if (depTransferAmount) { depTransferAmount.required = false; depTransferAmount.value = ''; }
+        if (depCashAmount) { depCashAmount.required = false; depCashAmount.value = ''; }
+
+        // Auto-fill staff name from session
+        const staffInput = document.getElementById('depStaffName');
+        if (staffInput && currentUser) staffInput.value = currentUser.staffName || '';
+        if (depositFormModal) depositFormModal.style.display = 'flex';
+    }
+
+    function closeDepositModalFn() {
+        if (depositFormModal) depositFormModal.style.display = 'none';
+    }
+
+    if (addDepositBtn) addDepositBtn.addEventListener('click', openDepositModal);
+    if (closeDepositModal) closeDepositModal.addEventListener('click', closeDepositModalFn);
+    if (cancelDepositBtn) cancelDepositBtn.addEventListener('click', closeDepositModalFn);
+
+    const depositForm = document.getElementById('depositForm');
+    if (depositForm) {
+        depositForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            // Validate Split Payment first
+            const paymentMethod = document.getElementById('depPaymentMethod')?.value || 'โอนเงิน';
+            const totalAmount = Number(document.getElementById('depDepositAmount').value) || 0;
+            let cashAmount = 0;
+            let transferAmount = 0;
+
+            if (paymentMethod === 'เงินสด') {
+                cashAmount = totalAmount;
+            } else if (paymentMethod === 'โอนเงิน') {
+                transferAmount = totalAmount;
+            } else if (paymentMethod === 'โอนและสด') {
+                cashAmount = Number(document.getElementById('depCashAmount').value) || 0;
+                transferAmount = Number(document.getElementById('depTransferAmount').value) || 0;
+                if (cashAmount + transferAmount !== totalAmount) {
+                    Swal.fire({ icon: 'warning', title: 'ยอดเงินไม่ถูกต้อง', text: 'ยอดรวมของเงินสดและเงินโอนต้องเท่ากับจำนวนเงินมัดจำ' });
+                    return; // Exit here
+                }
+            }
+
+            Swal.fire({ title: 'กำลังบันทึก...', text: 'กรุณารอสักครู่', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+            try {
+                let evidenceUrl = '';
+
+                // Upload evidence file if selected
+                const fileInput = document.getElementById('depEvidenceFile');
+                if (fileInput && fileInput.files && fileInput.files.length > 0) {
+                    const formData = new FormData();
+                    formData.append('file', fileInput.files[0]);
+
+                    const uploadRes = await fetchWithTimeout('/api/upload/deposit', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    const uploadData = await uploadRes.json();
+
+                    if (uploadData.url) {
+                        evidenceUrl = uploadData.url;
+                    } else {
+                        throw new Error(uploadData.message || 'อัปโหลดไฟล์ไม่สำเร็จ');
+                    }
+                }
+
+                // Build deposit payload
+                const payload = {
+                    customerFirstName: document.getElementById('depCustomerFirstName').value.trim(),
+                    customerLastName: document.getElementById('depCustomerLastName').value.trim(),
+                    customerPhone: document.getElementById('depCustomerPhone').value.trim(),
+                    deviceType: document.getElementById('depDeviceType').value,
+                    deviceModel: document.getElementById('depDeviceModel').value.trim(),
+                    deviceDate: document.getElementById('depDeviceDate').value,
+                    depositAmount: totalAmount,
+                    paymentMethod: paymentMethod,
+                    cashAmount: cashAmount,
+                    transferAmount: transferAmount,
+                    shopBranch: document.getElementById('depShopBranch').value.trim(),
+                    staffName: document.getElementById('depStaffName').value.trim(),
+                    evidenceUrl: evidenceUrl,
+                    remark: document.getElementById('depRemark').value.trim()
+                };
+
+                const res = await fetchWithTimeout('/api/deposits', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+
+                Swal.close();
+
+                if (data.success) {
+                    showAlert('success', 'บันทึกรายการมัดจำสำเร็จ');
+                    closeDepositModalFn();
+                    loadDeposits();
+
+                    // Save deposit data and open receipt for printing
+                    localStorage.setItem('smilecare_current_deposit', JSON.stringify(data.deposit));
+                    window.open('deposit_receipt.html', '_blank');
+                } else {
+                    showAlert('error', data.message || 'ไม่สามารถบันทึกข้อมูลได้');
+                }
+            } catch (err) {
+                Swal.close();
+                showAlert('error', err.message || 'เกิดข้อผิดพลาดในการบันทึก');
+            }
+        });
+    }
+
+
+    // Init Payment Method Switcher for Deposit Form
+    const depPaymentMethodDropdown = document.getElementById('depPaymentMethod');
+    const depSplitPaymentGroup = document.getElementById('depSplitPaymentGroup');
+    const depTransferAmount = document.getElementById('depTransferAmount');
+    const depCashAmount = document.getElementById('depCashAmount');
+
+    if (depPaymentMethodDropdown && depSplitPaymentGroup) {
+        depPaymentMethodDropdown.addEventListener('change', () => {
+            if (depPaymentMethodDropdown.value === 'โอนและสด') {
+                depSplitPaymentGroup.style.display = 'block';
+                if (depTransferAmount) depTransferAmount.required = true;
+                if (depCashAmount) depCashAmount.required = true;
+            } else {
+                depSplitPaymentGroup.style.display = 'none';
+                if (depTransferAmount) { depTransferAmount.required = false; depTransferAmount.value = ''; }
+                if (depCashAmount) { depCashAmount.required = false; depCashAmount.value = ''; }
+            }
+        });
+    }
+
+});

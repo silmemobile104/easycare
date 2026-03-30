@@ -604,6 +604,16 @@
                             </svg>
                             การเงิน (Finance)
                         </a>
+                        <a href="#" id="depositNavLink" data-permission="nav-deposit">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect>
+                                <path d="M16 3h-8l-2 4h12l-2-4z"></path>
+                                <line x1="12" y1="11" x2="12" y2="17"></line>
+                                <line x1="9" y1="14" x2="15" y2="14"></line>
+                            </svg>
+                            การมัดจำ
+                        </a>
                     </nav>
 
                     <div class="sidebar-footer">
@@ -1196,6 +1206,232 @@
                     </div>
                 </main>
 
+                <!-- ═══ Deposit (การมัดจำ) ═══ -->
+                <main id="depositMain" class="main-content" style="display: none;">
+                    <header class="dashboard-header">
+                        <div class="header-titles">
+                            <h1>รายการมัดจำสินค้า</h1>
+                            <p>จัดการข้อมูลการมัดจำสินค้าของลูกค้า</p>
+                        </div>
+                        <button id="addDepositBtn" class="add-btn">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <line x1="12" y1="5" x2="12" y2="19"></line>
+                                <line x1="5" y1="12" x2="19" y2="12"></line>
+                            </svg>
+                            สร้างรายการมัดจำ
+                        </button>
+                    </header>
+
+                    <!-- Deposit Filter Bar -->
+                    <div class="advanced-filter-bar" style="margin-bottom: 1rem;">
+                        <div class="filter-bar-row">
+                            <div class="search-container">
+                                <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                                    stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                    stroke-linejoin="round">
+                                    <circle cx="11" cy="11" r="8"></circle>
+                                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                                </svg>
+                                <input type="text" id="depositsSearchInput"
+                                    placeholder="ค้นหาชื่อ, เบอร์โทร, รุ่นเครื่อง...">
+                            </div>
+                            <div class="filter-group" style="margin-left: 10px;">
+                                <select id="depositsStatusFilter" class="filter-select">
+                                    <option value="all">สถานะทั้งหมด</option>
+                                    <option value="Active">ใช้งานอยู่ (Active)</option>
+                                    <option value="Completed">ใช้แล้ว (Completed)</option>
+                                    <option value="Cancelled">ยกเลิก (Cancelled)</option>
+                                    <option value="Expired">หมดอายุ (Expired)</option>
+                                </select>
+                            </div>
+                            <div class="filter-actions" style="margin-left: auto; display: flex; gap: 10px;">
+                                <button type="button" class="filter-reset-btn" id="depositsResetBtn"> ล้างค่า</button>
+                                <button type="button" class="add-btn" id="btnExportDepositsExcel" style="display:flex; align-items:center; gap:8px;">
+                                    <i class="fas fa-file-excel"></i> Export Excel
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="table-container">
+                        <div class="table-responsive">
+                            <table id="depositsTable">
+                                <thead>
+                                    <tr>
+                                        <th>วันที่</th>
+                                        <th>ชื่อลูกค้า</th>
+                                        <th>เบอร์โทร</th>
+                                        <th>ประเภท</th>
+                                        <th>รุ่นเครื่อง</th>
+                                        <th>วันที่สิ้นสุดการมัดจำ</th>
+                                        <th>ยอดมัดจำ</th>
+                                        <th>สาขา</th>
+                                        <th>สถานะ</th>
+                                        <th>หลักฐานการรับเงิน</th>
+                                        <th>พิมพ์ใบเสร็จ</th>
+                                        <th>ผู้ทำรายการ</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="depositsBody"></tbody>
+                            </table>
+                        </div>
+                        <div id="depositsEmptyState" class="empty-state" style="display: none;">
+                            <p>ไม่พบข้อมูลมัดจำ คลิก "สร้างรายการมัดจำ" เพื่อเพิ่มรายการใหม่</p>
+                        </div>
+                    </div>
+                </main>
+
+                <!-- Deposit Form Modal -->
+                <div id="depositFormModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15,23,42,0.6); z-index: 9999; justify-content: center; align-items: center; backdrop-filter: blur(4px);">
+                    <div style="background: #fff; border-radius: 16px; width: 95%; max-width: 600px; max-height: 90vh; overflow-y: auto; padding: 30px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); position: relative;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid #e2e8f0;">
+                            <h2 style="margin: 0; font-size: 1.3rem; color: #0f172a;">สร้างรายการมัดจำ</h2>
+                            <button type="button" id="closeDepositModal" style="background: none; border: none; font-size: 1.8rem; cursor: pointer; color: #94a3b8; line-height: 1; padding: 0 5px;">&times;</button>
+                        </div>
+                        <form id="depositForm">
+                            <div class="form-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                                <div class="form-group">
+                                    <label>ชื่อลูกค้า <span style="color:red">*</span></label>
+                                    <input type="text" id="depCustomerFirstName" placeholder="ชื่อ" required>
+                                </div>
+                                <div class="form-group">
+                                    <label>นามสกุล <span style="color:red">*</span></label>
+                                    <input type="text" id="depCustomerLastName" placeholder="นามสกุล" required>
+                                </div>
+                                <div class="form-group">
+                                    <label>เบอร์ติดต่อ <span style="color:red">*</span></label>
+                                    <input type="tel" id="depCustomerPhone" placeholder="0xx-xxx-xxxx" required>
+                                </div>
+                                <div class="form-group">
+                                    <label>ประเภทเครื่อง <span style="color:red">*</span></label>
+                                    <select id="depDeviceType" required>
+                                        <option value="" disabled selected>เลือกประเภท</option>
+                                        <option value="iPhone">iPhone</option>
+                                        <option value="iPad">iPad</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>รุ่นเครื่อง <span style="color:red">*</span></label>
+                                    <select id="depDeviceModel" required>
+                                        <option value="" disabled selected>เลือก</option>
+                                        <option value="13 128 ดำ">13 128 ดำ</option>
+                                        <option value="13 128 ขาว">13 128 ขาว</option>
+                                        <option value="15 128 ดำ">15 128 ดำ</option>
+                                        <option value="15 128 บลู">15 128 บลู</option>
+                                        <option value="15 128 ชมพู">15 128 ชมพู</option>
+                                        <option value="15 256 บลู">15 256 บลู</option>
+                                        <option value="16 128 ดำ">16 128 ดำ</option>
+                                        <option value="16 128 บลู">16 128 บลู</option>
+                                        <option value="16 128 ชมพู">16 128 ชมพู</option>
+                                        <option value="16 128 เขียว">16 128 เขียว</option>
+                                        <option value="16 128 ขาว">16 128 ขาว</option>
+                                        <option value="16 256 บลู">16 256 บลู</option>
+                                        <option value="16 Plus 128 ดำ">16 Plus 128 ดำ</option>
+                                        <option value="16 Plus 128 ชมพู">16 Plus 128 ชมพู</option>
+                                        <option value="16 Plus 128 ขาว">16 Plus 128 ขาว</option>
+                                        <option value="16 Pro 128 ดำ">16 Pro 128 ดำ</option>
+                                        <option value="16p 128 ดำ">16p 128 ดำ</option>
+                                        <option value="16p 128 Graphite">16p 128 Graphite</option>
+                                        <option value="16pm 256 ดำ">16pm 256 ดำ</option>
+                                        <option value="16 Pro Max 256 Desert">16 Pro Max 256 Desert</option>
+                                        <option value="16 Pro Max 256 Desert Titanium">16 Pro Max 256 Desert Titanium</option>
+                                        <option value="16 Pro Max 256 Graphite">16 Pro Max 256 Graphite</option>
+                                        <option value="16 Pro Max 256 Silver">16 Pro Max 256 Silver</option>
+                                        <option value="16 Pro Max 256 White Titanium">16 Pro Max 256 White Titanium</option>
+                                        <option value="17 256 ดำ">17 256 ดำ</option>
+                                        <option value="17 256 บลู">17 256 บลู</option>
+                                        <option value="17 256 ม่วง">17 256 ม่วง</option>
+                                        <option value="17 256 ขาว">17 256 ขาว</option>
+                                        <option value="17 256 เขียว">17 256 เขียว</option>
+                                        <option value="17 Pro 256 ขาว">17 Pro 256 ขาว</option>
+                                        <option value="17 Pro 256 ส้ม">17 Pro 256 ส้ม</option>
+                                        <option value="17 Pro 256 บลู">17 Pro 256 บลู</option>
+                                        <option value="17pm 256 บลู">17pm 256 บลู</option>
+                                        <option value="17pm 256 ส้ม">17pm 256 ส้ม</option>
+                                        <option value="17pm 256 ขาว">17pm 256 ขาว</option>
+                                        <option value="iPad Gen11 128 ขาว">iPad Gen11 128 ขาว</option>
+                                        <option value="iPad Gen11 128 บลู">iPad Gen11 128 บลู</option>
+                                        <option value="iPad Gen11 128 ชมพู">iPad Gen11 128 ชมพู</option>
+                                        <option value="iPad Air7 128 ขาว">iPad Air7 128 ขาว</option>
+                                        <option value="iPad Air7 128 ม่วง">iPad Air7 128 ม่วง</option>
+                                        <option value="iPad Air7 128 เทา">iPad Air7 128 เทา</option>
+                                        <option value="iPad Air7 128 บลู">iPad Air7 128 บลู</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>วันที่ซื้อเครื่อง <span style="color:red">*</span></label>
+                                    <input type="date" id="depDeviceDate" required>
+                                </div>
+                                <div class="form-group">
+                                    <label>จำนวนเงินมัดจำ (บาท) <span style="color:red">*</span></label>
+                                    <input type="number" id="depDepositAmount" placeholder="0" min="0" required>
+                                </div>
+                                <div class="form-group">
+                                    <label>วิธีชำระเงิน <span style="color:red">*</span></label>
+                                    <select id="depPaymentMethod" required>
+                                        <option value="โอนเงิน" selected>โอนเงิน</option>
+                                        <option value="เงินสด">เงินสด</option>
+                                        <option value="โอนและสด">โอนและเงินสด</option>
+                                    </select>
+                                </div>
+                                <div class="form-group" id="depSplitPaymentGroup" style="display: none; grid-column: 1 / -1; background: #f8fafc; padding: 15px; border-radius: 8px;">
+                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                                        <div>
+                                            <label>ยอดเงินโอน (บาท)</label>
+                                            <input type="number" id="depTransferAmount" placeholder="0" min="0">
+                                        </div>
+                                        <div>
+                                            <label>ยอดเงินสด (บาท)</label>
+                                            <input type="number" id="depCashAmount" placeholder="0" min="0">
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label>สาขาที่ทำรายการ <span style="color:red">*</span></label>
+                                    <select type="text" id="depShopBranch" placeholder="ชื่อสาขา" required>
+                                        <option value="">เลือกสาขา</option>
+                                        <option value="ซิลมีนโมบาย สาขายะลา">ซิลมีนโมบาย สาขายะลา</option>
+                                        <option value="ซิลมีนโมบาย สาขาคุรุ">ซิลมีนโมบาย สาขาคุรุ</option>
+                                        <option value="ซิลมีนโมบาย สาขาโคลีเซียม">ซิลมีนโมบาย สาขาโคลีเซียม</option>
+                                        <option value="ซิลมีนโมบาย สาขาปัตตานี">ซิลมีนโมบาย สาขาปัตตานี</option>
+                                        <option value="ซิลมีนโมบาย สาขานราธิวาส">ซิลมีนโมบาย สาขานราธิวาส</option>
+                                        <option value="ซิลมีนโมบาย สาขาสงขลา">ซิลมีนโมบาย สาขาสงขลา</option>
+                                        <option value="ซิลมีนโมบาย สาขาบิ๊กซี">ซิลมีนโมบาย สาขาบิ๊กซี</option>
+                                        <option value="ซิลมีนโมบาย สาขาทุ่งเสา">ซิลมีนโมบาย สาขาทุ่งเสา</option>
+                                        <option value="ซิลมีนโมบาย สาขานคร">ซิลมีนโมบาย สาขานคร</option>
+                                        <option value="ซิลมีนโมบาย สาขาสตูล">ซิลมีนโมบาย สาขาสตูล</option>
+                                        <option value="ซิลมีนโมบาย สาขาพัทลุง">ซิลมีนโมบาย สาขาพัทลุง</option>
+                                        <option value="ซิลมีนโมบาย สาขาตรัง">ซิลมีนโมบาย สาขาตรัง</option>
+                                        <option value="ซิลมีนโมบาย สาขากะทู้">ซิลมีนโมบาย สาขากะทู้</option>
+                                        <option value="ซิลมีนโมบาย สาขาสามกอง">ซิลมีนโมบาย สาขาสามกอง</option>
+                                        <option value="ซิลมีนโมบาย สาขาชุมพร">ซิลมีนโมบาย สาขาชุมพร</option>
+                                        <option value="ซิลมีนโมบาย สาขาสุราษฎร์ธานี">ซิลมีนโมบาย สาขาสุราษฎร์ธานี</option>
+                                        <option value="ซิลมีนโมบาย สาขากระบี่">ซิลมีนโมบาย สาขากระบี่</option>
+                                        <option value="ซิลมีนโมบาย สาขาปากแมว">ซิลมีนโมบาย สาขาปากแมว</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>ผู้ทำรายการ <span style="color:red">*</span></label>
+                                    <input type="text" id="depStaffName" placeholder="ชื่อพนักงาน" required readonly>
+                                </div>
+                                <div class="form-group" style="grid-column: 1 / -1;">
+                                    <label>หลักฐานการรับเงิน (สลิป)<span style="color:red">*</span></label>
+                                    <input type="file" id="depEvidenceFile" accept="image/*" required>
+                                </div>
+                                <div class="form-group" style="grid-column: 1 / -1;">
+                                    <label>หมายเหตุ</label>
+                                    <textarea id="depRemark" rows="3" placeholder="หมายเหตุเพิ่มเติม (ถ้ามี)"></textarea>
+                                </div>
+                            </div>
+                            <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
+                                <button type="button" id="cancelDepositBtn" style="padding: 10px 24px; border-radius: 10px; border: 1px solid #e2e8f0; background: #f8fafc; color: #475569; cursor: pointer; font-weight: 500;">ยกเลิก</button>
+                                <button type="submit" class="add-btn">บันทึกรายการมัดจำ</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
                 <!-- ═══ Sales Dashboard ═══ -->
                 <main id="salesDashboardMain" class="main-content" style="display: none;">
                     <header class="dashboard-header">
@@ -1403,10 +1639,12 @@
                                 <thead>
                                     <tr>
                                         <th>รหัสสมาชิก</th>
+                                        <th>วันที่สมัคร</th>
                                         <th>ชื่อ-นามสกุล</th>
                                         <th>เบอร์โทร</th>
                                         <th>เลขบัตรประชาชน</th>
-                                        <th>วันที่สมัคร</th>
+                                        <th>ที่อยู่ตามบัตร</th>
+                                        <th>สถานะ</th>
                                         <th>จัดการ</th>
                                     </tr>
                                 </thead>
@@ -1511,6 +1749,7 @@
                                     <option value="all">ทั้งหมด</option>
                                     <option value="sales">พนักงานขาย</option>
                                     <option value="approver">ฝ่ายอนุมัติสัญญา</option>
+                                    <option value="finance">ฝ่ายการเงิน</option>
                                     <option value="admin">ผู้ดูแลระบบ</option>
                                 </select>
                             </div>
@@ -1570,6 +1809,7 @@
                                 <select id="staffRole" required>
                                     <option value="sales">พนักงานขาย</option>
                                     <option value="approver">ฝ่ายอนุมัติสัญญา</option>
+                                    <option value="finance">ฝ่ายการเงิน</option>
                                     <option value="admin">ผู้ดูแลระบบ</option>
                                 </select>
                             </div>
@@ -2162,6 +2402,12 @@
                         <input type="hidden" id="endDate">
                         <div class="form-group"><label>จำนวนวันคุ้มครอง</label><input type="number" id="remainingDays"
                                 readonly class="readonly-field"></div>
+                        <div class="form-group">
+                            <label>การมัดจำ</label>
+                            <select id="deposit" required>
+                                <option value="0" selected>ไม่มัดจำ</option>
+                            </select>
+                        </div>
                     </div>
 
                     <div id="pricingSummary" class="pricing-summary">

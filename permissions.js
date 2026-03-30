@@ -1,6 +1,6 @@
 const menuPermissions = {
-    'nav-packages': ['sales', 'admin'],
-    'nav-members': ['sales','approver', 'admin'],
+    'nav-packages': ['sales', 'admin', 'finance'],
+    'nav-members': ['sales','approver', 'admin', 'finance'],
     'nav-shops': ['admin'],
     'nav-claims': ['sales', 'admin'],
     'nav-tracking': ['sales', 'admin'],
@@ -9,7 +9,8 @@ const menuPermissions = {
     'nav-dashboard-approver': ['admin', 'approver'],
     'nav-staff': ['admin'],
     'nav-executive': ['admin'],
-    'nav-finance': ['approver', 'admin']
+    'nav-finance': ['approver', 'admin', 'finance'],
+    'nav-deposit': ['sales', 'admin', 'finance']
 };
 
 /**

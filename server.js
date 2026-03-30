@@ -52,6 +52,16 @@ const genericStorage = new CloudinaryStorage({
 
 const genericUpload = multer({ storage: genericStorage });
 
+const depositStorage = new CloudinaryStorage({
+    cloudinary: cloudinary,
+    params: {
+        folder: 'easycare/deposit',
+        allowed_formats: ['jpg', 'png', 'jpeg']
+    },
+});
+
+const depositUpload = multer({ storage: depositStorage });
+
 async function expireOverdueInstallments() {
     const now = new Date();
     const overdueCutoff = new Date(Date.now() - (5 * 24 * 60 * 60 * 1000));
@@ -265,7 +275,7 @@ const StaffSchema = new mongoose.Schema({
     staffPosition: String,
     username: { type: String, unique: true, index: true },
     password: { type: String, required: true },
-    role: { type: String, enum: ['sales', 'approver', 'admin'], default: 'sales' }
+    role: { type: String, enum: ['sales', 'approver', 'finance', 'admin'], default: 'sales' }
 }, { timestamps: true });
 
 const Staff = mongoose.model('Staff', StaffSchema);
@@ -366,6 +376,28 @@ const AuditLogSchema = new mongoose.Schema({
     timestamp: { type: Date, default: Date.now }
 });
 const AuditLog = mongoose.model('AuditLog', AuditLogSchema);
+
+// Deposit Schema (การมัดจำ)
+const DepositSchema = new mongoose.Schema({
+    transactionDate: { type: Date, default: Date.now },
+    customerFirstName: { type: String, required: true },
+    customerLastName: { type: String, required: true },
+    customerPhone: { type: String, required: true },
+    deviceType: { type: String, enum: ['iPhone', 'iPad'], required: true },
+    deviceModel: { type: String, required: true },
+    deviceDate: { type: Date, required: true },
+    depositAmount: { type: Number, required: true },
+    paymentMethod: { type: String, enum: ['เงินสด', 'โอนเงิน', 'โอนและสด'], default: 'โอนเงิน' },
+    cashAmount: { type: Number, default: 0 },
+    transferAmount: { type: Number, default: 0 },
+    shopBranch: { type: String, required: true },
+    staffName: { type: String, required: true },
+    evidenceUrl: { type: String },
+    status: { type: String, enum: ['Active', 'Completed', 'Cancelled'], default: 'Active' },
+    remark: { type: String, default: '' }
+}, { timestamps: true });
+
+const Deposit = mongoose.model('Deposit', DepositSchema);
 
 // Helper function สำหรับบันทึก Log
 async function logAction(action, detail, staffName) {
@@ -3967,6 +3999,198 @@ app.delete('/api/shops/:id', async (req, res) => {
         const deleted = await Shop.findByIdAndDelete(req.params.id);
         if (!deleted) return res.status(404).json({ success: false, message: 'ไม่พบข้อมูลร้านค้า' });
         res.json({ success: true, message: 'ลบข้อมูลร้านค้าสำเร็จ' });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// DEPOSIT API ROUTES (การมัดจำ)
+// ═══════════════════════════════════════════════════════════════════
+
+// Upload deposit evidence image (dedicated folder)
+app.post('/api/upload/deposit', depositUpload.single('file'), (req, res) => {
+    try {
+        if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
+        res.json({ url: req.file.path });
+    } catch (e) {
+        res.status(500).json({ message: e.message });
+    }
+});
+
+// Create new deposit
+app.post('/api/deposits', async (req, res) => {
+    try {
+        const deposit = new Deposit(req.body);
+        await deposit.save();
+
+        // 🌟 Record in Finance module
+        try {
+            const tempCash = Number(deposit.cashAmount) || 0;
+            const tempTransfer = Number(deposit.transferAmount) || 0;
+            const tempPaymentMethod = deposit.paymentMethod || 'โอนเงิน';
+
+            const financeLog = new FinanceTransaction({
+                transactionDate: deposit.transactionDate || new Date(),
+                policyNumber: '-', // Not available yet
+                customerName: `${deposit.customerFirstName || ''} ${deposit.customerLastName || ''}`.trim(),
+                actionType: `รับเงินมัดจำ ${deposit.deviceType || ''} ${deposit.deviceModel || ''}`.trim(),
+                paymentMethod: tempPaymentMethod,
+                cashReceived: tempCash,
+                transferAmount: tempTransfer,
+                changeAmount: 0,
+                netTotal: deposit.depositAmount || 0,
+                evidenceUrl: deposit.evidenceUrl || '',
+                recordedBy: deposit.staffName || 'System'
+            });
+            await financeLog.save();
+        } catch (fErr) {
+            console.error('Failed to record FinanceTransaction for deposit:', fErr);
+            // We do not fail the deposit creation if finance logging fails
+        }
+
+        res.status(201).json({ success: true, deposit });
+    } catch (err) {
+        res.status(400).json({ success: false, message: err.message });
+    }
+});
+
+// Get all deposits (newest first)
+app.get('/api/deposits', async (req, res) => {
+    try {
+        // อัปเดตสถานะมัดจำเป็น ยกเลิก อัตโนมัติ หากเลยวันที่สิ้นสุดการมัดจำ (30 วัน นับจากวันที่ซื้อเครื่อง)
+        const expiryBoundaryDate = new Date();
+        expiryBoundaryDate.setDate(expiryBoundaryDate.getDate() - 30);
+        
+        // เรารีเซ็ตเวลาเป็นเริ่มต้นของวัน เพื่อให้ครอบคลุมทั้งวันนั้น (ขึ้นอยู่กับ Requirement ว่านับแบบเป๊ะๆ หรือหมดสิ้นวัน)
+        // สำหรับที่นี่ ให้นับ 24ชม x 30 วัน
+        await Deposit.updateMany(
+            { status: 'Active', deviceDate: { $lt: expiryBoundaryDate } },
+            { $set: { status: 'Cancelled' } }
+        );
+
+        const deposits = await Deposit.find().sort({ createdAt: -1 });
+        res.json(deposits);
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// Export Deposits to Excel
+app.get('/api/deposits/export/excel', checkAdminRole, async (req, res) => {
+    try {
+        const match = {};
+        const { search, status } = req.query;
+
+        if (search) {
+            const regex = { $regex: search, $options: 'i' };
+            match.$or = [
+                { customerFirstName: regex },
+                { customerLastName: regex },
+                { customerPhone: regex },
+                { deviceType: regex },
+                { deviceModel: regex },
+                { shopBranch: regex },
+                { staffName: regex }
+            ];
+        }
+
+        if (status && status !== 'all') {
+            if (status === 'Expired') {
+                // If they ask for 'Expired', it technically might be stored as 'Cancelled' or evaluated on the fly
+                // But let's support exact backend status matching for simplicity
+                match.status = 'Expired'; 
+            } else {
+                match.status = status;
+            }
+        }
+
+        const deposits = await Deposit.find(match).sort({ createdAt: -1 }).lean();
+
+        const workbook = new ExcelJS.Workbook();
+        const ws = workbook.addWorksheet('Deposits');
+
+        ws.columns = [
+            { header: 'วันที่ทำรายการ', key: 'transactionDate', width: 22 },
+            { header: 'ชื่อลูกค้า', key: 'customerFirstName', width: 20 },
+            { header: 'นามสกุล', key: 'customerLastName', width: 20 },
+            { header: 'เบอร์โทร', key: 'customerPhone', width: 15 },
+            { header: 'ประเภทเครื่อง', key: 'deviceType', width: 15 },
+            { header: 'รุ่นเครื่อง', key: 'deviceModel', width: 25 },
+            { header: 'วันที่สิ้นสุดมัดจำ', key: 'endDate', width: 22 },
+            { header: 'จำนวนเงินมัดจำ', key: 'depositAmount', width: 15 },
+            { header: 'สาขา', key: 'shopBranch', width: 25 },
+            { header: 'สถานะ', key: 'status', width: 15 },
+            { header: 'ผู้ทำรายการ', key: 'staffName', width: 20 },
+            { header: 'หมายเหตุ', key: 'remark', width: 30 }
+        ];
+
+        deposits.forEach(d => {
+            let endDateStr = '-';
+            let computedStatus = d.status || 'Active';
+            if (d.deviceDate) {
+                const endDate = new Date(d.deviceDate);
+                endDate.setDate(endDate.getDate() + 30);
+                endDateStr = endDate.toLocaleDateString('th-TH', { year: 'numeric', month: '2-digit', day: '2-digit' });
+
+                if (computedStatus === 'Active' && new Date() > endDate) {
+                    computedStatus = 'Expired';
+                }
+            }
+            
+            // If user filtered by Expired but DB hasn't updated or computed handles it:
+            if (status === 'Expired' && computedStatus !== 'Expired') return;
+            
+            ws.addRow({
+                transactionDate: d.transactionDate ? new Date(d.transactionDate).toLocaleString('th-TH') : '-',
+                customerFirstName: d.customerFirstName || '-',
+                customerLastName: d.customerLastName || '-',
+                customerPhone: d.customerPhone || '-',
+                deviceType: d.deviceType || '-',
+                deviceModel: d.deviceModel || '-',
+                endDate: endDateStr,
+                depositAmount: d.depositAmount || 0,
+                shopBranch: d.shopBranch || '-',
+                status: computedStatus,
+                staffName: d.staffName || '-',
+                remark: d.remark || '-'
+            });
+        });
+
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', 'attachment; filename=Deposits.xlsx');
+        await workbook.xlsx.write(res);
+        res.end();
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// Get deposit by ID
+app.get('/api/deposits/:id', async (req, res) => {
+    try {
+        const deposit = await Deposit.findById(req.params.id);
+        if (!deposit) return res.status(404).json({ success: false, message: 'Deposit not found' });
+        res.json(deposit);
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// Update deposit status
+app.put('/api/deposits/:id/status', async (req, res) => {
+    try {
+        const { status } = req.body;
+        if (!['Active', 'Completed', 'Cancelled'].includes(status)) {
+            return res.status(400).json({ success: false, message: 'Invalid status value' });
+        }
+        const deposit = await Deposit.findByIdAndUpdate(
+            req.params.id,
+            { status },
+            { new: true }
+        );
+        if (!deposit) return res.status(404).json({ success: false, message: 'Deposit not found' });
+        res.json({ success: true, deposit });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }
