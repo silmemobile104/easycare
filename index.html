@@ -433,23 +433,6 @@
                                     </svg>
                                     <input type="password" id="password" placeholder="••••••••" required
                                         autocomplete="current-password">
-                                    <button type="button" id="togglePasswordBtn" class="login-toggle-password"
-                                        tabindex="-1" aria-label="แสดง/ซ่อนรหัสผ่าน">
-                                        <svg id="eyeIcon" width="18" height="18" viewBox="0 0 24 24" fill="none"
-                                            stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                            stroke-linejoin="round">
-                                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                                            <circle cx="12" cy="12" r="3"></circle>
-                                        </svg>
-                                        <svg id="eyeOffIcon" width="18" height="18" viewBox="0 0 24 24" fill="none"
-                                            stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                            stroke-linejoin="round" style="display:none;">
-                                            <path
-                                                d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24">
-                                            </path>
-                                            <line x1="1" y1="1" x2="23" y2="23"></line>
-                                        </svg>
-                                    </button>
                                 </div>
                             </div>
 
@@ -2727,6 +2710,25 @@
                                 style="padding: 4px 10px; font-size: 0.75rem;">ใช้ที่อยู่ตามสำเนาบัตร</button>
                         </div>
                         <textarea id="memberShippingAddress" rows="3"></textarea>
+                    </div>
+                    <!-- รูปบัตรประชาชน -->
+                    <div class="form-group full-width">
+                        <label style="display: flex; align-items: center; gap: 6px;">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"></rect><line x1="7" y1="8" x2="17" y2="8"></line><line x1="7" y1="12" x2="12" y2="12"></line></svg>
+                            รูปถ่ายบัตรประชาชน <span style="color: #ef4444;">*</span>
+                        </label>
+                        <div id="idCardImageUploadArea" style="border: 2px dashed #cbd5e1; border-radius: 12px; padding: 1.5rem; text-align: center; background: #f8fafc; cursor: pointer; transition: all 0.2s ease; position: relative;" onclick="document.getElementById('memberIdCardImageInput').click()" onmouseover="this.style.borderColor='var(--primary)'; this.style.background='#f0fdfa'" onmouseout="this.style.borderColor='#cbd5e1'; this.style.background='#f8fafc'">
+                            <input type="file" id="memberIdCardImageInput" accept="image/*" style="display: none;">
+                            <div id="idCardImagePlaceholder">
+                                <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin: 0 auto 8px;"><rect x="3" y="4" width="18" height="16" rx="2"></rect><circle cx="9" cy="10" r="2"></circle><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"></path></svg>
+                                <p style="color: #94a3b8; font-size: 0.85rem; margin: 0;">คลิกเพื่อเลือกรูปบัตรประชาชน</p>
+                                <p style="color: #cbd5e1; font-size: 0.75rem; margin: 4px 0 0;">รองรับ JPG, PNG ขนาดไม่เกิน 5 MB</p>
+                            </div>
+                            <div id="idCardImagePreviewContainer" style="display: none;">
+                                <img id="memberIdCardImagePreview" src="" alt="รูปบัตรประชาชน" style="max-width: 100%; max-height: 220px; border-radius: 8px; object-fit: contain; box-shadow: 0 2px 8px rgba(0,0,0,0.12);">
+                                <button type="button" id="removeIdCardImageBtn" style="position: absolute; top: 8px; right: 8px; background: #ef4444; color: white; border: none; border-radius: 50%; width: 28px; height: 28px; cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(239,68,68,0.4);" title="ลบรูป">✕</button>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div class="form-actions" style="margin-top: 1.5rem;">

@@ -3482,6 +3482,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 photoContainer.style.display = 'none';
             }
 
+            // แสดงรูปบัตรประชาชนที่เคยอัปโหลดไว้ (ถ้ามี)
+            const idCardPreviewContainer = document.getElementById('idCardImagePreviewContainer');
+            const idCardPlaceholder = document.getElementById('idCardImagePlaceholder');
+            const idCardPreviewImg = document.getElementById('memberIdCardImagePreview');
+            const idCardFileInput = document.getElementById('memberIdCardImageInput');
+            if (idCardFileInput) idCardFileInput.value = '';
+            if (member.idCardImage) {
+                if (idCardPreviewImg) idCardPreviewImg.src = member.idCardImage;
+                if (idCardPreviewContainer) idCardPreviewContainer.style.display = 'block';
+                if (idCardPlaceholder) idCardPlaceholder.style.display = 'none';
+            } else {
+                if (idCardPreviewContainer) idCardPreviewContainer.style.display = 'none';
+                if (idCardPlaceholder) idCardPlaceholder.style.display = 'block';
+                if (idCardPreviewImg) idCardPreviewImg.src = '';
+            }
+
             document.getElementById('memberModal').style.display = 'flex';
         } catch (err) {
             console.error('Fetch member error:', err);
@@ -3519,6 +3535,16 @@ document.addEventListener('DOMContentLoaded', () => {
             if (memberFacebookLinkEl) memberFacebookLinkEl.value = '';
             document.getElementById('smartCardPhotoContainer').style.display = 'none';
             document.getElementById('smartCardPhoto').src = '';
+
+            // Reset พื้นที่รูปบัตรประชาชน
+            const idCardFileInputReset = document.getElementById('memberIdCardImageInput');
+            if (idCardFileInputReset) idCardFileInputReset.value = '';
+            const idCardPreviewImgReset = document.getElementById('memberIdCardImagePreview');
+            if (idCardPreviewImgReset) idCardPreviewImgReset.src = '';
+            const idCardPreviewContainerReset = document.getElementById('idCardImagePreviewContainer');
+            if (idCardPreviewContainerReset) idCardPreviewContainerReset.style.display = 'none';
+            const idCardPlaceholderReset = document.getElementById('idCardImagePlaceholder');
+            if (idCardPlaceholderReset) idCardPlaceholderReset.style.display = 'block';
 
             // Re-enable fields if they were disabled (though we keep them readonly for SC integration)
             document.getElementById('memberCitizenId').readOnly = false;
@@ -3661,12 +3687,90 @@ document.addEventListener('DOMContentLoaded', () => {
             const phoneDigits = normalizeDigits(document.getElementById('memberPhone') ? document.getElementById('memberPhone').value : '');
             const postalDigits = normalizeDigits(document.getElementById('memberPostalCode') ? document.getElementById('memberPostalCode').value : '');
 
+
+            // ── Validate ทุกช่องก่อน submit ──
+            const requiredFields = [
+                { id: 'memberCitizenId',       label: 'เลขบัตรประชาชน' },
+                { id: 'memberPrefix',          label: 'คำนำหน้า' },
+                { id: 'memberFirstName',       label: 'ชื่อ (TH)' },
+                { id: 'memberLastName',        label: 'นามสกุล (TH)' },
+                { id: 'memberFirstNameEn',     label: 'First Name (EN)' },
+                { id: 'memberLastNameEn',      label: 'Last Name (EN)' },
+                { id: 'memberGender',          label: 'เพศ' },
+                { id: 'memberBirthdate',       label: 'วันเกิด' },
+                { id: 'memberCardExpiry',      label: 'วันหมดอายุบัตร' },
+                { id: 'memberPhone',           label: 'เบอร์โทรศัพท์' },
+                { id: 'memberPostalCode',      label: 'รหัสไปรษณีย์' },
+                { id: 'memberFacebook',        label: 'ชื่อเฟสบุ๊ค' },
+                { id: 'memberFacebookLink',    label: 'ลิ้งค์เฟสบุ๊ค' },
+                { id: 'memberIdCardAddress',   label: 'ที่อยู่ตามบัตรประชาชน' },
+                { id: 'memberShippingAddress', label: 'ที่อยู่จัดส่ง' },
+            ];
+
+            // ล้าง highlight เก่า
+            requiredFields.forEach(f => {
+                const el = document.getElementById(f.id);
+                if (el) { el.style.outline = ''; el.style.boxShadow = ''; }
+            });
+            const uploadArea = document.getElementById('idCardImageUploadArea');
+            if (uploadArea) uploadArea.style.border = '2px dashed #cbd5e1';
+
+            const missing = [];
+            let firstMissingEl = null;
+
+            requiredFields.forEach(f => {
+                const el = document.getElementById(f.id);
+                if (!el) return;
+                if (!el.value || !el.value.trim()) {
+                    missing.push(f.label);
+                    el.style.outline = '2px solid #ef4444';
+                    el.style.boxShadow = '0 0 0 3px rgba(239,68,68,0.15)';
+                    if (!firstMissingEl) firstMissingEl = el;
+                }
+            });
+
+            // ตรวจฟอร์แมต phone
             if (phoneDigits.length !== 10) {
-                showAlert('warning', 'กรุณากรอกเบอร์โทรศัพท์เป็นตัวเลข 10 หลัก');
-                return;
+                const phoneEl = document.getElementById('memberPhone');
+                if (phoneEl) { phoneEl.style.outline = '2px solid #ef4444'; phoneEl.style.boxShadow = '0 0 0 3px rgba(239,68,68,0.15)'; }
+                if (!firstMissingEl) firstMissingEl = phoneEl;
+                if (!missing.some(m => m.includes('เบอร์'))) missing.push('เบอร์โทรศัพท์ (ต้องเป็นตัวเลข 10 หลัก)');
             }
+            // ตรวจฟอร์แมต postal
             if (postalDigits && postalDigits.length !== 5) {
-                showAlert('warning', 'กรุณากรอกรหัสไปรษณีย์เป็นตัวเลข 5 หลัก');
+                const postalEl = document.getElementById('memberPostalCode');
+                if (postalEl) { postalEl.style.outline = '2px solid #ef4444'; postalEl.style.boxShadow = '0 0 0 3px rgba(239,68,68,0.15)'; }
+                if (!firstMissingEl) firstMissingEl = postalEl;
+                if (!missing.some(m => m.includes('ไปรษณีย์'))) missing.push('รหัสไปรษณีย์ (ต้องเป็นตัวเลข 5 หลัก)');
+            }
+
+            // ตรวจรูปบัตรประชาชน
+            const idCardFileInputCheck = document.getElementById('memberIdCardImageInput');
+            const idCardPreviewContainerCheck = document.getElementById('idCardImagePreviewContainer');
+            const hasExistingImage = idCardPreviewContainerCheck && idCardPreviewContainerCheck.style.display !== 'none';
+            const hasNewFile = idCardFileInputCheck && idCardFileInputCheck.files && idCardFileInputCheck.files.length > 0;
+            if (!hasExistingImage && !hasNewFile) {
+                missing.push('รูปถ่ายบัตรประชาชน');
+                if (uploadArea) {
+                     uploadArea.style.border = '2px solid #ef4444';
+                     if (!firstMissingEl) firstMissingEl = uploadArea;
+                }
+            }
+
+            if (missing.length > 0) {
+                if (firstMissingEl) firstMissingEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'กรุณากรอกข้อมูลให้ครบถ้วน',
+                    html: `<div style="text-align:left; max-height:220px; overflow-y:auto; padding-right:4px;">
+                        <p style="color:#64748b; margin-bottom:8px; font-size:0.9rem;">ช่องที่ยังไม่มีข้อมูล:</p>
+                        <ul style="margin:0; padding-left:1.2rem; color:#ef4444; line-height:1.8;">
+                            ${missing.map(m => `<li>${m}</li>`).join('')}
+                        </ul>
+                    </div>`,
+                    confirmButtonText: 'ตกลง',
+                    confirmButtonColor: '#0d9488'
+                });
                 return;
             }
 
@@ -3691,6 +3795,17 @@ document.addEventListener('DOMContentLoaded', () => {
             };
 
             try {
+                Swal.fire({
+                    title: 'กำลังบันทึกข้อมูล...',
+                    html: '<div style="margin-top: 10px; color: #64748b;">กรุณารอสักครู่ ระบบกำลังจัดเก็บข้อมูลของคุณ</div>',
+                    allowOutsideClick: false,
+                    allowEscapeKey: false,
+                    showConfirmButton: false,
+                    didOpen: () => {
+                        Swal.showLoading();
+                    }
+                });
+
                 const url = editId ? `/api/members/${editId}` : '/api/members';
                 const method = editId ? 'PUT' : 'POST';
 
@@ -3701,15 +3816,79 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 const data = await res.json();
                 if (data.success) {
-                    document.getElementById('memberModal').style.display = 'none';
-                    fetchMembers();
+                    // Upload รูปบัตรประชาชน (ถ้ามีการเลือกไฟล์ใหม่)
+                    const idCardFileInputUpload = document.getElementById('memberIdCardImageInput');
+                    const savedMemberId = data.member?._id || editId;
+                    if (idCardFileInputUpload && idCardFileInputUpload.files && idCardFileInputUpload.files[0] && savedMemberId) {
+                        try {
+                            const formData = new FormData();
+                            formData.append('idCardImage', idCardFileInputUpload.files[0]);
+                            await fetch(`/api/members/${savedMemberId}/upload-id-card`, {
+                                method: 'POST',
+                                body: formData
+                            });
+                        } catch (uploadErr) {
+                            console.error('Upload ID card image error:', uploadErr);
+                        }
+                    }
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'บันทึกสำเร็จ!',
+                        text: 'ข้อมูลสมาชิกถูกบันทึกลงระบบเรียบร้อยแล้ว',
+                        confirmButtonText: 'ตกลง',
+                        confirmButtonColor: '#0d9488',
+                        timer: 2000,
+                        timerProgressBar: true
+                    }).then(() => {
+                        document.getElementById('memberModal').style.display = 'none';
+                        fetchMembers();
+                    });
                 } else {
-                    showAlert('error', data.message || 'เกิดข้อผิดพลาด');
+                    Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด', text: data.message || 'ไม่สามารถบันทึกข้อมูลได้', confirmButtonText: 'ตกลง', confirmButtonColor: '#ef4444' });
                 }
             } catch (err) {
                 console.error('Submit member error:', err);
-                showAlert('error', 'เกิดข้อผิดพลาดในการเชื่อมต่อ');
+                Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด', text: 'เกิดข้อผิดพลาดในการเชื่อมต่อกับเซิร์ฟเวอร์', confirmButtonText: 'ตกลง', confirmButtonColor: '#ef4444' });
             }
+        });
+    }
+
+    // --- ID Card Image Input Preview Logic ---
+    const memberIdCardImageInput = document.getElementById('memberIdCardImageInput');
+    if (memberIdCardImageInput) {
+        memberIdCardImageInput.addEventListener('change', () => {
+            const file = memberIdCardImageInput.files[0];
+            if (!file) return;
+            if (file.size > 5 * 1024 * 1024) {
+                showAlert('warning', 'รูปภาพขนาดใหญ่เกินไป กรุณาเลือกรูปภาพที่มีขนาดไม่เกิน 5 MB');
+                memberIdCardImageInput.value = '';
+                return;
+            }
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const previewImg = document.getElementById('memberIdCardImagePreview');
+                const previewContainer = document.getElementById('idCardImagePreviewContainer');
+                const placeholder = document.getElementById('idCardImagePlaceholder');
+                if (previewImg) previewImg.src = e.target.result;
+                if (previewContainer) previewContainer.style.display = 'block';
+                if (placeholder) placeholder.style.display = 'none';
+            };
+            reader.readAsDataURL(file);
+        });
+    }
+
+    const removeIdCardBtn = document.getElementById('removeIdCardImageBtn');
+    if (removeIdCardBtn) {
+        removeIdCardBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const idCardFileInput = document.getElementById('memberIdCardImageInput');
+            const previewImg = document.getElementById('memberIdCardImagePreview');
+            const previewContainer = document.getElementById('idCardImagePreviewContainer');
+            const placeholder = document.getElementById('idCardImagePlaceholder');
+            if (idCardFileInput) idCardFileInput.value = '';
+            if (previewImg) previewImg.src = '';
+            if (previewContainer) previewContainer.style.display = 'none';
+            if (placeholder) placeholder.style.display = 'block';
         });
     }
 
@@ -6085,6 +6264,14 @@ document.addEventListener('DOMContentLoaded', () => {
             SwalTheme.fire({
                 title: `📋 สัญญา #${w.policyNumber}`,
                 html: `
+                    <div style="text-align: center; margin-bottom: 20px;">
+                        <h4 style="margin: 0 0 10px 0; font-size: 1rem; color: #475569;">รูปถ่ายบัตรประชาชน</h4>
+                        ${w.customer?.idCardImage ? 
+                            `<img src="${escapeHtml(w.customer.idCardImage)}" alt="รูปบัตรประชาชน" style="max-width: 100%; max-height: 200px; border-radius: 8px; border: 1px solid #e2e8f0; box-shadow: 0 2px 4px rgba(0,0,0,0.1); cursor: pointer;" onclick="window.open(this.src, '_blank')">` 
+                        : (w.customer?.photo ? 
+                            `<img src="${escapeHtml(w.customer.photo)}" alt="รูปบัตรประชาชน (Smart Card)" style="max-width: 100%; max-height: 200px; border-radius: 8px; border: 1px solid #e2e8f0; box-shadow: 0 2px 4px rgba(0,0,0,0.1); cursor: pointer;" onclick="window.open(this.src, '_blank')">`
+                        : `<div style="padding: 15px; background: #f8fafc; border: 2px dashed #cbd5e1; border-radius: 8px; color: #94a3b8;">ไม่มีรูปถ่ายบัตรประชาชน</div>` )}
+                    </div>
                     <div class="approval-detail-grid">
                         <div class="approval-detail-item">
                             <label>รหัสลูกค้า</label>
@@ -6095,16 +6282,48 @@ document.addEventListener('DOMContentLoaded', () => {
                             <span>${w.customer?.citizenId || '-'}</span>
                         </div>
                         <div class="approval-detail-item">
-                            <label>ชื่อลูกค้า</label>
-                            <span>${w.customer?.firstName || ''} ${w.customer?.lastName || ''}</span>
+                            <label>ชื่อลูกค้า (TH)</label>
+                            <span>${w.customer?.prefix || ''}${w.customer?.firstName || ''} ${w.customer?.lastName || ''}</span>
+                        </div>
+                        <div class="approval-detail-item">
+                            <label>ชื่อลูกค้า (EN)</label>
+                            <span>${w.customer?.firstNameEn || ''} ${w.customer?.lastNameEn || ''}</span>
+                        </div>
+                        <div class="approval-detail-item">
+                            <label>เพศ</label>
+                            <span>${w.customer?.gender || '-'}</span>
+                        </div>
+                        <div class="approval-detail-item">
+                            <label>วันเกิด</label>
+                            <span>${w.customer?.birthdate ? new Date(w.customer.birthdate).toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' }) : '-'}</span>
+                        </div>
+                        <div class="approval-detail-item">
+                            <label>วันหมดอายุบัตร</label>
+                            <span>${w.customer?.expiryDate ? new Date(w.customer.expiryDate).toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' }) : '-'}</span>
                         </div>
                         <div class="approval-detail-item">
                             <label>อายุ</label>
-                            <span>${w.customer?.age || ''}</span>
+                            <span>${w.customer?.age || '-'}</span>
                         </div>
                         <div class="approval-detail-item">
                             <label>เบอร์โทรศัพท์</label>
                             <span>${w.customer?.phone || '-'}</span>
+                        </div>
+                        <div class="approval-detail-item">
+                            <label>รหัสไปรษณีย์</label>
+                            <span>${w.customer?.postalCode || '-'}</span>
+                        </div>
+                        <div class="approval-detail-item" style="grid-column: 1 / -1;">
+                            <label>Facebook</label>
+                            <span>${w.customer?.facebookLink ? `<a href="${escapeHtml(w.customer.facebookLink)}" target="_blank" style="color:#3b82f6;text-decoration:none;">ดูโปรไฟล์ <span style="font-size:0.8rem;">↗</span></a>` : '-'}</span>
+                        </div>
+                        <div class="approval-detail-item" style="grid-column: 1 / -1; background: #f8fafc; padding: 10px; border-radius: 6px; border-left: 3px solid #64748b;">
+                            <label style="color:#475569;font-weight:600;">ที่อยู่ตามบัตรประชาชน</label>
+                            <span style="display:block;margin-top:4px;">${w.customer?.idCardAddress || '-'}</span>
+                        </div>
+                        <div class="approval-detail-item" style="grid-column: 1 / -1; background: #f8fafc; padding: 10px; border-radius: 6px; border-left: 3px solid #0ea5e9;">
+                            <label style="color:#0284c7;font-weight:600;">ที่อยู่จัดส่งเอกสาร/สินค้า</label>
+                            <span style="display:block;margin-top:4px;">${w.customer?.shippingAddress || '-'}</span>
                         </div>
                         <div class="approval-detail-item">
                             <label>ประเภทอุปกรณ์</label>
@@ -6199,6 +6418,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     <div style="display:flex; justify-content:center; gap:10px; margin-top: 14px;">
                         ${w.approvalStatus === 'pending' ? `
+                        <button type="button" id="approvalEditBtn" class="submit-btn"
+                            style="width:auto; padding: 10px 14px; background: linear-gradient(135deg, #f59e0b, #d97706); margin-right: 5px;">
+                            ✏️ แก้ไขข้อมูล
+                        </button>
                         <button type="button" id="approvalApproveBtn" class="submit-btn"
                             style="width:auto; padding: 10px 14px; background: linear-gradient(135deg, #10b981, #059669);">
                             ✅ อนุมัติ
@@ -6225,6 +6448,14 @@ document.addEventListener('DOMContentLoaded', () => {
                         });
                     }
 
+                    const editBtn = document.getElementById('approvalEditBtn');
+                    if (editBtn) {
+                        editBtn.addEventListener('click', () => {
+                            Swal.close();
+                            window.editApprovalData(w._id);
+                        });
+                    }
+
                     const approveBtn = document.getElementById('approvalApproveBtn');
                     if (approveBtn) {
                         approveBtn.addEventListener('click', () => {
@@ -6245,6 +6476,150 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (err) {
             console.error('viewApprovalDetails error:', err);
             alert('Error accessing details: ' + err.message);
+        }
+    };
+
+    window.editApprovalData = async function (id) {
+        const w = approvalAllWarranties.find(r => r._id === id);
+        if (!w) return alert('Data not found');
+
+        const safeIsoDate = (dateVal) => {
+            if (!dateVal) return '';
+            const d = new Date(dateVal);
+            return isNaN(d.getTime()) ? '' : d.toISOString().split('T')[0];
+        };
+
+        const { value: formValues } = await SwalTheme.fire({
+            title: '✏️ แก้ไขข้อมูล (ก่อนอนุมัติ)',
+            html: `
+                <div style="text-align: left; max-height: 60vh; overflow-y: auto; padding: 0 10px; font-family: 'Prompt', 'Kanit', sans-serif;">
+                    <h3 style="margin-bottom: 15px; color: #1e293b; border-bottom: 2px solid #e2e8f0; padding-bottom: 5px;">ข้อมูลลูกค้า</h3>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;">
+                        <div><label style="font-size:0.9rem;color:#64748b;display:block;margin-bottom:4px;">เลขบัตรประชาชน</label><input id="edit_citizenId" value="${escapeHtml(w.customer?.citizenId || '')}" style="width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:4px; outline:none;" maxlength="13"></div>
+                        <div><label style="font-size:0.9rem;color:#64748b;display:block;margin-bottom:4px;">คำนำหน้า</label><input id="edit_prefix" value="${escapeHtml(w.customer?.prefix || '')}" style="width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:4px; outline:none;"></div>
+                    </div>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;">
+                        <div><label style="font-size:0.9rem;color:#64748b;display:block;margin-bottom:4px;">ชื่อ (TH)</label><input id="edit_firstName" value="${escapeHtml(w.customer?.firstName || '')}" style="width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:4px; outline:none;"></div>
+                        <div><label style="font-size:0.9rem;color:#64748b;display:block;margin-bottom:4px;">นามสกุล (TH)</label><input id="edit_lastName" value="${escapeHtml(w.customer?.lastName || '')}" style="width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:4px; outline:none;"></div>
+                    </div>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;">
+                        <div><label style="font-size:0.9rem;color:#64748b;display:block;margin-bottom:4px;">First Name (EN)</label><input id="edit_firstNameEn" value="${escapeHtml(w.customer?.firstNameEn || '')}" style="width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:4px; outline:none;"></div>
+                        <div><label style="font-size:0.9rem;color:#64748b;display:block;margin-bottom:4px;">Last Name (EN)</label><input id="edit_lastNameEn" value="${escapeHtml(w.customer?.lastNameEn || '')}" style="width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:4px; outline:none;"></div>
+                    </div>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;">
+                        <div><label style="font-size:0.9rem;color:#64748b;display:block;margin-bottom:4px;">เพศ</label>
+                            <select id="edit_gender" style="width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:4px; outline:none; background:#fff;">
+                                <option value="" ${!w.customer?.gender ? 'selected' : ''}>ไม่ระบุ</option>
+                                <option value="ชาย" ${w.customer?.gender === 'ชาย' ? 'selected' : ''}>ชาย</option>
+                                <option value="หญิง" ${w.customer?.gender === 'หญิง' ? 'selected' : ''}>หญิง</option>
+                            </select>
+                        </div>
+                        <div><label style="font-size:0.9rem;color:#64748b;display:block;margin-bottom:4px;">เบอร์โทรศัพท์</label><input id="edit_phone" value="${escapeHtml(w.customer?.phone || '')}" style="width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:4px; outline:none;" maxlength="10"></div>
+                    </div>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;">
+                        <div><label style="font-size:0.9rem;color:#64748b;display:block;margin-bottom:4px;">วันเกิด (วว/ดด/ปปปป)</label><input type="date" id="edit_birthdate" value="${safeIsoDate(w.customer?.birthdate)}" style="width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:4px; outline:none;"></div>
+                        <div><label style="font-size:0.9rem;color:#64748b;display:block;margin-bottom:4px;">วันหมดอายุบัตร (วว/ดด/ปปปป)</label><input type="date" id="edit_expiryDate" value="${safeIsoDate(w.customer?.expiryDate)}" style="width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:4px; outline:none;"></div>
+                    </div>
+
+                    <div style="margin-bottom:10px;"><label style="font-size:0.9rem;color:#64748b;display:block;margin-bottom:4px;">รหัสไปรษณีย์</label><input id="edit_postalCode" value="${escapeHtml(w.customer?.postalCode || '')}" style="width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:4px; outline:none;" maxlength="5"></div>
+
+                    <div style="margin-bottom:10px;"><label style="font-size:0.9rem;color:#64748b;display:block;margin-bottom:4px;">ที่อยู่ตามบัตรประชาชน</label><textarea id="edit_idCardAddress" style="width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:4px; outline:none; resize:vertical;" rows="2">${escapeHtml(w.customer?.idCardAddress || '')}</textarea></div>
+                    <div style="margin-bottom:10px;"><label style="font-size:0.9rem;color:#64748b;display:block;margin-bottom:4px;">ที่อยู่จัดส่ง (Shipping Address)</label><textarea id="edit_shippingAddress" style="width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:4px; outline:none; resize:vertical;" rows="2">${escapeHtml(w.customer?.shippingAddress || '')}</textarea></div>
+                    
+                    <h3 style="margin-top: 20px; margin-bottom: 15px; color: #1e293b; border-bottom: 2px solid #e2e8f0; padding-bottom: 5px;">ข้อมูลอุปกรณ์</h3>
+                    <div style="margin-bottom:10px;"><label style="font-size:0.9rem;color:#64748b;display:block;margin-bottom:4px;">ประเภทอุปกรณ์</label><input id="edit_deviceType" value="${escapeHtml(w.device?.type || '')}" style="width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:4px; outline:none;"></div>
+                    <div style="margin-bottom:10px;"><label style="font-size:0.9rem;color:#64748b;display:block;margin-bottom:4px;">รุ่น (Model)</label><input id="edit_deviceModel" value="${escapeHtml(w.device?.model || '')}" style="width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:4px; outline:none;"></div>
+                    <div style="margin-bottom:10px;"><label style="font-size:0.9rem;color:#64748b;display:block;margin-bottom:4px;">สี</label><input id="edit_color" value="${escapeHtml(w.device?.color || '')}" style="width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:4px; outline:none;"></div>
+                    <div style="margin-bottom:10px;"><label style="font-size:0.9rem;color:#64748b;display:block;margin-bottom:4px;">ความจุ</label><input id="edit_capacity" value="${escapeHtml(w.device?.capacity || '')}" style="width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:4px; outline:none;"></div>
+                    <div style="margin-bottom:10px;"><label style="font-size:0.9rem;color:#64748b;display:block;margin-bottom:4px;">Serial Number</label><input id="edit_serial" value="${escapeHtml(w.device?.serial || '')}" style="width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:4px; outline:none;"></div>
+                    <div style="margin-bottom:10px;"><label style="font-size:0.9rem;color:#64748b;display:block;margin-bottom:4px;">IMEI</label><input id="edit_imei" value="${escapeHtml(w.device?.imei || '')}" style="width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:4px; outline:none;"></div>
+                    <div style="margin-bottom:10px;"><label style="font-size:0.9rem;color:#64748b;display:block;margin-bottom:4px;">มูลค่าเครื่อง (บาท)</label><input type="number" id="edit_deviceValue" value="${w.device?.deviceValue || w.devicePrice || 0}" style="width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:4px; outline:none;"></div>
+                </div>
+            `,
+            width: 700,
+            showCancelButton: true,
+            confirmButtonText: '💾 บันทึกการแก้ไข',
+            cancelButtonText: 'ยกเลิก',
+            confirmButtonColor: '#3b82f6',
+            allowOutsideClick: false,
+            preConfirm: () => {
+                return {
+                    customer: {
+                        citizenId: document.getElementById('edit_citizenId').value,
+                        prefix: document.getElementById('edit_prefix').value,
+                        firstName: document.getElementById('edit_firstName').value,
+                        lastName: document.getElementById('edit_lastName').value,
+                        firstNameEn: document.getElementById('edit_firstNameEn').value,
+                        lastNameEn: document.getElementById('edit_lastNameEn').value,
+                        gender: document.getElementById('edit_gender').value,
+                        phone: document.getElementById('edit_phone').value,
+                        birthdate: document.getElementById('edit_birthdate').value,
+                        expiryDate: document.getElementById('edit_expiryDate').value,
+                        postalCode: document.getElementById('edit_postalCode').value,
+                        idCardAddress: document.getElementById('edit_idCardAddress').value,
+                        shippingAddress: document.getElementById('edit_shippingAddress').value
+                    },
+                    device: {
+                        type: document.getElementById('edit_deviceType').value,
+                        model: document.getElementById('edit_deviceModel').value,
+                        color: document.getElementById('edit_color').value,
+                        capacity: document.getElementById('edit_capacity').value,
+                        serial: document.getElementById('edit_serial').value,
+                        imei: document.getElementById('edit_imei').value,
+                        deviceValue: Number(document.getElementById('edit_deviceValue').value)
+                    }
+                };
+            }
+        });
+
+        if (formValues) {
+            showLoader('กำลังบันทึก...');
+            try {
+                const updatedData = {
+                    customer: formValues.customer,
+                    device: formValues.device,
+                    staffName: window.currentUser?.staffName || 'System'
+                };
+                
+                const res = await fetch(`/api/warranties/${id}/approver-edit`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(updatedData)
+                });
+                
+                const data = await res.json();
+                hideLoader();
+                if (data.success) {
+                    // Update local object immediately so the modal reflects the edits
+                    if (w) {
+                        w.customer = { ...w.customer, ...updatedData.customer };
+                        w.device = { ...w.device, ...updatedData.device };
+                    }
+                    SwalTheme.fire('สำเร็จ', 'บันทึกการแก้ไขข้อมูลเรียบร้อยแล้ว', 'success').then(() => {
+                        window.viewApprovalDetails(id);
+                        if (typeof fetchApprovalWarranties === 'function') {
+                            fetchApprovalWarranties(document.querySelector('.approval-tab-btn.active')?.dataset.status || 'pending');
+                        }
+                    });
+                } else {
+                    SwalTheme.fire('เกิดข้อผิดพลาด', data.message || 'ไม่สามารถแก้ไขข้อมูลได้', 'error').then(() => {
+                        window.viewApprovalDetails(id);
+                    });
+                }
+            } catch (err) {
+                hideLoader();
+                SwalTheme.fire('เกิดข้อผิดพลาด', 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้', 'error').then(() => {
+                    window.viewApprovalDetails(id);
+                });
+            }
+        } else {
+            // Cancelled
+            window.viewApprovalDetails(id);
         }
     };
 

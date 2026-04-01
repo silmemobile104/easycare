@@ -62,6 +62,16 @@ const depositStorage = new CloudinaryStorage({
 
 const depositUpload = multer({ storage: depositStorage });
 
+const memberStorage = new CloudinaryStorage({
+    cloudinary: cloudinary,
+    params: {
+        folder: 'easycare/members',
+        allowed_formats: ['jpg', 'png', 'jpeg']
+    },
+});
+
+const memberUpload = multer({ storage: memberStorage });
+
 async function expireOverdueInstallments() {
     const now = new Date();
     const overdueCutoff = new Date(Date.now() - (5 * 24 * 60 * 60 * 1000));
@@ -255,7 +265,8 @@ const MemberSchema = new mongoose.Schema({
     expiryDate: { type: Date },
     facebook: { type: String },
     facebookLink: { type: String },
-    photo: { type: String } // Base64 encoded image string
+    photo: { type: String }, // Base64 encoded image string from Smart Card
+    idCardImage: { type: String } // URL of uploaded ID card image (Cloudinary)
 }, { timestamps: true });
 
 const Member = mongoose.model('Member', MemberSchema);
@@ -2228,6 +2239,18 @@ app.get('/api/warranties/pending', async (req, res) => {
             {
                 $addFields: {
                     'customer.citizenId': { $arrayElemAt: ['$memberInfo.citizenId', 0] },
+                    'customer.idCardImage': { $arrayElemAt: ['$memberInfo.idCardImage', 0] },
+                    'customer.photo': { $arrayElemAt: ['$memberInfo.photo', 0] },
+                    'customer.facebookLink': { $arrayElemAt: ['$memberInfo.facebookLink', 0] },
+                    'customer.idCardAddress': { $arrayElemAt: ['$memberInfo.idCardAddress', 0] },
+                    'customer.shippingAddress': { $arrayElemAt: ['$memberInfo.shippingAddress', 0] },
+                    'customer.prefix': { $arrayElemAt: ['$memberInfo.prefix', 0] },
+                    'customer.firstNameEn': { $arrayElemAt: ['$memberInfo.firstNameEn', 0] },
+                    'customer.lastNameEn': { $arrayElemAt: ['$memberInfo.lastNameEn', 0] },
+                    'customer.gender': { $arrayElemAt: ['$memberInfo.gender', 0] },
+                    'customer.birthdate': { $arrayElemAt: ['$memberInfo.birthdate', 0] },
+                    'customer.expiryDate': { $arrayElemAt: ['$memberInfo.expiryDate', 0] },
+                    'customer.postalCode': { $arrayElemAt: ['$memberInfo.postalCode', 0] },
                     'customer.id': '$memberId',
                     'totalClaimAmount': { $sum: '$claims.totalCost' }
                 }
@@ -3942,6 +3965,27 @@ app.delete('/api/members/:id', async (req, res) => {
     }
 });
 
+// Upload ID card image for member
+app.post('/api/members/:id/upload-id-card', memberUpload.single('idCardImage'), async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ success: false, message: 'ไม่พบไฟล์รูปภาพ' });
+        }
+        const imageUrl = req.file.path;
+        const updatedMember = await Member.findByIdAndUpdate(
+            req.params.id,
+            { idCardImage: imageUrl },
+            { new: true }
+        );
+        if (!updatedMember) {
+            return res.status(404).json({ success: false, message: 'ไม่พบข้อมูลสมาชิก' });
+        }
+        res.json({ success: true, idCardImage: imageUrl });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
 // --- Shops API ---
 
 // Get all shops
@@ -4203,6 +4247,98 @@ app.use((err, req, res, next) => {
         return res.status(400).json({ success: false, message: 'Upload Error: ' + err.message });
     }
     res.status(500).json({ success: false, message: 'Server Error: ' + err.message });
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// APPROVER EDIT WARRANTY
+// ═══════════════════════════════════════════════════════════════════
+app.put('/api/warranties/:id/approver-edit', async (req, res) => {
+    try {
+        const warrantyId = req.params.id;
+        const { device, customer, package, staffName } = req.body;
+
+        const w = await Warranty.findById(warrantyId);
+        if (!w) return res.status(404).json({ message: 'Warranty not found' });
+
+        // Build log details
+        let changes = [];
+        const safeDateStr = (d) => {
+            if (!d) return '';
+            const dt = new Date(d);
+            return isNaN(dt.getTime()) ? '' : dt.toISOString().split('T')[0];
+        };
+
+        if (customer) {
+            const customerFields = ['citizenId', 'prefix', 'firstName', 'lastName', 'firstNameEn', 'lastNameEn', 'gender', 'phone', 'birthdate', 'expiryDate', 'postalCode', 'idCardAddress', 'shippingAddress'];
+            customerFields.forEach(f => {
+                if (customer[f] !== undefined && customer[f] !== null) {
+                    let oldVal = w.customer && w.customer[f] !== undefined && w.customer[f] !== null ? w.customer[f] : '';
+                    let newVal = customer[f] !== undefined && customer[f] !== null ? customer[f] : '';
+                    
+                    if (f === 'birthdate' || f === 'expiryDate') {
+                        oldVal = safeDateStr(oldVal);
+                        newVal = safeDateStr(newVal);
+                    } else {
+                        oldVal = String(oldVal).trim();
+                        newVal = String(newVal).trim();
+                    }
+
+                    if (oldVal !== newVal) {
+                        changes.push(`${f}: จาก "${oldVal}" เป็น "${newVal}"`);
+                    }
+                }
+            });
+        }
+
+        if (device) {
+            const deviceFields = ['type', 'model', 'color', 'capacity', 'serial', 'imei', 'deviceValue'];
+            deviceFields.forEach(f => {
+                if (device[f] !== undefined && device[f] !== null) {
+                    let oldVal = w.device && w.device[f] !== undefined && w.device[f] !== null ? w.device[f] : '';
+                    let newVal = device[f] !== undefined && device[f] !== null ? device[f] : '';
+                    
+                    oldVal = String(oldVal).trim();
+                    newVal = String(newVal).trim();
+
+                    if (oldVal !== newVal) {
+                        changes.push(`${f}: จาก "${oldVal}" เป็น "${newVal}"`);
+                    }
+                }
+            });
+        }
+
+        // Update Warranty Model (Device)
+        if (device) w.device = { ...w.device, ...device };
+
+        // Update Warranty Model (Customer)
+        if (customer) w.customer = { ...w.customer, ...customer };
+
+        await w.save();
+
+        if (customer) {
+            // Also update Member schema to sync changes permanently
+            const member = await Member.findOne({ memberId: w.memberId });
+            if (member) {
+                const mflds = ['firstName', 'lastName', 'phone', 'citizenId', 'age', 'prefix', 'firstNameEn', 'lastNameEn', 'gender', 'birthdate', 'expiryDate', 'postalCode', 'idCardAddress', 'shippingAddress'];
+                mflds.forEach(f => {
+                    if (customer[f] !== undefined && customer[f] !== null) {
+                        member[f] = customer[f];
+                    }
+                });
+                await member.save();
+            }
+        }
+
+        let logDetailStr = `แก้ไขข้อมูลสัญญา ${w.policyNumber} (ก่อนอนุมัติ)`;
+        if (changes.length > 0) {
+            logDetailStr += ` | รายละเอียด: ${changes.join(', ')}`;
+        }
+        await logAction('Approver Edit Warranty', logDetailStr, staffName || 'Approver');
+        res.json({ success: true, message: 'Updated successfully' });
+    } catch (err) {
+        console.error('Approver Edit Error:', err);
+        res.status(500).json({ success: false, message: err.message });
+    }
 });
 
 // Serve frontend SPA (Fallback)
