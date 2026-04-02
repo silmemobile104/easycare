@@ -374,6 +374,7 @@ const FinanceTransactionSchema = new mongoose.Schema({
     changeAmount: { type: Number, default: 0 },
     netTotal: { type: Number, default: 0 },
     evidenceUrl: String,
+    evidenceUrls: [String],
     recordedBy: String
 }, { timestamps: true });
 
@@ -2668,7 +2669,7 @@ app.put('/api/warranties/:id', async (req, res) => {
 // Update Payment Status
 app.patch('/api/warranties/:id/payment', async (req, res) => {
     try {
-        const { installmentNo, payAllRemaining, paidCash, paidTransfer, refId, changeAmount, evidenceUrl, staffName } = req.body;
+        const { installmentNo, payAllRemaining, paidCash, paidTransfer, refId, changeAmount, evidenceUrl, evidenceUrls, staffName } = req.body;
         const warranty = await Warranty.findById(req.params.id);
         if (!warranty) return res.status(404).json({ message: 'Record not found' });
 
@@ -2766,7 +2767,8 @@ app.patch('/api/warranties/:id/payment', async (req, res) => {
                     transferAmount: transfer,
                     changeAmount: change,
                     netTotal: net,
-                    evidenceUrl: evidenceUrl || null,
+                    evidenceUrl: (evidenceUrls && evidenceUrls.length > 0) ? evidenceUrls[0] : (evidenceUrl || null),
+                    evidenceUrls: evidenceUrls || (evidenceUrl ? [evidenceUrl] : []),
                     recordedBy: staffName || warranty.staffName || 'System'
                 });
             } catch (e) {

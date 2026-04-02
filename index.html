@@ -2526,6 +2526,9 @@
                         <span>เงินทอน:</span>
                         <span id="cashChangeAmount" style="color: #ef4444; font-size: 1.2rem;">0.00 บาท</span>
                     </div>
+                    <label style="margin-top: 10px;">แนบหลักฐาน (สลิป/รูปภาพ - มากกว่า 1 รูป)</label>
+                    <input type="file" id="cashEvidenceInput" accept="image/*" multiple class="full-width">
+                    <div id="cashEvidencePreview" class="evidence-preview-container" style="display: flex; flex-wrap: wrap; gap: 5px; margin-top: 5px;"></div>
                 </div>
 
                 <div id="transferInputGroup" class="payment-group" style="display: none;">
@@ -2534,8 +2537,9 @@
                         style="font-size: 1.2rem;">
                     <label style="margin-top: 10px;">เลขที่อ้างอิง / Slip ID (ถ้ามี)</label>
                     <input type="text" id="transferRefInput" placeholder="Ref ID..." class="full-width">
-                    <label style="margin-top: 10px;">แนบสลิปการโอนเงิน</label>
-                    <input type="file" id="transferEvidenceInput" accept="image/*,application/pdf" class="full-width">
+                    <label style="margin-top: 10px;">แนบสลิปการโอนเงิน (มากกว่า 1 รูป)</label>
+                    <input type="file" id="transferEvidenceInput" accept="image/*,application/pdf" multiple class="full-width">
+                    <div id="transferEvidencePreview" class="evidence-preview-container" style="display: flex; flex-wrap: wrap; gap: 5px; margin-top: 5px;"></div>
                 </div>
 
                 <div id="splitInputGroup" class="payment-group" style="display: none;">
@@ -2550,8 +2554,9 @@
                         </div>
                     </div>
                     <div style="margin-top: 10px;">
-                        <label>แนบสลิปการโอนเงิน (ส่วนโอน)</label>
-                        <input type="file" id="splitEvidenceInput" accept="image/*,application/pdf" class="full-width">
+                        <label>แนบสลิปการโอนเงิน (ส่วนโอน - มากกว่า 1 รูป)</label>
+                        <input type="file" id="splitEvidenceInput" accept="image/*,application/pdf" multiple class="full-width">
+                        <div id="splitEvidencePreview" class="evidence-preview-container" style="display: flex; flex-wrap: wrap; gap: 5px; margin-top: 5px;"></div>
                     </div>
                     <div class="payment-summary-box" style="margin-top: 1rem; padding: 1rem;">
                         <div class="summary-row">

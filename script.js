@@ -609,6 +609,34 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    function setupMultipleImagePreview(inputId, previewId) {
+        const input = document.getElementById(inputId);
+        const preview = document.getElementById(previewId);
+        if (!input || !preview) return;
+
+        input.addEventListener('change', function () {
+            preview.innerHTML = '';
+            Array.from(this.files).forEach(file => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const img = document.createElement('img');
+                    img.src = e.target.result;
+                    img.style.width = '80px';
+                    img.style.height = '80px';
+                    img.style.objectFit = 'cover';
+                    img.style.borderRadius = '8px';
+                    img.style.border = '2px solid var(--primary)';
+                    preview.appendChild(img);
+                };
+                reader.readAsDataURL(file);
+            });
+        });
+    }
+
+    setupMultipleImagePreview('cashEvidenceInput', 'cashEvidencePreview');
+    setupMultipleImagePreview('transferEvidenceInput', 'transferEvidencePreview');
+    setupMultipleImagePreview('splitEvidenceInput', 'splitEvidencePreview');
+
     function updateStaffInfo() {
         if (!currentUser) return;
         const nameElem = document.getElementById('displayStaffName');
@@ -1269,9 +1297,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 const changeColor = tx.changeAmount > 0 ? 'color: #ef4444;' : '';
                 const changeDisplay = tx.changeAmount > 0 ? '-' + formatNumber(tx.changeAmount) : '0';
 
-                const evidenceHtml = tx.evidenceUrl
-                    ? `<a href="${tx.evidenceUrl}" target="_blank" style="color: #3b82f6; text-decoration: underline;">ดูสลิป</a>`
-                    : '<span style="color: #94a3b8;">-</span>';
+                const urls = tx.evidenceUrls && tx.evidenceUrls.length > 0 ? tx.evidenceUrls : (tx.evidenceUrl ? [tx.evidenceUrl] : []);
+                let evidenceHtml = '';
+                if (urls.length === 0) {
+                    evidenceHtml = '<span style="color: #94a3b8;">-</span>';
+                } else if (urls.length === 1) {
+                    evidenceHtml = `<a href="${urls[0]}" target="_blank" style="color: #3b82f6; text-decoration: underline;">รูปที่ 1</a>`;
+                } else {
+                    evidenceHtml = urls.map((url, idx) => `<a href="${url}" target="_blank" style="color: #3b82f6; text-decoration: underline; display: block; margin-bottom: 2px;">รูปที่ ${idx + 1}</a>`).join('');
+                }
 
                 tr.innerHTML = `
                     <td>${dateText}</td>
@@ -3168,32 +3202,44 @@ document.addEventListener('DOMContentLoaded', () => {
                 transferPaid = parseFloat(document.getElementById('splitTransferInput').value) || 0;
             }
 
-            let evidenceUrl = null;
-            let evidenceFile = null;
-            if (checkoutData.method === 'Transfer') {
-                const f = document.getElementById('transferEvidenceInput').files[0];
-                if (f) evidenceFile = f;
+            let evidenceUrls = [];
+            let filesToUpload = [];
+
+            if (checkoutData.method === 'Cash') {
+                const files = document.getElementById('cashEvidenceInput').files;
+                if (files.length > 0) filesToUpload = Array.from(files);
+            } else if (checkoutData.method === 'Transfer') {
+                const files = document.getElementById('transferEvidenceInput').files;
+                if (files.length > 0) filesToUpload = Array.from(files);
             } else if (checkoutData.method === 'Split') {
-                const f = document.getElementById('splitEvidenceInput').files[0];
-                if (f) evidenceFile = f;
+                const files = document.getElementById('splitEvidenceInput').files;
+                if (files.length > 0) filesToUpload = Array.from(files);
             }
 
-            if (evidenceFile) {
+            // Mandatory Validation: Force at least 1 image for ALL methods
+            if (filesToUpload.length === 0) {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+                showAlert('warning', 'กรุณาแนบหลักฐาน (รูปภาพ/สลิป) อย่างน้อย 1 รูป ก่อนบันทึก');
+                return;
+            }
+
+            if (filesToUpload.length > 0) {
                 const formData = new FormData();
-                formData.append('file', evidenceFile);
+                filesToUpload.forEach(file => formData.append('images', file));
                 try {
-                    btn.innerHTML = '⌛ กำลังอัปโหลดสลิป...';
-                    const upRes = await fetch('/api/upload/single', { method: 'POST', body: formData });
+                    btn.innerHTML = '⌛ กำลังอัปโหลดหลักฐาน...';
+                    const upRes = await fetch('/api/upload', { method: 'POST', body: formData });
                     if (upRes.ok) {
                         const upData = await upRes.json();
-                        evidenceUrl = upData.url;
+                        evidenceUrls = upData.urls;
                     } else {
                         throw new Error('Upload failed');
                     }
                 } catch (e) {
                     btn.disabled = false;
                     btn.innerHTML = originalText;
-                    showAlert('error', 'อัปโหลดสลิปไม่สำเร็จ กรุณาลองใหม่');
+                    showAlert('error', 'อัปโหลดหลักฐานไม่สำเร็จ กรุณาลองใหม่');
                     return;
                 }
                 btn.innerHTML = '⌛ กำลังยืนยัน...';
@@ -3208,8 +3254,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     paidCash: cashPaid,
                     paidTransfer: transferPaid,
                     changeAmount: Math.max(0, (cashPaid + transferPaid) - totalDue),
-                    evidenceUrl: evidenceUrl,
-                    refId: refId
+                    evidenceUrls: evidenceUrls,
+                    refId: refId,
+                    staffName: currentUser ? currentUser.staffName : null
                 })
             });
 
@@ -3282,6 +3329,14 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('cashInputGroup').style.display = 'block';
         document.getElementById('transferInputGroup').style.display = 'none';
         document.getElementById('splitInputGroup').style.display = 'none';
+
+        // Reset Evidence Inputs & Previews
+        ['cashEvidenceInput', 'transferEvidenceInput', 'splitEvidenceInput'].forEach(id => {
+            const el = document.getElementById(id); if (el) el.value = '';
+        });
+        ['cashEvidencePreview', 'transferEvidencePreview', 'splitEvidencePreview'].forEach(id => {
+            const el = document.getElementById(id); if (el) el.innerHTML = '';
+        });
     }
 
     document.getElementById('closeModal').addEventListener('click', () => {
@@ -5026,8 +5081,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     ` : ''}
 
                     <div style="margin-top: 15px; border-top: 1px solid #e2e8f0; padding-top: 15px;">
-                        <label style="display: block; margin-bottom: 5px; font-weight: 600;">แนบสลิป/หลักฐานการโอน (ถ้ามี)</label>
-                        <input type="file" id="swal-evidence-file" accept="image/*" style="display: block; width: 100%; font-size: 0.85rem; margin-bottom: 10px;">
+                        <label style="display: block; margin-bottom: 5px; font-weight: 600;">แนบสลิป/หลักฐานการโอน (บังคับ)</label>
+                        <input type="file" id="swal-evidence-file" accept="image/*" style="display: block; width: 100%; font-size: 0.85rem; margin-bottom: 10px;" required>
                         <div id="swal-upload-status" style="font-size: 0.8rem; color: #3b82f6; display: none;">กำลังอัปโหลด...</div>
                         <img id="swal-evidence-preview" style="max-width: 100%; max-height: 150px; border-radius: 8px; display: none; margin-top: 10px;">
                         <input type="hidden" id="swal-evidence-url">
@@ -5150,8 +5205,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         return false;
                     }
 
-                    if ((method === 'โอนเงิน' || method === 'เงินสด+โอนเงิน') && transfer > 0 && !evidenceUrl) {
-                        Swal.showValidationMessage('กรุณาแนบสลิปการโอนเงิน');
+                    if (!evidenceUrl) {
+                        Swal.showValidationMessage('กรุณาแนบไฟล์สลิปหรือหลักฐานการรับเงิน/คืนเงิน');
                         return false;
                     }
 
@@ -7503,14 +7558,24 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
 
+            // Mandatory Evidence Validation
+            const fileInput = document.getElementById('depEvidenceFile');
+            if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
+                Swal.fire({ 
+                    icon: 'warning', 
+                    title: 'กรุณาแนบหลักฐาน', 
+                    text: 'กรุณาแนบไฟล์หลักฐานการรับเงิน (สลิป) ก่อนบันทึกรายการ' 
+                });
+                return;
+            }
+
             Swal.fire({ title: 'กำลังบันทึก...', text: 'กรุณารอสักครู่', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
 
             try {
                 let evidenceUrl = '';
 
-                // Upload evidence file if selected
-                const fileInput = document.getElementById('depEvidenceFile');
-                if (fileInput && fileInput.files && fileInput.files.length > 0) {
+                // Upload evidence file
+                if (fileInput.files && fileInput.files.length > 0) {
                     const formData = new FormData();
                     formData.append('file', fileInput.files[0]);
 
