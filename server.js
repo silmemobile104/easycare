@@ -72,6 +72,16 @@ const memberStorage = new CloudinaryStorage({
 
 const memberUpload = multer({ storage: memberStorage });
 
+const phoneDetailsStorage = new CloudinaryStorage({
+    cloudinary: cloudinary,
+    params: {
+        folder: 'easycare/phonedetails',
+        allowed_formats: ['jpg', 'png', 'jpeg']
+    },
+});
+
+const phoneDetailsUpload = multer({ storage: phoneDetailsStorage });
+
 async function expireOverdueInstallments() {
     const now = new Date();
     const overdueCutoff = new Date(Date.now() - (5 * 24 * 60 * 60 * 1000));
@@ -2099,8 +2109,21 @@ app.get('/api/warranties', async (req, res) => {
     }
 });
 
-// Upload multiple images
+// Upload multiple images (generic)
 app.post('/api/upload', genericUpload.array('images', 10), (req, res) => {
+    try {
+        if (!req.files || req.files.length === 0) {
+            return res.status(400).json({ success: false, message: 'No files uploaded' });
+        }
+        const fileUrls = req.files.map(file => file.path);
+        res.json({ success: true, urls: fileUrls });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// Upload phone details images
+app.post('/api/upload/phonedetails', phoneDetailsUpload.array('images', 10), (req, res) => {
     try {
         if (!req.files || req.files.length === 0) {
             return res.status(400).json({ success: false, message: 'No files uploaded' });

@@ -2824,24 +2824,24 @@ document.addEventListener('DOMContentLoaded', () => {
         const deviceImagesInput = document.getElementById('deviceImagesInput');
 
         if (!isEditMode && (!deviceImagesInput || deviceImagesInput.files.length === 0)) {
-            showAlert('warning', 'กรุณาอัปโหลดรูปภาพอุปกรณ์เพิ่มเติมอย่างน้อย 1 รูป');
+            showAlert('warning', 'กรุณาอัปโหลดรูปภาพอุปกรณ์ (Phone Details) อย่างน้อย 1 รูป ก่อนบันทึกสัญญาใหม่');
             return;
         }
 
         if (isEditMode && existingImages.length === 0 && (!deviceImagesInput || deviceImagesInput.files.length === 0)) {
-            showAlert('warning', 'กรุณาอัปโหลดรูปภาพอุปกรณ์เพิ่มเติมอย่างน้อย 1 รูป');
+            showAlert('warning', 'กรุณาอัปโหลดรูปภาพอุปกรณ์ (Phone Details) อย่างน้อย 1 รูป');
             return;
         }
 
         if (deviceImagesInput && deviceImagesInput.files.length > 0) {
-            showLoader('กำลังอัปโหลดรูปภาพ...');
+            showLoader('กำลังอัปโหลดรูปภาพอุปกรณ์...');
             const formData = new FormData();
             Array.from(deviceImagesInput.files).forEach(file => {
                 formData.append('images', file);
             });
 
             try {
-                const uploadRes = await fetch('/api/upload', {
+                const uploadRes = await fetch('/api/upload/phonedetails', {
                     method: 'POST',
                     body: formData
                 });
