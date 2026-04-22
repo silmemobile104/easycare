@@ -225,6 +225,10 @@
                 <span id="displayPolicyNo">-</span>
             </div>
             <div class="info-row">
+                <span class="info-label">เลขที่สมาชิก (Member No):</span>
+                <span id="displayMemberNo">-</span>
+            </div>
+            <div class="info-row">
                 <span class="info-label">ประเภทความคุ้มครอง:</span>
                 <span>อุบัติเหตุสำหรับโทรศัพท์มือถือ</span>
             </div>
@@ -333,6 +337,7 @@
             document.getElementById('displayDate').textContent = receiptData.paidDate || new Date().toLocaleString('th-TH');
             document.getElementById('displayReceiptNo').textContent = receiptData.receiptNo || 'RC' + Date.now();
             document.getElementById('displayPolicyNo').textContent = receiptData.policyNumber || '-';
+            document.getElementById('displayMemberNo').textContent = receiptData.memberId || '-';
             document.getElementById('displayShopName').textContent = receiptData.shopName || '-';
             document.getElementById('displayCustomerName').textContent = receiptData.customerName || '-';
             document.getElementById('displayCustomerPhone').textContent = receiptData.customerPhone || '-';

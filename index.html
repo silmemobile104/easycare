@@ -597,6 +597,22 @@
                             </svg>
                             การมัดจำ
                         </a>
+                        <a href="#" id="calculatorNavLink" data-permission="nav-calculator">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="4" y="2" width="16" height="20" rx="2" ry="2"></rect>
+                                <line x1="8" y1="6" x2="16" y2="6"></line>
+                                <line x1="16" y1="10" x2="16" y2="10"></line>
+                                <line x1="12" y1="10" x2="12" y2="10"></line>
+                                <line x1="8" y1="10" x2="8" y2="10"></line>
+                                <line x1="16" y1="14" x2="16" y2="14"></line>
+                                <line x1="12" y1="14" x2="12" y2="14"></line>
+                                <line x1="8" y1="14" x2="8" y2="14"></line>
+                                <line x1="16" y1="18" x2="16" y2="18"></line>
+                                <line x1="12" y1="18" x2="12" y2="18"></line>
+                                <line x1="8" y1="18" x2="8" y2="18"></line>
+                            </svg>
+                            คำนวณราคา
+                        </a>
                     </nav>
 
                     <div class="sidebar-footer">
@@ -721,6 +737,7 @@
                                     <option value="full">ชำระเต็มจำนวน</option>
                                     <option value="installment">ชำระเป็นงวด</option>
                                     <option value="installment_complete">ชำระเป็นงวดครบแล้ว</option>
+                                    <option value="finance">ผ่อนด้วยไฟแนนซ์</option>
                                 </select>
                             </div>
                             <div class="filter-actions">
@@ -896,6 +913,25 @@
                                 <p>งานซ่อมล่าช้า (&gt; 5 วัน)</p>
                             </div>
                         </div>
+
+                        <div class="stat-card" id="cardExecTotalMembers"
+                            style="cursor: pointer; transition: transform 0.2s;"
+                            onmouseover="this.style.transform='scale(1.02)'"
+                            onmouseout="this.style.transform='scale(1)'">
+                            <div class="stat-icon" style="color: #3b82f6; background-color: rgba(59,130,246,0.1);">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                                    <circle cx="9" cy="7" r="4"></circle>
+                                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                                    <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                                </svg>
+                            </div>
+                            <div class="stat-content">
+                                <h3 id="kpiTotalMembers">0</h3>
+                                <p>จำนวนสมาชิกรวม</p>
+                            </div>
+                        </div>
                     </div>
 
                     <div class="table-container">
@@ -911,10 +947,28 @@
                                 <canvas id="packagesChart"></canvas>
                             </div>
                         </div>
-                        <div
-                            style="margin-top: 16px; background: #fff; border-radius: 14px; padding: 16px; border: 1px solid rgba(148,163,184,.35);">
-                            <h3 style="margin: 0 0 12px 0;">Claim Status</h3>
-                            <canvas id="claimStatusChart"></canvas>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 16px; margin-top: 16px;">
+                            <div style="background: #fff; border-radius: 14px; padding: 16px; border: 1px solid rgba(148,163,184,.35);">
+                                <h3 style="margin: 0 0 12px 0;">Claim Status</h3>
+                                <canvas id="claimStatusChart" style="max-height: 300px;"></canvas>
+                            </div>
+                            <div style="background: #fff; border-radius: 14px; padding: 16px; border: 1px solid rgba(148,163,184,.35); display: flex; flex-direction: column;">
+                                <h3 style="margin: 0 0 12px 0;">ภาพรวมร้านค้า (Top 15 Shops)</h3>
+                                <div style="flex: 1; overflow-y: auto; max-height: 300px; padding-right: 4px;">
+                                    <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.9rem;">
+                                        <thead style="position: sticky; top: 0; background: #fff; z-index: 1;">
+                                            <tr style="border-bottom: 2px solid #f1f5f9;">
+                                                <th style="padding: 10px 8px; color: #64748b; font-weight: 600;">ชื่อร้านค้า</th>
+                                                <th style="padding: 10px 8px; color: #64748b; font-weight: 600; text-align: right;">จำนวนสัญญา</th>
+                                                <th style="padding: 10px 8px; color: #64748b; font-weight: 600; text-align: right;">ยอดขายรวม</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="execShopsTableBody">
+                                            <!-- Dynamically injected rows -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </main>
@@ -996,10 +1050,44 @@
                                     <p>รายรับรวมทั้งหมด</p>
                                 </div>
                             </div>
+                            <div class="stat-card">
+                                <div class="stat-icon orange">
+                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path
+                                            d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z">
+                                        </path>
+                                        <polyline points="22,6 12,13 2,6"></polyline>
+                                    </svg>
+                                </div>
+                                <div class="stat-content">
+                                    <h3 id="totalUnpaidAmountDisplay">0</h3>
+                                    <p>รอการชำระเงินจากไฟแนนซ์</p>
+                                </div>
+                            </div>
                         </div>
 
                         <div class="advanced-filter-bar" style="margin-top: 14px;">
                             <div class="filter-bar-row" style="align-items: flex-end; flex-wrap: wrap; gap: 12px;">
+                                <div class="search-container">
+                                    <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                                        stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                        stroke-linejoin="round">
+                                        <circle cx="11" cy="11" r="8"></circle>
+                                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                                    </svg>
+                                    <input type="text" id="financeSearchInput"
+                                        placeholder="ค้นหาชื่อลูกค้า, เลขกรมธรรม์...">
+                                </div>
+                                <div class="filter-group">
+                                    <label>ประเภทชำระ (Payment):</label>
+                                    <select id="financePaymentTypeFilter" class="filter-select">
+                                        <option value="all">ประเภทการชำระทั้งหมด</option>
+                                        <option value="Full Payment">ชำระเต็มจำนวน</option>
+                                        <option value="Installment">ชำระแบบแบ่งจ่าย</option>
+                                        <option value="Finance">ชำระแบบผ่อนด้วยไฟแนนซ์</option>
+                                    </select>
+                                </div>
                                 <div class="filter-group">
                                     <label>จากวันที่:</label>
                                     <input type="date" id="financeExportStartDate" class="filter-date-input">
@@ -1031,7 +1119,7 @@
                                 </div>
                             </div>
 
-                            <div class="filter-bar-row" style="margin-top: 10px;">
+                            <div class="filter-bar-row" style="margin-top: 10px; flex-direction: column; align-items: flex-start;">
                                 <div style="display: flex; flex-wrap: wrap; gap: 12px;">
                                     <label style="display:inline-flex; gap:8px; align-items:center;">
                                         <input type="checkbox" class="finance-export-field" value="transactionDate"
@@ -1084,6 +1172,10 @@
                                         <input type="checkbox" class="finance-export-field" value="recordedBy" checked>
                                         ผู้ทำรายการ
                                     </label>
+                                </div>
+                                <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                                    <button type="button" id="selectAllFinanceColumns" style="padding: 4px 12px; font-size: 0.85rem; background: #e2e8f0; color: #334155; border: 1px solid #cbd5e1; border-radius: 4px; cursor: pointer;">เลือกทั้งหมด</button>
+                                    <button type="button" id="clearAllFinanceColumns" style="padding: 4px 12px; font-size: 0.85rem; background: #f8fafc; color: #64748b; border: 1px solid #cbd5e1; border-radius: 4px; cursor: pointer;">ล้างตัวเลือก</button>
                                 </div>
                             </div>
                         </div>
@@ -1264,6 +1356,39 @@
                         </div>
                     </div>
                 </main>
+
+                <!-- ═══ Calculator (คำนวณราคา) ═══ -->
+                <main id="calculatorView" class="main-content" style="display: none;">
+                    <header class="dashboard-header">
+                        <div class="header-titles">
+                            <h1>คำนวณราคาแพ็กเกจ</h1>
+                            <p>ตรวจสอบแพ็กเกจและโปรแกรมผ่อนชำระที่ลูกค้าสามารถสมัครได้ตามมูลค่าเครื่อง (70%)</p>
+                        </div>
+                    </header>
+
+                    <div style="background: #fff; border-radius: 16px; padding: 24px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-bottom: 24px; max-width: 600px;">
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label style="font-weight: 600; margin-bottom: 8px; display: block;">ระบุราคา เต็ม ของราคาเครื่อง (บาท) <span style="color:red">*</span></label>
+                            <div style="display: flex; gap: 12px; align-items: stretch;">
+                                <input type="number" id="calcDevicePriceInput" placeholder="เช่น 35000" style="flex: 1; padding: 12px 16px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 1rem;">
+                                <button id="btnCalculatePrice" class="add-btn" style="padding: 0 24px; margin: 0; box-shadow: none;">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 8px;">
+                                        <rect x="4" y="2" width="16" height="20" rx="2" ry="2"></rect>
+                                        <line x1="8" y1="6" x2="16" y2="6"></line>
+                                        <line x1="16" y1="14" x2="16" y2="14"></line>
+                                    </svg>
+                                    เริ่มคำนวณ
+                                </button>
+                            </div>
+                            <p id="calcLimitDisplay" style="margin-top: 10px; font-size: 0.9rem; color: #64748b; font-weight: 500; display: none;">วงเงินคุ้มครองสูงสุด : <span id="calcTargetAmount" style="color: #0d9488; font-weight: 700; font-size: 1.05rem;">0</span> บาท</p>
+                        </div>
+                    </div>
+
+                    <div id="calcResultArea" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 20px;">
+                        <!-- Cards will be populated here -->
+                    </div>
+                </main>
+
 
                 <!-- Deposit Form Modal -->
                 <div id="depositFormModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15,23,42,0.6); z-index: 9999; justify-content: center; align-items: center; backdrop-filter: blur(4px);">
@@ -2336,6 +2461,9 @@
                             <input type="date" id="officialWarrantyEnd" required>
                         </div>
                         <div class="form-group"><label>ราคาเครื่องเต็ม ณ ปัจจุบัน</label>
+                            <input type="number" id="fullDevicePrice" placeholder="ระบุราคาเครื่องเต็ม (บาท)" required>
+                        </div>
+                        <div class="form-group"><label>ราคา 70% ของราคาเครื่อง</label>
                             <input type="number" id="deviceValue" placeholder="ระบุมูลค่าเครื่อง (บาท)" required>
                         </div>
                         <div class="form-group full-width">
@@ -2364,13 +2492,16 @@
                             <label>แพ็กเกจ (Package)</label>
                             <select id="package" required>
                                 <option value="" disabled selected>เลือกแผนประกัน</option>
-                                <option value="Plan A">Plan A</option>
-                                <option value="Plan B">Plan B</option>
-                                <option value="Plan C">Plan C</option>
-                                <option value="Plan D">Plan D</option>
-                                <option value="Plan a">Plan a</option>
-                                <option value="Plan b">Plan b</option>
-                                <option value="Plan c">Plan c</option>
+                                <option value="Package 1">Package 1 (ไม่เกิน 5,000)</option>
+                                <option value="Package 2">Package 2 (10,000)</option>
+                                <option value="Package 3">Package 3 (15,000)</option>
+                                <option value="Package 4">Package 4 (20,000)</option>
+                                <option value="Package 5">Package 5 (25,000)</option>
+                                <option value="Package 6">Package 6 (30,000)</option>
+                                <option value="Package 7">Package 7 (35,000)</option>
+                                <option value="Package 8">Package 8 (40,000)</option>
+                                <option value="Package 9">Package 9 (45,000)</option>
+                                <option value="Package 10">Package 10 (50,000)</option>
                             </select>
                         </div>
                         <div class="form-group"><label>วันที่เริ่มคุ้มครอง</label>
@@ -2407,10 +2538,33 @@
                                     checked><span class="radio-custom"></span>ชำระเต็มจำนวน</label>
                             <label class="radio-label"><input type="radio" name="paymentMethod"
                                     value="Installment"><span class="radio-custom"></span>ผ่อนชำระ (3 งวด)</label>
+                            <label class="radio-label"><input type="radio" name="paymentMethod"
+                                    value="finance"><span class="radio-custom"></span>ผ่อนด้วยไฟแนนซ์</label>
                         </div>
                     </div>
 
                     <div id="initialPaymentCheck" class="form-group" style="margin-top: 1rem;"></div>
+
+                    <div id="financeContainer" style="display: none; background: #f8fafc; padding: 1.5rem; border-radius: 8px; margin-top: 1rem; border: 1px solid #e2e8f0;">
+                        <h3 style="margin-top:0; margin-bottom: 1rem; color: #0f172a; font-size: 1.1rem;">รายละเอียดสัญญาไฟแนนซ์</h3>
+                        <div class="grid-row" style="grid-template-columns: 1fr 1fr;">
+                            <div class="form-group">
+                                <label for="financeDueDay">กำหนดชำระทุกวันที่ (ของเดือน) <span style="color:red">*</span></label>
+                                <input type="number" id="financeDueDay" min="1" max="31" placeholder="ระบุวันที่ 1-31">
+                            </div>
+                            <div class="form-group">
+                                <label for="financeMonths">ระยะเวลาผ่อน (เดือน) <span style="color:red">*</span></label>
+                                <select id="financeMonths">
+                                    <option value="" disabled selected>เลือกจำนวนเดือน</option>
+                                    <option value="6">6 เดือน</option>
+                                    <option value="10">10 เดือน</option>
+                                    <option value="12">12 เดือน</option>
+                                    <option value="15">15 เดือน</option>
+                                    <option value="18">18 เดือน</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
 
                     <div id="installmentContainer" class="installment-preview" style="display: none;">
                         <h3>รายละเอียดการผ่อนชำระ</h3>

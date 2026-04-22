@@ -495,6 +495,27 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- 5.3 Finance Payment -->
+                <div id="sec_5_3" class="row" style="display: none;">
+                    <div class="col w-100">
+                        <div class="field">
+                            <span class="label">5.3 ชำระเงินผ่อนด้วยไฟแนนซ์</span>
+                            <span id="doc_financePrice" style="font-weight: bold; margin-left: 5px;"></span>
+                            <span class="label" style="margin-left: 5px;">บาท</span>
+                            <span class="label" style="margin-left: 5px;">ผ่อนทุกวันที่</span>
+                            <span id="doc_financeDay" style="font-weight: bold; margin-left: 5px;"></span>
+                            <span class="label" style="margin-left: 5px;">อีก</span>
+                            <span id="doc_financeMonths" style="font-weight: bold; margin-left: 5px;"></span>
+                            <span class="label" style="margin-left: 5px;">เดือน</span>
+                        </div>
+                        <div class="field">
+                            <span class="label" style="margin-left: 5px;">ความคุ้มครอง 100% ของวงเงินประกันตะกาฟุลฯ หรือไม่เกิน</span>
+                            <span id="doc_coverageAmountFinance" style="font-weight: bold; margin-left: 5px;"></span>
+                            <span class="label" style="margin-left: 5px;">บาท</span>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -572,6 +593,8 @@
                                     <ul class="coverage-list">
                                         <li>1. อุปกรณ์เสริมที่ซื้อนอกเหนือจากมาตรฐานผู้ผลิตหรือผู้จำหน่าย</li>
                                         <li>2. ค่าชดเชยจากการสูญเสียข้อมูล</li>
+                                        <li>3. ความเสียหายที่เกิดจากตัวเครื่องเอง ไม่ได้เกิดจากอุบัติเหตุ ไม่รับเคลม</li>
+                                        <li>4. ความเสียหายที่เกิดจากตกน้ำ หรือ ไฟไหม้</li>    
                                     </ul>
                                 </div>
                                 <div class="coverage-section" style="margin-top: 20px;">
@@ -680,7 +703,8 @@
                 document.getElementById('doc_capacity').textContent = data.device.capacity;
                 document.getElementById('doc_serial').textContent = data.device.serial;
                 document.getElementById('doc_imei').textContent = data.device.imei || '-';
-                document.getElementById('doc_deviceValue').textContent = data.device.deviceValue ? data.device.deviceValue.toLocaleString() : '-';
+                const fullPrice = data.devicePrice || data.device.deviceValue || 0;
+                document.getElementById('doc_deviceValue').textContent = fullPrice ? fullPrice.toLocaleString() : '-';
                 document.getElementById('doc_officialWarrantyEnd').textContent = formatThaiDate(data.device.officialWarrantyEnd);
 
                 // Hide IMEI in contract document when device is iPad
@@ -702,8 +726,7 @@
                 document.getElementById('doc_endTime').textContent = endTime.getHours().toString().padStart(2, '0') + ':' + endTime.getMinutes().toString().padStart(2, '0');
 
                 // Section 4 & 6 Package details
-                const deviceValue = data.device.deviceValue || 0;
-                const coverageValue = Math.floor(deviceValue * 0.7); // 70% of device value
+                const coverageValue = data.maxLimit || 0;
                 const packagePrice = data.package.price || 0;
                 document.getElementById('doc_packagePlan').textContent = data.package.plan;
                 document.getElementById('doc_packagePriceDisplay').textContent = `(${packagePrice.toLocaleString()}บาท)`;
@@ -716,6 +739,7 @@
                 if (data.payment.method === 'Installment') {
                     document.getElementById('sec_5_2').style.display = 'flex';
                     document.getElementById('sec_5_1').style.display = 'none';
+                    if (document.getElementById('sec_5_3')) document.getElementById('sec_5_3').style.display = 'none';
 
                     document.getElementById('doc_limit_1').textContent = Math.floor(coverageValue * 0.1).toLocaleString();
                     document.getElementById('doc_limit_2').textContent = Math.floor(coverageValue * 0.3).toLocaleString();
@@ -741,9 +765,27 @@
                             }
                         }
                     });
+                } else if (data.payment.method === 'finance') {
+                    if (document.getElementById('sec_5_3')) document.getElementById('sec_5_3').style.display = 'flex';
+                    document.getElementById('sec_5_2').style.display = 'none';
+                    document.getElementById('sec_5_1').style.display = 'none';
+                    
+                    const FINANCE_DOWN_PAYMENTS = {
+                        'Package 1': 60, 'Package 2': 80, 'Package 3': 100, 'Package 4': 120, 'Package 5': 150,
+                        'Package 6': 180, 'Package 7': 190, 'Package 8': 200, 'Package 9': 250, 'Package 10': 270
+                    };
+                    const downPrice = FINANCE_DOWN_PAYMENTS[data.package.plan] || (packagePrice * 0.2);
+                    document.getElementById('doc_financePrice').textContent = downPrice.toLocaleString();
+                    const financeMonths = data.financeDetails ? data.financeDetails.financeMonths : '-';
+                    const financeDueDay = data.financeDetails ? data.financeDetails.financeDueDay : '-';
+                    document.getElementById('doc_financeDay').textContent = financeDueDay;
+                    document.getElementById('doc_financeMonths').textContent = financeMonths;
+                    document.getElementById('doc_coverageAmountFinance').textContent = coverageValue.toLocaleString();
                 } else {
                     document.getElementById('sec_5_1').style.display = 'flex';
                     document.getElementById('sec_5_2').style.display = 'none';
+                    if (document.getElementById('sec_5_3')) document.getElementById('sec_5_3').style.display = 'none';
+                    
                     document.getElementById('doc_fullPrice').textContent = packagePrice.toLocaleString();
                     document.getElementById('doc_coverageAmount').textContent = coverageValue.toLocaleString();
                 }

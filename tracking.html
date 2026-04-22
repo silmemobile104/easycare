@@ -605,6 +605,24 @@
     <script>
         const socket = io();
 
+        const FINANCE_MONTHLY_RATES = {
+            'Package 1': { 6: 160, 10: 100, 12: 60, 15: 60, 18: 60 },
+            'Package 2': { 6: 180, 10: 120, 12: 80, 15: 80, 18: 80 },
+            'Package 3': { 6: 200, 10: 140, 12: 100, 15: 100, 18: 100 },
+            'Package 4': { 6: 240, 10: 160, 12: 120, 15: 120, 18: 120 },
+            'Package 5': { 6: 270, 10: 180, 12: 150, 15: 150, 18: 150 },
+            'Package 6': { 6: 320, 10: 190, 12: 180, 15: 180, 18: 180 },
+            'Package 7': { 6: 350, 10: 210, 12: 190, 15: 190, 18: 190 },
+            'Package 8': { 6: 390, 10: 230, 12: 200, 15: 200, 18: 200 },
+            'Package 9': { 6: 420, 10: 270, 12: 250, 15: 250, 18: 250 },
+            'Package 10': { 6: 490, 10: 300, 12: 270, 15: 270, 18: 270 }
+        };
+
+        const FINANCE_DOWN_PAYMENTS = {
+            'Package 1': 60, 'Package 2': 80, 'Package 3': 100, 'Package 4': 120, 'Package 5': 150,
+            'Package 6': 180, 'Package 7': 190, 'Package 8': 200, 'Package 9': 250, 'Package 10': 270
+        };
+
         // Check Local Storage for Session
         const session = JSON.parse(localStorage.getItem('easycare_customer_session'));
         if (session) {
@@ -766,6 +784,14 @@
                         `;
                     }
 
+                    const paymentMethodName = (() => {
+                        const m = w.payment?.method;
+                        if (m === 'finance') return 'ผ่อนไฟแนนซ์';
+                        if (m === 'Installment') return 'ผ่อนชำระ';
+                        if (m === 'Full Payment') return 'ชำระเต็มจำนวน';
+                        return m || 'ชำระเต็มจำนวน';
+                    })();
+
                     return `
                     <div class="card warranty-card ${isExpired ? 'expired' : ''}">
                         <div class="warranty-header" style="align-items: flex-start;">
@@ -783,6 +809,13 @@
                             <div class="detail-col">
                                 <span class="detail-label">แพ็กเกจ</span>
                                 <span class="detail-value highlight">${w.package.plan}</span>
+                            </div>
+                            <div class="detail-col">
+                                <span class="detail-label">ประเภทการชำระเงิน</span>
+                                <span class="detail-value">
+                                    ${paymentMethodName}
+                                    ${w.payment?.method === 'finance' && w.financeDetails ? `<div style="font-size: 0.85rem; color: var(--text-muted); font-weight: normal; margin-top: 0.2rem;">(ชำระเงินงวดแรก ${FINANCE_DOWN_PAYMENTS[w.package?.plan] || 0} บาท, ชำระทุกวันที่ ${w.financeDetails.financeDueDay} ของเดือน เป็นจำนวนเงิน ${formatMoney(FINANCE_MONTHLY_RATES[w.package?.plan]?.[w.financeDetails.financeMonths] || 0)} บาท ${w.financeDetails.financeMonths} งวด)</div>` : ''}
+                                </span>
                             </div>
                             <div class="detail-col">
                                 <span class="detail-label">เวลาคงเหลือ</span>
@@ -992,11 +1025,17 @@
         }
 
         function getCoverageNumbers(warranty, claims) {
-            const devicePrice = Number(warranty?.devicePrice ?? warranty?.device?.deviceValue ?? 0);
+            const devicePrice = Number(warranty?.device?.deviceValue ?? warranty?.devicePrice ?? 0);
+
+            const PACKAGE_LIMITS = {
+                'Package 1': 5000, 'Package 2': 10000, 'Package 3': 15000, 'Package 4': 20000, 'Package 5': 25000,
+                'Package 6': 30000, 'Package 7': 35000, 'Package 8': 40000, 'Package 9': 45000, 'Package 10': 50000
+            };
+            const cap = PACKAGE_LIMITS[warranty?.package?.plan] || Infinity;
 
             const maxLimit = Number.isFinite(Number(warranty?.maxLimit))
                 ? Number(warranty.maxLimit)
-                : Math.floor(devicePrice * 0.70);
+                : Math.floor(Math.min(devicePrice, cap));
 
             const installmentsPaid = Number.isFinite(Number(warranty?.installmentsPaid))
                 ? Number(warranty.installmentsPaid)

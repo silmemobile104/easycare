@@ -305,8 +305,18 @@ document.addEventListener('DOMContentLoaded', () => {
     let allRecords = []; // Global state for filtering
     const PACKAGE_PRICES = {
         'Plan A': 799, 'Plan B': 1499, 'Plan C': 1699, 'Plan D': 2399,
+        'Package 1': 699, 'Package 2': 899, 'Package 3': 1099, 'Package 4': 1299, 'Package 5': 1499,
+        'Package 6': 1699, 'Package 7': 1899, 'Package 8': 2099, 'Package 9': 2299, 'Package 10': 2499,
         'Plan a': 599, 'Plan b': 999, 'Plan c': 1299,
         'Plan 1': 399, 'Plan 2': 799, 'Plan 3': 1099
+    };
+    const PACKAGE_LIMITS = {
+        'Package 1': 5000, 'Package 2': 10000, 'Package 3': 15000, 'Package 4': 20000, 'Package 5': 25000,
+        'Package 6': 30000, 'Package 7': 35000, 'Package 8': 40000, 'Package 9': 45000, 'Package 10': 50000
+    };
+    const FINANCE_DOWN_PAYMENTS = {
+        'Package 1': 60, 'Package 2': 80, 'Package 3': 100, 'Package 4': 120, 'Package 5': 150,
+        'Package 6': 180, 'Package 7': 190, 'Package 8': 200, 'Package 9': 250, 'Package 10': 270
     };
     const formatDate = (dateStr) => dateStr ? new Date(dateStr).toISOString().split('T')[0] : '';
 
@@ -333,7 +343,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const membersNavLink = document.getElementById('membersNavLink');
         const shopsNavLink = document.getElementById('shopsNavLink');
 
-        if (viewName === 'dashboard' || viewName === 'members' || viewName === 'shops' || viewName === 'claims' || viewName === 'statusTracking' || viewName === 'approval' || viewName === 'staff' || viewName === 'executive' || viewName === 'finance' || viewName === 'deposit' || viewName === 'dashboard-sales' || viewName === 'dashboard-approver') {
+        if (viewName === 'dashboard' || viewName === 'members' || viewName === 'shops' || viewName === 'claims' || viewName === 'statusTracking' || viewName === 'approval' || viewName === 'staff' || viewName === 'executive' || viewName === 'finance' || viewName === 'deposit' || viewName === 'calculator' || viewName === 'dashboard-sales' || viewName === 'dashboard-approver') {
             views.dashboard.style.display = 'block';
 
             // Hide all sub-views first
@@ -358,6 +368,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (staffMain) staffMain.style.display = 'none';
             const depositMainEl = document.getElementById('depositMain');
             if (depositMainEl) depositMainEl.style.display = 'none';
+            const calculatorMainEl = document.getElementById('calculatorView');
+            if (calculatorMainEl) calculatorMainEl.style.display = 'none';
 
             // Remove active class from all nav links
             if (dashNavLink) dashNavLink.classList.remove('active');
@@ -381,6 +393,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (approverDashboardLinkEl) approverDashboardLinkEl.classList.remove('active');
             const depositNavLinkEl = document.getElementById('depositNavLink');
             if (depositNavLinkEl) depositNavLinkEl.classList.remove('active');
+            const calculatorNavLinkEl = document.getElementById('calculatorNavLink');
+            if (calculatorNavLinkEl) calculatorNavLinkEl.classList.remove('active');
 
             if (viewName === 'dashboard') {
                 dashMain.style.display = 'block';
@@ -452,6 +466,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (depositNav) depositNav.classList.add('active');
                 stopApprovalAutoRefresh();
                 loadDeposits();
+            } else if (viewName === 'calculator') {
+                const calcView = document.getElementById('calculatorView');
+                if (calcView) calcView.style.display = 'block';
+                if (calculatorNavLinkEl) calculatorNavLinkEl.classList.add('active');
+                stopApprovalAutoRefresh();
             } else {
                 // For other dashboard views, ensure approval refresh is stopped
                 stopApprovalAutoRefresh();
@@ -694,6 +713,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const depositNavLink = document.getElementById('depositNavLink');
     if (depositNavLink) depositNavLink.addEventListener('click', (e) => { e.preventDefault(); showView('deposit'); });
+
+    const calculatorNavLink = document.getElementById('calculatorNavLink');
+    if (calculatorNavLink) calculatorNavLink.addEventListener('click', (e) => { e.preventDefault(); showView('calculator'); });
 
     const salesDashboardLink = document.getElementById('salesDashboardLink');
     if (salesDashboardLink) salesDashboardLink.addEventListener('click', (e) => { e.preventDefault(); showView('dashboard-sales'); });
@@ -1237,6 +1259,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    let allFinanceIncomeTransactions = [];
+
     async function fetchFinanceData() {
         showLoader('กำลังโหลดข้อมูลการเงิน...');
         try {
@@ -1250,6 +1274,10 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('totalCashDisplay').textContent = formatNumber(summary.totalCash || 0) + ' ฿';
             document.getElementById('totalTransferDisplay').textContent = formatNumber(summary.totalTransfer || 0) + ' ฿';
             document.getElementById('totalRevenueDisplay').textContent = formatNumber(summary.totalRevenue || 0) + ' ฿';
+            const unpaidDisplayEl = document.getElementById('totalUnpaidAmountDisplay');
+            if (unpaidDisplayEl) {
+                unpaidDisplayEl.textContent = formatNumber(summary.totalUnpaidAmount || 0) + ' ฿';
+            }
             const changeDisplayEl = document.getElementById('totalChangeDisplay');
             if (changeDisplayEl) {
                 changeDisplayEl.textContent = formatNumber(summary.totalChange || 0) + ' ฿';
@@ -1273,61 +1301,207 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
 
-            const tbody = document.getElementById('financeBody');
-            const emptyState = document.getElementById('financeEmptyState');
-            const financeTable = document.getElementById('financeTable');
-            const financeTableContainer = financeTable ? financeTable.parentElement : null;
-
-            if (tbody) tbody.innerHTML = '';
-
-            if (!transactions || transactions.length === 0) {
-                if (emptyState) emptyState.style.display = 'block';
-                if (financeTableContainer) financeTableContainer.style.display = 'none';
-                hideLoader();
-                return;
-            }
-            if (emptyState) emptyState.style.display = 'none';
-            if (financeTableContainer) financeTableContainer.style.display = 'block';
-
-            transactions.forEach(tx => {
-                const tr = document.createElement('tr');
-                const dateText = new Date(tx.transactionDate).toLocaleString('th-TH');
-
-                const netColor = tx.netTotal > 0 ? 'color: #0d9488; font-weight: bold;' : '';
-                const changeColor = tx.changeAmount > 0 ? 'color: #ef4444;' : '';
-                const changeDisplay = tx.changeAmount > 0 ? '-' + formatNumber(tx.changeAmount) : '0';
-
-                const urls = tx.evidenceUrls && tx.evidenceUrls.length > 0 ? tx.evidenceUrls : (tx.evidenceUrl ? [tx.evidenceUrl] : []);
-                let evidenceHtml = '';
-                if (urls.length === 0) {
-                    evidenceHtml = '<span style="color: #94a3b8;">-</span>';
-                } else if (urls.length === 1) {
-                    evidenceHtml = `<a href="${urls[0]}" target="_blank" style="color: #3b82f6; text-decoration: underline;">รูปที่ 1</a>`;
-                } else {
-                    evidenceHtml = urls.map((url, idx) => `<a href="${url}" target="_blank" style="color: #3b82f6; text-decoration: underline; display: block; margin-bottom: 2px;">รูปที่ ${idx + 1}</a>`).join('');
-                }
-
-                tr.innerHTML = `
-                    <td>${dateText}</td>
-                    <td><span class="status-badge" style="background: #e0e7ff; color: #4338ca;">${tx.actionType}</span></td>
-                    <td>${tx.policyNumber}</td>
-                    <td>${tx.customerName || '-'}</td>
-                    <td>${tx.paymentMethod}</td>
-                    <td>${formatNumber(tx.cashReceived)}</td>
-                    <td>${formatNumber(tx.transferAmount)}</td>
-                    <td style="${changeColor}">${changeDisplay}</td>
-                    <td style="${netColor}">${formatNumber(tx.netTotal)}</td>
-                    <td>${evidenceHtml}</td>
-                    <td>${tx.recordedBy || 'System'}</td>
-                `;
-                tbody.appendChild(tr);
-            });
+            allFinanceIncomeTransactions = transactions;
+            applyFinanceIncomeFilter();
         } catch (err) {
             console.error('Fetch finance data error:', err);
             showAlert('error', 'ไม่สามารถโหลดข้อมูลการเงินได้');
         } finally {
             hideLoader();
         }
+    }
+
+    function applyFinanceIncomeFilter() {
+        const searchVal = (document.getElementById('financeSearchInput') || {}).value?.toLowerCase().trim() || '';
+        const paymentType = (document.getElementById('financePaymentTypeFilter') || {}).value || 'all';
+        const paymentMethod = (document.getElementById('financeExportPaymentMethod') || {}).value || 'all';
+        const startDateStr = (document.getElementById('financeExportStartDate') || {}).value;
+        const endDateStr = (document.getElementById('financeExportEndDate') || {}).value;
+
+        const startDate = startDateStr ? new Date(startDateStr) : null;
+        if (startDate) startDate.setHours(0, 0, 0, 0);
+
+        const endDate = endDateStr ? new Date(endDateStr) : null;
+        if (endDate) endDate.setHours(23, 59, 59, 999);
+
+        let filtered = allFinanceIncomeTransactions;
+
+        if (searchVal || paymentType !== 'all' || paymentMethod !== 'all' || startDate || endDate) {
+            filtered = allFinanceIncomeTransactions.filter(tx => {
+                let matchSearch = true;
+                if (searchVal) {
+                    const name = (tx.customerName || '').toLowerCase();
+                    const policy = (tx.policyNumber || '').toLowerCase();
+                    matchSearch = name.includes(searchVal) || policy.includes(searchVal);
+                }
+
+                let matchType = true;
+                if (paymentType !== 'all') {
+                    const pkgMethod = (tx.packagePaymentMethod || '').toLowerCase();
+                    const filterMethod = paymentType.toLowerCase();
+                    matchType = (pkgMethod === filterMethod);
+                }
+
+                let matchMethod = true;
+                if (paymentMethod !== 'all') {
+                    matchMethod = (tx.paymentMethod === paymentMethod);
+                }
+
+                let matchDate = true;
+                if (startDate || endDate) {
+                    const txDate = new Date(tx.transactionDate);
+                    if (startDate && txDate < startDate) matchDate = false;
+                    if (endDate && txDate > endDate) matchDate = false;
+                }
+
+                return matchSearch && matchType && matchMethod && matchDate;
+            });
+        }
+
+        renderFinanceIncomeTable(filtered);
+    }
+
+    function renderFinanceIncomeTable(transactions) {
+        const tbody = document.getElementById('financeBody');
+        const emptyState = document.getElementById('financeEmptyState');
+        const financeTable = document.getElementById('financeTable');
+        const financeTableContainer = financeTable ? financeTable.parentElement : null;
+
+        if (tbody) tbody.innerHTML = '';
+
+        if (!transactions || transactions.length === 0) {
+            if (emptyState) emptyState.style.display = 'block';
+            if (financeTableContainer) financeTableContainer.style.display = 'none';
+            return;
+        }
+        if (emptyState) emptyState.style.display = 'none';
+        if (financeTableContainer) financeTableContainer.style.display = 'block';
+
+        transactions.forEach(tx => {
+            const tr = document.createElement('tr');
+            const dateText = new Date(tx.transactionDate).toLocaleString('th-TH');
+
+            const netColor = tx.netTotal > 0 ? 'color: #0d9488; font-weight: bold;' : '';
+            const changeColor = tx.changeAmount > 0 ? 'color: #ef4444;' : '';
+            const changeDisplay = tx.changeAmount > 0 ? '-' + formatNumber(tx.changeAmount) : '0';
+
+            const urls = tx.evidenceUrls && tx.evidenceUrls.length > 0 ? tx.evidenceUrls : (tx.evidenceUrl ? [tx.evidenceUrl] : []);
+            let evidenceHtml = '';
+            if (urls.length === 0) {
+                evidenceHtml = '<span style="color: #94a3b8;">-</span>';
+            } else if (urls.length === 1) {
+                evidenceHtml = `<a href="${urls[0]}" target="_blank" style="color: #3b82f6; text-decoration: underline;">รูปที่ 1</a>`;
+            } else {
+                evidenceHtml = urls.map((url, idx) => `<a href="${url}" target="_blank" style="color: #3b82f6; text-decoration: underline; display: block; margin-bottom: 2px;">รูปที่ ${idx + 1}</a>`).join('');
+            }
+
+            tr.innerHTML = `
+                <td>${dateText}</td>
+                <td><span class="status-badge" style="background: #e0e7ff; color: #4338ca;">${tx.actionType}</span></td>
+                <td>${tx.policyNumber}</td>
+                <td>${tx.customerName || '-'}</td>
+                <td>${tx.paymentMethod}</td>
+                <td>${formatNumber(tx.cashReceived)}</td>
+                <td>${formatNumber(tx.transferAmount)}</td>
+                <td style="${changeColor}">${changeDisplay}</td>
+                <td style="${netColor}">${tx.financeDisplay ? tx.financeDisplay : formatNumber(tx.netTotal)}</td>
+                <td>${evidenceHtml}</td>
+                <td>${tx.recordedBy || 'System'}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+
+        // Update column visibility immediately after rendering rows
+        updateFinanceTableColumnVisibility();
+    }
+
+    const financeColumnsMap = {
+        'transactionDate': 0,
+        'actionType': 1,
+        'policyNumber': 2,
+        'customerName': 3,
+        'paymentMethod': 4,
+        'cashReceived': 5,
+        'transferAmount': 6,
+        'changeAmount': 7,
+        'netTotal': 8,
+        'evidenceUrl': 9,
+        'recordedBy': 10
+    };
+
+    function updateFinanceTableColumnVisibility() {
+        const checkboxes = document.querySelectorAll('.finance-export-field');
+        const table = document.getElementById('financeTable');
+        if (!table) return;
+
+        const visibility = {};
+        checkboxes.forEach(cb => {
+            const colIdx = financeColumnsMap[cb.value];
+            if (colIdx !== undefined) {
+                visibility[colIdx] = cb.checked;
+            }
+        });
+
+        const ths = table.querySelectorAll('thead th');
+        ths.forEach((th, idx) => {
+            if (visibility[idx] !== undefined) {
+                th.style.display = visibility[idx] ? '' : 'none';
+            }
+        });
+
+        const trs = table.querySelectorAll('tbody tr');
+        trs.forEach(tr => {
+            const tds = tr.querySelectorAll('td');
+            tds.forEach((td, idx) => {
+                if (visibility[idx] !== undefined && td) {
+                    td.style.display = visibility[idx] ? '' : 'none';
+                }
+            });
+        });
+    }
+
+    // Attach event listeners for finance export fields to toggle UI columns
+    document.querySelectorAll('.finance-export-field').forEach(cb => {
+        cb.addEventListener('change', updateFinanceTableColumnVisibility);
+    });
+
+    const selectAllBtn = document.getElementById('selectAllFinanceColumns');
+    if (selectAllBtn) {
+        selectAllBtn.addEventListener('click', () => {
+            document.querySelectorAll('.finance-export-field').forEach(cb => cb.checked = true);
+            updateFinanceTableColumnVisibility();
+        });
+    }
+
+    const clearAllBtn = document.getElementById('clearAllFinanceColumns');
+    if (clearAllBtn) {
+        clearAllBtn.addEventListener('click', () => {
+            document.querySelectorAll('.finance-export-field').forEach(cb => cb.checked = false);
+            updateFinanceTableColumnVisibility();
+        });
+    }
+
+    // Add event listeners for finance filter
+    const financeSearchInput = document.getElementById('financeSearchInput');
+    const financePaymentTypeFilter = document.getElementById('financePaymentTypeFilter');
+    const financeExportPaymentMethod = document.getElementById('financeExportPaymentMethod');
+    const financeExportStartDate = document.getElementById('financeExportStartDate');
+    const financeExportEndDate = document.getElementById('financeExportEndDate');
+
+    if (financeSearchInput) {
+        financeSearchInput.addEventListener('input', applyFinanceIncomeFilter);
+    }
+    if (financePaymentTypeFilter) {
+        financePaymentTypeFilter.addEventListener('change', applyFinanceIncomeFilter);
+    }
+    if (financeExportPaymentMethod) {
+        financeExportPaymentMethod.addEventListener('change', applyFinanceIncomeFilter);
+    }
+    if (financeExportStartDate) {
+        financeExportStartDate.addEventListener('change', applyFinanceIncomeFilter);
+    }
+    if (financeExportEndDate) {
+        financeExportEndDate.addEventListener('change', applyFinanceIncomeFilter);
     }
 
     // --- EXECUTIVE DASHBOARD LOGIC ---
@@ -1402,19 +1576,62 @@ document.addEventListener('DOMContentLoaded', () => {
             const elClaimCost = document.getElementById('kpiTotalClaimCost');
             const elActive = document.getElementById('kpiActiveWarranties');
             const elOverdue = document.getElementById('kpiOverdueClaims');
+            const elMembers = document.getElementById('kpiTotalMembers');
 
-            if (elRevenue) elRevenue.textContent = formatNumber(kpi.totalRevenue);
-            if (elClaimCost) elClaimCost.textContent = formatNumber(kpi.totalClaimCost);
-            if (elActive) elActive.textContent = formatNumber(kpi.activeWarranties);
-            if (elOverdue) elOverdue.textContent = formatNumber(kpi.overdueClaims);
+            if (elRevenue) elRevenue.textContent = formatNumber(kpi.totalRevenue || 0);
+            if (elClaimCost) elClaimCost.textContent = formatNumber(kpi.totalClaimCost || 0);
+            if (elActive) elActive.textContent = formatNumber(kpi.activeWarranties || 0);
+            if (elOverdue) elOverdue.textContent = formatNumber(kpi.overdueClaims || 0);
+            if (elMembers) elMembers.textContent = formatNumber(kpi.totalMembers || 0);
 
             renderCharts(data.charts || {});
+
+            // Render shops summary table
+            renderExecutiveShopsTable(data.shopsSummary || []);
         } catch (err) {
             console.error('Load executive dashboard error:', err);
             showAlert('error', err.message || 'เกิดข้อผิดพลาดในการโหลดแดชบอร์ด');
         } finally {
             hideLoader();
         }
+    }
+
+    function renderExecutiveShopsTable(shopsData) {
+        const tbody = document.getElementById('execShopsTableBody');
+        if (!tbody) return;
+
+        tbody.innerHTML = '';
+        if (shopsData.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; padding: 20px; color: var(--text-muted);">ไม่มีข้อมูลร้านค้า</td></tr>';
+            return;
+        }
+
+        shopsData.forEach(shop => {
+            const tr = document.createElement('tr');
+            tr.style.borderBottom = '1px solid #f1f5f9';
+
+            const tdName = document.createElement('td');
+            tdName.style.padding = '12px 8px';
+            tdName.textContent = shop.shopName || 'ไม่ระบุร้านค้า';
+
+            const tdCount = document.createElement('td');
+            tdCount.style.padding = '12px 8px';
+            tdCount.style.textAlign = 'right';
+            tdCount.style.fontWeight = '500';
+            tdCount.textContent = formatNumber(shop.contracts || 0);
+
+            const tdRev = document.createElement('td');
+            tdRev.style.padding = '12px 8px';
+            tdRev.style.textAlign = 'right';
+            tdRev.style.color = '#0d9488';
+            tdRev.style.fontWeight = '600';
+            tdRev.textContent = formatNumber(shop.revenue || 0) + ' ฿';
+
+            tr.appendChild(tdName);
+            tr.appendChild(tdCount);
+            tr.appendChild(tdRev);
+            tbody.appendChild(tr);
+        });
     }
 
     function renderCharts(charts) {
@@ -1699,7 +1916,8 @@ document.addEventListener('DOMContentLoaded', () => {
             `;
             if (items.length > 0) {
                 bodyHtml = items.map(item => {
-                    const maxLimit = Math.floor((item.devicePrice || 0) * 0.7);
+                    const cap = PACKAGE_LIMITS[item.package?.plan] || Infinity;
+                    const maxLimit = Math.floor(Math.min(item.devicePrice || 0, cap));
                     return `
                     <tr>
                         <td>${item.policyNumber || '-'}</td>
@@ -1835,6 +2053,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const isComplete = r.payment.schedule?.every(s => s.status === 'Paid');
                     if (!isComplete) return false;
                 }
+                if (paymentFilter === 'finance' && method !== 'Finance') return false;
                 return true;
             });
         }
@@ -1851,9 +2070,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const getCoverageNumbers = (w) => {
             const devicePrice = Number(w?.devicePrice ?? w?.device?.deviceValue ?? 0);
+            const cap = PACKAGE_LIMITS[w?.package?.plan] || Infinity;
             const maxLimit = Number.isFinite(Number(w?.maxLimit))
                 ? Number(w.maxLimit)
-                : Math.floor(devicePrice * 0.70);
+                : Math.floor(Math.min(devicePrice, cap));
             const installmentsPaid = Number.isFinite(Number(w?.installmentsPaid))
                 ? Number(w.installmentsPaid)
                 : 1;
@@ -1889,7 +2109,7 @@ document.addEventListener('DOMContentLoaded', () => {
         body.innerHTML = records.map(r => {
             const isExpired = new Date(r.warrantyDates.end) < new Date();
             let paymentStatus = '';
-            if (r.payment.method === 'Full Payment') {
+            if (r.payment.method === 'Full Payment' || r.payment.method === 'finance') {
                 const statusText = r.payment.status === 'Paid' ? 'ชำระแล้ว' : 'ค้างชำระ';
                 const statusClass = r.payment.status === 'Paid' ? 'status-paid' : 'status-pending';
                 paymentStatus = `<span class="status-badge ${statusClass}">${statusText}</span>`;
@@ -2079,7 +2299,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Set Protection Type based on Plan name
             const planName = data.package.plan;
-            if (['Plan A', 'Plan B', 'Plan C', 'Plan D'].includes(planName)) {
+            if (['Plan A', 'Plan B', 'Plan C', 'Plan D', 'Package 1', 'Package 2', 'Package 3', 'Package 4', 'Package 5', 'Package 6', 'Package 7', 'Package 8', 'Package 9', 'Package 10'].includes(planName)) {
                 document.getElementById('protectionType').value = 'Full';
             } else if (['Plan a', 'Plan b', 'Plan c'].includes(planName)) {
                 document.getElementById('protectionType').value = 'ScreenApple';
@@ -2097,6 +2317,15 @@ document.addEventListener('DOMContentLoaded', () => {
             // Set payment method
             const paymentRadio = document.querySelector(`input[name="paymentMethod"][value="${data.payment.method}"]`);
             if (paymentRadio) paymentRadio.checked = true;
+
+            // Populate Finance Details if applicable
+            if (data.payment.method === 'finance' && data.financeDetails) {
+                const fDueDay = document.getElementById('financeDueDay');
+                const fMonths = document.getElementById('financeMonths');
+
+                if (fDueDay) fDueDay.value = data.financeDetails.financeDueDay || '';
+                if (fMonths) fMonths.value = data.financeDetails.financeMonths || '';
+            }
 
             updateRemainingDays();
             updatePaymentUI();
@@ -2130,6 +2359,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 <option value="Plan B">Plan B</option>
                 <option value="Plan C">Plan C</option>
                 <option value="Plan D">Plan D</option>
+                <option value="Package 1">Package 1 (0 - 5,000)</option>
+                <option value="Package 2">Package 2 (5,001 - 10,000)</option>
+                <option value="Package 3">Package 3 (10,001 - 15,000)</option>
+                <option value="Package 4">Package 4 (15,001 - 20,000)</option>
+                <option value="Package 5">Package 5 (20,001 - 25,000)</option>
+                <option value="Package 6">Package 6 (25,001 - 30,000)</option>
+                <option value="Package 7">Package 7 (30,001 - 35,000)</option>
+                <option value="Package 8">Package 8 (35,001 - 40,000)</option>
+                <option value="Package 9">Package 9 (40,001 - 45,000)</option>
+                <option value="Package 10">Package 10 (45,001 - 50,000)</option>
             `;
         } else if (type === 'ScreenApple') {
             options = `
@@ -2373,9 +2612,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const instContainer = document.getElementById('installmentContainer');
         const instBody = document.getElementById('installmentBody');
+        const financeContainer = document.getElementById('financeContainer');
 
         if (method === 'Installment' && netPrice > 0) {
             instContainer.style.display = 'block';
+            if (financeContainer) financeContainer.style.display = 'none';
             const perMonth = Math.floor(netPrice / 3);
             const remainder = netPrice % 3;
             const start = new Date(document.getElementById('startDate').value);
@@ -2388,8 +2629,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 html += `<tr><td>#${i}</td><td>${amt.toLocaleString()}</td><td>${dueDate.toLocaleDateString('th-TH')}</td><td><span class="late-deadline">⚠️ ${graceDate.toLocaleDateString('th-TH')}</span></td></tr>`;
             }
             instBody.innerHTML = html;
+        } else if (method === 'finance') {
+            instContainer.style.display = 'none';
+            if (financeContainer) financeContainer.style.display = 'block';
         } else {
             instContainer.style.display = 'none';
+            if (financeContainer) financeContainer.style.display = 'none';
         }
     }
 
@@ -2428,16 +2673,18 @@ document.addEventListener('DOMContentLoaded', () => {
                     staffName: currentUser ? currentUser.staffName : (data.staffName || '-'),
                     customerName: `${data.customer.firstName} ${data.customer.lastName}`,
                     customerPhone: data.customer.phone,
+                    memberId: data.customer.id || data.memberId || '-',
                     customerAddress: data.customer.address,
-                    amount: data.package.price,
-                    description: `ชำระเต็มจำนวน แพ็กเกจ ${data.package.plan}`
+                    amount: data.payment.method === 'finance' ? (FINANCE_DOWN_PAYMENTS[data.package.plan] || (data.package.price * 0.2)) : data.package.price,
+                    description: data.payment.method === 'finance' ? `ชำระเงินดาวน์งวดแรก แพ็กเกจ ${data.package.plan}` : `ชำระเต็มจำนวน แพ็กเกจ ${data.package.plan}`
                 });
                 statusText.appendChild(document.createElement('br'));
                 statusText.appendChild(printBtn);
             } else {
                 statusText.innerHTML = `<span class="status-pending">ค้างชำระ</span>`;
                 confirmBtn.style.display = 'block';
-                confirmBtn.onclick = () => receivePayment(data._id, null, data.package.price);
+                const dueAmount = data.payment.method === 'finance' ? (FINANCE_DOWN_PAYMENTS[data.package.plan] || (data.package.price * 0.2)) : data.package.price;
+                confirmBtn.onclick = () => receivePayment(data._id, null, dueAmount);
             }
         } else {
             fullSec.style.display = 'none';
@@ -2501,6 +2748,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         staffName: currentUser ? currentUser.staffName : (data.staffName || '-'),
                         customerName: `${data.customer.firstName} ${data.customer.lastName}`,
                         customerPhone: data.customer.phone,
+                        memberId: data.customer.id || data.memberId || '-',
                         customerAddress: data.customer.address,
                         amount: parseInt(btn.dataset.amt),
                         description: `ชำระค่าเบี้ยประกัน งวดที่ ${btn.dataset.no}`
@@ -2793,8 +3041,24 @@ document.addEventListener('DOMContentLoaded', () => {
             paidDate: undefined
         };
 
+        let financeDetails = undefined;
+        if (method === 'finance') {
+            const fDueDay = document.getElementById('financeDueDay')?.value;
+            const fMonths = document.getElementById('financeMonths')?.value;
+
+            if (!fDueDay || !fMonths) {
+                showAlert('warning', 'กรุณาระบุวันที่รับชำระและเลือกระยะเวลาผ่อนไฟแนนซ์');
+                return;
+            }
+
+            financeDetails = {
+                financeDueDay: parseInt(fDueDay, 10),
+                financeMonths: parseInt(fMonths, 10)
+            };
+        }
+
         if (isEditMode && currentEditData) {
-            if (method === 'Full Payment' && currentEditData.payment.method === 'Full Payment') {
+            if ((method === 'Full Payment' || method === 'finance') && currentEditData.payment.method === method) {
                 payment.status = currentEditData.payment.status;
                 payment.paidDate = currentEditData.payment.paidDate;
             }
@@ -2802,7 +3066,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // New Registration - Check for "Mark as Paid"
             const markPaid = document.getElementById('initialPaidCheck')?.checked;
             if (markPaid) {
-                if (method === 'Full Payment') {
+                if (method === 'Full Payment' || method === 'finance') {
                     payment.status = 'Paid';
                     payment.paidDate = new Date();
                 } else if (method === 'Installment') {
@@ -2866,7 +3130,7 @@ document.addEventListener('DOMContentLoaded', () => {
             shopName: document.getElementById('shopName').value,
             protectionType: document.getElementById('protectionType').value,
             staffName: currentUser.staffName,
-            devicePrice: parseFloat(document.getElementById('deviceValue').value) || 0,
+            devicePrice: parseFloat(document.getElementById('fullDevicePrice')?.value) || parseFloat(document.getElementById('deviceValue').value) || 0,
             customer: {
                 firstName: document.getElementById('firstName').value,
                 lastName: document.getElementById('lastName').value,
@@ -2891,7 +3155,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 start: start.toISOString(),
                 end: end.toISOString()
             },
-            payment: payment
+            payment: payment,
+            financeDetails: financeDetails
         };
 
         try {
@@ -3024,6 +3289,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 staffName: currentUser ? currentUser.staffName : (payload ? payload.staffName : (recordData.staffName || '-')),
                 customerName: `${recordData.customer.firstName} ${recordData.customer.lastName}`,
                 customerPhone: recordData.customer.phone,
+                memberId: recordData.customer.id || recordData.memberId || '-',
                 customerAddress: recordData.customer.address,
                 amount: checkoutData.amountDue || amount,
                 cashReceived: extraData.paidCash || 0,
@@ -3056,10 +3322,17 @@ document.addEventListener('DOMContentLoaded', () => {
             checkoutData.payAllRemaining = extra.payAllRemaining || false;
             checkoutData.description = extra.description || '';
         } else {
-            checkoutData.amountDue = payload.payment.method === 'Full Payment' ? payload.package.price : payload.payment.schedule[0].amount;
-            checkoutData.installmentNo = payload.payment.method === 'Installment' ? 1 : null;
-            checkoutData.payAllRemaining = false;
-            checkoutData.description = checkoutData.installmentNo ? `ชำระค่าเบี้ยประกัน งวดที่ 1` : `ชำระเต็มจำนวน แพ็กเกจ ${payload.package.plan}`;
+            if (payload.payment.method === 'finance') {
+                checkoutData.amountDue = FINANCE_DOWN_PAYMENTS[payload.package.plan] || (payload.package.price * 0.2);
+                checkoutData.installmentNo = null;
+                checkoutData.payAllRemaining = false;
+                checkoutData.description = `ชำระเงินดาวน์งวดแรก แพ็กเกจ ${payload.package.plan}`;
+            } else {
+                checkoutData.amountDue = payload.payment.method === 'Full Payment' ? payload.package.price : payload.payment.schedule[0].amount;
+                checkoutData.installmentNo = payload.payment.method === 'Installment' ? 1 : null;
+                checkoutData.payAllRemaining = false;
+                checkoutData.description = checkoutData.installmentNo ? `ชำระค่าเบี้ยประกัน งวดที่ 1` : `ชำระเต็มจำนวน แพ็กเกจ ${payload.package.plan}`;
+            }
         }
 
         hideCheckout();
@@ -3273,6 +3546,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     staffName: currentUser ? currentUser.staffName : (checkoutData.payload ? checkoutData.payload.staffName : (checkoutData.record.staffName || '-')),
                     customerName: `${checkoutData.record.customer.firstName} ${checkoutData.record.customer.lastName}`,
                     customerPhone: checkoutData.record.customer.phone,
+                    memberId: checkoutData.record.customer.id || checkoutData.record.memberId || '-',
                     customerAddress: checkoutData.record.customer.address,
                     amount: totalDue,
                     cashReceived: cashPaid,
@@ -3745,20 +4019,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // ── Validate ทุกช่องก่อน submit ──
             const requiredFields = [
-                { id: 'memberCitizenId',       label: 'เลขบัตรประชาชน' },
-                { id: 'memberPrefix',          label: 'คำนำหน้า' },
-                { id: 'memberFirstName',       label: 'ชื่อ (TH)' },
-                { id: 'memberLastName',        label: 'นามสกุล (TH)' },
-                { id: 'memberFirstNameEn',     label: 'First Name (EN)' },
-                { id: 'memberLastNameEn',      label: 'Last Name (EN)' },
-                { id: 'memberGender',          label: 'เพศ' },
-                { id: 'memberBirthdate',       label: 'วันเกิด' },
-                { id: 'memberCardExpiry',      label: 'วันหมดอายุบัตร' },
-                { id: 'memberPhone',           label: 'เบอร์โทรศัพท์' },
-                { id: 'memberPostalCode',      label: 'รหัสไปรษณีย์' },
-                { id: 'memberFacebook',        label: 'ชื่อเฟสบุ๊ค' },
-                { id: 'memberFacebookLink',    label: 'ลิ้งค์เฟสบุ๊ค' },
-                { id: 'memberIdCardAddress',   label: 'ที่อยู่ตามบัตรประชาชน' },
+                { id: 'memberCitizenId', label: 'เลขบัตรประชาชน' },
+                { id: 'memberPrefix', label: 'คำนำหน้า' },
+                { id: 'memberFirstName', label: 'ชื่อ (TH)' },
+                { id: 'memberLastName', label: 'นามสกุล (TH)' },
+                { id: 'memberFirstNameEn', label: 'First Name (EN)' },
+                { id: 'memberLastNameEn', label: 'Last Name (EN)' },
+                { id: 'memberGender', label: 'เพศ' },
+                { id: 'memberBirthdate', label: 'วันเกิด' },
+                { id: 'memberCardExpiry', label: 'วันหมดอายุบัตร' },
+                { id: 'memberPhone', label: 'เบอร์โทรศัพท์' },
+                { id: 'memberPostalCode', label: 'รหัสไปรษณีย์' },
+                { id: 'memberFacebook', label: 'ชื่อเฟสบุ๊ค' },
+                { id: 'memberFacebookLink', label: 'ลิ้งค์เฟสบุ๊ค' },
+                { id: 'memberIdCardAddress', label: 'ที่อยู่ตามบัตรประชาชน' },
                 { id: 'memberShippingAddress', label: 'ที่อยู่จัดส่ง' },
             ];
 
@@ -3807,8 +4081,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!hasExistingImage && !hasNewFile) {
                 missing.push('รูปถ่ายบัตรประชาชน');
                 if (uploadArea) {
-                     uploadArea.style.border = '2px solid #ef4444';
-                     if (!firstMissingEl) firstMissingEl = uploadArea;
+                    uploadArea.style.border = '2px solid #ef4444';
+                    if (!firstMissingEl) firstMissingEl = uploadArea;
                 }
             }
 
@@ -4430,7 +4704,8 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('claimEndDate').value = data.warrantyDates.end ? new Date(data.warrantyDates.end).toLocaleDateString('th-TH') : '';
 
             const devicePrice = Number(data?.devicePrice ?? data?.device?.deviceValue ?? 0);
-            const maxLimit = Number.isFinite(Number(data?.maxLimit)) ? Number(data.maxLimit) : Math.floor(devicePrice * 0.70);
+            const cap = PACKAGE_LIMITS[data?.package?.plan] || Infinity;
+            const maxLimit = Number.isFinite(Number(data?.maxLimit)) ? Number(data.maxLimit) : Math.floor(Math.min(devicePrice, cap));
             const installmentsPaid = Number.isFinite(Number(data?.installmentsPaid)) ? Number(data.installmentsPaid) : 1;
             const currentLimit = Number.isFinite(Number(data?.currentLimit))
                 ? Number(data.currentLimit)
@@ -5309,6 +5584,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 shopName: (currentUser && currentUser.shop) ? currentUser.shop.shopName : claim.claimShopName,
                                 customerName: claim.customerName,
                                 customerPhone: claim.customerPhone,
+                                memberId: claim.memberId || '-',
                                 staffName: staffName,
                                 description: `ชำระค่าซ่อมส่วนต่างเคลม (เคลมเลขที่ ${claim.claimId})`,
                                 amount: x,
@@ -5373,6 +5649,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 shopName: (currentUser && currentUser.shop) ? currentUser.shop.shopName : claim.claimShopName,
                                 customerName: claim.customerName,
                                 customerPhone: claim.customerPhone,
+                                memberId: claim.memberId || '-',
                                 staffName: staffName,
                                 description: `คืนเงินชดเชยสละสิทธิ์เครื่อง (เคลมเลขที่ ${claim.claimId})`,
                                 amount: y,
@@ -6321,11 +6598,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 html: `
                     <div style="text-align: center; margin-bottom: 20px;">
                         <h4 style="margin: 0 0 10px 0; font-size: 1rem; color: #475569;">รูปถ่ายบัตรประชาชน</h4>
-                        ${w.customer?.idCardImage ? 
-                            `<img src="${escapeHtml(w.customer.idCardImage)}" alt="รูปบัตรประชาชน" style="max-width: 100%; max-height: 200px; border-radius: 8px; border: 1px solid #e2e8f0; box-shadow: 0 2px 4px rgba(0,0,0,0.1); cursor: pointer;" onclick="window.open(this.src, '_blank')">` 
-                        : (w.customer?.photo ? 
+                        ${w.customer?.idCardImage ?
+                        `<img src="${escapeHtml(w.customer.idCardImage)}" alt="รูปบัตรประชาชน" style="max-width: 100%; max-height: 200px; border-radius: 8px; border: 1px solid #e2e8f0; box-shadow: 0 2px 4px rgba(0,0,0,0.1); cursor: pointer;" onclick="window.open(this.src, '_blank')">`
+                        : (w.customer?.photo ?
                             `<img src="${escapeHtml(w.customer.photo)}" alt="รูปบัตรประชาชน (Smart Card)" style="max-width: 100%; max-height: 200px; border-radius: 8px; border: 1px solid #e2e8f0; box-shadow: 0 2px 4px rgba(0,0,0,0.1); cursor: pointer;" onclick="window.open(this.src, '_blank')">`
-                        : `<div style="padding: 15px; background: #f8fafc; border: 2px dashed #cbd5e1; border-radius: 8px; color: #94a3b8;">ไม่มีรูปถ่ายบัตรประชาชน</div>` )}
+                            : `<div style="padding: 15px; background: #f8fafc; border: 2px dashed #cbd5e1; border-radius: 8px; color: #94a3b8;">ไม่มีรูปถ่ายบัตรประชาชน</div>`)}
                     </div>
                     <div class="approval-detail-grid">
                         <div class="approval-detail-item">
@@ -6640,13 +6917,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     device: formValues.device,
                     staffName: window.currentUser?.staffName || 'System'
                 };
-                
+
                 const res = await fetch(`/api/warranties/${id}/approver-edit`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(updatedData)
                 });
-                
+
                 const data = await res.json();
                 hideLoader();
                 if (data.success) {
@@ -7376,7 +7653,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             let currentStatus = d.status || 'Active';
             let endDateStr = '-';
-            
+
             // Calculate End Date and dynammically check expiration
             if (d.deviceDate) {
                 const devDate = new Date(d.deviceDate);
@@ -7385,7 +7662,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 endDateStr = endDate.toLocaleDateString('th-TH', {
                     year: 'numeric', month: 'short', day: 'numeric'
                 });
-                
+
                 // If past 30 days and still active, mark as Expired
                 if (currentStatus === 'Active' && new Date() > endDate) {
                     currentStatus = 'Expired';
@@ -7463,7 +7740,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (statusFilter !== 'all') {
             filtered = filtered.filter(d => {
                 let currentStatus = d.status || 'Active'; // default to Active if missing
-                
+
                 // Dynamically evaluate Expired status based on 30 day rule
                 if (d.deviceDate) {
                     const devDate = new Date(d.deviceDate);
@@ -7473,7 +7750,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         currentStatus = 'Expired';
                     }
                 }
-                
+
                 return currentStatus === statusFilter;
             });
         }
@@ -7511,7 +7788,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function openDepositModal() {
         const form = document.getElementById('depositForm');
         if (form) form.reset();
-        
+
         // Reset payment method split fields
         const depSplitPaymentGroup = document.getElementById('depSplitPaymentGroup');
         const depTransferAmount = document.getElementById('depTransferAmount');
@@ -7561,10 +7838,10 @@ document.addEventListener('DOMContentLoaded', () => {
             // Mandatory Evidence Validation
             const fileInput = document.getElementById('depEvidenceFile');
             if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
-                Swal.fire({ 
-                    icon: 'warning', 
-                    title: 'กรุณาแนบหลักฐาน', 
-                    text: 'กรุณาแนบไฟล์หลักฐานการรับเงิน (สลิป) ก่อนบันทึกรายการ' 
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'กรุณาแนบหลักฐาน',
+                    text: 'กรุณาแนบไฟล์หลักฐานการรับเงิน (สลิป) ก่อนบันทึกรายการ'
                 });
                 return;
             }
@@ -7655,6 +7932,151 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (depTransferAmount) { depTransferAmount.required = false; depTransferAmount.value = ''; }
                 if (depCashAmount) { depCashAmount.required = false; depCashAmount.value = ''; }
             }
+        });
+    }
+    // --- CALCULATOR LOGIC ---
+    const btnCalculatePrice = document.getElementById('btnCalculatePrice');
+    const calcDevicePriceInput = document.getElementById('calcDevicePriceInput');
+    const calcLimitDisplay = document.getElementById('calcLimitDisplay');
+    const calcTargetAmount = document.getElementById('calcTargetAmount');
+    const calcResultArea = document.getElementById('calcResultArea');
+
+    if (btnCalculatePrice) {
+        btnCalculatePrice.addEventListener('click', async () => {
+            const price = parseFloat(calcDevicePriceInput.value);
+            if (isNaN(price) || price <= 0) {
+                showAlert('warning', 'กรุณาระบุราคาเครื่องที่ถูกต้อง');
+                return;
+            }
+
+            // Calculate 70% of the full device price
+            const targetAmount = Math.floor(price * 0.70);
+
+            calcTargetAmount.textContent = targetAmount.toLocaleString();
+            calcLimitDisplay.style.display = 'block';
+
+            calcResultArea.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; padding: 2rem;"><p>กำลังค้นหาแพ็กเกจที่เหมาะสม...</p></div>';
+
+            try {
+                const res = await fetchWithTimeout('/api/finance-rates');
+                const data = await res.json();
+
+                if (data.success) {
+                    const eligibleRates = data.rates.filter(rate => rate.minDeviceValue <= targetAmount);
+
+                    if (eligibleRates.length === 0) {
+                        calcResultArea.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; padding: 2rem; color: #64748b;"><p>ไม่พบแพ็กเกจที่เหมาะสมกับราคาเครื่องนี้ (ยอด 70% ไม่ถึงเกณฑ์ขั้นต่ำ)</p></div>';
+                        return;
+                    }
+
+                    calcResultArea.innerHTML = '';
+                    eligibleRates.forEach(rate => {
+                        const card = document.createElement('div');
+                        card.className = 'stat-card';
+                        card.style.flexDirection = 'column';
+                        card.style.alignItems = 'flex-start';
+                        card.style.padding = '20px';
+                        card.style.gap = '15px';
+                        card.style.height = 'auto'; // ensure it expands based on content
+
+                        card.innerHTML = `
+                            <div style="width: 100%; display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 1px solid #e2e8f0; padding-bottom: 10px;">
+                                <div>
+                                    <h3 style="margin: 0; color: #0f172a; font-size: 1.1rem;">${rate.tierName ? rate.tierName : 'ช่วงราคา'}</h3>
+                                    <p style="margin: 4px 0 0 0; color: #64748b; font-size: 0.9rem;">ราคาแพ็กเกจ: <span style="color: #0d9488; font-weight: bold;">${rate.packagePrice.toLocaleString()}</span> บาท</p>
+                                    <p style="margin: 4px 0 0 0; color: #64748b; font-size: 0.85rem;">ช่วงราคา: ${rate.minDeviceValue.toLocaleString()} - ${rate.maxDeviceValue.toLocaleString()}</p>
+                                </div>
+                                <div style="background: rgba(13, 148, 136, 0.1); color: #0d9488; padding: 6px 12px; border-radius: 8px; font-weight: bold; font-size: 0.9rem;">
+                                    ดาวน์ ${rate.downPayment.toLocaleString()} ฿
+                                </div>
+                            </div>
+                            <div style="width: 100%;">
+                                <p style="margin: 0 0 10px 0; font-weight: 600; color: #334155; font-size: 0.9rem;">โปรแกรมผ่อนชำระ (บาท/งวด):</p>
+                                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;">
+                                    ${(rate.installmentPlans || []).map(plan => `
+                                        <div style="display: flex; justify-content: space-between; background: #f8fafc; padding: 8px 12px; border-radius: 6px; border: 1px solid #e2e8f0;">
+                                            <span style="color: #64748b; font-size: 0.85rem;">${plan.months} งวด</span>
+                                            <span style="font-weight: bold; color: #0f172a; font-size: 0.9rem;">${plan.monthlyAmount.toLocaleString()}</span>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        `;
+                        calcResultArea.appendChild(card);
+                    });
+                } else {
+                    showAlert('error', data.message || 'ไม่สามารถดึงข้อมูลได้');
+                }
+            } catch (err) {
+                showAlert('error', 'เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์');
+            }
+        });
+    }
+    const fullDevicePriceInput = document.getElementById('fullDevicePrice');
+    const deviceValueInput = document.getElementById('deviceValue');
+    const packageSelectInput = document.getElementById('package');
+
+    if (deviceValueInput && packageSelectInput) {
+        deviceValueInput.addEventListener('input', () => {
+            const val = parseFloat(deviceValueInput.value) || 0;
+            const sortedPackages = Object.entries(PACKAGE_LIMITS).sort((a, b) => a[1] - b[1]);
+
+            let eligiblePlanLimit = null;
+            let eligiblePlan = null;
+            let prevLimit = 0;
+            for (const [plan, limit] of sortedPackages) {
+                if (val > prevLimit && val <= limit) {
+                    eligiblePlan = plan;
+                    eligiblePlanLimit = limit;
+                    break;
+                }
+                prevLimit = limit;
+            }
+
+            if (val > 0 && eligiblePlan === null && sortedPackages.length > 0) {
+                // The value is higher than the highest package limit
+                const highestPackage = sortedPackages[sortedPackages.length - 1];
+                eligiblePlan = highestPackage[0];
+                eligiblePlanLimit = Infinity;
+            }
+
+            let hasEligible = false;
+            Array.from(packageSelectInput.options).forEach(opt => {
+                if (opt.value === "") return;
+
+                // Only touch options that are in PACKAGE_LIMITS
+                if (PACKAGE_LIMITS[opt.value]) {
+                    if (eligiblePlanLimit !== null && PACKAGE_LIMITS[opt.value] <= eligiblePlanLimit) {
+                        opt.style.display = '';
+                        opt.disabled = false;
+                        if (opt.value === eligiblePlan) {
+                            packageSelectInput.value = opt.value;
+                        }
+                        hasEligible = true;
+                    } else {
+                        opt.style.display = 'none';
+                        opt.disabled = true;
+                    }
+                }
+            });
+
+            if (!hasEligible) {
+                packageSelectInput.value = "";
+            }
+
+            packageSelectInput.dispatchEvent(new Event('change'));
+        });
+    }
+
+    if (fullDevicePriceInput && deviceValueInput) {
+        fullDevicePriceInput.addEventListener('input', () => {
+            const fullPrice = parseFloat(fullDevicePriceInput.value) || 0;
+            if (fullPrice > 0) {
+                deviceValueInput.value = Math.floor(fullPrice * 0.7);
+            } else {
+                deviceValueInput.value = '';
+            }
+            deviceValueInput.dispatchEvent(new Event('input'));
         });
     }
 
