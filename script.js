@@ -315,8 +315,8 @@ document.addEventListener('DOMContentLoaded', () => {
         'Package 6': 30000, 'Package 7': 35000, 'Package 8': 40000, 'Package 9': 45000, 'Package 10': 50000
     };
     const FINANCE_DOWN_PAYMENTS = {
-        'Package 1': 60, 'Package 2': 80, 'Package 3': 100, 'Package 4': 120, 'Package 5': 150,
-        'Package 6': 180, 'Package 7': 190, 'Package 8': 200, 'Package 9': 250, 'Package 10': 270
+        'Package 1': 0, 'Package 2': 0, 'Package 3': 0, 'Package 4': 0, 'Package 5': 0,
+        'Package 6': 0, 'Package 7': 0, 'Package 8': 0, 'Package 9': 0, 'Package 10': 0
     };
     const formatDate = (dateStr) => dateStr ? new Date(dateStr).toISOString().split('T')[0] : '';
 
@@ -1395,7 +1395,29 @@ document.addEventListener('DOMContentLoaded', () => {
                 evidenceHtml = urls.map((url, idx) => `<a href="${url}" target="_blank" style="color: #3b82f6; text-decoration: underline; display: block; margin-bottom: 2px;">รูปที่ ${idx + 1}</a>`).join('');
             }
 
-            tr.innerHTML = `
+                let displayNetTotalText = tx.financeDisplay ? tx.financeDisplay : formatNumber(tx.netTotal);
+                
+                if (tx.packagePlan) {
+                    if (tx.actionType === 'ชำระงวดผ่อนด้วยไฟแนนซ์') {
+                        const FINANCE_TOTALS = {
+                            'Package 1': 700, 'Package 2': 900, 'Package 3': 1100, 'Package 4': 1300, 'Package 5': 1500,
+                            'Package 6': 1700, 'Package 7': 1900, 'Package 8': 2100, 'Package 9': 2300, 'Package 10': 2500
+                        };
+                        if (FINANCE_TOTALS[tx.packagePlan]) {
+                            displayNetTotalText = formatNumber(FINANCE_TOTALS[tx.packagePlan]);
+                        }
+                    } else if (tx.actionType !== 'คืนเงินชดเชยสละสิทธิ์เครื่อง' && tx.actionType.startsWith('ชำระ')) {
+                        const NORMAL_TOTALS = {
+                            'Package 1': 699, 'Package 2': 899, 'Package 3': 1099, 'Package 4': 1299, 'Package 5': 1499,
+                            'Package 6': 1699, 'Package 7': 1899, 'Package 8': 2099, 'Package 9': 2299, 'Package 10': 2499
+                        };
+                        if (NORMAL_TOTALS[tx.packagePlan]) {
+                            displayNetTotalText = formatNumber(NORMAL_TOTALS[tx.packagePlan]);
+                        }
+                    }
+                }
+
+                tr.innerHTML = `
                 <td>${dateText}</td>
                 <td><span class="status-badge" style="background: #e0e7ff; color: #4338ca;">${tx.actionType}</span></td>
                 <td>${tx.policyNumber}</td>
@@ -1404,7 +1426,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td>${formatNumber(tx.cashReceived)}</td>
                 <td>${formatNumber(tx.transferAmount)}</td>
                 <td style="${changeColor}">${changeDisplay}</td>
-                <td style="${netColor}">${tx.financeDisplay ? tx.financeDisplay : formatNumber(tx.netTotal)}</td>
+                <td style="${netColor}">${displayNetTotalText}</td>
                 <td>${evidenceHtml}</td>
                 <td>${tx.recordedBy || 'System'}</td>
             `;
@@ -2675,7 +2697,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     customerPhone: data.customer.phone,
                     memberId: data.customer.id || data.memberId || '-',
                     customerAddress: data.customer.address,
-                    amount: data.payment.method === 'finance' ? (FINANCE_DOWN_PAYMENTS[data.package.plan] || (data.package.price * 0.2)) : data.package.price,
+                    amount: data.payment.method === 'finance' ? 0 : data.package.price,
                     description: data.payment.method === 'finance' ? `ชำระเงินดาวน์งวดแรก แพ็กเกจ ${data.package.plan}` : `ชำระเต็มจำนวน แพ็กเกจ ${data.package.plan}`
                 });
                 statusText.appendChild(document.createElement('br'));
@@ -2683,7 +2705,7 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                 statusText.innerHTML = `<span class="status-pending">ค้างชำระ</span>`;
                 confirmBtn.style.display = 'block';
-                const dueAmount = data.payment.method === 'finance' ? (FINANCE_DOWN_PAYMENTS[data.package.plan] || (data.package.price * 0.2)) : data.package.price;
+                const dueAmount = data.payment.method === 'finance' ? 0 : data.package.price;
                 confirmBtn.onclick = () => receivePayment(data._id, null, dueAmount);
             }
         } else {
@@ -3323,7 +3345,7 @@ document.addEventListener('DOMContentLoaded', () => {
             checkoutData.description = extra.description || '';
         } else {
             if (payload.payment.method === 'finance') {
-                checkoutData.amountDue = FINANCE_DOWN_PAYMENTS[payload.package.plan] || (payload.package.price * 0.2);
+                checkoutData.amountDue = 0;
                 checkoutData.installmentNo = null;
                 checkoutData.payAllRemaining = false;
                 checkoutData.description = `ชำระเงินดาวน์งวดแรก แพ็กเกจ ${payload.package.plan}`;

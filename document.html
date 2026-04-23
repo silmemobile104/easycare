@@ -505,7 +505,7 @@
                             <span class="label" style="margin-left: 5px;">บาท</span>
                             <span class="label" style="margin-left: 5px;">ผ่อนทุกวันที่</span>
                             <span id="doc_financeDay" style="font-weight: bold; margin-left: 5px;"></span>
-                            <span class="label" style="margin-left: 5px;">อีก</span>
+                            <span class="label" style="margin-left: 5px;">ทุกเดือน เป็นเวลา</span>
                             <span id="doc_financeMonths" style="font-weight: bold; margin-left: 5px;"></span>
                             <span class="label" style="margin-left: 5px;">เดือน</span>
                         </div>
@@ -770,14 +770,25 @@
                     document.getElementById('sec_5_2').style.display = 'none';
                     document.getElementById('sec_5_1').style.display = 'none';
                     
-                    const FINANCE_DOWN_PAYMENTS = {
-                        'Package 1': 60, 'Package 2': 80, 'Package 3': 100, 'Package 4': 120, 'Package 5': 150,
-                        'Package 6': 180, 'Package 7': 190, 'Package 8': 200, 'Package 9': 250, 'Package 10': 270
+                    const FINANCE_MONTHLY_RATES = {
+                        'Package 1': { 6: 160, 10: 100, 12: 60, 15: 60, 18: 60 },
+                        'Package 2': { 6: 180, 10: 120, 12: 80, 15: 80, 18: 80 },
+                        'Package 3': { 6: 200, 10: 140, 12: 100, 15: 100, 18: 100 },
+                        'Package 4': { 6: 240, 10: 160, 12: 120, 15: 120, 18: 120 },
+                        'Package 5': { 6: 270, 10: 180, 12: 150, 15: 150, 18: 150 },
+                        'Package 6': { 6: 320, 10: 190, 12: 180, 15: 180, 18: 180 },
+                        'Package 7': { 6: 350, 10: 210, 12: 190, 15: 190, 18: 190 },
+                        'Package 8': { 6: 390, 10: 230, 12: 200, 15: 200, 18: 200 },
+                        'Package 9': { 6: 420, 10: 270, 12: 250, 15: 250, 18: 250 },
+                        'Package 10': { 6: 490, 10: 300, 12: 270, 15: 270, 18: 270 }
                     };
-                    const downPrice = FINANCE_DOWN_PAYMENTS[data.package.plan] || (packagePrice * 0.2);
-                    document.getElementById('doc_financePrice').textContent = downPrice.toLocaleString();
                     const financeMonths = data.financeDetails ? data.financeDetails.financeMonths : '-';
                     const financeDueDay = data.financeDetails ? data.financeDetails.financeDueDay : '-';
+                    let monthlyPrice = 0;
+                    if (financeMonths !== '-' && FINANCE_MONTHLY_RATES[data.package.plan]) {
+                        monthlyPrice = FINANCE_MONTHLY_RATES[data.package.plan][financeMonths] || 0;
+                    }
+                    document.getElementById('doc_financePrice').textContent = monthlyPrice.toLocaleString();
                     document.getElementById('doc_financeDay').textContent = financeDueDay;
                     document.getElementById('doc_financeMonths').textContent = financeMonths;
                     document.getElementById('doc_coverageAmountFinance').textContent = coverageValue.toLocaleString();

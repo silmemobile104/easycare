@@ -2912,7 +2912,8 @@ app.patch('/api/warranties/:id/payment', async (req, res) => {
         const change = Number(changeAmount || 0);
         const net = (cash - change) + transfer;
 
-        if (net > 0) {
+        const isFinance = warranty.payment && (warranty.payment.method === 'Finance' || warranty.payment.method === 'finance');
+        if (net > 0 || isFinance) {
             const firstName = (warranty.customer && warranty.customer.firstName) ? warranty.customer.firstName : '';
             const lastName = (warranty.customer && warranty.customer.lastName) ? warranty.customer.lastName : '';
 
@@ -2920,29 +2921,36 @@ app.patch('/api/warranties/:id/payment', async (req, res) => {
             if (cash > 0 && transfer > 0) pMethod = 'เงินสด+โอนเงิน';
             else if (cash > 0) pMethod = 'เงินสด';
             else if (transfer > 0) pMethod = 'โอนเงิน';
+            else if (isFinance && net === 0) pMethod = 'ผ่อนดาวน์ 0 บาท';
 
             let actType = 'ชำระเต็มจำนวน';
             let financeDisplayStr = undefined;
             let transactionFullRevenue = net;
             let txFinancedAmount = 0;
-            if (warranty.payment && (warranty.payment.method === 'Finance' || warranty.payment.method === 'finance')) {
+            const planName = warranty.package && warranty.package.plan ? warranty.package.plan : null;
+
+            if (isFinance) {
                 actType = 'ชำระงวดผ่อนด้วยไฟแนนซ์';
-                try {
-                    const planName = warranty.package && warranty.package.plan ? warranty.package.plan : null;
-                    if (planName) {
-                        const InstPlan = mongoose.model('InstallmentPlan');
-                        const planDoc = await InstPlan.findOne({ tierName: planName });
-                        if (planDoc) {
-                            financeDisplayStr = `${planDoc.downPayment}(${planDoc.financedAmount})`;
-                            transactionFullRevenue = net + planDoc.financedAmount;
-                            txFinancedAmount = planDoc.financedAmount;
-                        }
-                    }
-                } catch (err) {
-                    console.error('Error fetching InstallmentPlan for financeDisplay:', err);
+                const FINANCE_TOTALS = {
+                    'Package 1': 700, 'Package 2': 900, 'Package 3': 1100, 'Package 4': 1300, 'Package 5': 1500,
+                    'Package 6': 1700, 'Package 7': 1900, 'Package 8': 2100, 'Package 9': 2300, 'Package 10': 2500
+                };
+                if (planName && FINANCE_TOTALS[planName]) {
+                    transactionFullRevenue = FINANCE_TOTALS[planName];
+                    txFinancedAmount = transactionFullRevenue - net; // Unpaid part
+                    financeDisplayStr = transactionFullRevenue.toString();
+                } else {
+                    transactionFullRevenue = net;
                 }
             } else if (payAllRemaining) {
                 actType = 'ชำระปิดยอด/จ่ายเต็ม';
+                const NORMAL_TOTALS = {
+                    'Package 1': 699, 'Package 2': 899, 'Package 3': 1099, 'Package 4': 1299, 'Package 5': 1499,
+                    'Package 6': 1699, 'Package 7': 1899, 'Package 8': 2099, 'Package 9': 2299, 'Package 10': 2499
+                };
+                if (planName && NORMAL_TOTALS[planName]) {
+                    transactionFullRevenue = NORMAL_TOTALS[planName];
+                }
             } else if (installmentNo) {
                 actType = `ชำระค่างวดที่ ${installmentNo}`;
             }
@@ -3209,7 +3217,8 @@ app.get('/api/finance/transactions', async (req, res) => {
             },
             {
                 $addFields: {
-                    packagePaymentMethod: { $arrayElemAt: ['$warranty.payment.method', 0] }
+                    packagePaymentMethod: { $arrayElemAt: ['$warranty.payment.method', 0] },
+                    packagePlan: { $arrayElemAt: ['$warranty.package.plan', 0] }
                 }
             },
             { $project: { warranty: 0 } }

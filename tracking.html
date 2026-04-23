@@ -619,8 +619,8 @@
         };
 
         const FINANCE_DOWN_PAYMENTS = {
-            'Package 1': 60, 'Package 2': 80, 'Package 3': 100, 'Package 4': 120, 'Package 5': 150,
-            'Package 6': 180, 'Package 7': 190, 'Package 8': 200, 'Package 9': 250, 'Package 10': 270
+            'Package 1': 0, 'Package 2': 0, 'Package 3': 0, 'Package 4': 0, 'Package 5': 0,
+            'Package 6': 0, 'Package 7': 0, 'Package 8': 0, 'Package 9': 0, 'Package 10': 0
         };
 
         // Check Local Storage for Session
@@ -814,7 +814,19 @@
                                 <span class="detail-label">ประเภทการชำระเงิน</span>
                                 <span class="detail-value">
                                     ${paymentMethodName}
-                                    ${w.payment?.method === 'finance' && w.financeDetails ? `<div style="font-size: 0.85rem; color: var(--text-muted); font-weight: normal; margin-top: 0.2rem;">(ชำระเงินงวดแรก ${FINANCE_DOWN_PAYMENTS[w.package?.plan] || 0} บาท, ชำระทุกวันที่ ${w.financeDetails.financeDueDay} ของเดือน เป็นจำนวนเงิน ${formatMoney(FINANCE_MONTHLY_RATES[w.package?.plan]?.[w.financeDetails.financeMonths] || 0)} บาท ${w.financeDetails.financeMonths} งวด)</div>` : ''}
+                                    ${w.payment?.method === 'finance' && w.financeDetails ? `
+                                    <div style="font-size: 0.85rem; color: var(--text-muted); font-weight: normal; margin-top: 0.2rem;">
+                                        (ชำระเงินงวดแรก ${FINANCE_DOWN_PAYMENTS[w.package?.plan] || 0} บาท, ชำระทุกวันที่ ${w.financeDetails.financeDueDay} ของเดือน เป็นจำนวนเงิน ${formatMoney(FINANCE_MONTHLY_RATES[w.package?.plan]?.[w.financeDetails.financeMonths] || 0)} บาท ${w.financeDetails.financeMonths} งวด)
+                                    </div>
+                                    <div style="margin-top: 0.75rem; display: flex; flex-direction: column; align-items: center; text-align: center; background: #f8fafc; padding: 0.75rem; border-radius: var(--radius-md); border: 1px dashed #cbd5e1; width: fit-content; min-width: 140px;">
+                                        <span style="font-size: 0.8rem; font-weight: 600; color: var(--primary-dark); margin-bottom: 0.4rem;">ชำระเงิน / ติดต่อไฟแนนซ์</span>
+                                        <img src="QR_SG_LINE.png" alt="QR Code สำหรับชำระเงิน" style="width: 100px; height: 100px; object-fit: cover; border-radius: 0.5rem; border: 2px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.08);">
+                                        <span style="font-size: 0.75rem; color: var(--secondary); margin-top: 0.4rem;">สแกนเพื่อเพิ่มเพื่อน Line</span>
+                                        <button onclick="window.location.href='https://line.me/R/ti/p/@161trbez'"
+                                            style="background: #00B900; color: white; border: none; padding: 0.5rem 0.8rem; border-radius: 0.5rem; cursor: pointer; font-weight: 600; margin-top: 0.6rem; box-shadow: 0 2px 4px rgba(0,0,0,0.15); width: 100%; transition: transform 0.2s;">
+                                            เปิดแอปพลิเคชัน
+                                        </button>
+                                    </div>` : ''}
                                 </span>
                             </div>
                             <div class="detail-col">
