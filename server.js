@@ -176,7 +176,14 @@ const WarrantySchema = new mongoose.Schema({
         imei: String,
         deviceValue: Number,
         officialWarrantyEnd: Date,
-        images: [String]
+        images: [String],
+        deviceCondition: { type: String, enum: ['New', 'Second-hand'], default: 'New' },
+        inspectionResult: [{
+            item: String,
+            status: String,
+            description: String,
+            imageUrl: String
+        }]
     },
     package: {
         plan: String,
@@ -2227,7 +2234,7 @@ app.post('/api/upload', genericUpload.array('images', 10), (req, res) => {
 });
 
 // Upload phone details images
-app.post('/api/upload/phonedetails', phoneDetailsUpload.array('images', 10), (req, res) => {
+app.post('/api/upload/phonedetails', phoneDetailsUpload.array('images', 30), (req, res) => {
     try {
         if (!req.files || req.files.length === 0) {
             return res.status(400).json({ success: false, message: 'No files uploaded' });

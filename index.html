@@ -2409,6 +2409,13 @@
                     </div>
                     <div class="grid-row">
                         <div class="form-group">
+                            <label>สภาพเครื่อง</label>
+                            <select id="deviceCondition" required>
+                                <option value="New" selected>มือ 1 (New)</option>
+                                <option value="Second-hand">มือ 2 (Second-hand)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
                             <label>ประเภทสินค้า</label>
                             <select id="productType" required>
                                 <option value="" disabled selected>เลือกประเภท</option>
@@ -2484,6 +2491,17 @@
                             <label>รูปภาพเกี่ยวกับข้อมูลเครื่อง (บังคับอย่างน้อย 1 รูป) <span style="color: red;">*</span></label>
                             <input type="file" id="deviceImagesInput" multiple accept="image/*" class="full-width">
                             <div id="deviceImagesPreview" style="display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap;"></div>
+                        </div>
+                        <div id="secondHandInspection" class="form-group full-width" style="display: none; background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 10px; padding: 1.25rem; margin-top: 1rem;">
+                            <label style="font-weight: 600; color: #0f172a; margin-bottom: 0.75rem; display: block; font-size: 1.05rem;">
+                                🛠️ ตรวจสอบสภาพเครื่อง (สำหรับเครื่องมือ 2)
+                            </label>
+                            <p style="font-size: 0.85rem; color: #ef4444; margin-bottom: 1rem;">
+                                ⚠️ กรณีพบจุดที่ไม่ปกติ กรุณาระบุรายละเอียดและอัปโหลดรูปภาพประกอบ 1 รูป
+                            </p>
+                            <div class="condition-checklist" id="regDeviceConditionChecklist">
+                                <!-- Items injected by JS -->
+                            </div>
                         </div>
                     </div>
                 </section>
@@ -3195,7 +3213,7 @@
                                     { key: 'speakerMic', label: 'ลำโพง/ไมค์' },
                                     { key: 'connectivity', label: 'การเชื่อมต่อ' },
                                     { key: 'battery', label: 'แบตเตอรี่' },
-                                    { key: 'warrantyVoid', label: 'ประกัน/วอยด์' },
+                                    { key: 'warrantyVoid', label: 'ประกัน' },
                                     { key: 'other', label: 'อื่นๆ' }
                                 ];
                                 const container = document.getElementById('deviceConditionChecklist');

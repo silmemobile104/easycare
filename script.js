@@ -1315,7 +1315,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    window.receiveFinanceAmount = async function(txId) {
+    window.receiveFinanceAmount = async function (txId) {
         const isConfirmed = await window.showConfirm(
             'ยืนยันการรับยอด',
             'คุณแน่ใจหรือไม่ว่าต้องการยืนยันการรับยอดจากไฟแนนซ์สำหรับรายการนี้?',
@@ -1323,7 +1323,7 @@ document.addEventListener('DOMContentLoaded', () => {
             'ยกเลิก'
         );
         if (!isConfirmed) return;
-        
+
         try {
             const res = await fetch(`/api/finance/transactions/${txId}/receive`, {
                 method: 'PUT',
@@ -1426,33 +1426,33 @@ document.addEventListener('DOMContentLoaded', () => {
                 evidenceHtml = urls.map((url, idx) => `<a href="${url}" target="_blank" style="color: #3b82f6; text-decoration: underline; display: block; margin-bottom: 2px;">รูปที่ ${idx + 1}</a>`).join('');
             }
 
-                let displayNetTotalText = tx.financeDisplay ? tx.financeDisplay : formatNumber(tx.netTotal);
-                
-                if (tx.packagePlan) {
-                    if (tx.actionType === 'ชำระงวดผ่อนด้วยไฟแนนซ์') {
-                        const FINANCE_TOTALS = {
-                            'Package 1': 700, 'Package 2': 900, 'Package 3': 1100, 'Package 4': 1300, 'Package 5': 1500,
-                            'Package 6': 1700, 'Package 7': 1900, 'Package 8': 2100, 'Package 9': 2300, 'Package 10': 2500
-                        };
-                        if (FINANCE_TOTALS[tx.packagePlan]) {
-                            displayNetTotalText = formatNumber(FINANCE_TOTALS[tx.packagePlan]);
-                        }
-                        
-                        if (!tx.financeReceived) {
-                            displayNetTotalText += ` ฿<br><span style="color: #dc2626; font-size: 0.85em;">รอการชำระเงินจากไฟแนนซ์</span><br><button class="btn btn-sm" style="margin-top: 5px; padding: 2px 8px; font-size: 12px; background-color: #3b82f6; color: white; border-radius: 4px;" onclick="receiveFinanceAmount('${tx._id}')">รับยอด</button>`;
-                        }
-                    } else if (tx.actionType !== 'คืนเงินชดเชยสละสิทธิ์เครื่อง' && tx.actionType.startsWith('ชำระ')) {
-                        const NORMAL_TOTALS = {
-                            'Package 1': 699, 'Package 2': 899, 'Package 3': 1099, 'Package 4': 1299, 'Package 5': 1499,
-                            'Package 6': 1699, 'Package 7': 1899, 'Package 8': 2099, 'Package 9': 2299, 'Package 10': 2499
-                        };
-                        if (NORMAL_TOTALS[tx.packagePlan]) {
-                            displayNetTotalText = formatNumber(NORMAL_TOTALS[tx.packagePlan]);
-                        }
+            let displayNetTotalText = tx.financeDisplay ? tx.financeDisplay : formatNumber(tx.netTotal);
+
+            if (tx.packagePlan) {
+                if (tx.actionType === 'ชำระงวดผ่อนด้วยไฟแนนซ์') {
+                    const FINANCE_TOTALS = {
+                        'Package 1': 700, 'Package 2': 900, 'Package 3': 1100, 'Package 4': 1300, 'Package 5': 1500,
+                        'Package 6': 1700, 'Package 7': 1900, 'Package 8': 2100, 'Package 9': 2300, 'Package 10': 2500
+                    };
+                    if (FINANCE_TOTALS[tx.packagePlan]) {
+                        displayNetTotalText = formatNumber(FINANCE_TOTALS[tx.packagePlan]);
+                    }
+
+                    if (!tx.financeReceived) {
+                        displayNetTotalText += ` ฿<br><span style="color: #dc2626; font-size: 0.85em;">รอการชำระเงินจากไฟแนนซ์</span><br><button class="btn btn-sm" style="margin-top: 5px; padding: 2px 8px; font-size: 12px; background-color: #3b82f6; color: white; border-radius: 4px;" onclick="receiveFinanceAmount('${tx._id}')">รับยอด</button>`;
+                    }
+                } else if (tx.actionType !== 'คืนเงินชดเชยสละสิทธิ์เครื่อง' && tx.actionType.startsWith('ชำระ')) {
+                    const NORMAL_TOTALS = {
+                        'Package 1': 699, 'Package 2': 899, 'Package 3': 1099, 'Package 4': 1299, 'Package 5': 1499,
+                        'Package 6': 1699, 'Package 7': 1899, 'Package 8': 2099, 'Package 9': 2299, 'Package 10': 2499
+                    };
+                    if (NORMAL_TOTALS[tx.packagePlan]) {
+                        displayNetTotalText = formatNumber(NORMAL_TOTALS[tx.packagePlan]);
                     }
                 }
+            }
 
-                tr.innerHTML = `
+            tr.innerHTML = `
                 <td>${dateText}</td>
                 <td><span class="status-badge" style="background: #e0e7ff; color: #4338ca;">${tx.actionType}</span></td>
                 <td>${tx.policyNumber}</td>
@@ -2345,6 +2345,12 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             document.getElementById('address').value = data.customer.address;
             document.getElementById('productType').value = data.device.type;
+            const deviceConditionEl = document.getElementById('deviceCondition');
+            if (deviceConditionEl) {
+                deviceConditionEl.value = data.device.deviceCondition || 'New';
+                // Trigger change to show/hide checklist container
+                deviceConditionEl.dispatchEvent(new Event('change'));
+            }
             toggleIMEIField();
             updateModelOptions(data.device.model);
             document.getElementById('color').value = data.device.color;
@@ -2699,7 +2705,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const fullSec = document.getElementById('fullPaymentStatus');
         const instSec = document.getElementById('installmentStatus');
 
-        if (data.payment.method === 'Full Payment') {
+        if (data.payment.method === 'Full Payment' || data.payment.method === 'finance') {
             fullSec.style.display = 'block';
             instSec.style.display = 'none';
             document.getElementById('fullPaymentAmount').textContent = `${data.package.price.toLocaleString()} บาท`;
@@ -2883,6 +2889,102 @@ document.addEventListener('DOMContentLoaded', () => {
             description: 'ชำระเงินงวดที่เหลือทั้งหมด'
         });
     };
+
+    // Second-Hand Checklist Logic
+    const checklistItems = [
+        { key: 'exterior', label: 'ตัวเครื่องภายนอก' },
+        { key: 'screen', label: 'หน้าจอ' },
+        { key: 'assembly', label: 'การประกอบ' },
+        { key: 'appleLogo', label: 'โลโก้ Apple' },
+        { key: 'buttons', label: 'ปุ่มต่างๆ' },
+        { key: 'chargingPort', label: 'พอร์ตชาร์จ' },
+        { key: 'simTray', label: 'ช่องใส่ซิม' },
+        { key: 'imeiMatch', label: 'IMEI ตรงกัน' },
+        { key: 'modelMatch', label: 'Model เครื่อง' },
+        { key: 'screenTouch', label: 'หน้าจอ/ทัชสกรีน' },
+        { key: 'faceIdTouchId', label: 'Face ID / Touch ID' },
+        { key: 'cameras', label: 'กล้องหน้า/กล้องหลัง' },
+        { key: 'speakerMic', label: 'ลำโพง/ไมค์' },
+        { key: 'connectivity', label: 'การเชื่อมต่อ' },
+        { key: 'battery', label: 'แบตเตอรี่' },
+        { key: 'warrantyVoid', label: 'ประกัน' },
+        { key: 'other', label: 'อื่นๆ' }
+    ];
+
+    function initSecondHandChecklist() {
+        const container = document.getElementById('regDeviceConditionChecklist');
+        if (!container) return;
+        container.innerHTML = '';
+        checklistItems.forEach((item, index) => {
+            const row = document.createElement('div');
+            row.className = 'condition-row';
+            row.id = `reg_cond_row_${item.key}`;
+            row.dataset.key = item.key;
+            row.dataset.label = item.label;
+            row.innerHTML = `
+                <div class="condition-row-top">
+                    <span class="condition-label">${index + 1}. ${item.label}</span>
+                    <div class="condition-btns">
+                        <button type="button" class="cond-btn" id="reg_btn_normal_${item.key}">ปกติ</button>
+                        <button type="button" class="cond-btn" id="reg_btn_abnormal_${item.key}">ไม่ปกติ</button>
+                    </div>
+                </div>
+                <div class="condition-reason" id="reg_reason_${item.key}">
+                    <textarea placeholder="ระบุอาการผิดปกติ..." rows="2" id="reg_desc_${item.key}"></textarea>
+                    <div style="margin-top: 5px;">
+                        <label style="font-size: 0.8rem; color: #64748b; margin-bottom: 3px; display: block;">แนบรูปภาพ (1 รูป)</label>
+                        <input type="file" id="reg_img_${item.key}" accept="image/*" class="full-width" style="font-size: 0.8rem; padding: 4px;">
+                    </div>
+                </div>
+            `;
+            container.appendChild(row);
+
+            const btnNormal = row.querySelector(`#reg_btn_normal_${item.key}`);
+            const btnAbnormal = row.querySelector(`#reg_btn_abnormal_${item.key}`);
+            const reasonDiv = row.querySelector(`#reg_reason_${item.key}`);
+            const descInput = row.querySelector(`#reg_desc_${item.key}`);
+            const imgInput = row.querySelector(`#reg_img_${item.key}`);
+
+            btnNormal.addEventListener('click', () => {
+                btnNormal.classList.add('normal-active');
+                btnAbnormal.classList.remove('abnormal-active');
+                row.classList.add('is-normal');
+                row.classList.remove('is-abnormal');
+                reasonDiv.style.display = 'none';
+                descInput.required = false;
+                imgInput.required = false;
+                row.dataset.status = 'Normal';
+            });
+
+            btnAbnormal.addEventListener('click', () => {
+                btnAbnormal.classList.add('abnormal-active');
+                btnNormal.classList.remove('normal-active');
+                row.classList.add('is-abnormal');
+                row.classList.remove('is-normal');
+                reasonDiv.style.display = 'block';
+                descInput.required = true;
+                imgInput.required = true;
+                row.dataset.status = 'Abnormal';
+            });
+
+            // Set initial state
+            row.dataset.status = '';
+        });
+    }
+
+    initSecondHandChecklist();
+
+    const deviceConditionEl = document.getElementById('deviceCondition');
+    const secondHandInspectionEl = document.getElementById('secondHandInspection');
+    if (deviceConditionEl && secondHandInspectionEl) {
+        deviceConditionEl.addEventListener('change', () => {
+            if (deviceConditionEl.value === 'Second-hand') {
+                secondHandInspectionEl.style.display = 'block';
+            } else {
+                secondHandInspectionEl.style.display = 'none';
+            }
+        });
+    }
 
     // Listeners for form updates
     document.getElementById('productType').addEventListener('change', () => {
@@ -3182,6 +3284,71 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
+        const deviceCondition = document.getElementById('deviceCondition')?.value || 'New';
+        let inspectionResult = [];
+
+        if (deviceCondition === 'Second-hand') {
+            const rows = document.querySelectorAll('#regDeviceConditionChecklist .condition-row');
+            for (const row of rows) {
+                const key = row.dataset.key;
+                const status = row.dataset.status;
+                const label = row.dataset.label;
+                const description = status === 'Abnormal' ? document.getElementById(`reg_desc_${key}`).value : '';
+                const imgInput = document.getElementById(`reg_img_${key}`);
+
+                if (!status) {
+                    showAlert('warning', `กรุณาประเมินสภาพเครื่อง: ${label}`);
+                    return;
+                }
+
+                if (status === 'Abnormal' && (!imgInput || imgInput.files.length === 0)) {
+                    showAlert('warning', `กรุณาอัปโหลดรูปภาพสำหรับจุดที่ไม่ปกติ: ${label}`);
+                    return;
+                }
+
+                inspectionResult.push({
+                    item: label,
+                    status: status,
+                    description: description,
+                    file: status === 'Abnormal' && imgInput && imgInput.files.length > 0 ? imgInput.files[0] : null
+                });
+            }
+
+            for (const res of inspectionResult) {
+                if (res.file) {
+                    showLoader(`กำลังอัปโหลดรูปภาพ ( ${res.item} )...`);
+                    const fd = new FormData();
+                    fd.append('images', res.file);
+                    try {
+                        const uploadRes = await fetch('/api/upload/phonedetails', {
+                            method: 'POST',
+                            body: fd
+                        });
+                        const uploadData = await uploadRes.json();
+                        if (uploadData.success && uploadData.urls.length > 0) {
+                            res.imageUrl = uploadData.urls[0];
+                        } else {
+                            hideLoader();
+                            showAlert('error', `อัปโหลดรูปภาพล้มเหลว: ${res.item}`);
+                            return;
+                        }
+                    } catch (err) {
+                        hideLoader();
+                        console.error('Checklist image upload error:', err);
+                        showAlert('error', `เกิดข้อผิดพลาดในการอัปโหลดรูปภาพ: ${res.item}`);
+                        return;
+                    }
+                }
+            }
+        }
+
+        const cleanInspectionResult = inspectionResult.map(res => ({
+            item: res.item,
+            status: res.status,
+            description: res.description,
+            imageUrl: res.imageUrl || ''
+        }));
+
         const payload = {
             memberId: document.getElementById('memberId').value,
             shopName: document.getElementById('shopName').value,
@@ -3205,7 +3372,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 imei: document.getElementById('imei').value || undefined,
                 deviceValue: parseFloat(document.getElementById('deviceValue').value) || 0,
                 officialWarrantyEnd: document.getElementById('officialWarrantyEnd').value,
-                images: [...existingImages, ...uploadedImageUrls]
+                images: [...existingImages, ...uploadedImageUrls],
+                deviceCondition: deviceCondition,
+                inspectionResult: cleanInspectionResult
             },
             package: { plan, price },
             warrantyDates: {
@@ -4979,7 +5148,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 simTray: 'ช่องใส่ซิม', imeiMatch: 'IMEI ตรงกัน', modelMatch: 'Model เครื่อง',
                 screenTouch: 'หน้าจอ/ทัชสกรีน', faceIdTouchId: 'Face ID / Touch ID',
                 cameras: 'กล้องหน้า/กล้องหลัง', speakerMic: 'ลำโพง/ไมค์',
-                connectivity: 'การเชื่อมต่อ', battery: 'แบตเตอรี่', warrantyVoid: 'ประกัน/วอยด์',
+                connectivity: 'การเชื่อมต่อ', battery: 'แบตเตอรี่', warrantyVoid: 'ประกัน',
                 other: 'อื่นๆ'
             };
             const deviceCondition = {};
@@ -5099,7 +5268,7 @@ document.addEventListener('DOMContentLoaded', () => {
             speakerMic: 'ลำโพง/ไมค์',
             connectivity: 'การเชื่อมต่อ',
             battery: 'แบตเตอรี่',
-            warrantyVoid: 'ประกัน/วอยด์'
+            warrantyVoid: 'ประกัน'
         };
 
         const conditions = claim.deviceCondition || {};
@@ -6661,6 +6830,54 @@ document.addEventListener('DOMContentLoaded', () => {
                             `<img src="${escapeHtml(w.customer.photo)}" alt="รูปบัตรประชาชน (Smart Card)" style="max-width: 100%; max-height: 200px; border-radius: 8px; border: 1px solid #e2e8f0; box-shadow: 0 2px 4px rgba(0,0,0,0.1); cursor: pointer;" onclick="window.open(this.src, '_blank')">`
                             : `<div style="padding: 15px; background: #f8fafc; border: 2px dashed #cbd5e1; border-radius: 8px; color: #94a3b8;">ไม่มีรูปถ่ายบัตรประชาชน</div>`)}
                     </div>
+
+                    <!-- Device Condition Badge -->
+                    <div style="text-align: center; margin-bottom: 15px;">
+                        ${w.device?.deviceCondition === 'Second-hand' 
+                            ? '<span class="condition-badge condition-used"><i class="fas fa-mobile-alt"></i> สภาพเครื่อง: มือ 2 (Second-hand)</span>'
+                            : '<span class="condition-badge condition-new"><i class="fas fa-box"></i> สภาพเครื่อง: มือ 1 (New Device)</span>'}
+                    </div>
+
+                    <!-- Inspection Report Section for Second-hand -->
+                    ${w.device?.deviceCondition === 'Second-hand' && w.device?.inspectionResult && w.device.inspectionResult.length > 0 ? `
+                    <div class="inspection-report" style="margin-bottom: 20px; text-align: left; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; margin-top: 0;">
+                        <div style="background: #f8fafc; padding: 10px 15px; border-bottom: 1px solid #e2e8f0; font-weight: 600; color: #1e293b;">
+                            <i class="fas fa-clipboard-check"></i> ผลการตรวจสภาพเครื่อง (Inspection Report)
+                        </div>
+                        <div style="padding: 0;">
+                            <table class="inspection-table" style="margin: 0;">
+                                <thead>
+                                    <tr>
+                                        <th>รายการตรวจเช็ค</th>
+                                        <th style="text-align: center;">สถานะ</th>
+                                        <th>รายละเอียดเพิ่มเติม</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${w.device.inspectionResult.map(res => `
+                                        <tr>
+                                            <td style="font-weight: 500;">${escapeHtml(res.item || '-')}</td>
+                                            <td style="text-align: center;">
+                                                ${res.status === 'Normal' 
+                                                    ? '<span class="insp-normal"><i class="fas fa-check-circle"></i> ปกติ</span>' 
+                                                    : '<span class="insp-abnormal"><i class="fas fa-times-circle"></i> ไม่ปกติ</span>'}
+                                            </td>
+                                            <td>
+                                                ${res.status === 'Abnormal' ? `
+                                                    <div style="display: flex; align-items: center; gap: 10px;">
+                                                        ${res.description ? `<span class="insp-note" style="max-width: 150px; margin: 0;">${escapeHtml(res.description)}</span>` : '<span style="color: #cbd5e1;">-</span>'}
+                                                        ${res.imageUrl ? `<img src="${escapeHtml(res.imageUrl)}" class="insp-thumb" onclick="window.open(this.src, '_blank')" alt="evidence">` : ''}
+                                                    </div>
+                                                ` : '<span style="color: #94a3b8;">-</span>'}
+                                            </td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    ` : ''}
+
                     <div class="approval-detail-grid">
                         <div class="approval-detail-item">
                             <label>รหัสลูกค้า</label>

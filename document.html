@@ -347,6 +347,8 @@
                                         class="dotted-line" style="width: 165px;"></span></div>
                                 <div class="field"><span class="label">IMEI</span> <span id="doc_imei"
                                         class="dotted-line" style="width: 160px;"></span></div>
+                                <div class="field"><span class="label">สภาพเครื่อง</span> <span id="doc_deviceCondition"
+                                        class="dotted-line" style="width: 160px;"></span></div>
                             </div>
                             <div>
                                 <div class="field">
@@ -362,10 +364,12 @@
                                         style="width:200px;"></span>
                                 </div>
                                 <div class="field">
-                                    <span class="label">สิ้นสุดประกันศูนย์</span> <span id="doc_officialWarrantyEnd"
-                                        class="dotted-line" style="width:120px;"></span>
-                                    <span class="label" style="margin-left: 10px;">มูลค่าเครื่อง</span> <span
-                                        id="doc_deviceValue" class="dotted-line" style="width:80px;"></span>
+                                    <span class="label">สิ้นสุดประกันศูนย์</span> 
+                                    <span id="doc_officialWarrantyEnd" class="dotted-line" style="width:120px;"></span>
+                                </div>
+                                <div class="field">
+                                    <span class="label">มูลค่าเครื่อง</span> 
+                                    <span id="doc_deviceValue" class="dotted-line" style="width:80px;"></span>
                                     <span class="label">บาท</span>
                                 </div>
                             </div>
@@ -706,6 +710,10 @@
                 document.getElementById('doc_capacity').textContent = data.device.capacity;
                 document.getElementById('doc_serial').textContent = data.device.serial;
                 document.getElementById('doc_imei').textContent = data.device.imei || '-';
+                let conditionText = '-';
+                if (data.device.deviceCondition === 'Second-hand') conditionText = 'มือ 2';
+                else if (data.device.deviceCondition === 'New') conditionText = 'มือ 1';
+                document.getElementById('doc_deviceCondition').textContent = conditionText;
                 const fullPrice = data.devicePrice || data.device.deviceValue || 0;
                 document.getElementById('doc_deviceValue').textContent = fullPrice ? fullPrice.toLocaleString() : '-';
                 document.getElementById('doc_officialWarrantyEnd').textContent = formatThaiDate(data.device.officialWarrantyEnd);

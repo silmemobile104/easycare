@@ -4078,3 +4078,17 @@ tr.new-row-highlight {
         font-size: 5rem !important;
     }
 }
+/* Device Condition Badges & Inspection Report */
+.condition-badge { display: inline-block; padding: 4px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: 600; margin-top: 4px; }
+.condition-new { background: #dcfce7; color: #16a34a; border: 1px solid #bbf7d0; }
+.condition-used { background: #fee2e2; color: #ef4444; border: 1px solid #fecaca; }
+.inspection-report { margin-top: 1.5rem; border-top: 1px dashed #cbd5e1; padding-top: 1rem; }
+.inspection-report h4 { font-size: 1rem; color: #334155; margin-bottom: 0.8rem; }
+.inspection-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+.inspection-table th, .inspection-table td { padding: 8px; border-bottom: 1px solid #f1f5f9; text-align: left; }
+.inspection-table th { background: #f8fafc; color: #64748b; font-weight: 600; }
+.insp-normal { color: #10b981; font-weight: 600; }
+.insp-abnormal { color: #ef4444; font-weight: 600; }
+.insp-thumb { width: 40px; height: 40px; object-fit: cover; border-radius: 4px; cursor: pointer; border: 1px solid #e2e8f0; }
+.insp-note { display: block; color: #64748b; font-size: 0.75rem; margin-top: 2px; }
+
