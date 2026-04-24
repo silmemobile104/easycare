@@ -574,6 +574,8 @@
                                     <ul class="coverage-list">
                                         <li>1. ความเสียหายที่เกิดจากอุบัติเหตุ เช่น ตกหล่น กระแทก
                                             ทำให้เกิดความเสียหายกระทบต่อเครื่องและการใช้งาน</li>
+                                        <li id="finance-only-coverage" style="display: none;">2. สิทธ์ความคุ้มครองและการเคลม จะเริ่มมีผลหลังจากลูกค้า
+                                            ชำระค่างวดในงวดแรกเรียบร้อยแล้วเท่านั้น</li>
                                     </ul>
                                 </div>
                                 <div class="coverage-section" style="margin-top: 20px;">
@@ -595,6 +597,7 @@
                                         <li>2. ค่าชดเชยจากการสูญเสียข้อมูล</li>
                                         <li>3. ความเสียหายที่เกิดจากตัวเครื่องเอง ไม่ได้เกิดจากอุบัติเหตุ ไม่รับเคลม</li>
                                         <li>4. ความเสียหายที่เกิดจากตกน้ำ หรือ ไฟไหม้</li>    
+                                        <li id="finance-only-exclusion" style="display: none;">5. กรณีลูกค้าค้างค่างวดมือถือ จะไม่สามารถเคลมได้</li>
                                     </ul>
                                 </div>
                                 <div class="coverage-section" style="margin-top: 20px;">
@@ -792,6 +795,13 @@
                     document.getElementById('doc_financeDay').textContent = financeDueDay;
                     document.getElementById('doc_financeMonths').textContent = financeMonths;
                     document.getElementById('doc_coverageAmountFinance').textContent = coverageValue.toLocaleString();
+
+                    // Show finance-only coverage clauses
+                    const financeClause = document.getElementById('finance-only-coverage');
+                    if (financeClause) financeClause.style.display = 'list-item';
+                    
+                    const financeExclusion = document.getElementById('finance-only-exclusion');
+                    if (financeExclusion) financeExclusion.style.display = 'list-item';
                 } else {
                     document.getElementById('sec_5_1').style.display = 'flex';
                     document.getElementById('sec_5_2').style.display = 'none';

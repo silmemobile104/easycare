@@ -1278,6 +1278,10 @@ document.addEventListener('DOMContentLoaded', () => {
             if (unpaidDisplayEl) {
                 unpaidDisplayEl.textContent = formatNumber(summary.totalUnpaidAmount || 0) + ' ฿';
             }
+            const receivedDisplayEl = document.getElementById('totalFinanceReceivedAmountDisplay');
+            if (receivedDisplayEl) {
+                receivedDisplayEl.textContent = formatNumber(summary.totalFinanceReceivedAmount || 0) + ' ฿';
+            }
             const changeDisplayEl = document.getElementById('totalChangeDisplay');
             if (changeDisplayEl) {
                 changeDisplayEl.textContent = formatNumber(summary.totalChange || 0) + ' ฿';
@@ -1310,6 +1314,33 @@ document.addEventListener('DOMContentLoaded', () => {
             hideLoader();
         }
     }
+
+    window.receiveFinanceAmount = async function(txId) {
+        const isConfirmed = await window.showConfirm(
+            'ยืนยันการรับยอด',
+            'คุณแน่ใจหรือไม่ว่าต้องการยืนยันการรับยอดจากไฟแนนซ์สำหรับรายการนี้?',
+            '✓ ยืนยันรับยอด',
+            'ยกเลิก'
+        );
+        if (!isConfirmed) return;
+        
+        try {
+            const res = await fetch(`/api/finance/transactions/${txId}/receive`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            const data = await res.json();
+            if (data.success) {
+                showAlert('success', 'บันทึกการรับยอดสำเร็จ');
+                fetchFinanceData(); // Refresh table
+            } else {
+                showAlert('error', data.message || 'เกิดข้อผิดพลาดในการรับยอด');
+            }
+        } catch (err) {
+            console.error(err);
+            showAlert('error', 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้');
+        }
+    };
 
     function applyFinanceIncomeFilter() {
         const searchVal = (document.getElementById('financeSearchInput') || {}).value?.toLowerCase().trim() || '';
@@ -1405,6 +1436,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         };
                         if (FINANCE_TOTALS[tx.packagePlan]) {
                             displayNetTotalText = formatNumber(FINANCE_TOTALS[tx.packagePlan]);
+                        }
+                        
+                        if (!tx.financeReceived) {
+                            displayNetTotalText += ` ฿<br><span style="color: #dc2626; font-size: 0.85em;">รอการชำระเงินจากไฟแนนซ์</span><br><button class="btn btn-sm" style="margin-top: 5px; padding: 2px 8px; font-size: 12px; background-color: #3b82f6; color: white; border-radius: 4px;" onclick="receiveFinanceAmount('${tx._id}')">รับยอด</button>`;
                         }
                     } else if (tx.actionType !== 'คืนเงินชดเชยสละสิทธิ์เครื่อง' && tx.actionType.startsWith('ชำระ')) {
                         const NORMAL_TOTALS = {

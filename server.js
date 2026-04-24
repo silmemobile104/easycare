@@ -395,6 +395,7 @@ const FinanceTransactionSchema = new mongoose.Schema({
     fullRevenue: { type: Number },
     financedAmount: { type: Number },
     financeDisplay: { type: String },
+    financeReceived: { type: Boolean, default: false },
     evidenceUrl: String,
     evidenceUrls: [String],
     recordedBy: String
@@ -3229,6 +3230,20 @@ app.get('/api/finance/transactions', async (req, res) => {
     }
 });
 
+app.put('/api/finance/transactions/:id/receive', async (req, res) => {
+    try {
+        const tx = await FinanceTransaction.findByIdAndUpdate(
+            req.params.id,
+            { financeReceived: true },
+            { new: true }
+        );
+        if (!tx) return res.status(404).json({ message: 'Transaction not found' });
+        res.json({ success: true, transaction: tx });
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
+
 app.get('/api/finance/summary', async (req, res) => {
     try {
         const aggr = await FinanceTransaction.aggregate([
@@ -3240,25 +3255,50 @@ app.get('/api/finance/summary', async (req, res) => {
                     totalChangeAmount: { $sum: "$changeAmount" },
                     totalTransferAmount: { $sum: "$transferAmount" },
                     totalRevenue: { $sum: { $ifNull: ["$fullRevenue", "$netTotal"] } },
-                    totalUnpaidAmount: { $sum: { $ifNull: ["$financedAmount", 0] } }
+                    totalUnpaidAmount: { 
+                        $sum: { 
+                            $cond: [
+                                { $eq: ["$financeReceived", true] }, 
+                                0, 
+                                { $ifNull: ["$financedAmount", 0] }
+                            ] 
+                        } 
+                    },
+                    totalFinanceReceivedAmount: {
+                        $sum: {
+                            $cond: [
+                                { $eq: ["$financeReceived", true] },
+                                { $ifNull: ["$financedAmount", 0] },
+                                0
+                            ]
+                        }
+                    }
                 }
             }
         ]);
 
         // Find fallback unpaid amounts for old records missing financedAmount
-        const oldFinanceTx = await FinanceTransaction.find({
+        const oldFinanceRecords = await FinanceTransaction.find({
             actionType: { $ne: 'คืนเงินชดเชยสละสิทธิ์เครื่อง' },
             financedAmount: { $exists: false },
             financeDisplay: { $exists: true, $ne: null }
         }).lean();
 
         let oldUnpaidAmount = 0;
-        oldFinanceTx.forEach(tx => {
+        let oldReceivedAmount = 0;
+        oldFinanceRecords.forEach(tx => {
+            let amount = 0;
             if (tx.financeDisplay && tx.financeDisplay.includes('(')) {
                 const match = tx.financeDisplay.match(/\(([^)]+)\)/);
-                if (match) {
-                    oldUnpaidAmount += parseFloat(match[1]) || 0;
-                }
+                if (match) amount = parseFloat(match[1]) || 0;
+            } else if (tx.financeDisplay) {
+                amount = parseFloat(tx.financeDisplay.replace(/[^0-9.]/g, '')) || 0;
+            }
+
+            if (tx.financeReceived === true) {
+                oldReceivedAmount += amount;
+            } else {
+                oldUnpaidAmount += amount;
             }
         });
 
@@ -3270,10 +3310,11 @@ app.get('/api/finance/summary', async (req, res) => {
                 totalTransfer: data.totalTransferAmount || 0,
                 totalRevenue: data.totalRevenue || 0,
                 totalChange: data.totalChangeAmount || 0,
-                totalUnpaidAmount: (data.totalUnpaidAmount || 0) + oldUnpaidAmount
+                totalUnpaidAmount: (data.totalUnpaidAmount || 0) + oldUnpaidAmount,
+                totalFinanceReceivedAmount: (data.totalFinanceReceivedAmount || 0) + oldReceivedAmount
             });
         } else {
-            res.json({ totalCash: 0, totalTransfer: 0, totalRevenue: 0, totalChange: 0, totalUnpaidAmount: 0 });
+            res.json({ totalCash: 0, totalTransfer: 0, totalRevenue: 0, totalChange: 0, totalUnpaidAmount: oldUnpaidAmount, totalFinanceReceivedAmount: oldReceivedAmount });
         }
     } catch (err) {
         res.status(500).json({ message: err.message });
