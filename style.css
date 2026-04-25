@@ -1768,6 +1768,38 @@ tbody tr:last-child td {
 }
 
 /* ═══════════════════════════════════════════════════════════════════
+   STICKY COLUMNS (Freeze Panes)
+═══════════════════════════════════════════════════════════════════ */
+
+.table-responsive th:first-child, 
+.table-responsive td:first-child {
+    position: sticky;
+    left: 0;
+    background-color: #fff;
+    z-index: 10;
+    box-shadow: 2px 0 5px -2px rgba(0,0,0,0.2);
+}
+
+.table-responsive th:first-child {
+    background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+    z-index: 15;
+}
+
+.table-responsive th:last-child, 
+.table-responsive td:last-child {
+    position: sticky;
+    right: 0;
+    background-color: #fff;
+    z-index: 10;
+    box-shadow: -2px 0 5px -2px rgba(0,0,0,0.2);
+}
+
+.table-responsive th:last-child {
+    background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+    z-index: 15;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
    STATUS BADGES - Pill Style with Glow
 ═══════════════════════════════════════════════════════════════════ */
 
@@ -2159,6 +2191,12 @@ body.sidebar-open {
     overflow: hidden;
 }
 
+.table-responsive {
+    cursor: grab;
+}
+.table-responsive:active {
+    cursor: grabbing;
+}
 .table-responsive {
     width: 100%;
     overflow-x: auto;

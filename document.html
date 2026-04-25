@@ -326,7 +326,7 @@
                     <div class="col w-40">
                         <span class="section-title">สถานที่ตั้งบริษัท</span>
                         <div class="address-box">
-                            62 ถนนพิพิธภักดี ตำบลสะเตง อำเภอเมืองยะลา จังหวัดยะลา
+                            154 ถนนถิระรมย์ ตำบลสะเตง อำเภอเมืองยะลา จังหวัดยะลา 95000
                         </div>
                     </div>
                 </div>
@@ -578,8 +578,12 @@
                                     <ul class="coverage-list">
                                         <li>1. ความเสียหายที่เกิดจากอุบัติเหตุ เช่น ตกหล่น กระแทก
                                             ทำให้เกิดความเสียหายกระทบต่อเครื่องและการใช้งาน</li>
-                                        <li id="finance-only-coverage" style="display: none;">2. สิทธ์ความคุ้มครองและการเคลม จะเริ่มมีผลหลังจากลูกค้า
+                                        <li id="finance-only-coverage" style="display: none;">2. สิทธ์ความคุ้มครองและการเคลม
+                                            จะเริ่มมีผลหลังจากลูกค้า
                                             ชำระค่างวดในงวดแรกเรียบร้อยแล้วเท่านั้น</li>
+                                        <li id="second-hand-coverage" style="display: none;">3. กรณีเป็นเครื่องมือสอง จะต้องเป็นเครื่องที่ไม่เคยผ่านการแกะมาก่อน
+                                            หากตรวจสอบแล้วทราบหลังจากวันที่ทำสัญญาไปแล้วว่าเครื่องเคยถูกแกะจะถือว่าสัญญา
+                                            เป็นโมฆะทันที</li>
                                     </ul>
                                 </div>
                                 <div class="coverage-section" style="margin-top: 20px;">
@@ -711,8 +715,14 @@
                 document.getElementById('doc_serial').textContent = data.device.serial;
                 document.getElementById('doc_imei').textContent = data.device.imei || '-';
                 let conditionText = '-';
-                if (data.device.deviceCondition === 'Second-hand') conditionText = 'มือ 2';
-                else if (data.device.deviceCondition === 'New') conditionText = 'มือ 1';
+                const secondHandCoverage = document.getElementById('second-hand-coverage');
+                if (data.device.deviceCondition === 'Second-hand') {
+                    conditionText = 'มือ 2';
+                    if (secondHandCoverage) secondHandCoverage.style.display = 'list-item';
+                } else if (data.device.deviceCondition === 'New') {
+                    conditionText = 'มือ 1';
+                    if (secondHandCoverage) secondHandCoverage.style.display = 'none';
+                }
                 document.getElementById('doc_deviceCondition').textContent = conditionText;
                 const fullPrice = data.devicePrice || data.device.deviceValue || 0;
                 document.getElementById('doc_deviceValue').textContent = fullPrice ? fullPrice.toLocaleString() : '-';

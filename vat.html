@@ -204,7 +204,7 @@
         <div class="header">
             <h1 id="companyName">EASY.CARE</h1>
             <p>บริษัท อีซี่แคร์ จำกัด</p>
-            <p>เลขที่ 62 ถนนพิพิธภักดี ตำบลสะเตง</p>
+            <p>เลขที่ 154 ถนนถิระรมย์ ตำบลสะเตง</p>
             <p>อำเภอเมือง จังหวัดยะลา 95000</p>
             <p>เลขประจำตัวผู้เสียภาษี: 1930400058472</p>
         </div>
@@ -278,7 +278,7 @@
                     <span id="displayVatAmt">0.00</span>
                 </div>
             </div>
-            <div class="total-row grand-total">
+            <div class="total-row grand-total" id="grandTotalSection">
                 <span>ยอดชำระสุทธิ (Total Amount):</span>
                 <span id="displayTotal">0.00</span>
             </div>
@@ -375,12 +375,23 @@
 
         function updateDocType() {
             const vatSection = document.getElementById('vatSection');
+            const grandTotalSection = document.getElementById('grandTotalSection');
             const displayDocTitle = document.getElementById('displayDocTitle');
 
             const total = receiptData.amount;
+            const desc = receiptData.description || '';
+            const isFinance = desc.includes('ไฟแนนซ์') || desc.includes('ดาวน์');
+
+            if (isFinance) {
+                displayDocTitle.textContent = 'ใบยืนยันความคุ้มครอง';
+                vatSection.style.display = 'none';
+                if (grandTotalSection) grandTotalSection.style.display = 'none';
+                return;
+            }
 
             displayDocTitle.textContent = 'ใบกำกับภาษี / TAX INVOICE';
             vatSection.style.display = 'block';
+            if (grandTotalSection) grandTotalSection.style.display = 'flex';
 
             const preVat = total / 1.07;
             const vatAmt = total - preVat;

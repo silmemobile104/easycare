@@ -2254,9 +2254,11 @@ document.addEventListener('DOMContentLoaded', () => {
                                 </button>`;
                     }
                 })()}
+                        ${(currentUser && currentUser.role === 'admin') ? `
                         <button class="delete-btn" data-id="${r._id}" title="ลบข้อมูล" style="color: #ef4444;">
                             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
                         </button>
+                        ` : ''}
                     </div>
                 </td>
             </tr>
@@ -2330,7 +2332,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // Show view first to ensure elements are available
             showView('registration');
 
-            // Populate Form
+            // === Section 01: ข้อมูลสมาชิก ===
             document.getElementById('policyNumber').value = data.policyNumber || '';
             document.getElementById('memberId').value = data.memberId;
             document.getElementById('firstName').value = data.customer.firstName || '';
@@ -2343,24 +2345,90 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('dobYear').value = dob.getFullYear() + 543; // To B.E.
                 updateAge();
             }
-            document.getElementById('address').value = data.customer.address;
-            document.getElementById('productType').value = data.device.type;
+            document.getElementById('address').value = data.customer.address || '';
+
+            // === Section 02: รายละเอียดอุปกรณ์ ===
+            // สภาพเครื่อง
             const deviceConditionEl = document.getElementById('deviceCondition');
             if (deviceConditionEl) {
                 deviceConditionEl.value = data.device.deviceCondition || 'New';
-                // Trigger change to show/hide checklist container
                 deviceConditionEl.dispatchEvent(new Event('change'));
             }
+
+            // ประเภทสินค้า
+            document.getElementById('productType').value = data.device.type;
             toggleIMEIField();
             updateModelOptions(data.device.model);
+
+            // สี, ความจุ, Serial, IMEI
             document.getElementById('color').value = data.device.color;
             document.getElementById('capacity').value = data.device.capacity;
             document.getElementById('serialNumber').value = data.device.serial;
             document.getElementById('imei').value = data.device.imei || '';
-            document.getElementById('deviceValue').value = data.device.deviceValue || '';
+
+            // วันสิ้นสุดประกันศูนย์
             document.getElementById('officialWarrantyEnd').value = formatDate(data.device.officialWarrantyEnd);
 
-            // Set Protection Type based on Plan name
+            // ราคาเครื่องเต็ม ณ ปัจจุบัน
+            const fullDevicePriceEl = document.getElementById('fullDevicePrice');
+            if (fullDevicePriceEl) {
+                fullDevicePriceEl.value = data.devicePrice || data.device.deviceValue || '';
+            }
+
+            // ราคา 70%
+            document.getElementById('deviceValue').value = data.device.deviceValue || '';
+
+            // แสดงรูปภาพเดิมของเครื่อง (Device Images Preview)
+            const deviceImagesPreview = document.getElementById('deviceImagesPreview');
+            if (deviceImagesPreview && data.device.images && data.device.images.length > 0) {
+                deviceImagesPreview.innerHTML = data.device.images.map((url, idx) => `
+                    <div style="position: relative; display: inline-block;">
+                        <img src="${url}" alt="รูปเครื่อง ${idx + 1}" style="width: 80px; height: 80px; object-fit: cover; border-radius: 6px; border: 2px solid #e2e8f0; cursor: pointer;" onclick="window.open('${url}', '_blank')">
+                        <span style="position: absolute; bottom: -18px; left: 0; right: 0; text-align: center; font-size: 0.65rem; color: #64748b;">รูปเดิม</span>
+                    </div>
+                `).join('');
+            }
+
+            // Populate Inspection Checklist สำหรับเครื่องมือ 2
+            if (data.device.deviceCondition === 'Second-hand' && data.device.inspectionResult && data.device.inspectionResult.length > 0) {
+                setTimeout(() => {
+                    data.device.inspectionResult.forEach(res => {
+                        const itemConf = checklistItems.find(c => c.label === res.item);
+                        if (!itemConf) return;
+                        const key = itemConf.key;
+                        const row = document.getElementById(`reg_cond_row_${key}`);
+                        const btnNormal = document.getElementById(`reg_btn_normal_${key}`);
+                        const btnAbnormal = document.getElementById(`reg_btn_abnormal_${key}`);
+                        const reasonDiv = document.getElementById(`reg_reason_${key}`);
+                        const descInput = document.getElementById(`reg_desc_${key}`);
+
+                        if (res.status === 'Normal') {
+                            if (btnNormal) btnNormal.click();
+                        } else if (res.status === 'Abnormal') {
+                            if (btnAbnormal) btnAbnormal.click();
+                            if (descInput) descInput.value = res.description || '';
+                            // แสดงรูปภาพเดิมของ inspection
+                            if (res.imageUrl && reasonDiv) {
+                                let imgPreview = document.getElementById(`reg_img_preview_${key}`);
+                                if (!imgPreview) {
+                                    imgPreview = document.createElement('div');
+                                    imgPreview.id = `reg_img_preview_${key}`;
+                                    imgPreview.style.cssText = 'margin-top: 8px;';
+                                    imgPreview.innerHTML = `
+                                        <p style="font-size: 0.75rem; color: #64748b; margin: 0 0 4px 0;">📷 รูปภาพเดิม:</p>
+                                        <img src="${res.imageUrl}" alt="รูปตรวจสภาพ" style="max-width: 120px; max-height: 120px; border-radius: 6px; border: 1px solid #e2e8f0; cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.1);" onclick="window.open('${res.imageUrl}', '_blank')">
+                                    `;
+                                    reasonDiv.appendChild(imgPreview);
+                                }
+                            }
+                        }
+                        // เก็บ status ไว้ใน row dataset
+                        if (row) row.dataset.status = res.status;
+                    });
+                }, 150);
+            }
+
+            // === Section 03: การคุ้มครองและแพ็กเกจ ===
             const planName = data.package.plan;
             if (['Plan A', 'Plan B', 'Plan C', 'Plan D', 'Package 1', 'Package 2', 'Package 3', 'Package 4', 'Package 5', 'Package 6', 'Package 7', 'Package 8', 'Package 9', 'Package 10'].includes(planName)) {
                 document.getElementById('protectionType').value = 'Full';
@@ -2373,11 +2441,12 @@ document.addEventListener('DOMContentLoaded', () => {
             updatePackageOptions();
             document.getElementById('package').value = planName;
 
+            // วันที่คุ้มครอง
             document.getElementById('startDate').value = data.warrantyDates.start;
             document.getElementById('endDate').value = data.warrantyDates.end;
             updateDateDisplay();
 
-            // Set payment method
+            // วิธีการชำระเงิน
             const paymentRadio = document.querySelector(`input[name="paymentMethod"][value="${data.payment.method}"]`);
             if (paymentRadio) paymentRadio.checked = true;
 
@@ -2394,7 +2463,7 @@ document.addEventListener('DOMContentLoaded', () => {
             updatePaymentUI();
             populateShopsDropdown(data.shopName);
 
-            // Show Payment Management Section
+            // === Section 04: จัดการการชำระเงิน ===
             const pmSection = document.getElementById('paymentManagementSection');
             if (pmSection) pmSection.style.display = 'block';
 
@@ -6833,9 +6902,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     <!-- Device Condition Badge -->
                     <div style="text-align: center; margin-bottom: 15px;">
-                        ${w.device?.deviceCondition === 'Second-hand' 
-                            ? '<span class="condition-badge condition-used"><i class="fas fa-mobile-alt"></i> สภาพเครื่อง: มือ 2 (Second-hand)</span>'
-                            : '<span class="condition-badge condition-new"><i class="fas fa-box"></i> สภาพเครื่อง: มือ 1 (New Device)</span>'}
+                        ${w.device?.deviceCondition === 'Second-hand'
+                        ? '<span class="condition-badge condition-used"><i class="fas fa-mobile-alt"></i> สภาพเครื่อง: มือ 2 (Second-hand)</span>'
+                        : '<span class="condition-badge condition-new"><i class="fas fa-box"></i> สภาพเครื่อง: มือ 1 (New Device)</span>'}
                     </div>
 
                     <!-- Inspection Report Section for Second-hand -->
@@ -6858,9 +6927,9 @@ document.addEventListener('DOMContentLoaded', () => {
                                         <tr>
                                             <td style="font-weight: 500;">${escapeHtml(res.item || '-')}</td>
                                             <td style="text-align: center;">
-                                                ${res.status === 'Normal' 
-                                                    ? '<span class="insp-normal"><i class="fas fa-check-circle"></i> ปกติ</span>' 
-                                                    : '<span class="insp-abnormal"><i class="fas fa-times-circle"></i> ไม่ปกติ</span>'}
+                                                ${res.status === 'Normal'
+                                ? '<span class="insp-normal"><i class="fas fa-check-circle"></i> ปกติ</span>'
+                                : '<span class="insp-abnormal"><i class="fas fa-times-circle"></i> ไม่ปกติ</span>'}
                                             </td>
                                             <td>
                                                 ${res.status === 'Abnormal' ? `
@@ -8353,5 +8422,35 @@ document.addEventListener('DOMContentLoaded', () => {
             deviceValueInput.dispatchEvent(new Event('input'));
         });
     }
+
+    // Drag to scroll functionality for tables
+    const sliders = document.querySelectorAll('.table-responsive');
+    sliders.forEach(slider => {
+        let isDown = false;
+        let startX;
+        let scrollLeft;
+
+        slider.addEventListener('mousedown', (e) => {
+            isDown = true;
+            startX = e.pageX - slider.offsetLeft;
+            scrollLeft = slider.scrollLeft;
+        });
+
+        slider.addEventListener('mouseleave', () => {
+            isDown = false;
+        });
+
+        slider.addEventListener('mouseup', () => {
+            isDown = false;
+        });
+
+        slider.addEventListener('mousemove', (e) => {
+            if (!isDown) return;
+            e.preventDefault();
+            const x = e.pageX - slider.offsetLeft;
+            const walk = (x - startX) * 1.5; // Scroll-fast multiplier
+            slider.scrollLeft = scrollLeft - walk;
+        });
+    });
 
 });
