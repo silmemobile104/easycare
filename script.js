@@ -6753,15 +6753,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     <td data-label="แพ็กเกจ">${w.package?.plan || '-'} (${w.package?.price?.toLocaleString() || 0} บาท)</td>
                     <td data-label="ร้านค้า">${w.shopName || '-'}</td>
                     <td data-label="สถานะ"><span class="status-badge ${st.class}">${st.text}</span></td>
-                    <td data-label="ตรวจสอบซ้ำ" style="text-align: center;">
-                        ${(w.approvalStatus === 'approved' || w.approvalStatus === 'Approved_Paid' || w.approvalStatus === 'Approved_Unpaid') ? `
-                        <button type="button" 
-                                onclick="toggleRecheck('${w._id}', ${w.reChecked ? 'false' : 'true'}, this)" 
-                                style="background: none; border: none; cursor: pointer; font-size: 1.2rem; transition: transform 0.2s;" 
-                                title="${w.reChecked ? 'ยกเลิกการตรวจสอบ' : 'คลิกเพื่อทำเครื่องหมายว่าตรวจสอบแล้ว'}">
-                            ${w.reChecked ? '✅' : '⬜'}
-                        </button>
-                        ` : '-'}
+                    <td data-label="ตรวจสอบซ้ำ" style="text-align: center; font-size: 1.2rem;">
+                        ${(w.approvalStatus === 'approved' || w.approvalStatus === 'Approved_Paid' || w.approvalStatus === 'Approved_Unpaid') ? (w.reChecked ? '✅' : '<span style="color: #cbd5e1;">⬜</span>') : '-'}
                     </td>
                     <td data-label="ดำเนินการ">
                         <div class="approval-actions">
@@ -6881,39 +6874,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Actions ---
     // Make functions globally available for inline onclick
-    window.toggleRecheck = async function (id, reChecked, btnEl) {
-        try {
-            // Optional: Show loading state on button
-            const originalHtml = btnEl.innerHTML;
-            btnEl.innerHTML = '⏳';
-            btnEl.style.pointerEvents = 'none';
-
-            const res = await fetch(`/api/warranties/${id}/recheck`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ reChecked: reChecked })
-            });
-            const data = await res.json();
-            
-            if (data.success) {
-                // Update local data
-                const w = approvalAllWarranties.find(r => r._id === id);
-                if (w) w.reChecked = data.reChecked;
-                
-                // Re-render table to reflect changes (including row highlight)
-                renderApprovalTable(approvalAllWarranties);
-            } else {
-                showAlert('error', data.message || 'ไม่สามารถอัปเดตสถานะการตรวจสอบได้');
-                btnEl.innerHTML = originalHtml;
-                btnEl.style.pointerEvents = 'auto';
-            }
-        } catch (err) {
-            console.error('Toggle recheck error:', err);
-            showAlert('error', 'เกิดข้อผิดพลาดในการเชื่อมต่อ');
-            btnEl.innerHTML = originalHtml;
-            btnEl.style.pointerEvents = 'auto';
-        }
-    };
     window.viewApprovalDetails = function (id) {
         console.log('viewApprovalDetails called with id:', id);
         try {
@@ -7140,7 +7100,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         ` : ''}
                     </div>
 
-                    <div style="display:flex; justify-content:center; gap:10px; margin-top: 14px;">
+                    <div style="display:flex; justify-content:center; gap:10px; margin-top: 14px; flex-wrap: wrap;">
+                        ${(w.approvalStatus === 'approved' || w.approvalStatus === 'Approved_Paid' || w.approvalStatus === 'Approved_Unpaid') ? `
+                        <button type="button" id="approvalRecheckBtn" class="submit-btn"
+                            style="width:auto; padding: 10px 14px; background: ${w.reChecked ? 'linear-gradient(135deg, #64748b, #475569)' : 'linear-gradient(135deg, #10b981, #059669)'};">
+                            ${w.reChecked ? '❌ ยกเลิกการตรวจสอบซ้ำ' : '✅ ตรวจสอบซ้ำ'}
+                        </button>
+                        ` : ''}
                         ${w.approvalStatus === 'pending' ? `
                         <button type="button" id="approvalEditBtn" class="submit-btn"
                             style="width:auto; padding: 10px 14px; background: linear-gradient(135deg, #f59e0b, #d97706); margin-right: 5px;">
@@ -7165,6 +7131,43 @@ document.addEventListener('DOMContentLoaded', () => {
                 showConfirmButton: true,
                 confirmButtonText: 'ปิด',
                 didOpen: () => {
+                    const recheckBtn = document.getElementById('approvalRecheckBtn');
+                    if (recheckBtn) {
+                        recheckBtn.addEventListener('click', async () => {
+                            const newRechecked = !w.reChecked;
+                            const originalHtml = recheckBtn.innerHTML;
+                            recheckBtn.innerHTML = '⏳ กำลังดำเนินการ...';
+                            recheckBtn.style.pointerEvents = 'none';
+
+                            try {
+                                const res = await fetch(`/api/warranties/${w._id}/recheck`, {
+                                    method: 'PATCH',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ reChecked: newRechecked })
+                                });
+                                const data = await res.json();
+                                
+                                if (data.success) {
+                                    w.reChecked = data.reChecked;
+                                    renderApprovalTable(approvalAllWarranties);
+                                    
+                                    recheckBtn.innerHTML = w.reChecked ? '❌ ยกเลิกการตรวจสอบซ้ำ' : '✅ ตรวจสอบซ้ำ';
+                                    recheckBtn.style.background = w.reChecked ? 'linear-gradient(135deg, #64748b, #475569)' : 'linear-gradient(135deg, #10b981, #059669)';
+                                    recheckBtn.style.pointerEvents = 'auto';
+                                } else {
+                                    showAlert('error', data.message || 'ไม่สามารถอัปเดตสถานะการตรวจสอบได้');
+                                    recheckBtn.innerHTML = originalHtml;
+                                    recheckBtn.style.pointerEvents = 'auto';
+                                }
+                            } catch (err) {
+                                console.error('Toggle recheck error:', err);
+                                showAlert('error', 'เกิดข้อผิดพลาดในการเชื่อมต่อ');
+                                recheckBtn.innerHTML = originalHtml;
+                                recheckBtn.style.pointerEvents = 'auto';
+                            }
+                        });
+                    }
+
                     const btn = document.getElementById('approvalPrintContractBtn');
                     if (btn) {
                         btn.addEventListener('click', () => {
