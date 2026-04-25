@@ -505,7 +505,7 @@
                     <div class="col w-100">
                         <div class="field">
                             <span class="label">5.3 กดขายไฟแนนซ์ SG</span>
-                            <span id="doc_packagePrice_sec6" style="font-weight: bold; margin-left: 5px;"></span>
+                            <span id="doc_packagePrice_forfinance" style="font-weight: bold; margin-left: 5px;"></span>
                             <span class="label" style="margin-left: 5px;">บาท</span>
                         </div>
                         <div class="field">
@@ -759,6 +759,7 @@
                 document.getElementById('doc_packagePrice').textContent = coverageValue.toLocaleString();
                 document.getElementById('doc_packagePlan_sec6').textContent = data.package.plan;
                 document.getElementById('doc_packagePrice_sec6').textContent = packagePrice.toLocaleString();
+                document.getElementById('doc_packagePrice_forfinance').textContent = packagePrice.toLocaleString();
                 document.getElementById('doc_deviceValue_sec6').textContent = coverageValue.toLocaleString();
 
                 // Payment Method & Coverage logic
