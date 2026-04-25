@@ -226,7 +226,9 @@ const WarrantySchema = new mongoose.Schema({
     rejectReason: String,
     rejectBy: String,
     rejectDate: Date,
-    claimStatus: { type: String, default: 'normal', enum: ['normal', 'pending', 'completed'] }
+    claimStatus: { type: String, default: 'normal', enum: ['normal', 'pending', 'completed'] },
+    reChecked: { type: Boolean, default: false },
+    reCheckedAt: Date
 }, { timestamps: true });
 
 WarrantySchema.virtual('maxLimit').get(function () {
@@ -2658,6 +2660,24 @@ app.get('/api/warranties/check-duplicate', async (req, res) => {
     }
 });
 
+// Re-check toggle endpoint
+app.patch('/api/warranties/:id/recheck', async (req, res) => {
+    try {
+        const { reChecked } = req.body;
+        const warranty = await Warranty.findById(req.params.id);
+        if (!warranty) return res.status(404).json({ success: false, message: 'Warranty not found' });
+        
+        warranty.reChecked = reChecked;
+        warranty.reCheckedAt = reChecked ? new Date() : null;
+        await warranty.save();
+        
+        res.json({ success: true, reChecked: warranty.reChecked });
+    } catch (err) {
+        console.error('Toggle Re-check Error:', err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
 // Get active warranties only (approved) — for claim menu, including expired
 app.get('/api/warranties/active', async (req, res) => {
     try {
@@ -2940,8 +2960,8 @@ app.patch('/api/warranties/:id/payment', async (req, res) => {
             if (isFinance) {
                 actType = 'ชำระงวดผ่อนด้วยไฟแนนซ์';
                 const FINANCE_TOTALS = {
-                    'Package 1': 700, 'Package 2': 900, 'Package 3': 1100, 'Package 4': 1300, 'Package 5': 1500,
-                    'Package 6': 1700, 'Package 7': 1900, 'Package 8': 2100, 'Package 9': 2300, 'Package 10': 2500
+                    'Package 1': 699, 'Package 2': 899, 'Package 3': 1099, 'Package 4': 1299, 'Package 5': 1499,
+                    'Package 6': 1699, 'Package 7': 1899, 'Package 8': 2099, 'Package 9': 2299, 'Package 10': 2499
                 };
                 if (planName && FINANCE_TOTALS[planName]) {
                     transactionFullRevenue = FINANCE_TOTALS[planName];

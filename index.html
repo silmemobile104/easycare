@@ -2317,6 +2317,7 @@
                                         <th>แพ็กเกจ</th>
                                         <th>ร้านค้า</th>
                                         <th>สถานะ</th>
+                                        <th>ตรวจสอบซ้ำ</th>
                                         <th>ดำเนินการ</th>
                                     </tr>
                                 </thead>
@@ -2425,8 +2426,8 @@
                         </div>
                         <div class="form-group">
                             <label>รุ่น (Model)</label>
-                            <select id="model" required>
-                                <option value="" disabled selected>เลือก</option>
+                            <input type="text" id="model" list="modelList" placeholder="เลือกรุ่น หรือพิมพ์เพิ่มใหม่" autocomplete="off" required>
+                            <datalist id="modelList">
                                 <option value="iPhone 13">iPhone 13</option>
                                 <option value="iPhone 13 Pro">iPhone 13 Pro</option>
                                 <option value="iPhone 13 Pro Max">iPhone 13 Pro Max</option>
@@ -2447,12 +2448,12 @@
                                 <option value="iPhone 17 Pro Max">iPhone 17 Pro Max</option>
                                 <option value="iPad Gen11">iPad Gen11</option>
                                 <option value="iPad Air7">iPad Air7</option>
-                            </select>
+                            </datalist>
                         </div>
                         <div class="form-group">
                             <label>สี (Color)</label>
-                            <select id="color" required>
-                                <option value="" disabled selected>เลือกสี</option>
+                            <input type="text" id="color" list="colorList" placeholder="เลือกสี หรือพิมพ์เพิ่มใหม่" autocomplete="off" required>
+                            <datalist id="colorList">
                                 <option value="สีดำ">สีดำ (Black)</option>
                                 <option value="สีขาว">สีขาว (White)</option>
                                 <option value="บลู">บลู (Blue)</option>
@@ -2466,7 +2467,7 @@
                                 <option value="ทะเลทราย">ทะเลทราย (Desert)</option>
                                 <option value="ไทเทเนียมทะเลทราย">ไทเทเนียมทะเลทราย (Desert Titanium)</option>
                                 <option value="ไวท์ไทเทเนียม">ไวท์ไทเทเนียม (White Titanium)</option>
-                            </select>
+                            </datalist>
                         </div>
                         <div class="form-group">
                             <label>ความจุ (Capacity)</label>

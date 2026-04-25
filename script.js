@@ -1431,8 +1431,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (tx.packagePlan) {
                 if (tx.actionType === 'ชำระงวดผ่อนด้วยไฟแนนซ์') {
                     const FINANCE_TOTALS = {
-                        'Package 1': 700, 'Package 2': 900, 'Package 3': 1100, 'Package 4': 1300, 'Package 5': 1500,
-                        'Package 6': 1700, 'Package 7': 1900, 'Package 8': 2100, 'Package 9': 2300, 'Package 10': 2500
+                        'Package 1': 699, 'Package 2': 899, 'Package 3': 1099, 'Package 4': 1299, 'Package 5': 1499,
+                        'Package 6': 1699, 'Package 7': 1899, 'Package 8': 2099, 'Package 9': 2299, 'Package 10': 2499
                     };
                     if (FINANCE_TOTALS[tx.packagePlan]) {
                         displayNetTotalText = formatNumber(FINANCE_TOTALS[tx.packagePlan]);
@@ -1442,12 +1442,18 @@ document.addEventListener('DOMContentLoaded', () => {
                         displayNetTotalText += ` ฿<br><span style="color: #dc2626; font-size: 0.85em;">รอการชำระเงินจากไฟแนนซ์</span><br><button class="btn btn-sm" style="margin-top: 5px; padding: 2px 8px; font-size: 12px; background-color: #3b82f6; color: white; border-radius: 4px;" onclick="receiveFinanceAmount('${tx._id}')">รับยอด</button>`;
                     }
                 } else if (tx.actionType !== 'คืนเงินชดเชยสละสิทธิ์เครื่อง' && tx.actionType.startsWith('ชำระ')) {
-                    const NORMAL_TOTALS = {
-                        'Package 1': 699, 'Package 2': 899, 'Package 3': 1099, 'Package 4': 1299, 'Package 5': 1499,
-                        'Package 6': 1699, 'Package 7': 1899, 'Package 8': 2099, 'Package 9': 2299, 'Package 10': 2499
-                    };
-                    if (NORMAL_TOTALS[tx.packagePlan]) {
-                        displayNetTotalText = formatNumber(NORMAL_TOTALS[tx.packagePlan]);
+                    // สำหรับรายการ "ชำระค่างวดที่" ให้แสดงยอดที่รับจริง (เงินสด + โอน - ทอน)
+                    if (tx.actionType.includes('ชำระค่างวดที่')) {
+                        const actualReceived = (tx.cashReceived || 0) + (tx.transferAmount || 0) - (tx.changeAmount || 0);
+                        displayNetTotalText = formatNumber(actualReceived);
+                    } else {
+                        const NORMAL_TOTALS = {
+                            'Package 1': 699, 'Package 2': 899, 'Package 3': 1099, 'Package 4': 1299, 'Package 5': 1499,
+                            'Package 6': 1699, 'Package 7': 1899, 'Package 8': 2099, 'Package 9': 2299, 'Package 10': 2499
+                        };
+                        if (NORMAL_TOTALS[tx.packagePlan]) {
+                            displayNetTotalText = formatNumber(NORMAL_TOTALS[tx.packagePlan]);
+                        }
                     }
                 }
             }
@@ -6737,7 +6743,7 @@ document.addEventListener('DOMContentLoaded', () => {
             } else if (w.approvalStatus === 'rejected') {
                 st = { text: 'ไม่อนุมัติ', class: 'rejected' };
             }
-            const rowClass = highlightSet.has(w._id) ? ' class="new-row-highlight"' : '';
+            const rowClass = highlightSet.has(w._id) ? ' class="new-row-highlight"' : (w.reChecked ? ' style="background-color: #ecfdf5;"' : '');
 
             return `
                 <tr${rowClass}>
@@ -6747,6 +6753,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     <td data-label="แพ็กเกจ">${w.package?.plan || '-'} (${w.package?.price?.toLocaleString() || 0} บาท)</td>
                     <td data-label="ร้านค้า">${w.shopName || '-'}</td>
                     <td data-label="สถานะ"><span class="status-badge ${st.class}">${st.text}</span></td>
+                    <td data-label="ตรวจสอบซ้ำ" style="text-align: center;">
+                        ${(w.approvalStatus === 'approved' || w.approvalStatus === 'Approved_Paid' || w.approvalStatus === 'Approved_Unpaid') ? `
+                        <button type="button" 
+                                onclick="toggleRecheck('${w._id}', ${w.reChecked ? 'false' : 'true'}, this)" 
+                                style="background: none; border: none; cursor: pointer; font-size: 1.2rem; transition: transform 0.2s;" 
+                                title="${w.reChecked ? 'ยกเลิกการตรวจสอบ' : 'คลิกเพื่อทำเครื่องหมายว่าตรวจสอบแล้ว'}">
+                            ${w.reChecked ? '✅' : '⬜'}
+                        </button>
+                        ` : '-'}
+                    </td>
                     <td data-label="ดำเนินการ">
                         <div class="approval-actions">
                             <button class="btn-view" onclick="viewApprovalDetails('${w._id}')">👁 ดูรายละเอียด</button>
@@ -6865,6 +6881,39 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Actions ---
     // Make functions globally available for inline onclick
+    window.toggleRecheck = async function (id, reChecked, btnEl) {
+        try {
+            // Optional: Show loading state on button
+            const originalHtml = btnEl.innerHTML;
+            btnEl.innerHTML = '⏳';
+            btnEl.style.pointerEvents = 'none';
+
+            const res = await fetch(`/api/warranties/${id}/recheck`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ reChecked: reChecked })
+            });
+            const data = await res.json();
+            
+            if (data.success) {
+                // Update local data
+                const w = approvalAllWarranties.find(r => r._id === id);
+                if (w) w.reChecked = data.reChecked;
+                
+                // Re-render table to reflect changes (including row highlight)
+                renderApprovalTable(approvalAllWarranties);
+            } else {
+                showAlert('error', data.message || 'ไม่สามารถอัปเดตสถานะการตรวจสอบได้');
+                btnEl.innerHTML = originalHtml;
+                btnEl.style.pointerEvents = 'auto';
+            }
+        } catch (err) {
+            console.error('Toggle recheck error:', err);
+            showAlert('error', 'เกิดข้อผิดพลาดในการเชื่อมต่อ');
+            btnEl.innerHTML = originalHtml;
+            btnEl.style.pointerEvents = 'auto';
+        }
+    };
     window.viewApprovalDetails = function (id) {
         console.log('viewApprovalDetails called with id:', id);
         try {
