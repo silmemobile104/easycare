@@ -2262,8 +2262,15 @@ app.post('/api/warranties', async (req, res) => {
             if (!existingPolicy) isUnique = true;
         }
 
-        const existingSerial = await Warranty.findOne({ 'device.serial': device.serial });
-        if (existingSerial) return res.status(400).json({ message: 'เรือนนี้ได้ลงทะเบียนไปแล้ว (Serial Number already registered)' });
+        if (device && device.serial) {
+            const existingSerial = await Warranty.findOne({ 'device.serial': device.serial, approvalStatus: { $ne: 'rejected' } });
+            if (existingSerial) return res.status(400).json({ message: 'Serial นี้ถูกลงทะเบียนแล้วและไม่ได้อยู่ในสถานะไม่อนุมัติ' });
+        }
+
+        if (device && device.imei) {
+            const existingImei = await Warranty.findOne({ 'device.imei': device.imei, approvalStatus: { $ne: 'rejected' } });
+            if (existingImei) return res.status(400).json({ message: 'IMEI นี้ถูกลงทะเบียนแล้วและไม่ได้อยู่ในสถานะไม่อนุมัติ' });
+        }
 
         const newWarranty = new Warranty({
             ...req.body,
@@ -2648,6 +2655,9 @@ app.get('/api/warranties/check-duplicate', async (req, res) => {
             return res.status(400).json({ message: 'Invalid type' });
         }
 
+        // Exclude rejected items from duplicates
+        query.approvalStatus = { $ne: 'rejected' };
+
         // If editing, exclude the current record
         if (excludeId && mongoose.Types.ObjectId.isValid(excludeId)) {
             query._id = { $ne: excludeId };
@@ -2848,6 +2858,17 @@ app.put('/api/warranties/:id', async (req, res) => {
     try {
         const { memberId, ...updateData } = req.body;
         // memberId is immutable as per requirement
+
+        if (updateData.device) {
+            if (updateData.device.serial) {
+                const existingSerial = await Warranty.findOne({ _id: { $ne: req.params.id }, 'device.serial': updateData.device.serial, approvalStatus: { $ne: 'rejected' } });
+                if (existingSerial) return res.status(400).json({ message: 'Serial นี้ถูกลงทะเบียนแล้วและไม่ได้อยู่ในสถานะไม่อนุมัติ' });
+            }
+            if (updateData.device.imei) {
+                const existingImei = await Warranty.findOne({ _id: { $ne: req.params.id }, 'device.imei': updateData.device.imei, approvalStatus: { $ne: 'rejected' } });
+                if (existingImei) return res.status(400).json({ message: 'IMEI นี้ถูกลงทะเบียนแล้วและไม่ได้อยู่ในสถานะไม่อนุมัติ' });
+            }
+        }
 
         const updated = await Warranty.findByIdAndUpdate(
             req.params.id,
@@ -4618,6 +4639,18 @@ app.put('/api/warranties/:id/approver-edit', async (req, res) => {
                     }
                 }
             });
+        }
+
+        // Validate duplicates for device
+        if (device) {
+            if (device.serial) {
+                const existingSerial = await Warranty.findOne({ _id: { $ne: warrantyId }, 'device.serial': device.serial, approvalStatus: { $ne: 'rejected' } });
+                if (existingSerial) return res.status(400).json({ message: 'Serial นี้ถูกลงทะเบียนแล้วและไม่ได้อยู่ในสถานะไม่อนุมัติ' });
+            }
+            if (device.imei) {
+                const existingImei = await Warranty.findOne({ _id: { $ne: warrantyId }, 'device.imei': device.imei, approvalStatus: { $ne: 'rejected' } });
+                if (existingImei) return res.status(400).json({ message: 'IMEI นี้ถูกลงทะเบียนแล้วและไม่ได้อยู่ในสถานะไม่อนุมัติ' });
+            }
         }
 
         // Update Warranty Model (Device)

@@ -3461,6 +3461,7 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         try {
+            showLoader('กำลังบันทึกข้อมูล...');
             const url = isEditMode ? `/api/warranties/${document.getElementById('editRecordId').value}` : '/api/warranties';
             const reqMethod = isEditMode ? 'PUT' : 'POST';
 
@@ -3470,6 +3471,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 body: JSON.stringify(payload)
             });
             const data = await res.json();
+            hideLoader();
             if (res.ok) {
                 // หากมีการใช้มัดจำและเป็นการสร้างใหม่ (ไม่ใช่แก้ไข) ให้อัปเดตสถานะมัดจำเป็น Completed
                 const depositEl = document.getElementById('deposit');
@@ -3555,6 +3557,9 @@ document.addEventListener('DOMContentLoaded', () => {
                                             title: 'สัญญาไม่ได้รับการอนุมัติ',
                                             text: 'หัวหน้างานไม่อนุมัติสัญญานี้ กรุณาติดต่อหัวหน้างานเพื่อสอบถามรายละเอียด',
                                             confirmButtonText: 'ตกลง'
+                                        }).then(() => {
+                                            showView('dashboard');
+                                            fetchWarranties();
                                         });
                                     }
                                     // If still 'pending', do nothing and wait for next poll
@@ -3569,6 +3574,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 showAlert('error', data.message || 'เกิดข้อผิดพลาดในการบันทึกข้อมูล');
             }
         } catch (err) {
+            hideLoader();
             console.error('Submit error:', err);
         }
     });
