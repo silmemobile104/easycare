@@ -4092,6 +4092,26 @@ tr.new-row-highlight {
     color: var(--text-muted);
 }
 
+/* Custom Table for Admin Expenses */
+#adminExpenseTable th {
+    background: #f8fafc;
+    color: var(--text-muted);
+    font-weight: 600;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+}
+
+#adminExpenseTable td {
+    border-bottom: 1px solid #f1f5f9;
+}
+
+#financeAdminExpenseSection .empty-state {
+    padding: 4rem 2rem;
+    text-align: center;
+    color: var(--text-muted);
+}
+
 .text-info {
     color: #3b82f6 !important;
 }
@@ -4130,3 +4150,117 @@ tr.new-row-highlight {
 .insp-thumb { width: 40px; height: 40px; object-fit: cover; border-radius: 4px; cursor: pointer; border: 1px solid #e2e8f0; }
 .insp-note { display: block; color: #64748b; font-size: 0.75rem; margin-top: 2px; }
 
+/* ═══════════════════════════════════════════════════════════════════
+   MEMBER LIST MODAL — Scrollable Table
+═══════════════════════════════════════════════════════════════════ */
+#memberListModal .modal-content {
+    max-width: 900px;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.member-list-table-wrapper {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: #fff;
+}
+
+.member-list-table-wrapper::-webkit-scrollbar {
+    width: 6px;
+}
+
+.member-list-table-wrapper::-webkit-scrollbar-track {
+    background: #f1f5f9;
+    border-radius: 3px;
+}
+
+.member-list-table-wrapper::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 3px;
+}
+
+.member-list-table-wrapper::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
+
+#memberListTable {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.88rem;
+}
+
+#memberListTable thead {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+}
+
+#memberListTable thead th {
+    background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+    padding: 12px 10px;
+    font-family: var(--thai-font-title);
+    font-weight: 600;
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+    border-bottom: 2px solid var(--border);
+    text-align: left;
+    white-space: nowrap;
+}
+
+#memberListTable tbody tr {
+    border-bottom: 1px solid #f1f5f9;
+    transition: background-color var(--transition-fast);
+}
+
+#memberListTable tbody tr:hover {
+    background-color: #f0fdfa;
+}
+
+#memberListTable tbody td {
+    padding: 10px;
+    color: var(--text-main);
+    vertical-align: middle;
+}
+
+/* Clickable member card style */
+#cardExecTotalMembers {
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+#cardExecTotalMembers:hover {
+    transform: scale(1.03);
+    box-shadow: var(--shadow-lg);
+}
+
+#cardExecTotalMembers:active {
+    transform: scale(0.98);
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+    #memberListModal .modal-content {
+        max-width: 100%;
+        margin: 0.5rem;
+        max-height: 95vh;
+        padding: 1rem;
+    }
+
+    #memberListTable {
+        font-size: 0.8rem;
+    }
+
+    #memberListTable thead th,
+    #memberListTable tbody td {
+        padding: 8px 6px;
+    }
+
+    .member-list-table-wrapper {
+        -webkit-overflow-scrolling: touch;
+        overflow-x: auto;
+    }
+}

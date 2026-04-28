@@ -989,6 +989,12 @@
                         <button class="finance-tab" id="financeTabExpense">
                             <i class="fas fa-tools"></i> รายจ่ายเคลม (Claim Expenses)
                         </button>
+                        <button class="finance-tab" id="financeTabAdminExpense">
+                            <i class="fas fa-building"></i> รายจ่ายบริหาร
+                        </button>
+                        <button class="finance-tab" id="financeTabProfitStatement">
+                            <i class="fas fa-chart-line"></i> กำไรสุทธิ
+                        </button>
                     </div>
 
                     <!-- ── Income Section ── -->
@@ -1061,8 +1067,23 @@
                                     </svg>
                                 </div>
                                 <div class="stat-content">
-                                    <h3 id="totalUnpaidAmountDisplay">0</h3>
-                                    <p>รอการชำระเงินจากไฟแนนซ์</p>
+                                    <h3 id="unpaidAmountSGDisplay">0</h3>
+                                    <p>รอการชำระเงินจากไฟแนนซ์ SG</p>
+                                </div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-icon orange">
+                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path
+                                            d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z">
+                                        </path>
+                                        <polyline points="22,6 12,13 2,6"></polyline>
+                                    </svg>
+                                </div>
+                                <div class="stat-content">
+                                    <h3 id="unpaidAmountTPlusDisplay">0</h3>
+                                    <p>รอการชำระเงินจากไฟแนนซ์ T-Plus</p>
                                 </div>
                             </div>
                             <div class="stat-card">
@@ -1239,6 +1260,34 @@
                                     <p>ต้นทุนเคลมรวมทั่งหมด</p>
                                 </div>
                             </div>
+                            <div class="stat-card" style="border-left: 4px solid #f59e0b;">
+                                <div class="stat-icon" style="color: #f59e0b; background-color: rgba(245,158,11,0.1);">
+                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                        <polyline points="14 2 14 8 20 8"></polyline>
+                                        <line x1="16" y1="13" x2="8" y2="13"></line>
+                                        <line x1="16" y1="17" x2="8" y2="17"></line>
+                                        <polyline points="10 9 9 9 8 9"></polyline>
+                                    </svg>
+                                </div>
+                                <div class="stat-content">
+                                    <h3 id="totalExpenseDisplay">0</h3>
+                                    <p>รายจ่ายรวม (เคลม + บันทึกเอง)</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div style="display: flex; justify-content: flex-end; margin-bottom: 10px; margin-top: 10px;">
+                            <button type="button" class="add-btn" id="addManualExpenseBtn"
+                                style="display: flex; align-items: center; gap: 8px;">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                                </svg>
+                                เพิ่มรายการรายจ่าย
+                            </button>
                         </div>
 
                         <div class="advanced-filter-bar" style="margin-top: 14px;">
@@ -1278,8 +1327,10 @@
                                             <th>สินค้า</th>
                                             <th>ร้านค้า</th>
                                             <th>รายการ</th>
-                                            <th>สถานที่</th>
+                                            <th>หมวดหมู่/สถานที่</th>
                                             <th>จำนวนเงิน</th>
+                                            <th>ที่มา</th>
+                                            <th>ผู้บันทึก</th>
                                         </tr>
                                     </thead>
                                     <tbody id="financeExpenseBody"></tbody>
@@ -1289,6 +1340,288 @@
                                 <i class="fas fa-search"
                                     style="font-size: 3rem; opacity: 0.1; display: block; margin-bottom: 1rem;"></i>
                                 <p>ไม่พบรายการค่าใช้จ่ายเคลมสินค้า</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ── Admin Expense Section (รายจ่ายบริหาร) ── -->
+                    <div id="financeAdminExpenseSection" style="display: none;">
+                        <div class="stats-overview"
+                            style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));">
+                            <div class="stat-card" style="border-left: 4px solid #8b5cf6;">
+                                <div class="stat-icon" style="color: #8b5cf6; background-color: rgba(139,92,246,0.1);">
+                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <rect x="2" y="5" width="20" height="14" rx="2"></rect>
+                                        <path d="M2 10h20"></path>
+                                    </svg>
+                                </div>
+                                <div class="stat-content">
+                                    <h3 id="totalAdminExpenseDisplay">0</h3>
+                                    <p>รายจ่ายบริหารรวมทั้งหมด</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div style="display: flex; justify-content: flex-end; margin-bottom: 10px; margin-top: 10px;">
+                            <button type="button" class="add-btn" id="addAdminExpenseBtn"
+                                style="display: flex; align-items: center; gap: 8px;">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                                </svg>
+                                ➕ เพิ่มรายจ่ายบริหาร
+                            </button>
+                        </div>
+
+                        <div class="advanced-filter-bar" style="margin-top: 14px;">
+                            <div class="filter-bar-row">
+                                <div class="filter-group">
+                                    <label>ค้นหา:</label>
+                                    <input type="text" id="adminExpenseSearchInput" class="filter-input"
+                                        placeholder="ชื่อรายการ, หมวดหมู่, ผู้บันทึก...">
+                                </div>
+                                <div class="filter-group">
+                                    <label>จากวันที่:</label>
+                                    <input type="date" id="adminExpenseStartDate" class="filter-date-input">
+                                </div>
+                                <div class="filter-group">
+                                    <label>ถึงวันที่:</label>
+                                    <input type="date" id="adminExpenseEndDate" class="filter-date-input">
+                                </div>
+                                <button type="button" class="filter-search-btn" id="adminExpenseFilterBtn">
+                                    ค้นหา
+                                </button>
+                                <button type="button" class="filter-reset-btn" id="adminExpenseResetBtn">
+                                    ล้างค่า
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="table-container">
+                            <div class="table-responsive">
+                                <table class="custom-table" id="adminExpenseTable">
+                                    <thead>
+                                        <tr>
+                                            <th>วันที่</th>
+                                            <th>ประเภท</th>
+                                            <th>ชื่อรายการ</th>
+                                            <th>จำนวนเงิน</th>
+                                            <th>ผู้บันทึก</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="adminExpenseBody"></tbody>
+                                </table>
+                            </div>
+                            <div id="adminExpenseEmptyState" class="empty-state" style="display: none;">
+                                <p>ไม่พบรายการรายจ่ายบริหาร</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="profitStatementTab" style="display: none;">
+                        <div class="advanced-filter-bar" style="margin-top: 14px;">
+                            <div class="filter-bar-row" style="align-items: flex-end; flex-wrap: wrap; gap: 12px;">
+                                <div class="filter-group">
+                                    <label>ช่วงเวลา:</label>
+                                    <select id="profitStatementRange" class="filter-select">
+                                        <option value="daily">รายวัน</option>
+                                        <option value="weekly">รายสัปดาห์</option>
+                                        <option value="monthly" selected>รายเดือน</option>
+                                        <option value="yearly">รายปี</option>
+                                        <option value="custom">กำหนดเอง</option>
+                                    </select>
+                                </div>
+                                <div class="filter-group">
+                                    <label>จากวันที่:</label>
+                                    <input type="date" id="profitStatementStartDate" class="filter-date-input">
+                                </div>
+                                <div class="filter-group">
+                                    <label>ถึงวันที่:</label>
+                                    <input type="date" id="profitStatementEndDate" class="filter-date-input">
+                                </div>
+                                <div class="filter-actions" style="margin-left: auto; display: flex; gap: 10px; align-items: center;">
+                                    <label style="display: flex; align-items: center; gap: 6px; font-weight: 700; color: #334155; white-space: nowrap;">
+                                        <input type="checkbox" id="profitStatementCompareToggle" style="width: 16px; height: 16px;">
+                                        เทียบช่วงก่อนหน้า
+                                    </label>
+                                    <button type="button" class="add-btn" id="profitStatementAnalyzeBtn" style="white-space: nowrap;">
+                                        <i class="fas fa-search"></i> วิเคราะห์
+                                    </button>
+                                    <button type="button" class="add-btn" id="profitStatementExportExcelBtn" style="white-space: nowrap;">
+                                        Export Excel
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="stats-overview" style="margin-top: 12px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));">
+                            <div class="stat-card" style="border-left: 4px solid #0d9488;">
+                                <div class="stat-icon green">
+                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <line x1="12" y1="1" x2="12" y2="23"></line>
+                                        <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+                                    </svg>
+                                </div>
+                                <div class="stat-content">
+                                    <h3 id="kpiProfitTotalIncome">0</h3>
+                                    <div id="kpiProfitTotalIncomeDelta" style="font-size: 0.9em; color: #64748b; margin-top: 4px;"></div>
+                                    <p>รายรับรวม</p>
+                                </div>
+                            </div>
+
+                            <div class="stat-card" style="border-left: 4px solid #ef4444;">
+                                <div class="stat-icon orange">
+                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                        <polyline points="14 2 14 8 20 8"></polyline>
+                                        <line x1="16" y1="13" x2="8" y2="13"></line>
+                                        <line x1="16" y1="17" x2="8" y2="17"></line>
+                                    </svg>
+                                </div>
+                                <div class="stat-content">
+                                    <h3 id="kpiProfitTotalExpense">0</h3>
+                                    <div id="kpiProfitTotalExpenseDelta" style="font-size: 0.9em; color: #64748b; margin-top: 4px;"></div>
+                                    <p>รายจ่ายรวม</p>
+                                </div>
+                            </div>
+
+                            <div class="stat-card" style="border-left: 4px solid #3b82f6;">
+                                <div class="stat-icon purple">
+                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M12 20V10"></path>
+                                        <path d="M18 20V4"></path>
+                                        <path d="M6 20v-4"></path>
+                                    </svg>
+                                </div>
+                                <div class="stat-content">
+                                    <h3 id="kpiProfitNetProfit">0</h3>
+                                    <div id="kpiProfitNetProfitDelta" style="font-size: 0.9em; color: #64748b; margin-top: 4px;"></div>
+                                    <p>กำไรสุทธิ</p>
+                                </div>
+                            </div>
+
+                            <div class="stat-card" style="border-left: 4px solid #f59e0b;">
+                                <div class="stat-icon" style="color: #f59e0b; background-color: rgba(245,158,11,0.1);">
+                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M20 21V5a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v16"></path>
+                                        <path d="M2 21h20"></path>
+                                        <path d="M7 8h10"></path>
+                                        <path d="M7 12h10"></path>
+                                        <path d="M7 16h10"></path>
+                                    </svg>
+                                </div>
+                                <div class="stat-content">
+                                    <h3 id="kpiProfitMargin">0</h3>
+                                    <div id="kpiProfitMarginDelta" style="font-size: 0.9em; color: #64748b; margin-top: 4px;"></div>
+                                    <p>อัตรากำไร (%)</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="profitStatementRunRate" style="display: none; background: #fff; border-radius: 14px; padding: 14px 16px; border: 1px solid rgba(148,163,184,.35); margin-top: 10px;">
+                            <div style="display: flex; flex-wrap: wrap; gap: 12px; align-items: baseline;">
+                                <div style="font-weight: 800; color: #0f172a;">ประมาณการสิ้นช่วง (Run-rate)</div>
+                                <div id="profitStatementRunRateMeta" style="color: #64748b; font-size: 0.95em;"></div>
+                            </div>
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; margin-top: 10px;">
+                                <div style="background: rgba(13,148,136,0.06); border: 1px solid rgba(13,148,136,0.15); border-radius: 12px; padding: 10px 12px;">
+                                    <div style="color: #0f766e; font-weight: 800;">รายรับประมาณการ</div>
+                                    <div id="profitStatementProjectedIncome" style="font-size: 1.1em; font-weight: 900; color: #0f172a; margin-top: 2px;">-</div>
+                                    <div id="profitStatementAvgIncomePerDay" style="color: #64748b; font-size: 0.9em; margin-top: 2px;"></div>
+                                </div>
+                                <div style="background: rgba(239,68,68,0.05); border: 1px solid rgba(239,68,68,0.15); border-radius: 12px; padding: 10px 12px;">
+                                    <div style="color: #b91c1c; font-weight: 800;">รายจ่ายประมาณการ</div>
+                                    <div id="profitStatementProjectedExpense" style="font-size: 1.1em; font-weight: 900; color: #0f172a; margin-top: 2px;">-</div>
+                                    <div id="profitStatementAvgExpensePerDay" style="color: #64748b; font-size: 0.9em; margin-top: 2px;"></div>
+                                </div>
+                                <div style="background: rgba(59,130,246,0.06); border: 1px solid rgba(59,130,246,0.15); border-radius: 12px; padding: 10px 12px;">
+                                    <div style="color: #1d4ed8; font-weight: 800;">กำไรสุทธิประมาณการ</div>
+                                    <div id="profitStatementProjectedNetProfit" style="font-size: 1.1em; font-weight: 900; color: #0f172a; margin-top: 2px;">-</div>
+                                    <div id="profitStatementAvgNetProfitPerDay" style="color: #64748b; font-size: 0.9em; margin-top: 2px;"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; margin-top: 14px;">
+                            <div style="background: #fff; border-radius: 14px; padding: 16px; border: 1px solid rgba(148,163,184,.35);">
+                                <h3 style="margin: 0 0 12px 0;">สัดส่วนรายรับ</h3>
+                                <canvas id="incomeChart" style="max-height: 320px;"></canvas>
+                            </div>
+                            <div style="background: #fff; border-radius: 14px; padding: 16px; border: 1px solid rgba(148,163,184,.35);">
+                                <h3 style="margin: 0 0 12px 0;">สัดส่วนรายจ่าย</h3>
+                                <canvas id="expenseChart" style="max-height: 320px;"></canvas>
+                            </div>
+                        </div>
+
+                        <div style="background: #fff; border-radius: 14px; padding: 16px; border: 1px solid rgba(148,163,184,.35); margin-top: 16px;">
+                            <h3 style="margin: 0 0 12px 0;">แนวโน้มกำไรสุทธิ</h3>
+                            <canvas id="profitTrendChart" style="max-height: 340px;"></canvas>
+                        </div>
+
+                        <div class="table-container" style="margin-top: 14px;">
+                            <div class="table-responsive">
+                                <table class="custom-table" id="profitStatementTable">
+                                    <thead>
+                                        <tr>
+                                            <th style="width: 70%;">รายการ</th>
+                                            <th style="width: 30%; text-align: right;">จำนวนเงิน</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="profitStatementBody"></tbody>
+                                </table>
+                            </div>
+                            <div id="profitStatementEmptyState" class="empty-state" style="display: none;">
+                                <p>ไม่พบข้อมูลกำไรสุทธิในช่วงเวลาที่เลือก</p>
+                            </div>
+                        </div>
+
+                        <!-- Marketing Analytics Section -->
+                        <div style="background: #fff; border-radius: 14px; padding: 16px; border: 1px solid rgba(148,163,184,.35); margin-top: 16px;">
+                            <h3 style="margin: 0 0 12px 0; color: #0f172a;">วิเคราะห์การตลาด (Marketing Analytics)</h3>
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; margin-top: 14px;">
+                                <div>
+                                    <h4 style="margin: 0 0 10px 0; font-size: 0.95em; color: #475569;">ยอดขายตามแพ็กเกจ</h4>
+                                    <canvas id="packageDistributionChart" style="max-height: 280px;"></canvas>
+                                </div>
+                                <div>
+                                    <h4 style="margin: 0 0 10px 0; font-size: 0.95em; color: #475569;">สัดส่วนเครื่อง มือ 1 vs มือ 2</h4>
+                                    <canvas id="deviceConditionChart" style="max-height: 280px;"></canvas>
+                                </div>
+                            </div>
+                            <div style="margin-top: 16px;">
+                                <h4 style="margin: 0 0 10px 0; font-size: 0.95em; color: #475569;">5 อันดับรุ่นยอดนิยม</h4>
+                                <table class="custom-table">
+                                    <thead>
+                                        <tr>
+                                            <th style="width: 10%;">อันดับ</th>
+                                            <th style="width: 60%;">รุ่นมือถือ</th>
+                                            <th style="width: 30%; text-align: right;">จำนวนสมัคร</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="topModelsBody"></tbody>
+                                </table>
+                                <div id="topModelsEmptyState" class="empty-state" style="display: none;">
+                                    <p>ไม่พบข้อมูลรุ่นมือถือ</p>
+                                </div>
+                            </div>
+                            <div style="margin-top: 16px;">
+                                <h4 style="margin: 0 0 10px 0; font-size: 0.95em; color: #475569;">5 อันดับแพ็กเกจยอดนิยม</h4>
+                                <table class="custom-table">
+                                    <thead>
+                                        <tr>
+                                            <th style="width: 10%;">อันดับ</th>
+                                            <th style="width: 50%;">แพ็กเกจ</th>
+                                            <th style="width: 20%; text-align: right;">จำนวนสมัคร</th>
+                                            <th style="width: 20%; text-align: right;">ยอดขาย (บาท)</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="topPackagesBody"></tbody>
+                                </table>
+                                <div id="topPackagesEmptyState" class="empty-state" style="display: none;">
+                                    <p>ไม่พบข้อมูลแพ็กเกจ</p>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -1402,6 +1735,114 @@
                     </div>
                 </main>
 
+
+                <!-- Manual Expense Form Modal -->
+                <div id="manualExpenseModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15,23,42,0.6); z-index: 9999; justify-content: center; align-items: center; backdrop-filter: blur(4px);">
+                    <div style="background: #fff; border-radius: 16px; width: 95%; max-width: 600px; max-height: 90vh; overflow-y: auto; padding: 30px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); position: relative; animation: slideUp 0.3s ease;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid #e2e8f0;">
+                            <h2 style="margin: 0; font-size: 1.3rem; color: #0f172a; display: flex; align-items: center; gap: 10px;">
+                                <span style="display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; background: linear-gradient(135deg, #f59e0b, #d97706); border-radius: 10px; color: #fff; font-size: 1.1rem;">📝</span>
+                                บันทึกรายจ่ายด้วยตนเอง
+                            </h2>
+                            <button type="button" id="closeManualExpenseModal" style="background: none; border: none; font-size: 1.8rem; cursor: pointer; color: #94a3b8; line-height: 1; padding: 0 5px;">&times;</button>
+                        </div>
+                        <form id="manualExpenseForm">
+                            <div class="form-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                                <div class="form-group">
+                                    <label>วันที่จ่าย <span style="color:red">*</span></label>
+                                    <input type="date" id="meExpenseDate" required>
+                                </div>
+                                <div class="form-group">
+                                    <label>หมวดหมู่รายจ่าย <span style="color:red">*</span></label>
+                                    <select id="meCategory" required>
+                                        <option value="" disabled selected>เลือกหมวดหมู่</option>
+                                        <option value="ค่าอุปกรณ์">ค่าอุปกรณ์</option>
+                                        <option value="ค่าการตลาด">ค่าการตลาด</option>
+                                        <option value="คืนเงินลูกค้า">คืนเงินลูกค้า</option>
+                                        <option value="ค่าขนส่ง">ค่าขนส่ง</option>
+                                        <option value="ค่าสาธารณูปโภค">ค่าสาธารณูปโภค</option>
+                                        <option value="ค่าจ้าง/เงินเดือน">ค่าจ้าง/เงินเดือน</option>
+                                        <option value="ค่าซ่อมแซม">ค่าซ่อมแซม</option>
+                                        <option value="ค่าเบ็ดเตล็ด">ค่าเบ็ดเตล็ด</option>
+                                        <option value="อื่นๆ">อื่นๆ</option>
+                                    </select>
+                                </div>
+                                <div class="form-group" style="grid-column: 1 / -1;">
+                                    <label>รายการ/ชื่อรายจ่าย <span style="color:red">*</span></label>
+                                    <input type="text" id="meTitle" placeholder="เช่น ซื้อเคสโทรศัพท์, ค่าโฆษณา Facebook" required>
+                                </div>
+                                <div class="form-group">
+                                    <label>จำนวนเงิน (บาท) <span style="color:red">*</span></label>
+                                    <input type="number" id="meAmount" placeholder="0" min="0" step="0.01" required>
+                                </div>
+                                <div class="form-group">
+                                    <label>ผู้บันทึก</label>
+                                    <input type="text" id="meRecordedBy" readonly>
+                                </div>
+                                <div class="form-group" style="grid-column: 1 / -1;">
+                                    <label>หมายเหตุ</label>
+                                    <textarea id="meNote" rows="3" placeholder="หมายเหตุเพิ่มเติม (ถ้ามี)"></textarea>
+                                </div>
+                                <div class="form-group" style="grid-column: 1 / -1;">
+                                    <label>อัปโหลดรูปใบเสร็จ</label>
+                                    <input type="file" id="meReceiptFile" accept="image/*">
+                                    <div id="meReceiptPreview" style="margin-top: 8px;"></div>
+                                </div>
+                            </div>
+                            <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
+                                <button type="button" id="cancelManualExpenseBtn" style="padding: 10px 24px; border-radius: 10px; border: 1px solid #e2e8f0; background: #f8fafc; color: #475569; cursor: pointer; font-weight: 500;">ยกเลิก</button>
+                                <button type="submit" class="add-btn">บันทึกรายจ่าย</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Admin Expense Form Modal -->
+                <div id="adminExpenseModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15,23,42,0.6); z-index: 9999; justify-content: center; align-items: center; backdrop-filter: blur(4px);">
+                    <div style="background: #fff; border-radius: 16px; width: 95%; max-width: 600px; max-height: 90vh; overflow-y: auto; padding: 30px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); position: relative; animation: slideUp 0.3s ease;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid #e2e8f0;">
+                            <h2 style="margin: 0; font-size: 1.3rem; color: #0f172a; display: flex; align-items: center; gap: 10px;">
+                                <span style="display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; background: linear-gradient(135deg, #8b5cf6, #7c3aed); border-radius: 10px; color: #fff; font-size: 1.1rem;">🏢</span>
+                                บันทึกรายจ่ายบริหาร
+                            </h2>
+                            <button type="button" id="closeAdminExpenseModal" style="background: none; border: none; font-size: 1.8rem; cursor: pointer; color: #94a3b8; line-height: 1; padding: 0 5px;">&times;</button>
+                        </div>
+                        <form id="adminExpenseForm">
+                            <div class="form-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                                <div class="form-group">
+                                    <label>วันที่ทำรายการ <span style="color:red">*</span></label>
+                                    <input type="date" id="aeExpenseDate" required>
+                                </div>
+                                <div class="form-group">
+                                    <label>ประเภทรายการ <span style="color:red">*</span></label>
+                                    <select id="adminExpenseCategory" required>
+                                        <option value="" disabled selected>กำลังโหลด...</option>
+                                    </select>
+                                </div>
+                                <div class="form-group" id="adminExpenseNewCategoryGroup" style="grid-column: 1 / -1; display: none;">
+                                    <label>ระบุประเภทรายการใหม่ <span style="color:red">*</span></label>
+                                    <input type="text" id="adminExpenseNewCategory" placeholder="พิมพ์ชื่อหมวดหมู่ใหม่...">
+                                </div>
+                                <div class="form-group" style="grid-column: 1 / -1;">
+                                    <label>ชื่อรายการ <span style="color:red">*</span></label>
+                                    <input type="text" id="aeTitle" placeholder="เช่น ค่าโฆษณา Facebook, เงินเดือนเดือน เม.ย." required>
+                                </div>
+                                <div class="form-group">
+                                    <label>จำนวนเงิน (บาท) <span style="color:red">*</span></label>
+                                    <input type="number" id="aeAmount" placeholder="0" min="0" step="0.01" required>
+                                </div>
+                                <div class="form-group">
+                                    <label>ผู้บันทึก</label>
+                                    <input type="text" id="aeRecordedBy" readonly>
+                                </div>
+                            </div>
+                            <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
+                                <button type="button" id="cancelAdminExpenseBtn" style="padding: 10px 24px; border-radius: 10px; border: 1px solid #e2e8f0; background: #f8fafc; color: #475569; cursor: pointer; font-weight: 500;">ยกเลิก</button>
+                                <button type="submit" class="add-btn">บันทึกรายจ่ายบริหาร</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
 
                 <!-- Deposit Form Modal -->
                 <div id="depositFormModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15,23,42,0.6); z-index: 9999; justify-content: center; align-items: center; backdrop-filter: blur(4px);">
@@ -2589,7 +3030,15 @@
 
                     <div id="financeContainer" style="display: none; background: #f8fafc; padding: 1.5rem; border-radius: 8px; margin-top: 1rem; border: 1px solid #e2e8f0;">
                         <h3 style="margin-top:0; margin-bottom: 1rem; color: #0f172a; font-size: 1.1rem;">รายละเอียดสัญญาไฟแนนซ์</h3>
-                        <div class="grid-row" style="grid-template-columns: 1fr 1fr;">
+                        <div class="grid-row" style="grid-template-columns: 1fr 1fr 1fr;">
+                            <div class="form-group">
+                                <label for="financeProvider">บริษัทไฟแนนซ์ <span style="color:red">*</span></label>
+                                <select id="financeProvider">
+                                    <option value="">-- เลือกบริษัทไฟแนนซ์ --</option>
+                                    <option value="SG">SG</option>
+                                    <option value="T-Plus">T-Plus</option>
+                                </select>
+                            </div>
                             <div class="form-group">
                                 <label for="financeDueDay">กำหนดชำระทุกวันที่ (ของเดือน) <span style="color:red">*</span></label>
                                 <input type="number" id="financeDueDay" min="1" max="31" placeholder="ระบุวันที่ 1-31">
@@ -2615,7 +3064,7 @@
                                 <tr>
                                     <th>งวดที่</th>
                                     <th>จำนวนเงิน (บาท)</th>
-                                    <th>วันครบกำหนด</th>
+                                    <th>วันครบกำนด</th>
                                     <th>สิ้นสุดระยะผ่อนผัน</th>
                                 </tr>
                             </thead>
@@ -2647,6 +3096,7 @@
                             </div>
                         </div>
                     </div>
+
                     <div id="fullPaymentStatus" style="display: none;">
                         <div class="payment-info-card">
                             <div>
@@ -2660,11 +3110,13 @@
                             </div>
                         </div>
                     </div>
+
                     <div id="installmentStatus" style="display: none;">
                         <table class="preview-table">
                             <thead>
                                 <tr>
                                     <th>งวดที่</th>
+                                    <th>จำนวนเงิน (บาท)</th>
                                     <th>ยอดเงิน (บาท)</th>
                                     <th>วันครบกำหนด</th>
                                     <th>สถานะ</th>
@@ -3929,6 +4381,48 @@
                         <!-- Dynamic Rows go here -->
                         <tr>
                             <td class="empty-state">กรุณารอสักครู่...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- =================== MEMBER LIST MODAL =================== -->
+    <div id="memberListModal" class="modal">
+        <div class="modal-content" style="max-width: 900px; max-height: 90vh; display: flex; flex-direction: column;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-shrink: 0;">
+                <h2 style="color: var(--primary); margin: 0; display: flex; align-items: center; gap: 10px;">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                        <circle cx="9" cy="7" r="4"></circle>
+                        <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                        <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                    </svg>
+                    รายชื่อสมาชิกทั้งหมด
+                </h2>
+                <div class="modal-actions" style="margin: 0;">
+                    <button type="button" class="btn-cancel"
+                        onclick="document.getElementById('memberListModal').style.display='none'">ปิดหน้าต่าง</button>
+                </div>
+            </div>
+
+            <div class="member-list-table-wrapper" style="flex: 1; overflow-y: auto; min-height: 0;">
+                <table class="data-table" id="memberListTable">
+                    <thead style="position: sticky; top: 0; z-index: 1;">
+                        <tr>
+                            <th style="width: 60px; text-align: center;">ลำดับ</th>
+                            <th>รหัสสมาชิก</th>
+                            <th>ชื่อสมาชิก</th>
+                            <th>เบอร์โทร</th>
+                            <th>วันที่สมัคร</th>
+                            <th style="text-align: center;">จำนวนแพ็กเกจ</th>
+                        </tr>
+                    </thead>
+                    <tbody id="memberListBody">
+                        <tr>
+                            <td colspan="6" class="empty-state">กรุณารอสักครู่...</td>
                         </tr>
                     </tbody>
                 </table>

@@ -504,7 +504,7 @@
                 <div id="sec_5_3" class="row" style="display: none;">
                     <div class="col w-100">
                         <div class="field">
-                            <span class="label">5.3 กดขายไฟแนนซ์ SG</span>
+                            <span id="doc_financeProviderLabel" class="label"></span>
                             <span id="doc_packagePrice_forfinance" style="font-weight: bold; margin-left: 5px;"></span>
                             <span class="label" style="margin-left: 5px;">บาท</span>
                         </div>
@@ -811,10 +811,23 @@
                     };
                     const financeMonths = data.financeDetails ? data.financeDetails.financeMonths : '-';
                     const financeDueDay = data.financeDetails ? data.financeDetails.financeDueDay : '-';
+                    const financeProvider = data.financeDetails ? data.financeDetails.provider : '-';
                     let monthlyPrice = 0;
                     if (financeMonths !== '-' && FINANCE_MONTHLY_RATES[data.package.plan]) {
                         monthlyPrice = FINANCE_MONTHLY_RATES[data.package.plan][financeMonths] || 0;
                     }
+                    
+                    // Set finance provider label based on provider
+                    const financeProviderLabel = document.getElementById('doc_financeProviderLabel');
+                    if (financeProvider === 'SG') {
+                        financeProviderLabel.textContent = '5.3 กดขายไฟแนนซ์ SG';
+                    } else if (financeProvider === 'T-Plus') {
+                        financeProviderLabel.textContent = '5.3 กดขายไฟแนนซ์ T-Plus';
+                    } else {
+                        financeProviderLabel.textContent = '5.3 กดขายไฟแนนซ์';
+                    }
+                    
+                    document.getElementById('doc_packagePrice_forfinance').textContent = packagePrice.toLocaleString();
                     document.getElementById('doc_financePrice').textContent = monthlyPrice.toLocaleString();
                     document.getElementById('doc_financeDay').textContent = financeDueDay;
                     document.getElementById('doc_financeMonths').textContent = financeMonths;

@@ -62,6 +62,16 @@ const depositStorage = new CloudinaryStorage({
 
 const depositUpload = multer({ storage: depositStorage });
 
+const manualExpenseStorage = new CloudinaryStorage({
+    cloudinary: cloudinary,
+    params: {
+        folder: 'easycare/manual-expenses',
+        allowed_formats: ['jpg', 'png', 'jpeg', 'pdf']
+    },
+});
+
+const manualExpenseUpload = multer({ storage: manualExpenseStorage });
+
 const memberStorage = new CloudinaryStorage({
     cloudinary: cloudinary,
     params: {
@@ -214,7 +224,8 @@ const WarrantySchema = new mongoose.Schema({
     },
     financeDetails: {
         financeDueDay: Number,
-        financeMonths: Number
+        financeMonths: Number,
+        provider: { type: String, enum: ['SG', 'T-Plus'] }
     },
     approvalStatus: {
         type: String,
@@ -404,7 +415,9 @@ const FinanceTransactionSchema = new mongoose.Schema({
     fullRevenue: { type: Number },
     financedAmount: { type: Number },
     financeDisplay: { type: String },
+    financeProvider: { type: String, enum: ['SG', 'T-Plus'] },
     financeReceived: { type: Boolean, default: false },
+    financeReceivedDate: { type: Date },
     evidenceUrl: String,
     evidenceUrls: [String],
     recordedBy: String
@@ -442,6 +455,35 @@ const DepositSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 const Deposit = mongoose.model('Deposit', DepositSchema);
+
+// ManualExpense Schema (รายจ่ายที่บันทึกเอง)
+const ManualExpenseSchema = new mongoose.Schema({
+    expenseDate: { type: Date, required: true },
+    category: { type: String, required: true },
+    title: { type: String, required: true },
+    amount: { type: Number, required: true },
+    note: { type: String, default: '' },
+    receiptUrl: { type: String, default: '' },
+    recordedBy: { type: String, required: true }
+}, { timestamps: true });
+
+const ManualExpense = mongoose.model('ManualExpense', ManualExpenseSchema);
+
+// ExpenseCategory Schema (หมวดหมู่รายจ่ายบริหาร)
+const ExpenseCategorySchema = new mongoose.Schema({
+    name: { type: String, required: true, unique: true }
+}, { timestamps: true });
+const ExpenseCategory = mongoose.model('ExpenseCategory', ExpenseCategorySchema);
+
+// AdminExpense Schema (รายจ่ายบริหาร)
+const AdminExpenseSchema = new mongoose.Schema({
+    expenseDate: { type: Date, required: true },
+    category: { type: String, required: true },
+    title: { type: String, required: true },
+    amount: { type: Number, required: true },
+    recordedBy: { type: String, required: true }
+}, { timestamps: true });
+const AdminExpense = mongoose.model('AdminExpense', AdminExpenseSchema);
 
 // Helper function สำหรับบันทึก Log
 async function logAction(action, detail, staffName) {
@@ -667,7 +709,43 @@ app.get('/api/finance/expenses', async (req, res) => {
             centerName: '-'
         }));
 
-        rows = [...rows, ...formattedRefunds].sort((a, b) => new Date(b.expenseDate) - new Date(a.expenseDate));
+        rows = [...rows, ...formattedRefunds];
+
+        // Fetch manual expenses
+        const manualQuery = {};
+        if (req.query.startDate) {
+            manualQuery.expenseDate = { ...(manualQuery.expenseDate || {}), $gte: new Date(String(req.query.startDate)) };
+        }
+        if (req.query.endDate) {
+            manualQuery.expenseDate = { ...(manualQuery.expenseDate || {}), $lte: new Date(String(req.query.endDate) + 'T23:59:59.999Z') };
+        }
+        if (req.query.search) {
+            const regex = { $regex: String(req.query.search), $options: 'i' };
+            manualQuery.$or = [
+                { title: regex },
+                { category: regex },
+                { note: regex },
+                { recordedBy: regex }
+            ];
+        }
+        const manualRows = await ManualExpense.find(manualQuery).lean();
+        const formattedManual = manualRows.map(m => ({
+            expenseDate: m.expenseDate,
+            claimId: '-',
+            policyNumber: '-',
+            customerName: '-',
+            deviceModel: '-',
+            claimShopName: '-',
+            expenseTitle: m.title,
+            centerName: m.category,
+            amount: m.amount,
+            source: 'manual',
+            note: m.note || '',
+            receiptUrl: m.receiptUrl || '',
+            recordedBy: m.recordedBy || '-'
+        }));
+
+        rows = [...rows, ...formattedManual].sort((a, b) => new Date(b.expenseDate) - new Date(a.expenseDate));
 
         res.json(rows);
     } catch (err) {
@@ -753,6 +831,22 @@ app.get('/api/finance/expenses/summary', async (req, res) => {
         ]);
         if (refundRows && refundRows.length > 0) {
             totalExpense += Math.abs(refundRows[0].totalRefund);
+        }
+
+        // Add manual expense amounts
+        const manualSumQuery = {};
+        if (req.query.startDate) {
+            manualSumQuery.expenseDate = { ...(manualSumQuery.expenseDate || {}), $gte: new Date(String(req.query.startDate)) };
+        }
+        if (req.query.endDate) {
+            manualSumQuery.expenseDate = { ...(manualSumQuery.expenseDate || {}), $lte: new Date(String(req.query.endDate) + 'T23:59:59.999Z') };
+        }
+        const manualSumRows = await ManualExpense.aggregate([
+            { $match: manualSumQuery },
+            { $group: { _id: null, totalManual: { $sum: '$amount' } } }
+        ]);
+        if (manualSumRows && manualSumRows.length > 0) {
+            totalExpense += Number(manualSumRows[0].totalManual || 0);
         }
 
         res.json({ totalExpense });
@@ -847,7 +941,33 @@ app.get('/api/finance/expenses/export/excel', async (req, res) => {
             centerName: '-'
         }));
 
-        rows = [...rows, ...formattedRefunds].sort((a, b) => new Date(b.expenseDate) - new Date(a.expenseDate));
+        rows = [...rows, ...formattedRefunds];
+
+        // Fetch manual expenses for export
+        const manualExportQuery = {};
+        if (startDate) {
+            manualExportQuery.expenseDate = { ...(manualExportQuery.expenseDate || {}), $gte: new Date(String(startDate)) };
+        }
+        if (endDate) {
+            manualExportQuery.expenseDate = { ...(manualExportQuery.expenseDate || {}), $lte: new Date(String(endDate) + 'T23:59:59.999Z') };
+        }
+        const manualExportRows = await ManualExpense.find(manualExportQuery).lean();
+        const formattedManualExport = manualExportRows.map(m => ({
+            expenseDate: m.expenseDate,
+            claimId: '-',
+            policyNumber: '-',
+            customerName: '-',
+            deviceModel: '-',
+            claimShopName: '-',
+            expenseTitle: m.title,
+            centerName: m.category,
+            amount: m.amount,
+            source: 'manual',
+            note: m.note || '',
+            recordedBy: m.recordedBy || '-'
+        }));
+
+        rows = [...rows, ...formattedManualExport].sort((a, b) => new Date(b.expenseDate) - new Date(a.expenseDate));
 
         const workbook = new ExcelJS.Workbook();
         workbook.creator = 'EasyCare';
@@ -862,8 +982,11 @@ app.get('/api/finance/expenses/export/excel', async (req, res) => {
             { header: 'สินค้า', key: 'deviceModel', width: 18 },
             { header: 'ร้านค้า', key: 'claimShopName', width: 18 },
             { header: 'รายการ', key: 'expenseTitle', width: 20 },
-            { header: 'สถานที่', key: 'centerName', width: 18 },
-            { header: 'จำนวนเงิน', key: 'amount', width: 14 }
+            { header: 'หมวดหมู่/สถานที่', key: 'centerName', width: 18 },
+            { header: 'จำนวนเงิน', key: 'amount', width: 14 },
+            { header: 'ที่มา', key: 'source', width: 14 },
+            { header: 'หมายเหตุ', key: 'note', width: 24 },
+            { header: 'ผู้บันทึก', key: 'recordedBy', width: 18 }
         ];
         ws.getRow(1).font = { bold: true };
 
@@ -877,7 +1000,10 @@ app.get('/api/finance/expenses/export/excel', async (req, res) => {
                 claimShopName: (r && r.claimShopName) || '',
                 expenseTitle: (r && r.expenseTitle) || '',
                 centerName: (r && r.centerName) || '',
-                amount: Number((r && r.amount) || 0)
+                amount: Number((r && r.amount) || 0),
+                source: (r && r.source === 'manual') ? 'บันทึกเอง' : 'เคลม',
+                note: (r && r.note) || '',
+                recordedBy: (r && r.recordedBy) || ''
             });
         }
 
@@ -1552,7 +1678,7 @@ app.get('/api/dashboard/approver/pending-warranties', async (req, res) => {
 app.get('/api/finance-rates', async (req, res) => {
     try {
         let rates = await InstallmentPlan.find().sort({ minDeviceValue: 1 }).lean();
-        
+
         // If empty, return default static rates from user provided example
         if (rates.length === 0) {
             const defaultRates = [
@@ -1660,7 +1786,7 @@ app.get('/api/dashboard/stats', checkAdminRole, async (req, res) => {
     try {
         const { startDate, endDate, staff } = req.query || {};
 
-        const warrantyMatch = {};
+        const warrantyMatch = { approvalStatus: { $ne: 'rejected' } };
         const claimMatch = {};
         const memberMatch = {};
 
@@ -1684,7 +1810,7 @@ app.get('/api/dashboard/stats', checkAdminRole, async (req, res) => {
         const now = new Date();
 
         const [
-            revenueAgg, claimCostAgg, activeAgg, overdueAgg, packagesAgg, 
+            revenueAgg, claimCostAgg, activeAgg, overdueAgg, packagesAgg,
             claimStatusAgg, warrantyTrendAgg, claimTrendAgg, memberCountAgg, shopsSummaryAgg
         ] = await Promise.all([
             Warranty.aggregate([
@@ -2676,11 +2802,11 @@ app.patch('/api/warranties/:id/recheck', async (req, res) => {
         const { reChecked } = req.body;
         const warranty = await Warranty.findById(req.params.id);
         if (!warranty) return res.status(404).json({ success: false, message: 'Warranty not found' });
-        
+
         warranty.reChecked = reChecked;
         warranty.reCheckedAt = reChecked ? new Date() : null;
         await warranty.save();
-        
+
         res.json({ success: true, reChecked: warranty.reChecked });
     } catch (err) {
         console.error('Toggle Re-check Error:', err);
@@ -3017,6 +3143,7 @@ app.patch('/api/warranties/:id/payment', async (req, res) => {
                     fullRevenue: transactionFullRevenue,
                     financedAmount: txFinancedAmount,
                     financeDisplay: financeDisplayStr,
+                    financeProvider: warranty.financeDetails?.provider || null,
                     evidenceUrl: (evidenceUrls && evidenceUrls.length > 0) ? evidenceUrls[0] : (evidenceUrl || null),
                     evidenceUrls: evidenceUrls || (evidenceUrl ? [evidenceUrl] : []),
                     recordedBy: staffName || warranty.staffName || 'System'
@@ -3280,9 +3407,13 @@ app.get('/api/finance/transactions', async (req, res) => {
 
 app.put('/api/finance/transactions/:id/receive', async (req, res) => {
     try {
+        const { receivedDate } = req.body;
         const tx = await FinanceTransaction.findByIdAndUpdate(
             req.params.id,
-            { financeReceived: true },
+            {
+                financeReceived: true,
+                financeReceivedDate: receivedDate ? new Date(receivedDate) : new Date()
+            },
             { new: true }
         );
         if (!tx) return res.status(404).json({ message: 'Transaction not found' });
@@ -3303,19 +3434,37 @@ app.get('/api/finance/summary', async (req, res) => {
                     totalChangeAmount: { $sum: "$changeAmount" },
                     totalTransferAmount: { $sum: "$transferAmount" },
                     totalRevenue: { $sum: { $ifNull: ["$fullRevenue", "$netTotal"] } },
-                    totalUnpaidAmount: { 
-                        $sum: { 
+                    totalUnpaidAmount: {
+                        $sum: {
                             $cond: [
-                                { $eq: ["$financeReceived", true] }, 
-                                0, 
+                                { $eq: ["$financeReceived", true] },
+                                0,
                                 { $ifNull: ["$financedAmount", 0] }
-                            ] 
-                        } 
+                            ]
+                        }
                     },
                     totalFinanceReceivedAmount: {
                         $sum: {
                             $cond: [
                                 { $eq: ["$financeReceived", true] },
+                                { $ifNull: ["$financedAmount", 0] },
+                                0
+                            ]
+                        }
+                    },
+                    unpaidAmountSG: {
+                        $sum: {
+                            $cond: [
+                                { $and: [{ $eq: ["$financeReceived", false] }, { $eq: ["$financeProvider", "SG"] }] },
+                                { $ifNull: ["$financedAmount", 0] },
+                                0
+                            ]
+                        }
+                    },
+                    unpaidAmountTPlus: {
+                        $sum: {
+                            $cond: [
+                                { $and: [{ $eq: ["$financeReceived", false] }, { $eq: ["$financeProvider", "T-Plus"] }] },
                                 { $ifNull: ["$financedAmount", 0] },
                                 0
                             ]
@@ -3359,12 +3508,548 @@ app.get('/api/finance/summary', async (req, res) => {
                 totalRevenue: data.totalRevenue || 0,
                 totalChange: data.totalChangeAmount || 0,
                 totalUnpaidAmount: (data.totalUnpaidAmount || 0) + oldUnpaidAmount,
-                totalFinanceReceivedAmount: (data.totalFinanceReceivedAmount || 0) + oldReceivedAmount
+                totalFinanceReceivedAmount: (data.totalFinanceReceivedAmount || 0) + oldReceivedAmount,
+                unpaidAmountSG: data.unpaidAmountSG || 0,
+                unpaidAmountTPlus: data.unpaidAmountTPlus || 0
             });
         } else {
-            res.json({ totalCash: 0, totalTransfer: 0, totalRevenue: 0, totalChange: 0, totalUnpaidAmount: oldUnpaidAmount, totalFinanceReceivedAmount: oldReceivedAmount });
+            res.json({ 
+                totalCash: 0, 
+                totalTransfer: 0, 
+                totalRevenue: 0, 
+                totalChange: 0, 
+                totalUnpaidAmount: oldUnpaidAmount, 
+                totalFinanceReceivedAmount: oldReceivedAmount,
+                unpaidAmountSG: 0,
+                unpaidAmountTPlus: 0
+            });
         }
     } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
+
+function parseBoolQuery(v) {
+    if (v === true) return true;
+    const s = String(v || '').toLowerCase();
+    return s === '1' || s === 'true' || s === 'yes' || s === 'y';
+}
+
+function toDateOnlyStr(d) {
+    return d.toISOString().split('T')[0];
+}
+
+function calcPrevPeriod({ startDate, endDate }) {
+    if (!startDate || !endDate) return null;
+    const s = new Date(String(startDate));
+    const e = new Date(String(endDate));
+    if (Number.isNaN(s.getTime()) || Number.isNaN(e.getTime())) return null;
+
+    const sDay = new Date(s.getFullYear(), s.getMonth(), s.getDate());
+    const eDay = new Date(e.getFullYear(), e.getMonth(), e.getDate());
+    const diffDays = Math.floor((eDay - sDay) / (1000 * 60 * 60 * 24));
+    const prevEnd = new Date(sDay);
+    prevEnd.setDate(prevEnd.getDate() - 1);
+    const prevStart = new Date(prevEnd);
+    prevStart.setDate(prevStart.getDate() - diffDays);
+    return { startDate: toDateOnlyStr(prevStart), endDate: toDateOnlyStr(prevEnd) };
+}
+
+function calcDelta(current, previous) {
+    const c = Number(current || 0);
+    const p = Number(previous || 0);
+    const delta = c - p;
+    const pct = p === 0 ? null : (delta / p) * 100;
+    return { current: c, previous: p, delta, pctChange: pct };
+}
+
+function calcRunRate({ startDate, endDate, kpis }) {
+    if (!startDate || !endDate || !kpis) return null;
+    const s = new Date(String(startDate));
+    const e = new Date(String(endDate));
+    if (Number.isNaN(s.getTime()) || Number.isNaN(e.getTime())) return null;
+
+    const sDay = new Date(s.getFullYear(), s.getMonth(), s.getDate());
+    const eDay = new Date(e.getFullYear(), e.getMonth(), e.getDate());
+    const days = Math.floor((eDay - sDay) / (1000 * 60 * 60 * 24)) + 1;
+    if (days <= 0) return null;
+
+    const totalIncome = Number(kpis.totalIncome || 0);
+    const totalExpense = Number(kpis.totalExpense || 0);
+    const netProfit = Number(kpis.netProfit || 0);
+
+    const avgIncomePerDay = totalIncome / days;
+    const avgExpensePerDay = totalExpense / days;
+    const avgNetProfitPerDay = netProfit / days;
+
+    // If the selected period is within a calendar month, project to month end.
+    let projectedDays = days;
+    if (sDay.getFullYear() === eDay.getFullYear() && sDay.getMonth() === eDay.getMonth()) {
+        const monthEnd = new Date(sDay.getFullYear(), sDay.getMonth() + 1, 0);
+        projectedDays = Math.floor((monthEnd - sDay) / (1000 * 60 * 60 * 24)) + 1;
+    }
+
+    return {
+        days,
+        projectedDays,
+        avgPerDay: {
+            income: avgIncomePerDay,
+            expense: avgExpensePerDay,
+            netProfit: avgNetProfitPerDay
+        },
+        projected: {
+            income: avgIncomePerDay * projectedDays,
+            expense: avgExpensePerDay * projectedDays,
+            netProfit: avgNetProfitPerDay * projectedDays
+        }
+    };
+}
+
+async function buildProfitStatementData({ startDate, endDate, includeCompare = false, includeRunRate = false }) {
+    const rangeMatchTx = {};
+    if (startDate) {
+        rangeMatchTx.transactionDate = { ...(rangeMatchTx.transactionDate || {}), $gte: new Date(String(startDate)) };
+    }
+    if (endDate) {
+        rangeMatchTx.transactionDate = { ...(rangeMatchTx.transactionDate || {}), $lte: new Date(String(endDate) + 'T23:59:59.999Z') };
+    }
+
+    const rangeMatchClaimUpdate = {};
+    if (startDate) {
+        rangeMatchClaimUpdate['updates.date'] = { ...(rangeMatchClaimUpdate['updates.date'] || {}), $gte: new Date(String(startDate)) };
+    }
+    if (endDate) {
+        rangeMatchClaimUpdate['updates.date'] = { ...(rangeMatchClaimUpdate['updates.date'] || {}), $lte: new Date(String(endDate) + 'T23:59:59.999Z') };
+    }
+
+    const rangeMatchClaimTotal = {};
+    if (startDate) {
+        rangeMatchClaimTotal.claimDate = { ...(rangeMatchClaimTotal.claimDate || {}), $gte: new Date(String(startDate)) };
+    }
+    if (endDate) {
+        rangeMatchClaimTotal.claimDate = { ...(rangeMatchClaimTotal.claimDate || {}), $lte: new Date(String(endDate) + 'T23:59:59.999Z') };
+    }
+
+    const rangeMatchAdmin = {};
+    if (startDate) {
+        rangeMatchAdmin.expenseDate = { ...(rangeMatchAdmin.expenseDate || {}), $gte: new Date(String(startDate)) };
+    }
+    if (endDate) {
+        rangeMatchAdmin.expenseDate = { ...(rangeMatchAdmin.expenseDate || {}), $lte: new Date(String(endDate) + 'T23:59:59.999Z') };
+    }
+
+    const rangeMatchManual = {};
+    if (startDate) {
+        rangeMatchManual.expenseDate = { ...(rangeMatchManual.expenseDate || {}), $gte: new Date(String(startDate)) };
+    }
+    if (endDate) {
+        rangeMatchManual.expenseDate = { ...(rangeMatchManual.expenseDate || {}), $lte: new Date(String(endDate) + 'T23:59:59.999Z') };
+    }
+
+    // Date range for Warranty marketing analytics (based on warrantyDates.start)
+    const rangeMatchWarranty = {};
+    if (startDate) {
+        rangeMatchWarranty['warrantyDates.start'] = { ...(rangeMatchWarranty['warrantyDates.start'] || {}), $gte: new Date(String(startDate)) };
+    }
+    if (endDate) {
+        rangeMatchWarranty['warrantyDates.start'] = { ...(rangeMatchWarranty['warrantyDates.start'] || {}), $lte: new Date(String(endDate) + 'T23:59:59.999Z') };
+    }
+
+    const refundMatch = { ...rangeMatchTx, actionType: 'คืนเงินชดเชยสละสิทธิ์เครื่อง' };
+    const incomeMatch = { ...rangeMatchTx, actionType: { $ne: 'คืนเงินชดเชยสละสิทธิ์เครื่อง' } };
+
+    const [incomeAgg, refundAgg, claimCostAgg, adminAgg, manualAgg, incomeTrend, refundTrend, claimTrend, adminTrend, manualTrend, marketingAnalytics] = await Promise.all([
+            FinanceTransaction.aggregate([
+                { $match: incomeMatch },
+                {
+                    $addFields: {
+                        __incomeAmount: { $ifNull: ['$fullRevenue', '$netTotal'] },
+                        __paymentMethod: { $ifNull: ['$paymentMethod', 'ไม่ระบุ'] }
+                    }
+                },
+                {
+                    $group: {
+                        _id: '$__paymentMethod',
+                        amount: { $sum: '$__incomeAmount' }
+                    }
+                },
+                { $sort: { amount: -1 } }
+            ]),
+            FinanceTransaction.aggregate([
+                { $match: refundMatch },
+                {
+                    $group: {
+                        _id: null,
+                        totalRefund: { $sum: '$netTotal' }
+                    }
+                }
+            ]),
+            Claim.aggregate([
+                {
+                    $project: {
+                        claimDate: 1,
+                        totalCost: 1,
+                        status: 1,
+                        updates: 1
+                    }
+                },
+                {
+                    $facet: {
+                        updateCosts: [
+                            { $unwind: { path: '$updates', preserveNullAndEmptyArrays: false } },
+                            { $match: { 'updates.cost': { $gt: 0 } } },
+                            { $match: { 'updates.title': { $ne: 'ลูกค้าตกลงรับเครื่องคืนและชำระเงินส่วนต่าง' } } },
+                            { $match: { $or: [{ 'updates.title': { $not: /\(เกินวงเงิน\)/ } }, { status: { $ne: 'ลูกค้าสละสิทธิ์เครื่อง' } }] } },
+                            ...(Object.keys(rangeMatchClaimUpdate).length > 0 ? [{ $match: rangeMatchClaimUpdate }] : []),
+                            { $group: { _id: null, total: { $sum: '$updates.cost' } } }
+                        ],
+                        totalCosts: [
+                            {
+                                $addFields: {
+                                    __totalCost: { $ifNull: ['$totalCost', 0] }
+                                }
+                            },
+                            { $match: { __totalCost: { $gt: 0 } } },
+                            ...(Object.keys(rangeMatchClaimTotal).length > 0 ? [{ $match: rangeMatchClaimTotal }] : []),
+                            { $group: { _id: null, total: { $sum: '$__totalCost' } } }
+                        ]
+                    }
+                },
+                {
+                    $project: {
+                        total: {
+                            $add: [
+                                { $ifNull: [{ $arrayElemAt: ['$updateCosts.total', 0] }, 0] },
+                                { $ifNull: [{ $arrayElemAt: ['$totalCosts.total', 0] }, 0] }
+                            ]
+                        }
+                    }
+                }
+            ]),
+            AdminExpense.aggregate([
+                ...(Object.keys(rangeMatchAdmin).length > 0 ? [{ $match: rangeMatchAdmin }] : []),
+                {
+                    $group: {
+                        _id: { $ifNull: ['$category', 'ไม่ระบุ'] },
+                        amount: { $sum: '$amount' }
+                    }
+                },
+                { $sort: { amount: -1 } }
+            ]),
+            ManualExpense.aggregate([
+                ...(Object.keys(rangeMatchManual).length > 0 ? [{ $match: rangeMatchManual }] : []),
+                { $group: { _id: null, totalManual: { $sum: '$amount' } } }
+            ]),
+            FinanceTransaction.aggregate([
+                { $match: incomeMatch },
+                {
+                    $addFields: {
+                        __bucket: { $dateToString: { format: '%Y-%m-%d', date: '$transactionDate' } },
+                        __incomeAmount: { $ifNull: ['$fullRevenue', '$netTotal'] }
+                    }
+                },
+                { $group: { _id: '$__bucket', income: { $sum: '$__incomeAmount' } } },
+                { $sort: { _id: 1 } }
+            ]),
+            FinanceTransaction.aggregate([
+                { $match: refundMatch },
+                {
+                    $addFields: {
+                        __bucket: { $dateToString: { format: '%Y-%m-%d', date: '$transactionDate' } },
+                        __refundAbs: { $abs: '$netTotal' }
+                    }
+                },
+                { $group: { _id: '$__bucket', refund: { $sum: '$__refundAbs' } } },
+                { $sort: { _id: 1 } }
+            ]),
+            Claim.aggregate([
+                { $project: { claimDate: 1, totalCost: 1, status: 1, updates: 1 } },
+                {
+                    $facet: {
+                        updateTrend: [
+                            { $unwind: { path: '$updates', preserveNullAndEmptyArrays: false } },
+                            { $match: { 'updates.cost': { $gt: 0 } } },
+                            { $match: { 'updates.title': { $ne: 'ลูกค้าตกลงรับเครื่องคืนและชำระเงินส่วนต่าง' } } },
+                            { $match: { $or: [{ 'updates.title': { $not: /\(เกินวงเงิน\)/ } }, { status: { $ne: 'ลูกค้าสละสิทธิ์เครื่อง' } }] } },
+                            ...(Object.keys(rangeMatchClaimUpdate).length > 0 ? [{ $match: rangeMatchClaimUpdate }] : []),
+                            {
+                                $addFields: {
+                                    __bucket: { $dateToString: { format: '%Y-%m-%d', date: '$updates.date' } },
+                                    __amount: { $ifNull: ['$updates.cost', 0] }
+                                }
+                            },
+                            { $group: { _id: '$__bucket', claim: { $sum: '$__amount' } } },
+                            { $sort: { _id: 1 } }
+                        ],
+                        totalTrend: [
+                            {
+                                $addFields: {
+                                    __bucket: { $dateToString: { format: '%Y-%m-%d', date: '$claimDate' } },
+                                    __amount: { $ifNull: ['$totalCost', 0] }
+                                }
+                            },
+                            { $match: { __amount: { $gt: 0 } } },
+                            ...(Object.keys(rangeMatchClaimTotal).length > 0 ? [{ $match: rangeMatchClaimTotal }] : []),
+                            { $group: { _id: '$__bucket', claim: { $sum: '$__amount' } } },
+                            { $sort: { _id: 1 } }
+                        ]
+                    }
+                },
+                {
+                    $project: {
+                        merged: { $concatArrays: ['$updateTrend', '$totalTrend'] }
+                    }
+                },
+                { $unwind: { path: '$merged', preserveNullAndEmptyArrays: false } },
+                { $replaceRoot: { newRoot: '$merged' } },
+                { $group: { _id: '$_id', claim: { $sum: '$claim' } } },
+                { $sort: { _id: 1 } }
+            ]),
+            AdminExpense.aggregate([
+                ...(Object.keys(rangeMatchAdmin).length > 0 ? [{ $match: rangeMatchAdmin }] : []),
+                {
+                    $addFields: {
+                        __bucket: { $dateToString: { format: '%Y-%m-%d', date: '$expenseDate' } },
+                        __amount: { $ifNull: ['$amount', 0] }
+                    }
+                },
+                { $group: { _id: '$__bucket', admin: { $sum: '$__amount' } } },
+                { $sort: { _id: 1 } }
+            ]),
+            ManualExpense.aggregate([
+                ...(Object.keys(rangeMatchManual).length > 0 ? [{ $match: rangeMatchManual }] : []),
+                {
+                    $addFields: {
+                        __bucket: { $dateToString: { format: '%Y-%m-%d', date: '$expenseDate' } },
+                        __amount: { $ifNull: ['$amount', 0] }
+                    }
+                },
+                { $group: { _id: '$__bucket', manual: { $sum: '$__amount' } } },
+                { $sort: { _id: 1 } }
+            ]),
+            // Marketing Analytics: Device condition, top models, package sales
+            Warranty.aggregate([
+                ...(Object.keys(rangeMatchWarranty).length > 0 ? [{ $match: rangeMatchWarranty }] : []),
+                {
+                    $facet: {
+                        deviceConditionStats: [
+                            {
+                                $group: {
+                                    _id: '$device.deviceCondition',
+                                    count: { $sum: 1 }
+                                }
+                            },
+                            { $sort: { count: -1 } }
+                        ],
+                        topModels: [
+                            {
+                                $group: {
+                                    _id: '$device.model',
+                                    count: { $sum: 1 }
+                                }
+                            },
+                            { $sort: { count: -1 } },
+                            { $limit: 5 }
+                        ],
+                        packageSales: [
+                            {
+                                $group: {
+                                    _id: '$package.plan',
+                                    count: { $sum: 1 },
+                                    totalRevenue: { $sum: '$package.price' }
+                                }
+                            },
+                            { $sort: { totalRevenue: -1 } }
+                        ]
+                    }
+                }
+            ])
+        ]);
+
+        const totalIncome = (Array.isArray(incomeAgg) ? incomeAgg : []).reduce((s, r) => s + Number(r.amount || 0), 0);
+        const totalRefund = (refundAgg && refundAgg[0]) ? Math.abs(Number(refundAgg[0].totalRefund || 0)) : 0;
+        const totalClaimCost = (claimCostAgg && claimCostAgg[0]) ? Number(claimCostAgg[0].total || 0) : 0;
+        const totalManualExpense = (manualAgg && manualAgg[0]) ? Number(manualAgg[0].totalManual || 0) : 0;
+        const totalAdminExpense = (Array.isArray(adminAgg) ? adminAgg : []).reduce((s, r) => s + Number(r.amount || 0), 0);
+        const totalExpense = totalRefund + totalClaimCost + totalManualExpense + totalAdminExpense;
+        const netProfit = totalIncome - totalExpense;
+        const profitMarginPct = totalIncome > 0 ? (netProfit / totalIncome) * 100 : 0;
+
+        // Process marketing analytics data
+        const marketingData = (marketingAnalytics && marketingAnalytics[0]) || {};
+        const deviceConditionStats = (Array.isArray(marketingData.deviceConditionStats) ? marketingData.deviceConditionStats : []).map(r => ({
+            condition: r._id || 'ไม่ระบุ',
+            count: Number(r.count || 0)
+        }));
+        const topModels = (Array.isArray(marketingData.topModels) ? marketingData.topModels : []).map(r => ({
+            model: r._id || 'ไม่ระบุ',
+            count: Number(r.count || 0)
+        }));
+        const packageSales = (Array.isArray(marketingData.packageSales) ? marketingData.packageSales : []).map(r => ({
+            package: r._id || 'ไม่ระบุ',
+            count: Number(r.count || 0),
+            revenue: Number(r.totalRevenue || 0)
+        }));
+
+        const trendMap = new Map();
+        function upsert(bucket, patch) {
+            const prev = trendMap.get(bucket) || { bucket, income: 0, claimCost: 0, adminExpense: 0, refund: 0 };
+            trendMap.set(bucket, { ...prev, ...patch });
+        }
+
+        (Array.isArray(incomeTrend) ? incomeTrend : []).forEach(r => upsert(r._id, { income: Number(r.income || 0) }));
+        (Array.isArray(claimTrend) ? claimTrend : []).forEach(r => upsert(r._id, { claimCost: Number(r.claim || 0) }));
+        (Array.isArray(manualTrend) ? manualTrend : []).forEach(r => upsert(r._id, { claimCost: (Number((trendMap.get(r._id) || {}).claimCost || 0) + Number(r.manual || 0)) }));
+        (Array.isArray(adminTrend) ? adminTrend : []).forEach(r => upsert(r._id, { adminExpense: Number(r.admin || 0) }));
+        (Array.isArray(refundTrend) ? refundTrend : []).forEach(r => upsert(r._id, { refund: Number(r.refund || 0) }));
+
+        const trend = Array.from(trendMap.values())
+            .sort((a, b) => String(a.bucket).localeCompare(String(b.bucket)))
+            .map(r => {
+                const expenses = Number(r.claimCost || 0) + Number(r.adminExpense || 0) + Number(r.refund || 0);
+                const np = Number(r.income || 0) - expenses;
+                return {
+                    bucket: r.bucket,
+                    label: r.bucket,
+                    income: Number(r.income || 0),
+                    expenses,
+                    netProfit: np,
+                    claimCost: Number(r.claimCost || 0),
+                    adminExpense: Number(r.adminExpense || 0),
+                    refund: Number(r.refund || 0)
+                };
+            });
+
+    const payload = {
+        period: { startDate: startDate || '', endDate: endDate || '' },
+        kpis: {
+            totalIncome,
+            totalExpense,
+            totalClaimCost: totalClaimCost + totalManualExpense + totalRefund,
+            totalAdminExpense,
+            netProfit,
+            profitMarginPct
+        },
+        incomeByMethod: (Array.isArray(incomeAgg) ? incomeAgg : []).map(r => ({ method: r._id || 'ไม่ระบุ', amount: Number(r.amount || 0) })),
+        adminExpenseByCategory: (Array.isArray(adminAgg) ? adminAgg : []).map(r => ({ category: r._id || 'ไม่ระบุ', amount: Number(r.amount || 0) })),
+        expenseSummary: {
+            claimCost: totalClaimCost + totalManualExpense,
+            refundCost: totalRefund,
+            adminExpense: totalAdminExpense,
+            totalExpense
+        },
+        trend,
+        marketingAnalytics: {
+            deviceConditionStats,
+            topModels,
+            packageSales
+        },
+        statement: {
+            incomeLines: (Array.isArray(incomeAgg) ? incomeAgg : []).map(r => ({ label: r._id || 'ไม่ระบุ', amount: Number(r.amount || 0) })),
+            expenseLines: [
+                { label: 'ต้นทุนเคลม (ซ่อม/ดำเนินการ)', amount: totalClaimCost },
+                { label: 'รายจ่ายเคลม (บันทึกเอง)', amount: totalManualExpense },
+                { label: 'คืนเงินลูกค้า', amount: totalRefund },
+                { label: 'รายจ่ายบริหาร', amount: totalAdminExpense }
+            ],
+            totals: {
+                totalIncome,
+                totalExpense,
+                netProfit,
+                profitMarginPct
+            }
+        }
+    };
+
+    if (includeRunRate) {
+        payload.runRate = calcRunRate({ startDate, endDate, kpis: payload.kpis });
+    }
+
+    if (includeCompare) {
+        const prev = calcPrevPeriod({ startDate, endDate });
+        if (prev && prev.startDate && prev.endDate) {
+            const prevData = await buildProfitStatementData({ startDate: prev.startDate, endDate: prev.endDate, includeCompare: false, includeRunRate: false });
+            payload.compare = {
+                period: prev,
+                kpis: prevData.kpis || {}
+            };
+            payload.deltas = {
+                totalIncome: calcDelta(payload.kpis.totalIncome, payload.compare.kpis.totalIncome),
+                totalExpense: calcDelta(payload.kpis.totalExpense, payload.compare.kpis.totalExpense),
+                netProfit: calcDelta(payload.kpis.netProfit, payload.compare.kpis.netProfit),
+                profitMarginPct: calcDelta(payload.kpis.profitMarginPct, payload.compare.kpis.profitMarginPct)
+            };
+        }
+    }
+
+    return payload;
+}
+
+app.get('/api/profit-statement', async (req, res) => {
+    try {
+        const { startDate, endDate } = req.query || {};
+        const includeCompare = parseBoolQuery((req.query || {}).compare);
+        const includeRunRate = parseBoolQuery((req.query || {}).runRate);
+        const data = await buildProfitStatementData({ startDate, endDate, includeCompare, includeRunRate });
+        res.json(data);
+    } catch (err) {
+        console.error('GET /api/profit-statement error:', err);
+        res.status(500).json({ message: err.message });
+    }
+});
+
+app.get('/api/profit-statement/export/excel', async (req, res) => {
+    try {
+        const { startDate, endDate } = req.query || {};
+        const data = await buildProfitStatementData({ startDate, endDate });
+
+        const workbook = new ExcelJS.Workbook();
+        workbook.creator = 'EasyCare';
+        workbook.created = new Date();
+
+        const ws = workbook.addWorksheet('Net Profit Statement');
+        ws.columns = [
+            { header: 'หมวดหมู่', key: 'group', width: 22 },
+            { header: 'รายการ', key: 'label', width: 34 },
+            { header: 'จำนวนเงิน', key: 'amount', width: 16 }
+        ];
+        ws.getRow(1).font = { bold: true };
+
+        const startLabel = (data && data.period && data.period.startDate) ? data.period.startDate : '';
+        const endLabel = (data && data.period && data.period.endDate) ? data.period.endDate : '';
+        ws.addRow({ group: 'ช่วงเวลา', label: `${startLabel || '-'} ถึง ${endLabel || '-'}`, amount: '' });
+        ws.addRow({ group: '', label: '', amount: '' });
+
+        // Income
+        ws.addRow({ group: 'รายรับ', label: 'รวมรายรับ', amount: Number(data.kpis.totalIncome || 0) });
+        for (const r of (data.statement.incomeLines || [])) {
+            ws.addRow({ group: 'รายรับ', label: r.label, amount: Number(r.amount || 0) });
+        }
+        ws.addRow({ group: '', label: '', amount: '' });
+
+        // Expenses
+        ws.addRow({ group: 'รายจ่าย', label: 'รวมรายจ่าย', amount: Number(data.kpis.totalExpense || 0) });
+        for (const r of (data.statement.expenseLines || [])) {
+            ws.addRow({ group: 'รายจ่าย', label: r.label, amount: Number(r.amount || 0) });
+        }
+        ws.addRow({ group: '', label: '', amount: '' });
+
+        // Net
+        ws.addRow({ group: 'สรุป', label: 'กำไรสุทธิ (Net Profit)', amount: Number(data.kpis.netProfit || 0) });
+        ws.addRow({ group: 'สรุป', label: 'อัตรากำไร (Profit Margin %)', amount: Number(data.kpis.profitMarginPct || 0) });
+
+        ws.getColumn('amount').numFmt = '#,##0.00';
+
+        const safeStart = startDate ? String(startDate) : 'all';
+        const safeEnd = endDate ? String(endDate) : 'all';
+        const fileName = `net_profit_statement_${safeStart}_${safeEnd}.xlsx`;
+
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+        await workbook.xlsx.write(res);
+        res.end();
+    } catch (err) {
+        console.error('GET /api/profit-statement/export/excel error:', err);
         res.status(500).json({ message: err.message });
     }
 });
@@ -4439,7 +5124,7 @@ app.get('/api/deposits', async (req, res) => {
         // อัปเดตสถานะมัดจำเป็น ยกเลิก อัตโนมัติ หากเลยวันที่สิ้นสุดการมัดจำ (30 วัน นับจากวันที่ซื้อเครื่อง)
         const expiryBoundaryDate = new Date();
         expiryBoundaryDate.setDate(expiryBoundaryDate.getDate() - 30);
-        
+
         // เรารีเซ็ตเวลาเป็นเริ่มต้นของวัน เพื่อให้ครอบคลุมทั้งวันนั้น (ขึ้นอยู่กับ Requirement ว่านับแบบเป๊ะๆ หรือหมดสิ้นวัน)
         // สำหรับที่นี่ ให้นับ 24ชม x 30 วัน
         await Deposit.updateMany(
@@ -4477,7 +5162,7 @@ app.get('/api/deposits/export/excel', checkAdminRole, async (req, res) => {
             if (status === 'Expired') {
                 // If they ask for 'Expired', it technically might be stored as 'Cancelled' or evaluated on the fly
                 // But let's support exact backend status matching for simplicity
-                match.status = 'Expired'; 
+                match.status = 'Expired';
             } else {
                 match.status = status;
             }
@@ -4515,10 +5200,10 @@ app.get('/api/deposits/export/excel', checkAdminRole, async (req, res) => {
                     computedStatus = 'Expired';
                 }
             }
-            
+
             // If user filtered by Expired but DB hasn't updated or computed handles it:
             if (status === 'Expired' && computedStatus !== 'Expired') return;
-            
+
             ws.addRow({
                 transactionDate: d.transactionDate ? new Date(d.transactionDate).toLocaleString('th-TH') : '-',
                 customerFirstName: d.customerFirstName || '-',
@@ -4608,7 +5293,7 @@ app.put('/api/warranties/:id/approver-edit', async (req, res) => {
                 if (customer[f] !== undefined && customer[f] !== null) {
                     let oldVal = w.customer && w.customer[f] !== undefined && w.customer[f] !== null ? w.customer[f] : '';
                     let newVal = customer[f] !== undefined && customer[f] !== null ? customer[f] : '';
-                    
+
                     if (f === 'birthdate' || f === 'expiryDate') {
                         oldVal = safeDateStr(oldVal);
                         newVal = safeDateStr(newVal);
@@ -4630,7 +5315,7 @@ app.put('/api/warranties/:id/approver-edit', async (req, res) => {
                 if (device[f] !== undefined && device[f] !== null) {
                     let oldVal = w.device && w.device[f] !== undefined && w.device[f] !== null ? w.device[f] : '';
                     let newVal = device[f] !== undefined && device[f] !== null ? device[f] : '';
-                    
+
                     oldVal = String(oldVal).trim();
                     newVal = String(newVal).trim();
 
@@ -4683,6 +5368,195 @@ app.put('/api/warranties/:id/approver-edit', async (req, res) => {
         res.json({ success: true, message: 'Updated successfully' });
     } catch (err) {
         console.error('Approver Edit Error:', err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// GET /api/members-list — รายชื่อสมาชิกทั้งหมด พร้อมจำนวนแพ็กเกจ
+// ═══════════════════════════════════════════════════════════════════
+app.get('/api/members-list', async (req, res) => {
+    try {
+        // 1) ดึงสมาชิกทั้งหมด
+        const members = await Member.find({}).sort({ createdAt: -1 }).lean();
+
+        // 2) นับจำนวน warranty (package) ต่อ memberId
+        const packageCounts = await Warranty.aggregate([
+            { $match: { approvalStatus: { $nin: ['rejected'] } } },
+            { $group: { _id: '$memberId', count: { $sum: 1 } } }
+        ]);
+        const countMap = {};
+        packageCounts.forEach(p => { countMap[p._id] = p.count; });
+
+        // 3) รวมข้อมูล
+        const result = members.map(m => ({
+            memberId: m.memberId || '-',
+            name: `${m.prefix || ''}${m.firstName || ''} ${m.lastName || ''}`.trim(),
+            phone: m.phone || '-',
+            registeredAt: m.createdAt || null,
+            packageCount: countMap[m.memberId] || 0
+        }));
+
+        res.json({ success: true, members: result });
+    } catch (err) {
+        console.error('GET /api/members-list error:', err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// MANUAL EXPENSE ROUTES (รายจ่ายบันทึกเอง)
+// ═══════════════════════════════════════════════════════════════════
+
+app.post('/api/manual-expenses', manualExpenseUpload.single('receipt'), async (req, res) => {
+    try {
+        const { expenseDate, category, title, amount, note, recordedBy } = req.body;
+
+        if (!expenseDate || !category || !title || !amount || !recordedBy) {
+            return res.status(400).json({ success: false, message: 'กรุณากรอกข้อมูลที่จำเป็นให้ครบถ้วน' });
+        }
+
+        const data = {
+            expenseDate: new Date(expenseDate),
+            category,
+            title,
+            amount: Number(amount),
+            note: note || '',
+            recordedBy,
+            receiptUrl: req.file ? req.file.path : ''
+        };
+
+        const doc = await new ManualExpense(data).save();
+
+        await logAction('CREATE_MANUAL_EXPENSE', `บันทึกรายจ่าย "${title}" จำนวน ${amount} บาท`, recordedBy);
+
+        res.json({ success: true, data: doc });
+    } catch (err) {
+        console.error('POST /api/manual-expenses error:', err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+app.get('/api/manual-expenses', async (req, res) => {
+    try {
+        const query = {};
+        if (req.query.startDate) {
+            query.expenseDate = { ...(query.expenseDate || {}), $gte: new Date(String(req.query.startDate)) };
+        }
+        if (req.query.endDate) {
+            query.expenseDate = { ...(query.expenseDate || {}), $lte: new Date(String(req.query.endDate) + 'T23:59:59.999Z') };
+        }
+        if (req.query.search) {
+            const regex = { $regex: String(req.query.search), $options: 'i' };
+            query.$or = [
+                { title: regex },
+                { category: regex },
+                { note: regex },
+                { recordedBy: regex }
+            ];
+        }
+        const data = await ManualExpense.find(query).sort({ expenseDate: -1 }).lean();
+        res.json({ success: true, data });
+    } catch (err) {
+        console.error('GET /api/manual-expenses error:', err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+app.delete('/api/manual-expenses/:id', async (req, res) => {
+    try {
+        const doc = await ManualExpense.findByIdAndDelete(req.params.id);
+        if (!doc) return res.status(404).json({ success: false, message: 'ไม่พบรายการ' });
+        await logAction('DELETE_MANUAL_EXPENSE', `ลบรายจ่าย "${doc.title}" จำนวน ${doc.amount} บาท`, req.body.staffName || 'System');
+        res.json({ success: true });
+    } catch (err) {
+        console.error('DELETE /api/manual-expenses/:id error:', err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// ADMIN EXPENSE ROUTES (รายจ่ายบริหาร)
+// ═══════════════════════════════════════════════════════════════════
+
+// GET /api/expense-categories — ดึงหมวดหมู่ทั้งหมด (seed ถ้าว่าง)
+app.get('/api/expense-categories', async (req, res) => {
+    try {
+        let categories = await ExpenseCategory.find().sort({ name: 1 }).lean();
+        if (categories.length === 0) {
+            const defaults = [
+                'ค่าใช้จ่ายอุปกรณ์',
+                'ค่าขนส่ง',
+                'ค่าคอมมิสชั่นพนักงาน',
+                'ค่ายิงแอ็ด',
+                'เงินเดือนพนักงาน',
+                'ค่าใช้จ่ายอื่นๆ'
+            ];
+            await ExpenseCategory.insertMany(defaults.map(name => ({ name })));
+            categories = await ExpenseCategory.find().sort({ name: 1 }).lean();
+        }
+        res.json({ success: true, data: categories });
+    } catch (err) {
+        console.error('GET /api/expense-categories error:', err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// POST /api/admin-expenses — บันทึกรายจ่ายบริหาร (สร้างหมวดหมู่ใหม่อัตโนมัติ)
+app.post('/api/admin-expenses', async (req, res) => {
+    try {
+        const { expenseDate, category, title, amount, recordedBy } = req.body;
+
+        if (!expenseDate || !category || !title || !amount || !recordedBy) {
+            return res.status(400).json({ success: false, message: 'กรุณากรอกข้อมูลที่จำเป็นให้ครบถ้วน' });
+        }
+
+        // Auto-create new category if it doesn't exist
+        const existingCat = await ExpenseCategory.findOne({ name: category });
+        if (!existingCat) {
+            await new ExpenseCategory({ name: category }).save();
+        }
+
+        const doc = await new AdminExpense({
+            expenseDate: new Date(expenseDate),
+            category,
+            title,
+            amount: Number(amount),
+            recordedBy
+        }).save();
+
+        await logAction('CREATE_ADMIN_EXPENSE', `บันทึกรายจ่ายบริหาร "${title}" หมวด "${category}" จำนวน ${amount} บาท`, recordedBy);
+
+        res.json({ success: true, data: doc });
+    } catch (err) {
+        console.error('POST /api/admin-expenses error:', err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// GET /api/admin-expenses — ดึงรายจ่ายบริหารทั้งหมด
+app.get('/api/admin-expenses', async (req, res) => {
+    try {
+        const query = {};
+        if (req.query.startDate) {
+            query.expenseDate = { ...(query.expenseDate || {}), $gte: new Date(String(req.query.startDate)) };
+        }
+        if (req.query.endDate) {
+            query.expenseDate = { ...(query.expenseDate || {}), $lte: new Date(String(req.query.endDate) + 'T23:59:59.999Z') };
+        }
+        if (req.query.search) {
+            const regex = { $regex: String(req.query.search), $options: 'i' };
+            query.$or = [
+                { title: regex },
+                { category: regex },
+                { recordedBy: regex }
+            ];
+        }
+        const data = await AdminExpense.find(query).sort({ expenseDate: -1 }).lean();
+        const totalAmount = data.reduce((sum, d) => sum + (d.amount || 0), 0);
+        res.json({ success: true, data, totalAmount });
+    } catch (err) {
+        console.error('GET /api/admin-expenses error:', err);
         res.status(500).json({ success: false, message: err.message });
     }
 });

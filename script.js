@@ -883,6 +883,22 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    const financeTabAdminExpense = document.getElementById('financeTabAdminExpense');
+    if (financeTabAdminExpense) {
+        financeTabAdminExpense.addEventListener('click', (e) => {
+            e.preventDefault();
+            setFinanceTab('adminExpense');
+        });
+    }
+
+    const financeTabProfitStatement = document.getElementById('financeTabProfitStatement');
+    if (financeTabProfitStatement) {
+        financeTabProfitStatement.addEventListener('click', (e) => {
+            e.preventDefault();
+            setFinanceTab('profitStatement');
+        });
+    }
+
     const financeExpenseFilterBtn = document.getElementById('financeExpenseFilterBtn');
     if (financeExpenseFilterBtn) {
         financeExpenseFilterBtn.addEventListener('click', (e) => {
@@ -910,6 +926,347 @@ document.addEventListener('DOMContentLoaded', () => {
             if (startEl) startEl.value = '';
             if (endEl) endEl.value = '';
             fetchFinanceExpenseData();
+        });
+    }
+
+    // ═══ Manual Expense Modal ═══
+    const addManualExpenseBtn = document.getElementById('addManualExpenseBtn');
+    const manualExpenseModal = document.getElementById('manualExpenseModal');
+    const closeManualExpenseModal = document.getElementById('closeManualExpenseModal');
+    const cancelManualExpenseBtn = document.getElementById('cancelManualExpenseBtn');
+    const manualExpenseForm = document.getElementById('manualExpenseForm');
+
+    function openManualExpenseModal() {
+        if (!manualExpenseModal) return;
+        // Set default date to today
+        const todayStr = new Date().toISOString().split('T')[0];
+        const dateEl = document.getElementById('meExpenseDate');
+        if (dateEl) dateEl.value = todayStr;
+        // Set recordedBy
+        const recordedByEl = document.getElementById('meRecordedBy');
+        if (recordedByEl && currentUser) recordedByEl.value = currentUser.staffName;
+        manualExpenseModal.style.display = 'flex';
+    }
+
+    function closeManualExpenseModalFn() {
+        if (!manualExpenseModal) return;
+        manualExpenseModal.style.display = 'none';
+        if (manualExpenseForm) manualExpenseForm.reset();
+        const preview = document.getElementById('meReceiptPreview');
+        if (preview) preview.innerHTML = '';
+    }
+
+    if (addManualExpenseBtn) addManualExpenseBtn.addEventListener('click', openManualExpenseModal);
+    if (closeManualExpenseModal) closeManualExpenseModal.addEventListener('click', closeManualExpenseModalFn);
+    if (cancelManualExpenseBtn) cancelManualExpenseBtn.addEventListener('click', closeManualExpenseModalFn);
+
+    // Close modal on backdrop click
+    if (manualExpenseModal) {
+        manualExpenseModal.addEventListener('click', (e) => {
+            if (e.target === manualExpenseModal) closeManualExpenseModalFn();
+        });
+    }
+
+    // Receipt image preview
+    const meReceiptFile = document.getElementById('meReceiptFile');
+    if (meReceiptFile) {
+        meReceiptFile.addEventListener('change', () => {
+            const preview = document.getElementById('meReceiptPreview');
+            if (!preview) return;
+            preview.innerHTML = '';
+            const file = meReceiptFile.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                const img = document.createElement('img');
+                img.src = ev.target.result;
+                img.style.maxWidth = '200px';
+                img.style.maxHeight = '150px';
+                img.style.borderRadius = '8px';
+                img.style.border = '2px solid var(--primary)';
+                img.style.objectFit = 'cover';
+                preview.appendChild(img);
+            };
+            reader.readAsDataURL(file);
+        });
+    }
+
+    // Submit manual expense form
+    if (manualExpenseForm) {
+        manualExpenseForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const expenseDate = (document.getElementById('meExpenseDate') || {}).value;
+            const category = (document.getElementById('meCategory') || {}).value;
+            const title = (document.getElementById('meTitle') || {}).value;
+            const amount = (document.getElementById('meAmount') || {}).value;
+            const note = (document.getElementById('meNote') || {}).value;
+            const recordedBy = (document.getElementById('meRecordedBy') || {}).value;
+            const fileInput = document.getElementById('meReceiptFile');
+
+            if (!expenseDate || !category || !title || !amount) {
+                showAlert('warning', 'กรุณากรอกข้อมูลที่จำเป็นให้ครบถ้วน');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('expenseDate', expenseDate);
+            formData.append('category', category);
+            formData.append('title', title);
+            formData.append('amount', amount);
+            formData.append('note', note || '');
+            formData.append('recordedBy', recordedBy || (currentUser ? currentUser.staffName : ''));
+            if (fileInput && fileInput.files[0]) {
+                formData.append('receipt', fileInput.files[0]);
+            }
+
+            showLoader('กำลังบันทึกรายจ่าย...');
+            try {
+                const res = await fetch('/api/manual-expenses', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await res.json();
+                if (data.success) {
+                    showAlert('success', 'บันทึกรายจ่ายสำเร็จ');
+                    closeManualExpenseModalFn();
+                    fetchFinanceExpenseData();
+                } else {
+                    showAlert('error', data.message || 'ไม่สามารถบันทึกรายจ่ายได้');
+                }
+            } catch (err) {
+                console.error('Submit manual expense error:', err);
+                showAlert('error', 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้');
+            } finally {
+                hideLoader();
+            }
+        });
+    }
+
+    // ═══ Admin Expense Tab Logic ═══
+    const addAdminExpenseBtn = document.getElementById('addAdminExpenseBtn');
+    const adminExpenseModal = document.getElementById('adminExpenseModal');
+    const closeAdminExpenseModalBtn = document.getElementById('closeAdminExpenseModal');
+    const cancelAdminExpenseBtn = document.getElementById('cancelAdminExpenseBtn');
+    const adminExpenseForm = document.getElementById('adminExpenseForm');
+    const adminExpenseCategorySelect = document.getElementById('adminExpenseCategory');
+    const adminExpenseNewCategoryGroup = document.getElementById('adminExpenseNewCategoryGroup');
+    const adminExpenseNewCategoryInput = document.getElementById('adminExpenseNewCategory');
+
+    async function loadExpenseCategories() {
+        if (!adminExpenseCategorySelect) return;
+        try {
+            const res = await fetch('/api/expense-categories');
+            const result = await res.json();
+            const categories = (result && Array.isArray(result.data)) ? result.data : [];
+
+            adminExpenseCategorySelect.innerHTML = '<option value="" disabled selected>เลือกประเภทรายการ</option>';
+            categories.forEach(cat => {
+                const opt = document.createElement('option');
+                opt.value = cat.name;
+                opt.textContent = cat.name;
+                adminExpenseCategorySelect.appendChild(opt);
+            });
+            // Add "+ เพิ่มหมวดหมู่ใหม่" option
+            const addNewOpt = document.createElement('option');
+            addNewOpt.value = '__NEW__';
+            addNewOpt.textContent = '➕ เพิ่มหมวดหมู่ใหม่...';
+            adminExpenseCategorySelect.appendChild(addNewOpt);
+        } catch (err) {
+            console.error('loadExpenseCategories error:', err);
+            adminExpenseCategorySelect.innerHTML = '<option value="" disabled selected>ไม่สามารถโหลดหมวดหมู่ได้</option>';
+        }
+    }
+
+    // Show/hide new category input based on dropdown selection
+    if (adminExpenseCategorySelect) {
+        adminExpenseCategorySelect.addEventListener('change', () => {
+            const val = adminExpenseCategorySelect.value;
+            if (val === '__NEW__' || val === 'ค่าใช้จ่ายอื่นๆ') {
+                if (adminExpenseNewCategoryGroup) adminExpenseNewCategoryGroup.style.display = 'block';
+                if (adminExpenseNewCategoryInput) adminExpenseNewCategoryInput.required = true;
+            } else {
+                if (adminExpenseNewCategoryGroup) adminExpenseNewCategoryGroup.style.display = 'none';
+                if (adminExpenseNewCategoryInput) {
+                    adminExpenseNewCategoryInput.required = false;
+                    adminExpenseNewCategoryInput.value = '';
+                }
+            }
+        });
+    }
+
+    function openAdminExpenseModal() {
+        if (!adminExpenseModal) return;
+        const todayStr = new Date().toISOString().split('T')[0];
+        const dateEl = document.getElementById('aeExpenseDate');
+        if (dateEl) dateEl.value = todayStr;
+        const recordedByEl = document.getElementById('aeRecordedBy');
+        if (recordedByEl && currentUser) recordedByEl.value = currentUser.staffName;
+        // Reset new category
+        if (adminExpenseNewCategoryGroup) adminExpenseNewCategoryGroup.style.display = 'none';
+        if (adminExpenseNewCategoryInput) {
+            adminExpenseNewCategoryInput.value = '';
+            adminExpenseNewCategoryInput.required = false;
+        }
+        loadExpenseCategories();
+        adminExpenseModal.style.display = 'flex';
+    }
+
+    function closeAdminExpenseModalFn() {
+        if (!adminExpenseModal) return;
+        adminExpenseModal.style.display = 'none';
+        if (adminExpenseForm) adminExpenseForm.reset();
+        if (adminExpenseNewCategoryGroup) adminExpenseNewCategoryGroup.style.display = 'none';
+    }
+
+    if (addAdminExpenseBtn) addAdminExpenseBtn.addEventListener('click', openAdminExpenseModal);
+    if (closeAdminExpenseModalBtn) closeAdminExpenseModalBtn.addEventListener('click', closeAdminExpenseModalFn);
+    if (cancelAdminExpenseBtn) cancelAdminExpenseBtn.addEventListener('click', closeAdminExpenseModalFn);
+
+    if (adminExpenseModal) {
+        adminExpenseModal.addEventListener('click', (e) => {
+            if (e.target === adminExpenseModal) closeAdminExpenseModalFn();
+        });
+    }
+
+    // Submit admin expense form
+    if (adminExpenseForm) {
+        adminExpenseForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const expenseDate = (document.getElementById('aeExpenseDate') || {}).value;
+            let category = (adminExpenseCategorySelect || {}).value;
+            const newCategory = (adminExpenseNewCategoryInput || {}).value;
+            const title = (document.getElementById('aeTitle') || {}).value;
+            const amount = (document.getElementById('aeAmount') || {}).value;
+            const recordedBy = (document.getElementById('aeRecordedBy') || {}).value;
+
+            // If user typed a new category, use it
+            if ((category === '__NEW__' || category === 'ค่าใช้จ่ายอื่นๆ') && newCategory && newCategory.trim()) {
+                category = newCategory.trim();
+            }
+
+            if (!expenseDate || !category || category === '__NEW__' || !title || !amount) {
+                showAlert('warning', 'กรุณากรอกข้อมูลที่จำเป็นให้ครบถ้วน');
+                return;
+            }
+
+            showLoader('กำลังบันทึกรายจ่ายบริหาร...');
+            try {
+                const res = await fetch('/api/admin-expenses', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        expenseDate,
+                        category,
+                        title,
+                        amount: Number(amount),
+                        recordedBy: recordedBy || (currentUser ? currentUser.staffName : '')
+                    })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    showAlert('success', 'บันทึกรายจ่ายบริหารสำเร็จ');
+                    closeAdminExpenseModalFn();
+                    fetchAdminExpenseData();
+                } else {
+                    showAlert('error', data.message || 'ไม่สามารถบันทึกรายจ่ายบริหารได้');
+                }
+            } catch (err) {
+                console.error('Submit admin expense error:', err);
+                showAlert('error', 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้');
+            } finally {
+                hideLoader();
+            }
+        });
+    }
+
+    // Admin Expense Filter & Reset buttons
+    const adminExpenseFilterBtn = document.getElementById('adminExpenseFilterBtn');
+    if (adminExpenseFilterBtn) {
+        adminExpenseFilterBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            fetchAdminExpenseData();
+        });
+    }
+
+    const adminExpenseResetBtn = document.getElementById('adminExpenseResetBtn');
+    if (adminExpenseResetBtn) {
+        adminExpenseResetBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            const searchEl = document.getElementById('adminExpenseSearchInput');
+            const startEl = document.getElementById('adminExpenseStartDate');
+            const endEl = document.getElementById('adminExpenseEndDate');
+            if (searchEl) searchEl.value = '';
+            if (startEl) startEl.value = '';
+            if (endEl) endEl.value = '';
+            fetchAdminExpenseData();
+        });
+    }
+
+    function buildAdminExpenseQueryString() {
+        const params = new URLSearchParams();
+        const search = (document.getElementById('adminExpenseSearchInput') || {}).value || '';
+        const startDate = (document.getElementById('adminExpenseStartDate') || {}).value || '';
+        const endDate = (document.getElementById('adminExpenseEndDate') || {}).value || '';
+
+        if (search) params.set('search', search);
+        if (startDate) params.set('startDate', startDate);
+        if (endDate) params.set('endDate', endDate);
+        const qs = params.toString();
+        return qs ? `?${qs}` : '';
+    }
+
+    async function fetchAdminExpenseData() {
+        showLoader('กำลังโหลดรายจ่ายบริหาร...');
+        try {
+            const qs = buildAdminExpenseQueryString();
+            const res = await fetch(`/api/admin-expenses${qs}`);
+            const result = await res.json();
+
+            const totalEl = document.getElementById('totalAdminExpenseDisplay');
+            if (totalEl) {
+                totalEl.textContent = formatNumber(result.totalAmount || 0) + ' ฿';
+            }
+
+            renderAdminExpenseTable(result.data || []);
+        } catch (err) {
+            console.error('Fetch admin expense data error:', err);
+            showAlert('error', 'ไม่สามารถโหลดข้อมูลรายจ่ายบริหารได้');
+        } finally {
+            hideLoader();
+        }
+    }
+
+    function renderAdminExpenseTable(rows) {
+        const tbody = document.getElementById('adminExpenseBody');
+        const emptyState = document.getElementById('adminExpenseEmptyState');
+        const table = document.getElementById('adminExpenseTable');
+
+        if (tbody) tbody.innerHTML = '';
+
+        if (!rows || rows.length === 0) {
+            if (emptyState) emptyState.style.display = 'block';
+            if (table) table.style.display = 'none';
+            return;
+        }
+
+        if (emptyState) emptyState.style.display = 'none';
+        if (table) table.style.display = '';
+
+        rows.forEach(r => {
+            const tr = document.createElement('tr');
+            const dateText = r.expenseDate ? new Date(r.expenseDate).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' }) : '-';
+            const amountText = formatNumber(r.amount || 0);
+
+            tr.innerHTML = `
+                <td>${dateText}</td>
+                <td><span style="display:inline-block; padding:2px 10px; border-radius:6px; font-size:0.78rem; font-weight:600; background: linear-gradient(135deg, #ede9fe, #ddd6fe); color: #6d28d9; border: 1px solid #c4b5fd;">${r.category || '-'}</span></td>
+                <td>${r.title || '-'}</td>
+                <td style="color:#ef4444; font-weight: 700;">-${amountText}</td>
+                <td>${r.recordedBy || '-'}</td>
+            `;
+            tbody.appendChild(tr);
         });
     }
 
@@ -975,22 +1332,687 @@ document.addEventListener('DOMContentLoaded', () => {
     function setFinanceTab(tabName) {
         const incomeTab = document.getElementById('financeTabIncome');
         const expenseTab = document.getElementById('financeTabExpense');
+        const adminExpenseTab = document.getElementById('financeTabAdminExpense');
+        const profitStatementTabBtn = document.getElementById('financeTabProfitStatement');
         const incomeSection = document.getElementById('financeIncomeSection');
         const expenseSection = document.getElementById('financeExpenseSection');
+        const adminExpenseSection = document.getElementById('financeAdminExpenseSection');
+        const profitStatementSection = document.getElementById('profitStatementTab');
 
-        const isExpense = tabName === 'expense';
+        // Remove active from all tabs
+        if (incomeTab) incomeTab.classList.remove('active');
+        if (expenseTab) expenseTab.classList.remove('active');
+        if (adminExpenseTab) adminExpenseTab.classList.remove('active');
+        if (profitStatementTabBtn) profitStatementTabBtn.classList.remove('active');
 
-        if (incomeTab) incomeTab.classList.toggle('active', !isExpense);
-        if (expenseTab) expenseTab.classList.toggle('active', isExpense);
+        // Hide all sections
+        if (incomeSection) incomeSection.style.display = 'none';
+        if (expenseSection) expenseSection.style.display = 'none';
+        if (adminExpenseSection) adminExpenseSection.style.display = 'none';
+        if (profitStatementSection) profitStatementSection.style.display = 'none';
 
-        if (incomeSection) incomeSection.style.display = isExpense ? 'none' : 'block';
-        if (expenseSection) expenseSection.style.display = isExpense ? 'block' : 'none';
-
-        if (isExpense) {
+        if (tabName === 'expense') {
+            if (expenseTab) expenseTab.classList.add('active');
+            if (expenseSection) expenseSection.style.display = 'block';
             fetchFinanceExpenseData();
+        } else if (tabName === 'adminExpense') {
+            if (adminExpenseTab) adminExpenseTab.classList.add('active');
+            if (adminExpenseSection) adminExpenseSection.style.display = 'block';
+            fetchAdminExpenseData();
+        } else if (tabName === 'profitStatement') {
+            if (profitStatementTabBtn) profitStatementTabBtn.classList.add('active');
+            if (profitStatementSection) profitStatementSection.style.display = 'block';
+            initProfitStatementDefaults();
+            fetchAndRenderProfitStatement();
         } else {
+            // income (default)
+            if (incomeTab) incomeTab.classList.add('active');
+            if (incomeSection) incomeSection.style.display = 'block';
             fetchFinanceData();
         }
+    }
+
+    let incomeChartInstance = null;
+    let expenseChartInstance = null;
+    let profitTrendChartInstance = null;
+    let packageDistributionChartInstance = null;
+    let deviceConditionChartInstance = null;
+
+    function initProfitStatementDefaults() {
+        const rangeEl = document.getElementById('profitStatementRange');
+        const startEl = document.getElementById('profitStatementStartDate');
+        const endEl = document.getElementById('profitStatementEndDate');
+        if (!rangeEl || !startEl || !endEl) return;
+
+        if (!startEl.value && !endEl.value) {
+            const now = new Date();
+            const start = new Date(now.getFullYear(), now.getMonth(), 1);
+            const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+            startEl.value = start.toISOString().split('T')[0];
+            endEl.value = end.toISOString().split('T')[0];
+        }
+    }
+
+    function computeRangeDates(preset) {
+        const now = new Date();
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+        if (preset === 'daily') {
+            const s = today;
+            const e = today;
+            return { startDate: s.toISOString().split('T')[0], endDate: e.toISOString().split('T')[0] };
+        }
+        if (preset === 'weekly') {
+            const day = today.getDay();
+            const diff = (day === 0 ? -6 : 1) - day;
+            const s = new Date(today);
+            s.setDate(today.getDate() + diff);
+            const e = new Date(s);
+            e.setDate(s.getDate() + 6);
+            return { startDate: s.toISOString().split('T')[0], endDate: e.toISOString().split('T')[0] };
+        }
+        if (preset === 'monthly') {
+            const s = new Date(today.getFullYear(), today.getMonth(), 1);
+            const e = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+            return { startDate: s.toISOString().split('T')[0], endDate: e.toISOString().split('T')[0] };
+        }
+        if (preset === 'yearly') {
+            const s = new Date(today.getFullYear(), 0, 1);
+            const e = new Date(today.getFullYear(), 11, 31);
+            return { startDate: s.toISOString().split('T')[0], endDate: e.toISOString().split('T')[0] };
+        }
+        return { startDate: '', endDate: '' };
+    }
+
+    function formatMoneyWithSign(v) {
+        const n = Number(v || 0);
+        const abs = Math.abs(n);
+        const txt = formatNumber(abs) + ' ฿';
+        return n < 0 ? '-' + txt : txt;
+    }
+
+    function renderProfitStatementDeltas(data) {
+        const deltas = (data || {}).deltas || null;
+        const comparePeriod = ((data || {}).compare || {}).period || null;
+        const enabled = Boolean(deltas && comparePeriod && comparePeriod.startDate && comparePeriod.endDate);
+
+        const elIncome = document.getElementById('kpiProfitTotalIncomeDelta');
+        const elExpense = document.getElementById('kpiProfitTotalExpenseDelta');
+        const elNet = document.getElementById('kpiProfitNetProfitDelta');
+        const elMargin = document.getElementById('kpiProfitMarginDelta');
+
+        const allEls = [elIncome, elExpense, elNet, elMargin];
+        allEls.forEach(el => {
+            if (!el) return;
+            el.textContent = '';
+            el.style.color = '#64748b';
+            el.style.fontWeight = '600';
+        });
+        if (!enabled) return;
+
+        function fmtPct(p) {
+            if (p === null || typeof p === 'undefined') return '';
+            const n = Number(p || 0);
+            const sign = n > 0 ? '+' : '';
+            return ` (${sign}${n.toFixed(2)}%)`;
+        }
+
+        function fmtMoneyDelta(v) {
+            const n = Number(v || 0);
+            const sign = n > 0 ? '+' : '';
+            return `${sign}${formatNumber(Math.abs(n))} ฿`;
+        }
+
+        function applyDelta(el, d, positiveGood = true, isPct = false) {
+            if (!el || !d) return;
+            const delta = Number(d.delta || 0);
+            const good = positiveGood ? delta >= 0 : delta <= 0;
+            el.style.color = good ? '#0d9488' : '#ef4444';
+            if (isPct) {
+                const sign = delta > 0 ? '+' : '';
+                el.textContent = `${sign}${delta.toFixed(2)}%` + fmtPct(d.pctChange);
+            } else {
+                el.textContent = `${fmtMoneyDelta(delta)}` + fmtPct(d.pctChange);
+            }
+        }
+
+        applyDelta(elIncome, deltas.totalIncome, true, false);
+        applyDelta(elExpense, deltas.totalExpense, false, false);
+        applyDelta(elNet, deltas.netProfit, true, false);
+        applyDelta(elMargin, deltas.profitMarginPct, true, true);
+    }
+
+    function renderProfitStatementRunRate(data) {
+        const rr = (data || {}).runRate || null;
+        const wrap = document.getElementById('profitStatementRunRate');
+        if (!wrap) return;
+
+        if (!rr || !rr.avgPerDay || !rr.projected) {
+            wrap.style.display = 'none';
+            return;
+        }
+        wrap.style.display = 'block';
+
+        const meta = document.getElementById('profitStatementRunRateMeta');
+        const elProjIncome = document.getElementById('profitStatementProjectedIncome');
+        const elProjExpense = document.getElementById('profitStatementProjectedExpense');
+        const elProjNet = document.getElementById('profitStatementProjectedNetProfit');
+        const elAvgIncome = document.getElementById('profitStatementAvgIncomePerDay');
+        const elAvgExpense = document.getElementById('profitStatementAvgExpensePerDay');
+        const elAvgNet = document.getElementById('profitStatementAvgNetProfitPerDay');
+
+        if (meta) {
+            meta.textContent = `ข้อมูล ${rr.days} วัน, ประมาณการ ${rr.projectedDays} วัน`;
+        }
+        if (elProjIncome) elProjIncome.textContent = formatNumber(rr.projected.income || 0) + ' ฿';
+        if (elProjExpense) elProjExpense.textContent = formatNumber(rr.projected.expense || 0) + ' ฿';
+        if (elProjNet) {
+            const n = Number((rr.projected || {}).netProfit || 0);
+            elProjNet.textContent = formatMoneyWithSign(n);
+            elProjNet.style.color = n >= 0 ? '#0ea5e9' : '#ef4444';
+        }
+        if (elAvgIncome) elAvgIncome.textContent = `เฉลี่ย/วัน: ${formatNumber(rr.avgPerDay.income || 0)} ฿`;
+        if (elAvgExpense) elAvgExpense.textContent = `เฉลี่ย/วัน: ${formatNumber(rr.avgPerDay.expense || 0)} ฿`;
+        if (elAvgNet) elAvgNet.textContent = `เฉลี่ย/วัน: ${formatMoneyWithSign(rr.avgPerDay.netProfit || 0)}`;
+    }
+
+    async function exportProfitStatementExcel() {
+        const startDate = (document.getElementById('profitStatementStartDate') || {}).value || '';
+        const endDate = (document.getElementById('profitStatementEndDate') || {}).value || '';
+        const compareToggle = document.getElementById('profitStatementCompareToggle');
+        const params = new URLSearchParams();
+        if (startDate) params.set('startDate', startDate);
+        if (endDate) params.set('endDate', endDate);
+        if (compareToggle && compareToggle.checked) params.set('compare', '1');
+        params.set('runRate', '1');
+
+        try {
+            showLoader('กำลังสร้างไฟล์ Excel...');
+            const res = await fetch(`/api/profit-statement/export/excel?${params.toString()}`);
+            if (!res.ok) {
+                let msg = 'Export ไม่สำเร็จ';
+                try {
+                    const errData = await res.json();
+                    if (errData && errData.message) msg = errData.message;
+                } catch (e) {
+                    // ignore
+                }
+                throw new Error(msg);
+            }
+
+            const blob = await res.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `net_profit_statement_${startDate || 'all'}_${endDate || 'all'}.xlsx`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            window.URL.revokeObjectURL(url);
+        } catch (err) {
+            console.error('Export profit statement excel error:', err);
+            showAlert('error', err.message || 'ไม่สามารถ Export Excel ได้');
+        } finally {
+            hideLoader();
+        }
+    }
+
+    const profitStatementAnalyzeBtn = document.getElementById('profitStatementAnalyzeBtn');
+    if (profitStatementAnalyzeBtn) {
+        profitStatementAnalyzeBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            fetchAndRenderProfitStatement();
+        });
+    }
+
+    const profitStatementExportExcelBtn = document.getElementById('profitStatementExportExcelBtn');
+    if (profitStatementExportExcelBtn) {
+        profitStatementExportExcelBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            exportProfitStatementExcel();
+        });
+    }
+
+    const profitStatementRangeEl = document.getElementById('profitStatementRange');
+    if (profitStatementRangeEl) {
+        profitStatementRangeEl.addEventListener('change', () => {
+            const preset = profitStatementRangeEl.value;
+            if (preset !== 'custom') {
+                const r = computeRangeDates(preset);
+                const startEl = document.getElementById('profitStatementStartDate');
+                const endEl = document.getElementById('profitStatementEndDate');
+                if (startEl && r.startDate) startEl.value = r.startDate;
+                if (endEl && r.endDate) endEl.value = r.endDate;
+            }
+        });
+    }
+
+    const profitStatementCompareToggle = document.getElementById('profitStatementCompareToggle');
+    if (profitStatementCompareToggle) {
+        profitStatementCompareToggle.addEventListener('change', () => {
+            fetchAndRenderProfitStatement();
+        });
+    }
+
+    async function fetchAndRenderProfitStatement() {
+        const rangeEl = document.getElementById('profitStatementRange');
+        const startEl = document.getElementById('profitStatementStartDate');
+        const endEl = document.getElementById('profitStatementEndDate');
+        const compareToggle = document.getElementById('profitStatementCompareToggle');
+
+        let startDate = (startEl || {}).value || '';
+        let endDate = (endEl || {}).value || '';
+        const preset = (rangeEl || {}).value || 'monthly';
+
+        if (preset && preset !== 'custom' && (!startDate || !endDate)) {
+            const r = computeRangeDates(preset);
+            startDate = startDate || r.startDate;
+            endDate = endDate || r.endDate;
+            if (startEl && r.startDate) startEl.value = startDate;
+            if (endEl && r.endDate) endEl.value = endDate;
+        }
+
+        const params = new URLSearchParams();
+        if (startDate) params.set('startDate', startDate);
+        if (endDate) params.set('endDate', endDate);
+
+        showLoader('กำลังโหลดงบกำไรสุทธิ...');
+        try {
+            const res = await fetch(`/api/profit-statement?${params.toString()}`);
+            const data = await res.json();
+            if (!res.ok) {
+                const msg = (data && data.message) ? data.message : 'ไม่สามารถโหลดข้อมูลได้';
+                throw new Error(msg);
+            }
+
+            const k = data.kpis || {};
+            const elIncome = document.getElementById('kpiProfitTotalIncome');
+            const elExpense = document.getElementById('kpiProfitTotalExpense');
+            const elNet = document.getElementById('kpiProfitNetProfit');
+            const elMargin = document.getElementById('kpiProfitMargin');
+
+            if (elIncome) {
+                elIncome.textContent = formatNumber(k.totalIncome || 0) + ' ฿';
+                elIncome.style.color = '#0d9488';
+                elIncome.style.fontWeight = '800';
+            }
+            if (elExpense) {
+                elExpense.textContent = formatNumber(k.totalExpense || 0) + ' ฿';
+                elExpense.style.color = '#ef4444';
+                elExpense.style.fontWeight = '800';
+            }
+            if (elNet) {
+                const netVal = Number(k.netProfit || 0);
+                elNet.textContent = formatMoneyWithSign(netVal);
+                elNet.style.color = netVal >= 0 ? '#0ea5e9' : '#ef4444';
+                elNet.style.fontWeight = '900';
+            }
+            if (elMargin) {
+                const pct = Number(k.profitMarginPct || 0);
+                elMargin.textContent = pct.toFixed(2) + '%';
+                elMargin.style.color = pct >= 0 ? '#0ea5e9' : '#ef4444';
+                elMargin.style.fontWeight = '900';
+            }
+
+            renderProfitStatementDeltas(data);
+            renderProfitStatementRunRate(data);
+
+            renderProfitStatementCharts(data);
+            renderProfitStatementTable(data);
+            renderMarketingAnalytics(data);
+        } catch (err) {
+            console.error('fetchAndRenderProfitStatement error:', err);
+            showAlert('error', err.message || 'ไม่สามารถโหลดงบกำไรสุทธิได้');
+        } finally {
+            hideLoader();
+        }
+    }
+
+    function renderProfitStatementCharts(data) {
+        const incomeCanvas = document.getElementById('incomeChart');
+        const expenseCanvas = document.getElementById('expenseChart');
+        const trendCanvas = document.getElementById('profitTrendChart');
+        if (typeof Chart === 'undefined') return;
+
+        if (incomeChartInstance) {
+            incomeChartInstance.destroy();
+            incomeChartInstance = null;
+        }
+        if (expenseChartInstance) {
+            expenseChartInstance.destroy();
+            expenseChartInstance = null;
+        }
+        if (profitTrendChartInstance) {
+            profitTrendChartInstance.destroy();
+            profitTrendChartInstance = null;
+        }
+
+        const incomeRows = Array.isArray(data.incomeByMethod) ? data.incomeByMethod : [];
+        const adminRows = Array.isArray(data.adminExpenseByCategory) ? data.adminExpenseByCategory : [];
+        const expenseSummary = data.expenseSummary || {};
+
+        if (incomeCanvas) {
+            const labels = incomeRows.map(r => r.method);
+            const values = incomeRows.map(r => Number(r.amount || 0));
+            incomeChartInstance = new Chart(incomeCanvas, {
+                type: 'pie',
+                data: {
+                    labels,
+                    datasets: [{
+                        data: values,
+                        backgroundColor: [
+                            'rgba(13,148,136,0.75)',
+                            'rgba(59,130,246,0.70)',
+                            'rgba(245,158,11,0.70)',
+                            'rgba(139,92,246,0.70)',
+                            'rgba(100,116,139,0.55)'
+                        ]
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { position: 'right' },
+                        tooltip: {
+                            callbacks: {
+                                label: (ctx) => `${ctx.label}: ${formatNumber(ctx.parsed)} ฿`
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        if (expenseCanvas) {
+            const labels = [
+                'ต้นทุนเคลม',
+                'คืนเงินลูกค้า',
+                ...adminRows.map(r => r.category)
+            ];
+            const values = [
+                Number(expenseSummary.claimCost || 0),
+                Number(expenseSummary.refundCost || 0),
+                ...adminRows.map(r => Number(r.amount || 0))
+            ];
+
+            expenseChartInstance = new Chart(expenseCanvas, {
+                type: 'pie',
+                data: {
+                    labels,
+                    datasets: [{
+                        data: values,
+                        backgroundColor: [
+                            'rgba(239,68,68,0.70)',
+                            'rgba(245,158,11,0.70)',
+                            'rgba(139,92,246,0.65)',
+                            'rgba(59,130,246,0.55)',
+                            'rgba(100,116,139,0.50)',
+                            'rgba(15,23,42,0.35)'
+                        ]
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { position: 'right' },
+                        tooltip: {
+                            callbacks: {
+                                label: (ctx) => `${ctx.label}: ${formatNumber(ctx.parsed)} ฿`
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        if (trendCanvas) {
+            const trend = Array.isArray(data.trend) ? data.trend : [];
+            const labels = trend.map(r => r.label);
+            const net = trend.map(r => Number(r.netProfit || 0));
+            const income = trend.map(r => Number(r.income || 0));
+            const expenses = trend.map(r => Number(r.expenses || 0));
+
+            profitTrendChartInstance = new Chart(trendCanvas, {
+                type: 'bar',
+                data: {
+                    labels,
+                    datasets: [
+                        {
+                            label: 'รายรับ',
+                            data: income,
+                            backgroundColor: 'rgba(13,148,136,0.45)',
+                            borderColor: '#0d9488',
+                            borderWidth: 1
+                        },
+                        {
+                            label: 'รายจ่าย',
+                            data: expenses,
+                            backgroundColor: 'rgba(239,68,68,0.35)',
+                            borderColor: '#ef4444',
+                            borderWidth: 1
+                        },
+                        {
+                            label: 'กำไรสุทธิ',
+                            data: net,
+                            backgroundColor: net.map(v => v >= 0 ? 'rgba(59,130,246,0.55)' : 'rgba(239,68,68,0.55)'),
+                            borderColor: '#3b82f6',
+                            borderWidth: 1
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { position: 'top' },
+                        tooltip: {
+                            callbacks: {
+                                label: (ctx) => `${ctx.dataset.label}: ${formatNumber(ctx.parsed.y)} ฿`
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            ticks: {
+                                callback: (v) => formatNumber(v)
+                            }
+                        }
+                    }
+                }
+            });
+        }
+    }
+
+    function renderProfitStatementTable(data) {
+        const tbody = document.getElementById('profitStatementBody');
+        const emptyState = document.getElementById('profitStatementEmptyState');
+        const table = document.getElementById('profitStatementTable');
+
+        if (tbody) tbody.innerHTML = '';
+
+        const statement = data && data.statement ? data.statement : {};
+        const incomeLines = Array.isArray(statement.incomeLines) ? statement.incomeLines : [];
+        const expenseLines = Array.isArray(statement.expenseLines) ? statement.expenseLines : [];
+        const totals = statement.totals || {};
+
+        const hasAny = incomeLines.length > 0 || expenseLines.length > 0;
+        if (!hasAny) {
+            if (emptyState) emptyState.style.display = 'block';
+            if (table) table.style.display = 'none';
+            return;
+        }
+
+        if (emptyState) emptyState.style.display = 'none';
+        if (table) table.style.display = '';
+
+        function addRow(label, amount, style) {
+            if (!tbody) return;
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td style="${style && style.label ? style.label : ''}">${label}</td>
+                <td style="text-align: right; ${style && style.amount ? style.amount : ''}">${formatMoneyWithSign(amount)}</td>
+            `;
+            tbody.appendChild(tr);
+        }
+
+        addRow('รายรับ', '', { label: 'font-weight:800; color:#0f172a; background:#f8fafc;', amount: 'background:#f8fafc; font-weight:800; color:#0f172a;' });
+        incomeLines.forEach(r => addRow(r.label, Number(r.amount || 0), { amount: 'color:#0d9488; font-weight:700;' }));
+        addRow('รวมรายรับ', Number(totals.totalIncome || 0), { label: 'font-weight:800;', amount: 'font-weight:900; color:#0d9488;' });
+
+        addRow('รายจ่าย', '', { label: 'font-weight:800; color:#0f172a; background:#f8fafc;', amount: 'background:#f8fafc; font-weight:800; color:#0f172a;' });
+        expenseLines.forEach(r => addRow(r.label, -Math.abs(Number(r.amount || 0)), { amount: 'color:#ef4444; font-weight:700;' }));
+        addRow('รวมรายจ่าย', -Math.abs(Number(totals.totalExpense || 0)), { label: 'font-weight:800;', amount: 'font-weight:900; color:#ef4444;' });
+
+        addRow('กำไรสุทธิ (Net Profit)', Number(totals.netProfit || 0), { label: 'font-weight:800; color:#0f172a; background:#f8fafc;', amount: 'background:#f8fafc; font-weight:900; color:#0f172a;' });
+        addRow('อัตรากำไร (Profit Margin %)', Number(totals.profitMarginPct || 0) + '%', { label: 'font-weight:800;', amount: 'font-weight:900; color:#0f172a;' });
+    }
+
+    function renderMarketingAnalytics(data) {
+        const marketingData = data.marketingAnalytics || {};
+        const packageSales = Array.isArray(marketingData.packageSales) ? marketingData.packageSales : [];
+        const deviceConditionStats = Array.isArray(marketingData.deviceConditionStats) ? marketingData.deviceConditionStats : [];
+        const topModels = Array.isArray(marketingData.topModels) ? marketingData.topModels : [];
+
+        // Destroy existing chart instances
+        if (packageDistributionChartInstance) {
+            packageDistributionChartInstance.destroy();
+            packageDistributionChartInstance = null;
+        }
+        if (deviceConditionChartInstance) {
+            deviceConditionChartInstance.destroy();
+            deviceConditionChartInstance = null;
+        }
+
+        // Render Package Distribution Bar Chart
+        const packageCanvas = document.getElementById('packageDistributionChart');
+        if (packageCanvas && packageSales.length > 0 && typeof Chart !== 'undefined') {
+            const labels = packageSales.map(r => r.package || 'ไม่ระบุ');
+            const values = packageSales.map(r => Number(r.revenue || 0));
+            const counts = packageSales.map(r => Number(r.count || 0));
+
+            packageDistributionChartInstance = new Chart(packageCanvas, {
+                type: 'bar',
+                data: {
+                    labels,
+                    datasets: [{
+                        label: 'ยอดขาย (บาท)',
+                        data: values,
+                        backgroundColor: 'rgba(13,148,136,0.75)',
+                        borderColor: 'rgba(13,148,136,1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: (ctx) => `${ctx.dataset.label}: ${formatNumber(ctx.parsed.y)} ฿ (${counts[ctx.dataIndex]} รายการ)`
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: (value) => formatNumber(value)
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Render Device Condition Pie Chart
+        const conditionCanvas = document.getElementById('deviceConditionChart');
+        if (conditionCanvas && deviceConditionStats.length > 0 && typeof Chart !== 'undefined') {
+            const labels = deviceConditionStats.map(r => {
+                const cond = r.condition || 'ไม่ระบุ';
+                return cond === 'New' ? 'มือ 1 (New)' : cond === 'Second-hand' ? 'มือ 2 (Second-hand)' : cond;
+            });
+            const values = deviceConditionStats.map(r => Number(r.count || 0));
+
+            deviceConditionChartInstance = new Chart(conditionCanvas, {
+                type: 'pie',
+                data: {
+                    labels,
+                    datasets: [{
+                        data: values,
+                        backgroundColor: [
+                            'rgba(13,148,136,0.75)',
+                            'rgba(245,158,11,0.70)',
+                            'rgba(100,116,139,0.55)'
+                        ]
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { position: 'right' },
+                        tooltip: {
+                            callbacks: {
+                                label: (ctx) => `${ctx.label}: ${ctx.parsed} รายการ`
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Render Top Models Table
+        const topModelsBody = document.getElementById('topModelsBody');
+        const topModelsEmptyState = document.getElementById('topModelsEmptyState');
+        const topModelsTable = document.getElementById('topModelsBody')?.closest('table');
+
+        if (topModelsBody) topModelsBody.innerHTML = '';
+
+        if (topModels.length === 0) {
+            if (topModelsEmptyState) topModelsEmptyState.style.display = 'block';
+            if (topModelsTable) topModelsTable.style.display = 'none';
+            return;
+        }
+
+        if (topModelsEmptyState) topModelsEmptyState.style.display = 'none';
+        if (topModelsTable) topModelsTable.style.display = '';
+
+        topModels.forEach((item, index) => {
+            if (!topModelsBody) return;
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td style="font-weight: 700; color: #0f172a;">${index + 1}</td>
+                <td>${item.model || 'ไม่ระบุ'}</td>
+                <td style="text-align: right; font-weight: 700; color: #0d9488;">${item.count || 0}</td>
+            `;
+            topModelsBody.appendChild(tr);
+        });
+
+        // Render Top Packages Table
+        const topPackagesBody = document.getElementById('topPackagesBody');
+        const topPackagesEmptyState = document.getElementById('topPackagesEmptyState');
+        const topPackagesTable = document.getElementById('topPackagesBody')?.closest('table');
+
+        if (topPackagesBody) topPackagesBody.innerHTML = '';
+
+        if (packageSales.length === 0) {
+            if (topPackagesEmptyState) topPackagesEmptyState.style.display = 'block';
+            if (topPackagesTable) topPackagesTable.style.display = 'none';
+            return;
+        }
+
+        if (topPackagesEmptyState) topPackagesEmptyState.style.display = 'none';
+        if (topPackagesTable) topPackagesTable.style.display = '';
+
+        packageSales.slice(0, 5).forEach((item, index) => {
+            if (!topPackagesBody) return;
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td style="font-weight: 700; color: #0f172a;">${index + 1}</td>
+                <td>${item.package || 'ไม่ระบุ'}</td>
+                <td style="text-align: right; font-weight: 700; color: #0d9488;">${item.count || 0}</td>
+                <td style="text-align: right; font-weight: 700; color: #0d9488;">${formatNumber(item.revenue || 0)} ฿</td>
+            `;
+            topPackagesBody.appendChild(tr);
+        });
     }
 
     function buildFinanceExpenseQueryString() {
@@ -1090,6 +2112,16 @@ document.addEventListener('DOMContentLoaded', () => {
             const tr = document.createElement('tr');
             const dateText = r.expenseDate ? new Date(r.expenseDate).toLocaleString('th-TH') : '-';
             const amountText = '-' + formatNumber(r.amount || 0);
+            const isManual = r.source === 'manual';
+            const sourceBadge = isManual
+                ? '<span style="display:inline-block; padding:2px 8px; border-radius:6px; font-size:0.75rem; font-weight:600; background: linear-gradient(135deg, #fef3c7, #fde68a); color: #92400e; border: 1px solid #fbbf24;">📝 บันทึกเอง</span>'
+                : '<span style="display:inline-block; padding:2px 8px; border-radius:6px; font-size:0.75rem; font-weight:600; background: linear-gradient(135deg, #e0f2fe, #bae6fd); color: #075985; border: 1px solid #7dd3fc;">🔧 เคลม</span>';
+            const recordedByText = r.recordedBy || '-';
+
+            if (isManual) {
+                tr.style.background = 'rgba(245, 158, 11, 0.04)';
+            }
+
             tr.innerHTML = `
                 <td>${dateText}</td>
                 <td style="font-weight: 600; color: var(--primary);">${r.claimId || '-'}</td>
@@ -1100,6 +2132,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td>${r.expenseTitle || '-'}</td>
                 <td>${r.centerName || '-'}</td>
                 <td style="color:#ef4444; font-weight: 700;">${amountText}</td>
+                <td>${sourceBadge}</td>
+                <td>${recordedByText}</td>
             `;
             tbody.appendChild(tr);
         });
@@ -1274,9 +2308,13 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('totalCashDisplay').textContent = formatNumber(summary.totalCash || 0) + ' ฿';
             document.getElementById('totalTransferDisplay').textContent = formatNumber(summary.totalTransfer || 0) + ' ฿';
             document.getElementById('totalRevenueDisplay').textContent = formatNumber(summary.totalRevenue || 0) + ' ฿';
-            const unpaidDisplayEl = document.getElementById('totalUnpaidAmountDisplay');
-            if (unpaidDisplayEl) {
-                unpaidDisplayEl.textContent = formatNumber(summary.totalUnpaidAmount || 0) + ' ฿';
+            const unpaidSGDisplayEl = document.getElementById('unpaidAmountSGDisplay');
+            if (unpaidSGDisplayEl) {
+                unpaidSGDisplayEl.textContent = formatNumber(summary.unpaidAmountSG || 0) + ' ฿';
+            }
+            const unpaidTPlusDisplayEl = document.getElementById('unpaidAmountTPlusDisplay');
+            if (unpaidTPlusDisplayEl) {
+                unpaidTPlusDisplayEl.textContent = formatNumber(summary.unpaidAmountTPlus || 0) + ' ฿';
             }
             const receivedDisplayEl = document.getElementById('totalFinanceReceivedAmountDisplay');
             if (receivedDisplayEl) {
@@ -1316,18 +2354,37 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     window.receiveFinanceAmount = async function (txId) {
-        const isConfirmed = await window.showConfirm(
-            'ยืนยันการรับยอด',
-            'คุณแน่ใจหรือไม่ว่าต้องการยืนยันการรับยอดจากไฟแนนซ์สำหรับรายการนี้?',
-            '✓ ยืนยันรับยอด',
-            'ยกเลิก'
-        );
-        if (!isConfirmed) return;
+        const today = new Date().toISOString().split('T')[0];
+        const { value: receivedDate } = await Swal.fire({
+            title: 'ยืนยันการรับยอด',
+            html: `
+                <p style="margin-bottom: 10px;">คุณแน่ใจหรือไม่ว่าต้องการยืนยันการรับยอดจากไฟแนนซ์สำหรับรายการนี้?</p>
+                <div style="text-align: left;">
+                    <label for="receivedDateInput" style="display: block; font-size: 14px; margin-bottom: 5px; color: #64748b;">ระบุวันที่รับยอด:</label>
+                    <input type="date" id="receivedDateInput" class="swal2-input" value="${today}" style="margin: 0; width: 100%; box-sizing: border-box;">
+                </div>
+            `,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: '✓ ยืนยันรับยอด',
+            cancelButtonText: 'ยกเลิก',
+            confirmButtonColor: '#3b82f6',
+            preConfirm: () => {
+                const val = document.getElementById('receivedDateInput').value;
+                if (!val) {
+                    Swal.showValidationMessage('กรุณาเลือกวันที่');
+                }
+                return val;
+            }
+        });
+
+        if (!receivedDate) return;
 
         try {
             const res = await fetch(`/api/finance/transactions/${txId}/receive`, {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json' }
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ receivedDate })
             });
             const data = await res.json();
             if (data.success) {
@@ -1440,6 +2497,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     if (!tx.financeReceived) {
                         displayNetTotalText += ` ฿<br><span style="color: #dc2626; font-size: 0.85em;">รอการชำระเงินจากไฟแนนซ์</span><br><button class="btn btn-sm" style="margin-top: 5px; padding: 2px 8px; font-size: 12px; background-color: #3b82f6; color: white; border-radius: 4px;" onclick="receiveFinanceAmount('${tx._id}')">รับยอด</button>`;
+                    } else if (tx.financeReceivedDate) {
+                        const receivedDateText = new Date(tx.financeReceivedDate).toLocaleDateString('th-TH');
+                        displayNetTotalText += ` ฿<br><span style="color: #0d9488; font-size: 0.85em;">รับยอดเมื่อ: ${receivedDateText}</span>`;
+                    } else {
+                        displayNetTotalText += ` ฿<br><span style="color: #0d9488; font-size: 0.85em;">รับยอดแล้ว</span>`;
                     }
                 } else if (tx.actionType !== 'คืนเงินชดเชยสละสิทธิ์เครื่อง' && tx.actionType.startsWith('ชำระ')) {
                     // สำหรับรายการ "ชำระค่างวดที่" ให้แสดงยอดที่รับจริง (เงินสด + โอน - ทอน)
@@ -1861,6 +2923,60 @@ document.addEventListener('DOMContentLoaded', () => {
     if (cardExecTotalClaimCost) cardExecTotalClaimCost.addEventListener('click', () => fetchExecutiveReport('claimCost'));
     if (cardExecActiveWarranties) cardExecActiveWarranties.addEventListener('click', () => fetchExecutiveReport('active'));
     if (cardExecOverdueClaims) cardExecOverdueClaims.addEventListener('click', () => fetchExecutiveReport('overdue'));
+
+    // ═══════════════════════════════════════════════════════════════════
+    // MEMBER LIST — คลิกการ์ดจำนวนสมาชิกเพื่อดูรายชื่อ
+    // ═══════════════════════════════════════════════════════════════════
+    const cardExecTotalMembers = document.getElementById('cardExecTotalMembers');
+    if (cardExecTotalMembers) {
+        cardExecTotalMembers.addEventListener('click', fetchMembersList);
+    }
+
+    async function fetchMembersList() {
+        const modal = document.getElementById('memberListModal');
+        const tbody = document.getElementById('memberListBody');
+        if (!modal || !tbody) return;
+
+        tbody.innerHTML = '<tr><td colspan="6" class="empty-state">กำลังโหลดข้อมูล...</td></tr>';
+        modal.style.display = 'flex';
+
+        try {
+            const res = await fetch('/api/members-list');
+            const data = await res.json();
+
+            if (!res.ok || !data.success) {
+                throw new Error(data.message || 'ไม่สามารถโหลดข้อมูลสมาชิกได้');
+            }
+
+            const members = data.members || [];
+            if (members.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="empty-state">ไม่พบข้อมูลสมาชิก</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = members.map((m, idx) => {
+                const dateStr = m.registeredAt
+                    ? new Date(m.registeredAt).toLocaleDateString('th-TH', { year: 'numeric', month: '2-digit', day: '2-digit' })
+                    : '-';
+                const badgeColor = m.packageCount > 0 ? 'background:#d1fae5; color:#065f46;' : 'background:#f1f5f9; color:#64748b;';
+                return `
+                    <tr>
+                        <td style="text-align: center; color: var(--text-muted);">${idx + 1}</td>
+                        <td><span style="font-family: var(--main-font); font-weight: 500; color: var(--primary-dark);">${m.memberId}</span></td>
+                        <td style="font-weight: 500;">${m.name}</td>
+                        <td>${m.phone}</td>
+                        <td>${dateStr}</td>
+                        <td style="text-align: center;">
+                            <span style="display: inline-block; padding: 3px 12px; border-radius: 20px; font-weight: 600; font-size: 0.85em; ${badgeColor}">${m.packageCount}</span>
+                        </td>
+                    </tr>`;
+            }).join('');
+        } catch (err) {
+            console.error('fetchMembersList error:', err);
+            tbody.innerHTML = `<tr><td colspan="6" class="empty-state" style="color: var(--danger);">เกิดข้อผิดพลาด: ${err.message}</td></tr>`;
+        }
+    }
+
 
     async function fetchExecutiveReport(type) {
         if (!currentUser || currentUser.role !== 'admin') return;
@@ -2460,9 +3576,11 @@ document.addEventListener('DOMContentLoaded', () => {
             if (data.payment.method === 'finance' && data.financeDetails) {
                 const fDueDay = document.getElementById('financeDueDay');
                 const fMonths = document.getElementById('financeMonths');
+                const fProvider = document.getElementById('financeProvider');
 
                 if (fDueDay) fDueDay.value = data.financeDetails.financeDueDay || '';
                 if (fMonths) fMonths.value = data.financeDetails.financeMonths || '';
+                if (fProvider) fProvider.value = data.financeDetails.provider || '';
             }
 
             updateRemainingDays();
@@ -3279,15 +4397,21 @@ document.addEventListener('DOMContentLoaded', () => {
         if (method === 'finance') {
             const fDueDay = document.getElementById('financeDueDay')?.value;
             const fMonths = document.getElementById('financeMonths')?.value;
+            const fProvider = document.getElementById('financeProvider')?.value;
 
             if (!fDueDay || !fMonths) {
                 showAlert('warning', 'กรุณาระบุวันที่รับชำระและเลือกระยะเวลาผ่อนไฟแนนซ์');
                 return;
             }
+            if (!fProvider) {
+                showAlert('warning', 'กรุณาเลือกบริษัทไฟแนนซ์');
+                return;
+            }
 
             financeDetails = {
                 financeDueDay: parseInt(fDueDay, 10),
-                financeMonths: parseInt(fMonths, 10)
+                financeMonths: parseInt(fMonths, 10),
+                provider: fProvider
             };
         }
 
@@ -7057,9 +8181,24 @@ document.addEventListener('DOMContentLoaded', () => {
                         const m = w.payment?.method;
                         if (m === 'Installment') return 'แบ่งจ่าย';
                         if (m === 'Full Payment') return 'เต็มจำนวน';
+                        if (m === 'finance') return 'ผ่อนไฟแนนซ์';
                         return m || '-';
                     })()}</span>
                         </div>
+                        ${w.payment?.method === 'finance' && w.financeDetails ? `
+                        <div class="approval-detail-item">
+                            <label>บริษัทไฟแนนซ์</label>
+                            <span>${w.financeDetails.provider || '-'}</span>
+                        </div>
+                        <div class="approval-detail-item">
+                            <label>กำหนดชำระทุกวันที่</label>
+                            <span>${w.financeDetails.financeDueDay || '-'}</span>
+                        </div>
+                        <div class="approval-detail-item">
+                            <label>ระยะเวลาผ่อน</label>
+                            <span>${w.financeDetails.financeMonths || '-'} เดือน</span>
+                        </div>
+                        ` : ''}
                         <div class="approval-detail-item">
                             <label>ร้านค้า</label>
                             <span>${w.shopName || '-'}</span>
