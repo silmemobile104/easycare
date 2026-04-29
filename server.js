@@ -3954,7 +3954,6 @@ async function buildProfitStatementData({ startDate, endDate, includeCompare = f
             expenseLines: [
                 { label: 'ต้นทุนเคลม (ซ่อม/ดำเนินการ)', amount: totalClaimCost },
                 { label: 'รายจ่ายเคลม (บันทึกเอง)', amount: totalManualExpense },
-                { label: 'คืนเงินลูกค้า', amount: totalRefund },
                 { label: 'รายจ่ายบริหาร', amount: totalAdminExpense }
             ],
             totals: {
@@ -4026,14 +4025,12 @@ app.get('/api/profit-statement/export/excel', async (req, res) => {
         ws.addRow({ group: '', label: '', amount: '' });
 
         // Income
-        ws.addRow({ group: 'รายรับ', label: 'รวมรายรับ', amount: Number(data.kpis.totalIncome || 0) });
-        for (const r of (data.statement.incomeLines || [])) {
-            ws.addRow({ group: 'รายรับ', label: r.label, amount: Number(r.amount || 0) });
-        }
+        ws.addRow({ group: 'รายรับ', label: 'รายรับ', amount: '' });
+        ws.addRow({ group: 'รายรับ', label: 'รายรับจากการบริการ', amount: Number(data.kpis.totalIncome || 0) });
         ws.addRow({ group: '', label: '', amount: '' });
 
         // Expenses
-        ws.addRow({ group: 'รายจ่าย', label: 'รวมรายจ่ายทั้งหมด', amount: Number(data.kpis.totalExpense || 0) });
+        ws.addRow({ group: 'รายจ่าย', label: 'รายจ่าย', amount: '' });
         for (const r of (data.statement.expenseLines || [])) {
             if (r.label === 'รายจ่ายบริหาร' && Array.isArray(data.adminExpenseByCategory) && data.adminExpenseByCategory.length > 0) {
                 for (const cat of data.adminExpenseByCategory) {
@@ -4044,6 +4041,7 @@ app.get('/api/profit-statement/export/excel', async (req, res) => {
                 ws.addRow({ group: 'รายจ่าย', label: r.label, amount: -Math.abs(Number(r.amount || 0)) });
             }
         }
+        ws.addRow({ group: 'รายจ่าย', label: 'รายจ่ายรวม', amount: -Math.abs(Number(data.kpis.totalExpense || 0)) });
         ws.addRow({ group: '', label: '', amount: '' });
 
         // Net
