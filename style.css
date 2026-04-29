@@ -4264,3 +4264,69 @@ tr.new-row-highlight {
         overflow-x: auto;
     }
 }
+
+/* อออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออ
+   PREMIUM FINANCE UI COMPONENTS
+อออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออ */
+
+.finance-count-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: white;
+    padding: 10px 18px;
+    border-radius: 12px;
+    margin: 0 auto 16px;
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+    transition: all 0.3s ease;
+    width: fit-content;
+    animation: fadeIn 0.5s ease-out;
+}
+
+.finance-count-banner:hover {
+    box-shadow: 0 8px 25px rgba(8, 145, 178, 0.12);
+    border-color: rgba(8, 145, 178, 0.3);
+    transform: translateY(-2px);
+}
+
+.finance-count-main {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.finance-count-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, #0891b2, #06b6d4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    box-shadow: 0 4px 10px rgba(8, 145, 178, 0.25);
+}
+
+.finance-count-label {
+    font-family: 'Kanit', sans-serif;
+    font-weight: 500;
+    font-size: 0.95rem;
+    color: #475569;
+}
+
+.finance-count-value {
+    font-family: 'Outfit', sans-serif;
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: #0891b2;
+    margin: 0 6px;
+    text-shadow: 0 2px 4px rgba(8, 145, 178, 0.1);
+}
+
+.finance-count-suffix {
+    font-size: 0.85rem;
+    color: #94a3b8;
+    font-weight: 400;
+}
+

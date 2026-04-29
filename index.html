@@ -1223,10 +1223,23 @@
                         </div>
 
                         <div class="table-container">
+                            <div class="finance-count-banner">
+                                <div class="finance-count-main">
+                                    <div class="finance-count-icon">
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M3 3h18v18H3z"></path>
+                                            <path d="M3 9h18"></path>
+                                            <path d="M9 3v18"></path>
+                                        </svg>
+                                    </div>
+                                    <span class="finance-count-label">รายการทั้งหมด <span id="financeIncomeCount" class="finance-count-value">0</span> <span class="finance-count-suffix">รายการ</span></span>
+                                </div>
+                            </div>
                             <div class="table-responsive">
                                 <table id="financeTable">
                                     <thead>
                                         <tr>
+                                            <th>ลำดับ</th>
                                             <th>วันที่</th>
                                             <th>ประเภทรายการ</th>
                                             <th>เลขกรมธรรม์</th>
@@ -1324,10 +1337,23 @@
                         </div>
 
                         <div class="table-container">
+                            <div class="finance-count-banner">
+                                <div class="finance-count-main">
+                                    <div class="finance-count-icon" style="background: linear-gradient(135deg, #f59e0b, #d97706);">
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                                            <line x1="12" y1="9" x2="12" y2="13"></line>
+                                            <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                                        </svg>
+                                    </div>
+                                    <span class="finance-count-label">รายการใช้จ่ายทั้งหมด <span id="financeClaimExpenseCount" class="finance-count-value" style="color: #d97706;">0</span> <span class="finance-count-suffix">รายการ</span></span>
+                                </div>
+                            </div>
                             <div class="table-responsive">
                                 <table class="custom-table" id="financeExpenseTable">
                                     <thead>
                                         <tr>
+                                            <th>ลำดับ</th>
                                             <th>วันที่ทำรายการ</th>
                                             <th>เลขที่เคลม</th>
                                             <th>เลขกรมธรรม์</th>
@@ -1408,10 +1434,22 @@
                         </div>
 
                         <div class="table-container">
+                            <div class="finance-count-banner">
+                                <div class="finance-count-main">
+                                    <div class="finance-count-icon" style="background: linear-gradient(135deg, #8b5cf6, #7c3aed);">
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <rect x="2" y="5" width="20" height="14" rx="2"></rect>
+                                            <path d="M2 10h20"></path>
+                                        </svg>
+                                    </div>
+                                    <span class="finance-count-label">รายจ่ายบริหารทั้งหมด <span id="financeAdminExpenseCount" class="finance-count-value" style="color: #7c3aed;">0</span> <span class="finance-count-suffix">รายการ</span></span>
+                                </div>
+                            </div>
                             <div class="table-responsive">
                                 <table class="custom-table" id="adminExpenseTable">
                                     <thead>
                                         <tr>
+                                            <th>ลำดับ</th>
                                             <th>วันที่</th>
                                             <th>ประเภท</th>
                                             <th>ชื่อรายการ</th>

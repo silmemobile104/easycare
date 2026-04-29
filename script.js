@@ -1248,18 +1248,24 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!rows || rows.length === 0) {
             if (emptyState) emptyState.style.display = 'block';
             if (table) table.style.display = 'none';
+            const countEl = document.getElementById('financeAdminExpenseCount');
+            if (countEl) countEl.textContent = 0;
             return;
         }
 
         if (emptyState) emptyState.style.display = 'none';
         if (table) table.style.display = '';
 
-        rows.forEach(r => {
+        const countEl = document.getElementById('financeAdminExpenseCount');
+        if (countEl) countEl.textContent = rows.length;
+
+        rows.forEach((r, index) => {
             const tr = document.createElement('tr');
             const dateText = r.expenseDate ? new Date(r.expenseDate).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' }) : '-';
             const amountText = formatNumber(r.amount || 0);
 
             tr.innerHTML = `
+                <td>${index + 1}</td>
                 <td>${dateText}</td>
                 <td><span style="display:inline-block; padding:2px 10px; border-radius:6px; font-size:0.78rem; font-weight:600; background: linear-gradient(135deg, #ede9fe, #ddd6fe); color: #6d28d9; border: 1px solid #c4b5fd;">${r.category || '-'}</span></td>
                 <td>${r.title || '-'}</td>
@@ -2116,13 +2122,18 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!rows || rows.length === 0) {
             if (emptyState) emptyState.style.display = 'block';
             if (table) table.style.display = 'none';
+            const countEl = document.getElementById('financeClaimExpenseCount');
+            if (countEl) countEl.textContent = 0;
             return;
         }
 
         if (emptyState) emptyState.style.display = 'none';
         if (table) table.style.display = '';
 
-        rows.forEach(r => {
+        const countEl = document.getElementById('financeClaimExpenseCount');
+        if (countEl) countEl.textContent = rows.length;
+
+        rows.forEach((r, index) => {
             const tr = document.createElement('tr');
             const dateText = r.expenseDate ? new Date(r.expenseDate).toLocaleString('th-TH') : '-';
             const amountText = '-' + formatNumber(r.amount || 0);
@@ -2137,6 +2148,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             tr.innerHTML = `
+                <td>${index + 1}</td>
                 <td>${dateText}</td>
                 <td style="font-weight: 600; color: var(--primary);">${r.claimId || '-'}</td>
                 <td>${r.policyNumber || '-'}</td>
@@ -2483,12 +2495,17 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!transactions || transactions.length === 0) {
             if (emptyState) emptyState.style.display = 'block';
             if (financeTableContainer) financeTableContainer.style.display = 'none';
+            const countEl = document.getElementById('financeIncomeCount');
+            if (countEl) countEl.textContent = 0;
             return;
         }
         if (emptyState) emptyState.style.display = 'none';
         if (financeTableContainer) financeTableContainer.style.display = 'block';
 
-        transactions.forEach(tx => {
+        const countEl = document.getElementById('financeIncomeCount');
+        if (countEl) countEl.textContent = transactions.length;
+
+        transactions.forEach((tx, index) => {
             const tr = document.createElement('tr');
             const dateText = new Date(tx.transactionDate).toLocaleString('th-TH');
 
@@ -2544,6 +2561,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             tr.innerHTML = `
+                <td>${index + 1}</td>
                 <td>${dateText}</td>
                 <td><span class="status-badge" style="background: #e0e7ff; color: #4338ca;">${tx.actionType}</span></td>
                 <td>${tx.policyNumber}</td>
