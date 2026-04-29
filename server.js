@@ -3658,7 +3658,7 @@ async function buildProfitStatementData({ startDate, endDate, includeCompare = f
     const refundMatch = { ...rangeMatchTx, actionType: 'คืนเงินชดเชยสละสิทธิ์เครื่อง' };
     const incomeMatch = { ...rangeMatchTx, actionType: { $ne: 'คืนเงินชดเชยสละสิทธิ์เครื่อง' } };
 
-    const [incomeAgg, refundAgg, claimCostAgg, adminAgg, manualAgg, incomeTrend, refundTrend, claimTrend, adminTrend, manualTrend, marketingAnalytics] = await Promise.all([
+    const [incomeAgg, refundAgg, claimCostAgg, adminAgg, manualAgg, incomeTrend, refundTrend, claimTrend, adminTrend, manualTrend, marketingAnalytics, totalApprovedWarranties] = await Promise.all([
             FinanceTransaction.aggregate([
                 { $match: incomeMatch },
                 {
@@ -3863,7 +3863,11 @@ async function buildProfitStatementData({ startDate, endDate, includeCompare = f
                         ]
                     }
                 }
-            ])
+            ]),
+            Warranty.countDocuments({
+                ...rangeMatchWarranty,
+                approvalStatus: { $in: ['approved', 'Approved_Unpaid', 'Approved_Paid'] }
+            })
         ]);
 
         const totalIncome = (Array.isArray(incomeAgg) ? incomeAgg : []).reduce((s, r) => s + Number(r.amount || 0), 0);
@@ -3928,7 +3932,8 @@ async function buildProfitStatementData({ startDate, endDate, includeCompare = f
             totalClaimCost: totalClaimCost + totalManualExpense + totalRefund,
             totalAdminExpense,
             netProfit,
-            profitMarginPct
+            profitMarginPct,
+            totalApprovedWarranties
         },
         incomeByMethod: (Array.isArray(incomeAgg) ? incomeAgg : []).map(r => ({ method: r._id || 'ไม่ระบุ', amount: Number(r.amount || 0) })),
         adminExpenseByCategory: (Array.isArray(adminAgg) ? adminAgg : []).map(r => ({ category: r._id || 'ไม่ระบุ', amount: Number(r.amount || 0) })),
@@ -4028,9 +4033,16 @@ app.get('/api/profit-statement/export/excel', async (req, res) => {
         ws.addRow({ group: '', label: '', amount: '' });
 
         // Expenses
-        ws.addRow({ group: 'รายจ่าย', label: 'รวมรายจ่าย', amount: Number(data.kpis.totalExpense || 0) });
+        ws.addRow({ group: 'รายจ่าย', label: 'รวมรายจ่ายทั้งหมด', amount: Number(data.kpis.totalExpense || 0) });
         for (const r of (data.statement.expenseLines || [])) {
-            ws.addRow({ group: 'รายจ่าย', label: r.label, amount: Number(r.amount || 0) });
+            if (r.label === 'รายจ่ายบริหาร' && Array.isArray(data.adminExpenseByCategory) && data.adminExpenseByCategory.length > 0) {
+                for (const cat of data.adminExpenseByCategory) {
+                    ws.addRow({ group: 'รายจ่าย', label: `  - ${cat.category || 'ไม่ระบุ'}`, amount: -Math.abs(Number(cat.amount || 0)) });
+                }
+                ws.addRow({ group: 'รายจ่าย', label: 'รวมรายจ่ายบริหาร', amount: -Math.abs(Number(r.amount || 0)) });
+            } else {
+                ws.addRow({ group: 'รายจ่าย', label: r.label, amount: -Math.abs(Number(r.amount || 0)) });
+            }
         }
         ws.addRow({ group: '', label: '', amount: '' });
 
@@ -4056,7 +4068,7 @@ app.get('/api/profit-statement/export/excel', async (req, res) => {
 
 app.get('/api/finance/export/excel', async (req, res) => {
     try {
-        const { startDate, endDate, fields, includeSummary, paymentMethod } = req.query || {};
+        const { startDate, endDate, fields, includeSummary, paymentMethod, financeProvider } = req.query || {};
 
         const match = { actionType: { $ne: 'คืนเงินชดเชยสละสิทธิ์เครื่อง' } };
         if (startDate) {
@@ -4067,6 +4079,9 @@ app.get('/api/finance/export/excel', async (req, res) => {
         }
         if (paymentMethod && String(paymentMethod) !== 'all') {
             match.paymentMethod = String(paymentMethod);
+        }
+        if (financeProvider && String(financeProvider) !== 'all') {
+            match.financeProvider = String(financeProvider);
         }
 
         const selectedFields = String(fields || '')

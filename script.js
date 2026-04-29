@@ -1636,6 +1636,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 elIncome.style.color = '#0d9488';
                 elIncome.style.fontWeight = '800';
             }
+            const elContracts = document.getElementById('kpiProfitTotalContracts');
+            if (elContracts) {
+                animateCountUp(elContracts, k.totalApprovedWarranties || 0);
+            }
             if (elExpense) {
                 elExpense.textContent = formatNumber(k.totalExpense || 0) + ' ฿';
                 elExpense.style.color = '#ef4444';
@@ -1855,12 +1859,22 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         addRow('รายรับ', '', { label: 'font-weight:800; color:#0f172a; background:#f8fafc;', amount: 'background:#f8fafc; font-weight:800; color:#0f172a;' });
-        incomeLines.forEach(r => addRow(r.label, Number(r.amount || 0), { amount: 'color:#0d9488; font-weight:700;' }));
-        addRow('รวมรายรับ', Number(totals.totalIncome || 0), { label: 'font-weight:800;', amount: 'font-weight:900; color:#0d9488;' });
+        addRow('รายได้จากการบริการ', Number(totals.totalIncome || 0), { label: 'font-weight:800;', amount: 'font-weight:900; color:#0d9488;' });
 
         addRow('รายจ่าย', '', { label: 'font-weight:800; color:#0f172a; background:#f8fafc;', amount: 'background:#f8fafc; font-weight:800; color:#0f172a;' });
-        expenseLines.forEach(r => addRow(r.label, -Math.abs(Number(r.amount || 0)), { amount: 'color:#ef4444; font-weight:700;' }));
-        addRow('รวมรายจ่าย', -Math.abs(Number(totals.totalExpense || 0)), { label: 'font-weight:800;', amount: 'font-weight:900; color:#ef4444;' });
+        expenseLines.forEach(r => {
+            if (r.label === 'รายจ่ายบริหาร' && Array.isArray(data.adminExpenseByCategory) && data.adminExpenseByCategory.length > 0) {
+                // Show breakdown first
+                data.adminExpenseByCategory.forEach(cat => {
+                    addRow(`- ${cat.category || 'ไม่ระบุ'}`, -Math.abs(Number(cat.amount || 0)), { label: 'padding-left: 20px; font-size: 0.9em; color: #64748b;', amount: 'color:#ef4444; font-size: 0.9em;' });
+                });
+                // Then show total
+                addRow('รวมรายจ่ายบริหาร', -Math.abs(Number(r.amount || 0)), { label: 'font-weight:700; color:#475569;', amount: 'color:#ef4444; font-weight:700;' });
+            } else {
+                addRow(r.label, -Math.abs(Number(r.amount || 0)), { amount: 'color:#ef4444; font-weight:700;' });
+            }
+        });
+        addRow('รวมรายจ่ายทั้งหมด', -Math.abs(Number(totals.totalExpense || 0)), { label: 'font-weight:800;', amount: 'font-weight:900; color:#ef4444;' });
 
         addRow('กำไรสุทธิ (Net Profit)', Number(totals.netProfit || 0), { label: 'font-weight:800; color:#0f172a; background:#f8fafc;', amount: 'background:#f8fafc; font-weight:900; color:#0f172a;' });
         addRow('อัตรากำไร (Profit Margin %)', Number(totals.profitMarginPct || 0) + '%', { label: 'font-weight:800;', amount: 'font-weight:900; color:#0f172a;' });
@@ -2244,6 +2258,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const endDate = (document.getElementById('financeExportEndDate') || {}).value || '';
             const includeSummary = (document.getElementById('financeExportIncludeSummary') || {}).checked ? '1' : '0';
             const paymentMethod = (document.getElementById('financeExportPaymentMethod') || {}).value || 'all';
+            const financeProvider = (document.getElementById('financeProviderFilter') || {}).value || 'all';
 
             const fieldEls = Array.from(document.querySelectorAll('.finance-export-field'));
             const selectedFields = fieldEls.filter(el => el && el.checked).map(el => el.value).filter(Boolean);
@@ -2257,6 +2272,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (startDate) params.set('startDate', startDate);
             if (endDate) params.set('endDate', endDate);
             if (paymentMethod && paymentMethod !== 'all') params.set('paymentMethod', paymentMethod);
+            if (financeProvider && financeProvider !== 'all') params.set('financeProvider', financeProvider);
             params.set('fields', selectedFields.join(','));
             params.set('includeSummary', includeSummary);
 
@@ -2402,6 +2418,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function applyFinanceIncomeFilter() {
         const searchVal = (document.getElementById('financeSearchInput') || {}).value?.toLowerCase().trim() || '';
         const paymentType = (document.getElementById('financePaymentTypeFilter') || {}).value || 'all';
+        const financeProvider = (document.getElementById('financeProviderFilter') || {}).value || 'all';
         const paymentMethod = (document.getElementById('financeExportPaymentMethod') || {}).value || 'all';
         const startDateStr = (document.getElementById('financeExportStartDate') || {}).value;
         const endDateStr = (document.getElementById('financeExportEndDate') || {}).value;
@@ -2413,8 +2430,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (endDate) endDate.setHours(23, 59, 59, 999);
 
         let filtered = allFinanceIncomeTransactions;
+        const hasFilter = searchVal || paymentType !== 'all' || financeProvider !== 'all' || paymentMethod !== 'all' || startDate || endDate;
 
-        if (searchVal || paymentType !== 'all' || paymentMethod !== 'all' || startDate || endDate) {
+        if (hasFilter) {
             filtered = allFinanceIncomeTransactions.filter(tx => {
                 let matchSearch = true;
                 if (searchVal) {
@@ -2442,7 +2460,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (endDate && txDate > endDate) matchDate = false;
                 }
 
-                return matchSearch && matchType && matchMethod && matchDate;
+                let matchProvider = true;
+                if (financeProvider !== 'all') {
+                    matchProvider = (tx.financeProvider === financeProvider);
+                }
+
+                return matchSearch && matchType && matchMethod && matchDate && matchProvider;
             });
         }
 
@@ -2618,6 +2641,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (financePaymentTypeFilter) {
         financePaymentTypeFilter.addEventListener('change', applyFinanceIncomeFilter);
+    }
+    const financeProviderFilter = document.getElementById('financeProviderFilter');
+    if (financeProviderFilter) {
+        financeProviderFilter.addEventListener('change', applyFinanceIncomeFilter);
     }
     if (financeExportPaymentMethod) {
         financeExportPaymentMethod.addEventListener('change', applyFinanceIncomeFilter);

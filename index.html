@@ -1123,6 +1123,14 @@
                                     </select>
                                 </div>
                                 <div class="filter-group">
+                                    <label>บริษัทไฟแนนซ์:</label>
+                                    <select id="financeProviderFilter" class="filter-select">
+                                        <option value="all">ทั้งหมด</option>
+                                        <option value="SG">SG</option>
+                                        <option value="T-Plus">T-Plus</option>
+                                    </select>
+                                </div>
+                                <div class="filter-group">
                                     <label>จากวันที่:</label>
                                     <input type="date" id="financeExportStartDate" class="filter-date-input">
                                 </div>
@@ -1468,6 +1476,20 @@
                                     <h3 id="kpiProfitTotalIncome">0</h3>
                                     <div id="kpiProfitTotalIncomeDelta" style="font-size: 0.9em; color: #64748b; margin-top: 4px;"></div>
                                     <p>รายรับรวม</p>
+                                </div>
+                            </div>
+
+                            <div class="stat-card" style="border-left: 4px solid #5fdbdb;">
+                                <div class="stat-icon blue">
+                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <line x1="12" y1="1" x2="12" y2="23"></line>
+                                        <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+                                    </svg>
+                                </div>
+                                <div class="stat-content">
+                                    <h3 id="kpiProfitTotalContracts">0</h3>
+                                    <div id="kpiProfitTotalContractsDelta" style="font-size: 0.9em; color: #64748b; margin-top: 4px;"></div>
+                                    <p>สัญญา (อนุมัติแล้ว)</p>
                                 </div>
                             </div>
 
