@@ -5323,14 +5323,19 @@ app.put('/api/warranties/:id/approver-edit', async (req, res) => {
         }
 
         if (device) {
-            const deviceFields = ['type', 'model', 'color', 'capacity', 'serial', 'imei', 'deviceValue'];
+            const deviceFields = ['type', 'model', 'color', 'capacity', 'serial', 'imei', 'officialWarrantyEnd', 'deviceValue'];
             deviceFields.forEach(f => {
                 if (device[f] !== undefined && device[f] !== null) {
                     let oldVal = w.device && w.device[f] !== undefined && w.device[f] !== null ? w.device[f] : '';
                     let newVal = device[f] !== undefined && device[f] !== null ? device[f] : '';
 
-                    oldVal = String(oldVal).trim();
-                    newVal = String(newVal).trim();
+                    if (f === 'officialWarrantyEnd') {
+                        oldVal = safeDateStr(oldVal);
+                        newVal = safeDateStr(newVal);
+                    } else {
+                        oldVal = String(oldVal).trim();
+                        newVal = String(newVal).trim();
+                    }
 
                     if (oldVal !== newVal) {
                         changes.push(`${f}: จาก "${oldVal}" เป็น "${newVal}"`);

@@ -8455,6 +8455,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div style="margin-bottom:10px;"><label style="font-size:0.9rem;color:#64748b;display:block;margin-bottom:4px;">ความจุ</label><input id="edit_capacity" value="${escapeHtml(w.device?.capacity || '')}" style="width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:4px; outline:none;"></div>
                     <div style="margin-bottom:10px;"><label style="font-size:0.9rem;color:#64748b;display:block;margin-bottom:4px;">Serial Number</label><input id="edit_serial" value="${escapeHtml(w.device?.serial || '')}" style="width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:4px; outline:none;"></div>
                     <div style="margin-bottom:10px;"><label style="font-size:0.9rem;color:#64748b;display:block;margin-bottom:4px;">IMEI</label><input id="edit_imei" value="${escapeHtml(w.device?.imei || '')}" style="width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:4px; outline:none;"></div>
+                    <div style="margin-bottom:10px;"><label style="font-size:0.9rem;color:#64748b;display:block;margin-bottom:4px;">วันสิ้นสุดประกันศูนย์</label><input type="date" id="edit_officialWarrantyEnd" value="${safeIsoDate(w.device?.officialWarrantyEnd)}" style="width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:4px; outline:none;"></div>
                     <div style="margin-bottom:10px;"><label style="font-size:0.9rem;color:#64748b;display:block;margin-bottom:4px;">มูลค่าเครื่อง (บาท)</label><input type="number" id="edit_deviceValue" value="${w.device?.deviceValue || w.devicePrice || 0}" style="width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:4px; outline:none;"></div>
                 </div>
             `,
@@ -8488,6 +8489,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         capacity: document.getElementById('edit_capacity').value,
                         serial: document.getElementById('edit_serial').value,
                         imei: document.getElementById('edit_imei').value,
+                        officialWarrantyEnd: document.getElementById('edit_officialWarrantyEnd').value,
                         deviceValue: Number(document.getElementById('edit_deviceValue').value)
                     }
                 };
