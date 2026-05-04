@@ -3533,8 +3533,13 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('serialNumber').value = data.device.serial;
             document.getElementById('imei').value = data.device.imei || '';
 
-            // วันสิ้นสุดประกันศูนย์
-            document.getElementById('officialWarrantyEnd').value = formatDate(data.device.officialWarrantyEnd);
+            // วันสิ้นสุดประกันศูนย์ (แยก วัน/เดือน/ปี พ.ศ.)
+            if (data.device.officialWarrantyEnd) {
+                const oweDate = new Date(data.device.officialWarrantyEnd);
+                document.getElementById('officialWarrantyEndDay').value = oweDate.getDate();
+                document.getElementById('officialWarrantyEndMonth').value = oweDate.getMonth() + 1;
+                document.getElementById('officialWarrantyEndYear').value = oweDate.getFullYear() + 543;
+            }
 
             // ราคาเครื่องเต็ม ณ ปัจจุบัน
             const fullDevicePriceEl = document.getElementById('fullDevicePrice');
@@ -4615,7 +4620,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 serial: document.getElementById('serialNumber').value,
                 imei: document.getElementById('imei').value || undefined,
                 deviceValue: parseFloat(document.getElementById('deviceValue').value) || 0,
-                officialWarrantyEnd: document.getElementById('officialWarrantyEnd').value,
+                officialWarrantyEnd: (() => {
+                    const oweDay = parseInt(document.getElementById('officialWarrantyEndDay').value);
+                    const oweMonth = parseInt(document.getElementById('officialWarrantyEndMonth').value);
+                    const oweYearBE = parseInt(document.getElementById('officialWarrantyEndYear').value);
+                    if (oweDay && oweMonth && oweYearBE) {
+                        return new Date(oweYearBE - 543, oweMonth - 1, oweDay).toISOString();
+                    }
+                    return '';
+                })(),
                 images: [...existingImages, ...uploadedImageUrls],
                 deviceCondition: deviceCondition,
                 inspectionResult: cleanInspectionResult
@@ -8455,7 +8468,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div style="margin-bottom:10px;"><label style="font-size:0.9rem;color:#64748b;display:block;margin-bottom:4px;">ความจุ</label><input id="edit_capacity" value="${escapeHtml(w.device?.capacity || '')}" style="width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:4px; outline:none;"></div>
                     <div style="margin-bottom:10px;"><label style="font-size:0.9rem;color:#64748b;display:block;margin-bottom:4px;">Serial Number</label><input id="edit_serial" value="${escapeHtml(w.device?.serial || '')}" style="width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:4px; outline:none;"></div>
                     <div style="margin-bottom:10px;"><label style="font-size:0.9rem;color:#64748b;display:block;margin-bottom:4px;">IMEI</label><input id="edit_imei" value="${escapeHtml(w.device?.imei || '')}" style="width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:4px; outline:none;"></div>
-                    <div style="margin-bottom:10px;"><label style="font-size:0.9rem;color:#64748b;display:block;margin-bottom:4px;">วันสิ้นสุดประกันศูนย์</label><input type="date" id="edit_officialWarrantyEnd" value="${safeIsoDate(w.device?.officialWarrantyEnd)}" style="width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:4px; outline:none;"></div>
+                    <div style="margin-bottom:10px;"><label style="font-size:0.9rem;color:#64748b;display:block;margin-bottom:4px;">วันสิ้นสุดประกันศูนย์ (พ.ศ.)</label><div style="display:flex;gap:0.5rem;"><input type="number" id="edit_officialWarrantyEndDay" placeholder="วัน" min="1" max="31" value="${w.device?.officialWarrantyEnd ? new Date(w.device.officialWarrantyEnd).getDate() : ''}" style="width:80px; padding:8px; border:1px solid #cbd5e1; border-radius:4px; outline:none;"><input type="number" id="edit_officialWarrantyEndMonth" placeholder="เดือน" min="1" max="12" value="${w.device?.officialWarrantyEnd ? new Date(w.device.officialWarrantyEnd).getMonth() + 1 : ''}" style="width:80px; padding:8px; border:1px solid #cbd5e1; border-radius:4px; outline:none;"><input type="number" id="edit_officialWarrantyEndYear" placeholder="ปี พ.ศ." min="2400" max="2600" value="${w.device?.officialWarrantyEnd ? new Date(w.device.officialWarrantyEnd).getFullYear() + 543 : ''}" style="flex:1; padding:8px; border:1px solid #cbd5e1; border-radius:4px; outline:none;"></div></div>
                     <div style="margin-bottom:10px;"><label style="font-size:0.9rem;color:#64748b;display:block;margin-bottom:4px;">มูลค่าเครื่อง (บาท)</label><input type="number" id="edit_deviceValue" value="${w.device?.deviceValue || w.devicePrice || 0}" style="width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:4px; outline:none;"></div>
                 </div>
             `,
@@ -8489,7 +8502,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         capacity: document.getElementById('edit_capacity').value,
                         serial: document.getElementById('edit_serial').value,
                         imei: document.getElementById('edit_imei').value,
-                        officialWarrantyEnd: document.getElementById('edit_officialWarrantyEnd').value,
+                        officialWarrantyEnd: (() => {
+                            const d = parseInt(document.getElementById('edit_officialWarrantyEndDay').value);
+                            const m = parseInt(document.getElementById('edit_officialWarrantyEndMonth').value);
+                            const yBE = parseInt(document.getElementById('edit_officialWarrantyEndYear').value);
+                            if (d && m && yBE) return new Date(yBE - 543, m - 1, d).toISOString();
+                            return '';
+                        })(),
                         deviceValue: Number(document.getElementById('edit_deviceValue').value)
                     }
                 };

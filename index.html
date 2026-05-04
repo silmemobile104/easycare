@@ -2989,8 +2989,12 @@
                             <input type="text" id="imei" minlength="15" maxlength="15" pattern="\d{15}"
                                 placeholder="ตัวเลข 15 หลัก">
                         </div>
-                        <div class="form-group"><label>วันสิ้นสุดประกันศูนย์</label>
-                            <input type="date" id="officialWarrantyEnd" required>
+                        <div class="form-group"><label>วันสิ้นสุดประกันศูนย์ (พ.ศ.)</label>
+                            <div style="display: flex; gap: 0.5rem;">
+                                <input type="number" id="officialWarrantyEndDay" placeholder="วัน" min="1" max="31" required style="width: 80px;">
+                                <input type="number" id="officialWarrantyEndMonth" placeholder="เดือน" min="1" max="12" required style="width: 80px;">
+                                <input type="number" id="officialWarrantyEndYear" placeholder="ปี พ.ศ." min="2400" max="2600" required>
+                            </div>
                         </div>
                         <div class="form-group"><label>ราคาเครื่องเต็ม ณ ปัจจุบัน</label>
                             <input type="number" id="fullDevicePrice" placeholder="ระบุราคาเครื่องเต็ม (บาท)" required>
