@@ -2329,32 +2329,8 @@ document.addEventListener('DOMContentLoaded', () => {
     async function fetchFinanceData() {
         showLoader('กำลังโหลดข้อมูลการเงิน...');
         try {
-            const [trxRes, sumRes] = await Promise.all([
-                fetch('/api/finance/transactions'),
-                fetch('/api/finance/summary')
-            ]);
+            const trxRes = await fetch('/api/finance/transactions');
             const transactions = await trxRes.json();
-            const summary = await sumRes.json();
-
-            document.getElementById('totalCashDisplay').textContent = formatNumber(summary.totalCash || 0) + ' ฿';
-            document.getElementById('totalTransferDisplay').textContent = formatNumber(summary.totalTransfer || 0) + ' ฿';
-            document.getElementById('totalRevenueDisplay').textContent = formatNumber(summary.totalRevenue || 0) + ' ฿';
-            const unpaidSGDisplayEl = document.getElementById('unpaidAmountSGDisplay');
-            if (unpaidSGDisplayEl) {
-                unpaidSGDisplayEl.textContent = formatNumber(summary.unpaidAmountSG || 0) + ' ฿';
-            }
-            const unpaidTPlusDisplayEl = document.getElementById('unpaidAmountTPlusDisplay');
-            if (unpaidTPlusDisplayEl) {
-                unpaidTPlusDisplayEl.textContent = formatNumber(summary.unpaidAmountTPlus || 0) + ' ฿';
-            }
-            const receivedDisplayEl = document.getElementById('totalFinanceReceivedAmountDisplay');
-            if (receivedDisplayEl) {
-                receivedDisplayEl.textContent = formatNumber(summary.totalFinanceReceivedAmount || 0) + ' ฿';
-            }
-            const changeDisplayEl = document.getElementById('totalChangeDisplay');
-            if (changeDisplayEl) {
-                changeDisplayEl.textContent = formatNumber(summary.totalChange || 0) + ' ฿';
-            }
 
             const financeClaimCostEl = document.getElementById('financeTotalClaimCostDisplay');
             if (financeClaimCostEl) {
@@ -2430,6 +2406,86 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
+    // --- คำนวณ KPI Cards จากข้อมูลที่ผ่านการกรอง ---
+    function updateFinanceSummaryCards(filteredData) {
+        let totalCashReceived = 0;
+        let totalTransfer = 0;
+        let totalChange = 0;
+        let totalRevenue = 0;
+        let pendingSG = 0;
+        let pendingTPlus = 0;
+        let receivedFinance = 0;
+
+        (filteredData || []).forEach(tx => {
+            const cash = Number(tx.cashReceived || 0);
+            const transfer = Number(tx.transferAmount || 0);
+            const change = Number(tx.changeAmount || 0);
+            const fullRev = Number(tx.fullRevenue || tx.netTotal || 0);
+            const finAmount = Number(tx.financedAmount || 0);
+
+            totalCashReceived += cash;
+            totalTransfer += transfer;
+            totalChange += change;
+            totalRevenue += fullRev;
+
+            // Finance-specific calculations
+            if (finAmount > 0) {
+                if (tx.financeReceived === true) {
+                    // ยอดไฟแนนซ์ที่รับแล้ว
+                    receivedFinance += finAmount;
+                } else {
+                    // ยอดไฟแนนซ์ที่ยังรอ — แยกตาม Provider
+                    if (tx.financeProvider === 'SG') {
+                        pendingSG += finAmount;
+                    } else if (tx.financeProvider === 'T-Plus') {
+                        pendingTPlus += finAmount;
+                    }
+                }
+            } else if (tx.financeDisplay && !tx.financedAmount) {
+                // Fallback สำหรับ record เก่าที่ไม่มี financedAmount
+                let amount = 0;
+                if (tx.financeDisplay.includes('(')) {
+                    const match = tx.financeDisplay.match(/\(([^)]+)\)/);
+                    if (match) amount = parseFloat(match[1]) || 0;
+                } else {
+                    amount = parseFloat(String(tx.financeDisplay).replace(/[^0-9.]/g, '')) || 0;
+                }
+                if (amount > 0) {
+                    if (tx.financeReceived === true) {
+                        receivedFinance += amount;
+                    } else {
+                        if (tx.financeProvider === 'SG') pendingSG += amount;
+                        else if (tx.financeProvider === 'T-Plus') pendingTPlus += amount;
+                    }
+                }
+            }
+        });
+
+        const netCash = totalCashReceived - totalChange;
+
+        // อัปเดต DOM elements ของ KPI Cards
+        const cashEl = document.getElementById('totalCashDisplay');
+        if (cashEl) cashEl.textContent = formatNumber(netCash) + ' ฿';
+
+        const transferEl = document.getElementById('totalTransferDisplay');
+        if (transferEl) transferEl.textContent = formatNumber(totalTransfer) + ' ฿';
+
+        const revenueEl = document.getElementById('totalRevenueDisplay');
+        if (revenueEl) revenueEl.textContent = formatNumber(totalRevenue) + ' ฿';
+
+        const changeEl = document.getElementById('totalChangeDisplay');
+        if (changeEl) changeEl.textContent = formatNumber(totalChange) + ' ฿';
+
+        const sgEl = document.getElementById('unpaidAmountSGDisplay');
+        if (sgEl) sgEl.textContent = formatNumber(pendingSG) + ' ฿';
+
+        const tpEl = document.getElementById('unpaidAmountTPlusDisplay');
+        if (tpEl) tpEl.textContent = formatNumber(pendingTPlus) + ' ฿';
+
+        const receivedEl = document.getElementById('totalFinanceReceivedAmountDisplay');
+        if (receivedEl) receivedEl.textContent = formatNumber(receivedFinance) + ' ฿';
+    }
+
     function applyFinanceIncomeFilter() {
         const searchVal = (document.getElementById('financeSearchInput') || {}).value?.toLowerCase().trim() || '';
         const paymentType = (document.getElementById('financePaymentTypeFilter') || {}).value || 'all';
@@ -2485,6 +2541,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         renderFinanceIncomeTable(filtered);
+        updateFinanceSummaryCards(filtered);
     }
 
     function renderFinanceIncomeTable(transactions) {
