@@ -541,7 +541,11 @@ function buildExpenseFilterMatch(query) {
 // Build dynamic $match for Warranty queries from query params
 function buildWarrantyFilterMatch(query, baseMatch = {}) {
     const match = { ...baseMatch };
-    const { search, startDate, endDate } = query;
+    const { search, startDate, endDate, shopName } = query;
+
+    if (shopName && shopName !== 'all') {
+        match.shopName = shopName;
+    }
 
     if (search) {
         const regex = { $regex: search, $options: 'i' };

@@ -399,6 +399,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (viewName === 'dashboard') {
                 dashMain.style.display = 'block';
                 if (dashNavLink) dashNavLink.classList.add('active');
+                populateDashShopFilter();
                 fetchWarranties();
             } else if (viewName === 'members') {
                 membersMain.style.display = 'block';
@@ -2236,11 +2237,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const startDate = (document.getElementById(`${prefix}StartDate`) || {}).value || '';
         const endDate = (document.getElementById(`${prefix}EndDate`) || {}).value || '';
         const status = (document.getElementById(`${prefix}StatusFilter`) || {}).value || '';
+        const shopName = (document.getElementById(`${prefix}ShopFilter`) || {}).value || '';
         const params = new URLSearchParams();
         if (search) params.set('search', search);
         if (startDate) params.set('startDate', startDate);
         if (endDate) params.set('endDate', endDate);
         if (status && status !== 'all') params.set('status', status);
+        if (shopName && shopName !== 'all') params.set('shopName', shopName);
         const qs = params.toString();
         return qs ? `?${qs}` : '';
     }
@@ -3806,6 +3809,35 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    async function populateDashShopFilter() {
+        const dashShopFilter = document.getElementById('dashShopFilter');
+        if (!dashShopFilter) return;
+
+        try {
+            const res = await fetch('/api/shops');
+            const shops = await res.json();
+
+            // Preserve current selection if possible
+            const currentVal = dashShopFilter.value;
+            dashShopFilter.innerHTML = '<option value="all">ทุกร้านค้า</option>';
+
+            shops.forEach(shop => {
+                if (shop && shop.shopName) {
+                    const opt = document.createElement('option');
+                    opt.value = shop.shopName;
+                    opt.textContent = shop.shopName;
+                    dashShopFilter.appendChild(opt);
+                }
+            });
+
+            if (currentVal && Array.from(dashShopFilter.options).some(o => o.value === currentVal)) {
+                dashShopFilter.value = currentVal;
+            }
+        } catch (err) {
+            console.error('Populate dash shop filter error:', err);
+        }
+    }
+
     function toggleIMEIField() {
         const productType = document.getElementById('productType').value;
         const imeiGroup = document.getElementById('imeiGroup');
@@ -5121,6 +5153,7 @@ document.addEventListener('DOMContentLoaded', () => {
             ids.forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
             const sf = document.getElementById('dashStatusFilter'); if (sf) sf.value = 'all';
             const pf = document.getElementById('dashPaymentFilter'); if (pf) pf.value = 'all';
+            const shf = document.getElementById('dashShopFilter'); if (shf) shf.value = 'all';
             fetchWarranties();
         });
     }
@@ -5128,6 +5161,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const dashPaymentFilter = document.getElementById('dashPaymentFilter');
     if (dashPaymentFilter) {
         dashPaymentFilter.addEventListener('change', applyPaymentFilter);
+    }
+    const dashShopFilter = document.getElementById('dashShopFilter');
+    if (dashShopFilter) {
+        dashShopFilter.addEventListener('change', () => fetchWarranties());
     }
     // Allow Enter key in search input to trigger search
     const dashSearchInput = document.getElementById('dashSearchInput');
