@@ -2414,6 +2414,7 @@ document.addEventListener('DOMContentLoaded', () => {
         let totalRevenue = 0;
         let pendingSG = 0;
         let pendingTPlus = 0;
+        let pendingThunder = 0;
         let receivedFinance = 0;
 
         (filteredData || []).forEach(tx => {
@@ -2439,6 +2440,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         pendingSG += finAmount;
                     } else if (tx.financeProvider === 'T-Plus') {
                         pendingTPlus += finAmount;
+                    } else if (tx.financeProvider === 'Thunder' || tx.financeProvider === 'Tunder') {
+                        pendingThunder += finAmount;
                     }
                 }
             } else if (tx.financeDisplay && !tx.financedAmount) {
@@ -2456,6 +2459,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     } else {
                         if (tx.financeProvider === 'SG') pendingSG += amount;
                         else if (tx.financeProvider === 'T-Plus') pendingTPlus += amount;
+                        else if (tx.financeProvider === 'Thunder' || tx.financeProvider === 'Tunder') pendingThunder += amount;
                     }
                 }
             }
@@ -2481,6 +2485,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const tpEl = document.getElementById('unpaidAmountTPlusDisplay');
         if (tpEl) tpEl.textContent = formatNumber(pendingTPlus) + ' ฿';
+
+        const thunderEl = document.getElementById('unpaidAmountThunderDisplay');
+        if (thunderEl) thunderEl.textContent = formatNumber(pendingThunder) + ' ฿';
 
         const receivedEl = document.getElementById('totalFinanceReceivedAmountDisplay');
         if (receivedEl) receivedEl.textContent = formatNumber(receivedFinance) + ' ฿';

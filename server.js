@@ -225,7 +225,7 @@ const WarrantySchema = new mongoose.Schema({
     financeDetails: {
         financeDueDay: Number,
         financeMonths: Number,
-        provider: { type: String, enum: ['SG', 'T-Plus'] }
+        provider: { type: String, enum: ['SG', 'T-Plus', 'Tunder', 'Thunder'] }
     },
     approvalStatus: {
         type: String,
@@ -415,7 +415,7 @@ const FinanceTransactionSchema = new mongoose.Schema({
     fullRevenue: { type: Number },
     financedAmount: { type: Number },
     financeDisplay: { type: String },
-    financeProvider: { type: String, enum: ['SG', 'T-Plus'] },
+    financeProvider: { type: String, enum: ['SG', 'T-Plus', 'Thunder', 'Tunder'] },
     financeReceived: { type: Boolean, default: false },
     financeReceivedDate: { type: Date },
     evidenceUrl: String,
@@ -3469,6 +3469,15 @@ app.get('/api/finance/summary', async (req, res) => {
                         $sum: {
                             $cond: [
                                 { $and: [{ $eq: ["$financeReceived", false] }, { $eq: ["$financeProvider", "T-Plus"] }] },
+                                { $ifNull: ["$financedAmount", 0] },
+                                0
+                            ]
+                        }
+                    },
+                    unpaidAmountThunder: {
+                        $sum: {
+                            $cond: [
+                                { $and: [{ $eq: ["$financeReceived", false] }, { $in: ["$financeProvider", ["Thunder", "Tunder"]] }] },
                                 { $ifNull: ["$financedAmount", 0] },
                                 0
                             ]
