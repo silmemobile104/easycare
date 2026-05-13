@@ -3336,15 +3336,15 @@ document.addEventListener('DOMContentLoaded', () => {
         let filtered = allRecords;
         if (paymentFilter !== 'all') {
             filtered = allRecords.filter(r => {
-                const method = r.payment?.method;
-                if (paymentFilter === 'full' && method !== 'Full Payment') return false;
-                if (paymentFilter === 'installment' && method !== 'Installment') return false;
+                const methodLower = String(r.payment?.method || '').toLowerCase();
+                if (paymentFilter === 'full' && methodLower !== 'full payment') return false;
+                if (paymentFilter === 'installment' && methodLower !== 'installment') return false;
                 if (paymentFilter === 'installment_complete') {
-                    if (method !== 'Installment') return false;
+                    if (methodLower !== 'installment') return false;
                     const isComplete = r.payment.schedule?.every(s => s.status === 'Paid');
                     if (!isComplete) return false;
                 }
-                if (paymentFilter === 'finance' && method !== 'Finance') return false;
+                if (paymentFilter === 'finance' && methodLower !== 'finance') return false;
                 return true;
             });
         }

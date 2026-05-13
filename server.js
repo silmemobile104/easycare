@@ -568,6 +568,33 @@ function buildWarrantyFilterMatch(query, baseMatch = {}) {
     return match;
 }
 
+// Apply status filter logic for warranty dashboard view
+function applyDashStatusFilter(match, dashStatus) {
+    if (dashStatus && dashStatus !== 'all') {
+        const now = new Date();
+        if (dashStatus === 'active') {
+            match.approvalStatus = { $in: ['approved', 'Approved_Paid', 'Approved_Unpaid'] };
+            match['warrantyDates.end'] = { $gte: now };
+            match.claimStatus = { $ne: 'pending' };
+        } else if (dashStatus === 'expired') {
+            match.approvalStatus = { $in: ['approved', 'Approved_Paid', 'Approved_Unpaid'] };
+            match['warrantyDates.end'] = { ...(match['warrantyDates.end'] || {}), $lt: now };
+            match.claimStatus = { $ne: 'pending' };
+        } else if (dashStatus === 'approval_pending') {
+            match.approvalStatus = 'pending';
+        } else if (dashStatus === 'approval_approved') {
+            match.approvalStatus = { $in: ['approved', 'Approved_Paid', 'Approved_Unpaid'] };
+        } else if (dashStatus === 'approval_rejected') {
+            match.approvalStatus = 'rejected';
+        } else if (dashStatus === 'claim_pending') {
+            match.claimStatus = 'pending';
+        } else if (dashStatus === 'claim_completed') {
+            match.claimStatus = 'completed';
+        }
+    }
+    return match;
+}
+
 // Build dynamic $match for Claim queries from query params
 function buildClaimFilterMatch(query, baseMatch = {}) {
     const match = { ...baseMatch };
@@ -1034,7 +1061,8 @@ app.get('/api/finance/expenses/export/excel', async (req, res) => {
 // 1. Export Warranties
 app.get('/api/warranties/export/excel', checkAdminRole, async (req, res) => {
     try {
-        const match = buildWarrantyFilterMatch(req.query);
+        let match = buildWarrantyFilterMatch(req.query);
+        match = applyDashStatusFilter(match, req.query.status);
         const rows = await Warranty.find(match).sort({ createdAt: -1 }).lean();
 
         const workbook = new ExcelJS.Workbook();
@@ -2216,30 +2244,10 @@ app.get('/api/warranties', async (req, res) => {
         }
 
         // Build dynamic filter from query params
-        const filterMatch = buildWarrantyFilterMatch(req.query);
+        let filterMatch = buildWarrantyFilterMatch(req.query);
 
         // Handle status filter for dashboard
-        const dashStatus = req.query.status;
-        if (dashStatus && dashStatus !== 'all') {
-            const now = new Date();
-            if (dashStatus === 'active') {
-                filterMatch.approvalStatus = 'approved';
-                filterMatch['warrantyDates.end'] = { $gte: now };
-                filterMatch.claimStatus = 'normal';
-            } else if (dashStatus === 'expired') {
-                filterMatch['warrantyDates.end'] = { ...(filterMatch['warrantyDates.end'] || {}), $lt: now };
-            } else if (dashStatus === 'approval_pending') {
-                filterMatch.approvalStatus = 'pending';
-            } else if (dashStatus === 'approval_approved') {
-                filterMatch.approvalStatus = 'approved';
-            } else if (dashStatus === 'approval_rejected') {
-                filterMatch.approvalStatus = 'rejected';
-            } else if (dashStatus === 'claim_pending') {
-                filterMatch.claimStatus = 'pending';
-            } else if (dashStatus === 'claim_completed') {
-                filterMatch.claimStatus = 'completed';
-            }
-        }
+        filterMatch = applyDashStatusFilter(filterMatch, req.query.status);
 
         const pipeline = [
             ...(Object.keys(filterMatch).length > 0 ? [{ $match: filterMatch }] : []),
