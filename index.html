@@ -3451,6 +3451,23 @@
                         </div>
                         <textarea id="memberShippingAddress" rows="3"></textarea>
                     </div>
+                    <div class="form-group full-width">
+                        <label>รู้จัก Easy.Care มาจากไหน <span style="color: #ef4444;">*</span></label>
+                        <select id="memberKnowFrom" required>
+                            <option value="" disabled selected>เลือกตัวเลือก...</option>
+                            <option value="พนักงานแนะนำ">พนักงานแนะนำ</option>
+                            <option value="TikTok">TikTok</option>
+                            <option value="FaceBook">FaceBook</option>
+                            <option value="Instagram">Instagram</option>
+                            <option value="คนรู้จักแนะนำ">คนรู้จักแนะนำ</option>
+                            <option value="เคยซื้อแล้ว">เคยซื้อแล้ว</option>
+                            <option value="อื่นๆ">อื่นๆ (ระบุ)</option>
+                        </select>
+                    </div>
+                    <div class="form-group full-width" id="memberKnowFromOtherWrap" style="display: none;">
+                        <label>ระบุเพิ่มเติม <span style="color: #ef4444;">*</span></label>
+                        <input type="text" id="memberKnowFromOther" placeholder="กรุณาระบุ...">
+                    </div>
                     <!-- รูปบัตรประชาชน -->
                     <div class="form-group full-width">
                         <label style="display: flex; align-items: center; gap: 6px;">
