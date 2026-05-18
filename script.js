@@ -8034,12 +8034,24 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             const rowClass = highlightSet.has(w._id) ? ' class="new-row-highlight"' : (w.reChecked ? ' style="background-color: #ecfdf5;"' : '');
 
+            let paymentMethodDisplay = '-';
+            if (w.payment?.method === 'Installment') {
+                paymentMethodDisplay = 'แบ่งจ่าย';
+            } else if (w.payment?.method === 'Full Payment') {
+                paymentMethodDisplay = 'เต็มจำนวน';
+            } else if (w.payment?.method === 'finance') {
+                paymentMethodDisplay = `ผ่อนไฟแนนซ์${w.financeDetails?.provider ? ` (${w.financeDetails.provider})` : ''}`;
+            } else if (w.payment?.method) {
+                paymentMethodDisplay = w.payment.method;
+            }
+
             return `
                 <tr${rowClass}>
                     <td data-label="เลขกรมธรรม์" style="font-weight: 600;">${w.policyNumber || '-'}</td>
                     <td data-label="ชื่อลูกค้า">${w.customer?.firstName || ''} ${w.customer?.lastName || ''}</td>
                     <td data-label="รุ่นอุปกรณ์">${w.device?.model || '-'}</td>
                     <td data-label="แพ็กเกจ">${w.package?.plan || '-'} (${w.package?.price?.toLocaleString() || 0} บาท)</td>
+                    <td data-label="วิธีชำระเงิน">${paymentMethodDisplay}</td>
                     <td data-label="ร้านค้า">${w.shopName || '-'}</td>
                     <td data-label="สถานะ"><span class="status-badge ${st.class}">${st.text}</span></td>
                     <td data-label="ตรวจสอบซ้ำ" style="text-align: center; font-size: 1.2rem;">
