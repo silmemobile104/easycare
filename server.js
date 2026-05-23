@@ -418,6 +418,7 @@ const FinanceTransactionSchema = new mongoose.Schema({
     financeProvider: { type: String, enum: ['SG', 'T-Plus', 'Thunder', 'Tunder'] },
     financeReceived: { type: Boolean, default: false },
     financeReceivedDate: { type: Date },
+    branch: String,
     evidenceUrl: String,
     evidenceUrls: [String],
     recordedBy: String
@@ -2471,6 +2472,7 @@ app.post('/api/warranties', async (req, res) => {
                         transferAmount: transfer,
                         changeAmount: change,
                         netTotal: net,
+                        branch: newWarranty.shopName || null,
                         evidenceUrl: req.body.evidenceUrl || null,
                         recordedBy: req.body.staffName || newWarranty.staffName || 'System'
                     });
@@ -3156,6 +3158,7 @@ app.patch('/api/warranties/:id/payment', async (req, res) => {
                     financedAmount: txFinancedAmount,
                     financeDisplay: financeDisplayStr,
                     financeProvider: warranty.financeDetails?.provider || null,
+                    branch: warranty.shopName || null,
                     evidenceUrl: (evidenceUrls && evidenceUrls.length > 0) ? evidenceUrls[0] : (evidenceUrl || null),
                     evidenceUrls: evidenceUrls || (evidenceUrl ? [evidenceUrl] : []),
                     recordedBy: staffName || warranty.staffName || 'System'
@@ -4549,6 +4552,7 @@ app.post('/api/claims/:id/decision', async (req, res) => {
                 transferAmount: transferAmount,
                 changeAmount: changeAmount,
                 netTotal: netTotal,
+                branch: warranty.shopName || null,
                 evidenceUrl: evidenceUrl,
                 recordedBy: staffName
             });
@@ -4590,6 +4594,7 @@ app.post('/api/claims/:id/decision', async (req, res) => {
                 transferAmount: 0,
                 changeAmount: 0,
                 netTotal: -Math.abs(refundAmount),
+                branch: warranty.shopName || null,
                 evidenceUrl: evidenceUrl,
                 recordedBy: staffName
             });
@@ -5137,6 +5142,7 @@ app.post('/api/deposits', async (req, res) => {
                 transferAmount: tempTransfer,
                 changeAmount: 0,
                 netTotal: deposit.depositAmount || 0,
+                branch: deposit.shopBranch || null,
                 evidenceUrl: deposit.evidenceUrl || '',
                 recordedBy: deposit.staffName || 'System'
             });

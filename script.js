@@ -2332,6 +2332,25 @@ document.addEventListener('DOMContentLoaded', () => {
             const trxRes = await fetch('/api/finance/transactions');
             const transactions = await trxRes.json();
 
+            // Populate shop filter
+            try {
+                const shopsRes = await fetch('/api/shops');
+                const shops = await shopsRes.json();
+                const shopFilter = document.getElementById('financeShopFilter');
+                if (shopFilter && Array.isArray(shops)) {
+                    shopFilter.innerHTML = '<option value="all">ทั้งหมด</option>';
+                    const uniqueShops = [...new Set(shops.map(s => s.shopName).filter(name => name))];
+                    uniqueShops.sort().forEach(shopName => {
+                        const option = document.createElement('option');
+                        option.value = shopName;
+                        option.textContent = shopName;
+                        shopFilter.appendChild(option);
+                    });
+                }
+            } catch (e) {
+                console.error('Failed to load shops for filter:', e);
+            }
+
             const financeClaimCostEl = document.getElementById('financeTotalClaimCostDisplay');
             if (financeClaimCostEl) {
                 try {
@@ -2497,6 +2516,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const searchVal = (document.getElementById('financeSearchInput') || {}).value?.toLowerCase().trim() || '';
         const paymentType = (document.getElementById('financePaymentTypeFilter') || {}).value || 'all';
         const financeProvider = (document.getElementById('financeProviderFilter') || {}).value || 'all';
+        const shopFilter = (document.getElementById('financeShopFilter') || {}).value || 'all';
         const paymentMethod = (document.getElementById('financeExportPaymentMethod') || {}).value || 'all';
         const startDateStr = (document.getElementById('financeExportStartDate') || {}).value;
         const endDateStr = (document.getElementById('financeExportEndDate') || {}).value;
@@ -2508,7 +2528,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (endDate) endDate.setHours(23, 59, 59, 999);
 
         let filtered = allFinanceIncomeTransactions;
-        const hasFilter = searchVal || paymentType !== 'all' || financeProvider !== 'all' || paymentMethod !== 'all' || startDate || endDate;
+        const hasFilter = searchVal || paymentType !== 'all' || financeProvider !== 'all' || shopFilter !== 'all' || paymentMethod !== 'all' || startDate || endDate;
 
         if (hasFilter) {
             filtered = allFinanceIncomeTransactions.filter(tx => {
@@ -2543,7 +2563,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     matchProvider = (tx.financeProvider === financeProvider);
                 }
 
-                return matchSearch && matchType && matchMethod && matchDate && matchProvider;
+                let matchShop = true;
+                if (shopFilter !== 'all') {
+                    matchShop = (tx.branch === shopFilter);
+                }
+
+                return matchSearch && matchType && matchMethod && matchDate && matchProvider && matchShop;
             });
         }
 
@@ -2634,6 +2659,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td>${tx.policyNumber}</td>
                 <td>${tx.customerName || '-'}</td>
                 <td>${tx.financeProvider || 'Easy.Care'}</td>
+                <td>${tx.branch || '-'}</td>
                 <td>${tx.paymentMethod}</td>
                 <td>${formatNumber(tx.cashReceived)}</td>
                 <td>${formatNumber(tx.transferAmount)}</td>
@@ -2655,13 +2681,14 @@ document.addEventListener('DOMContentLoaded', () => {
         'policyNumber': 2,
         'customerName': 3,
         'financeProvider': 4,
-        'paymentMethod': 5,
-        'cashReceived': 6,
-        'transferAmount': 7,
-        'changeAmount': 8,
-        'netTotal': 9,
-        'evidenceUrl': 10,
-        'recordedBy': 11
+        'branch': 5,
+        'paymentMethod': 6,
+        'cashReceived': 7,
+        'transferAmount': 8,
+        'changeAmount': 9,
+        'netTotal': 10,
+        'evidenceUrl': 11,
+        'recordedBy': 12
     };
 
     function updateFinanceTableColumnVisibility() {
@@ -2732,6 +2759,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const financeProviderFilter = document.getElementById('financeProviderFilter');
     if (financeProviderFilter) {
         financeProviderFilter.addEventListener('change', applyFinanceIncomeFilter);
+    }
+    const financeShopFilter = document.getElementById('financeShopFilter');
+    if (financeShopFilter) {
+        financeShopFilter.addEventListener('change', applyFinanceIncomeFilter);
     }
     if (financeExportPaymentMethod) {
         financeExportPaymentMethod.addEventListener('change', applyFinanceIncomeFilter);
