@@ -2466,7 +2466,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         const netCash = totalCashReceived - totalChange;
-
+        
         // อัปเดต DOM elements ของ KPI Cards
         const cashEl = document.getElementById('totalCashDisplay');
         if (cashEl) cashEl.textContent = formatNumber(netCash) + ' ฿';
@@ -2633,6 +2633,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td><span class="status-badge" style="background: #e0e7ff; color: #4338ca;">${tx.actionType}</span></td>
                 <td>${tx.policyNumber}</td>
                 <td>${tx.customerName || '-'}</td>
+                <td>${tx.financeProvider || 'Easy.Care'}</td>
                 <td>${tx.paymentMethod}</td>
                 <td>${formatNumber(tx.cashReceived)}</td>
                 <td>${formatNumber(tx.transferAmount)}</td>
@@ -2653,13 +2654,14 @@ document.addEventListener('DOMContentLoaded', () => {
         'actionType': 1,
         'policyNumber': 2,
         'customerName': 3,
-        'paymentMethod': 4,
-        'cashReceived': 5,
-        'transferAmount': 6,
-        'changeAmount': 7,
-        'netTotal': 8,
-        'evidenceUrl': 9,
-        'recordedBy': 10
+        'financeProvider': 4,
+        'paymentMethod': 5,
+        'cashReceived': 6,
+        'transferAmount': 7,
+        'changeAmount': 8,
+        'netTotal': 9,
+        'evidenceUrl': 10,
+        'recordedBy': 11
     };
 
     function updateFinanceTableColumnVisibility() {
