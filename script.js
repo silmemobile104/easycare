@@ -3746,12 +3746,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // === Section 04: จัดการการชำระเงิน ===
             const pmSection = document.getElementById('paymentManagementSection');
-            if (pmSection) pmSection.style.display = 'block';
+            const isApproved = ['approved', 'Approved_Unpaid', 'Approved_Paid'].includes(data.approvalStatus);
+            if (pmSection) {
+                if (isApproved) {
+                    pmSection.style.display = 'block';
+                    renderPaymentManagement(data);
+                } else {
+                    pmSection.style.display = 'none';
+                }
+            }
 
             const ipc = document.getElementById('initialPaymentCheck');
             if (ipc) ipc.style.display = 'none';
-
-            renderPaymentManagement(data);
 
         } catch (err) {
             console.error('Edit error:', err);
