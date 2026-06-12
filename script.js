@@ -3461,6 +3461,8 @@ document.addEventListener('DOMContentLoaded', () => {
             let statusBadge = '';
             if (r.approvalStatus === 'pending') {
                 statusBadge = `<span class="status-badge status-pending">รออนุมัติ</span>`;
+            } else if (r.approvalStatus === 'needs_correction') {
+                statusBadge = `<span class="status-badge status-pending">รอแก้ไข</span>`;
             } else if (r.approvalStatus === 'rejected') {
                 statusBadge = `<span class="status-badge status-expired">ไม่อนุมัติ</span>`;
             } else if (r.claimStatus === 'pending') {
@@ -3508,6 +3510,11 @@ document.addEventListener('DOMContentLoaded', () => {
                         return `
                                 <button class="print-btn" style="cursor: not-allowed; opacity: 0.8; pointer-events: none;" title="รออนุมัติ...">
                                     <div style="width: 18px; height: 18px; border: 2px solid #e2e8f0; border-top-color: #f59e0b; border-radius: 50%; animation: spinnerRotate 1.5s linear infinite;"></div>
+                                </button>`;
+                    } else if (r.approvalStatus === 'needs_correction') {
+                        return `
+                                <button class="print-btn" style="cursor: not-allowed; opacity: 0.5; color: #f59e0b; pointer-events: none;" title="รอแก้ไขข้อมูล">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
                                 </button>`;
                     } else if (r.approvalStatus === 'rejected') {
                         return `
@@ -4221,6 +4228,18 @@ document.addEventListener('DOMContentLoaded', () => {
                                     confirmButtonText: 'ตกลง'
                                 });
                                 resolve('rejected');
+                            } else if (data.approvalStatus === 'needs_correction') {
+                                clearInterval(pollInterval);
+                                Swal.close();
+                                Swal.fire({
+                                    icon: 'warning',
+                                    title: 'กรุณาแก้ไขข้อมูลสัญญา',
+                                    text: `หมายเหตุ : ${data.rejectReason || ''}`,
+                                    confirmButtonText: 'ตกลง'
+                                }).then(() => {
+                                    editWarranty(warrantyId);
+                                });
+                                resolve('needs_correction');
                             }
                         } catch (err) {
                             console.error('Approval polling error:', err);
@@ -4232,7 +4251,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     window.receivePayment = async function (id, installmentNo, amount) {
-        if (currentEditData && currentEditData.approvalStatus === 'pending') {
+        if (currentEditData && (currentEditData.approvalStatus === 'pending' || currentEditData.approvalStatus === 'needs_correction')) {
             const result = await waitForApprovalIfPending(currentEditData._id);
             if (result !== 'approved') return;
             // Refresh data after approval
@@ -4248,7 +4267,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     window.receiveAllRemainingPayments = async function (id, totalAmount) {
-        if (currentEditData && currentEditData.approvalStatus === 'pending') {
+        if (currentEditData && (currentEditData.approvalStatus === 'pending' || currentEditData.approvalStatus === 'needs_correction')) {
             const result = await waitForApprovalIfPending(currentEditData._id);
             if (result !== 'approved') return;
             const res = await fetch(`/api/warranties/${currentEditData._id}`);
@@ -4806,7 +4825,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const closeBtn = document.getElementById('closeModal');
                 const immediatePayment = document.getElementById('immediatePaymentSection');
 
-                if (isEditMode) {
+                if (isEditMode && !(currentEditData && currentEditData.approvalStatus === 'needs_correction')) {
                     modalTitle.textContent = 'อัปเดตข้อมูลสำเร็จ!';
                     modalText.textContent = 'ข้อมูลประกันภัยได้ถูกอัปเดตลงในระบบเรียบร้อยแล้ว';
                     hideCheckout();
@@ -4863,6 +4882,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                                     } else if (pollData.approvalStatus === 'rejected') {
                                         clearInterval(pollInterval);
+                                        Swal.close();
                                         Swal.fire({
                                             icon: 'error',
                                             title: 'สัญญาไม่ได้รับการอนุมัติ',
@@ -4871,6 +4891,17 @@ document.addEventListener('DOMContentLoaded', () => {
                                         }).then(() => {
                                             showView('dashboard');
                                             fetchWarranties();
+                                        });
+                                    } else if (pollData.approvalStatus === 'needs_correction') {
+                                        clearInterval(pollInterval);
+                                        Swal.close();
+                                        Swal.fire({
+                                            icon: 'warning',
+                                            title: 'กรุณาแก้ไขข้อมูลสัญญา',
+                                            text: `หมายเหตุ : ${pollData.rejectReason || ''}`,
+                                            confirmButtonText: 'ตกลง'
+                                        }).then(() => {
+                                            editWarranty(savedWarrantyId);
                                         });
                                     }
                                     // If still 'pending', do nothing and wait for next poll
@@ -7963,21 +7994,24 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Fetch Stats Counts (silent) ---
     async function fetchApprovalCounts() {
         try {
-            const [pendingRes, unpaidRes, paidRes, rejectedRes] = await Promise.all([
+            const [pendingRes, unpaidRes, paidRes, rejectedRes, needsCorrectionRes] = await Promise.all([
                 fetch('/api/warranties/pending?status=pending'),
                 fetch('/api/warranties/pending?status=Approved_Unpaid'),
                 fetch('/api/warranties/pending?status=Approved_Paid'),
-                fetch('/api/warranties/pending?status=rejected')
+                fetch('/api/warranties/pending?status=rejected'),
+                fetch('/api/warranties/pending?status=needs_correction')
             ]);
             const pending = await pendingRes.json();
             const unpaid = await unpaidRes.json();
             const paid = await paidRes.json();
             const rejected = await rejectedRes.json();
+            const needsCorrection = await needsCorrectionRes.json();
 
             if (document.getElementById('badgePending')) document.getElementById('badgePending').textContent = pending.length;
             if (document.getElementById('badgeApprovedUnpaid')) document.getElementById('badgeApprovedUnpaid').textContent = unpaid.length;
             if (document.getElementById('badgeApprovedPaid')) document.getElementById('badgeApprovedPaid').textContent = paid.length;
             if (document.getElementById('badgeRejected')) document.getElementById('badgeRejected').textContent = rejected.length;
+            if (document.getElementById('badgeNeedsCorrection')) document.getElementById('badgeNeedsCorrection').textContent = needsCorrection.length;
         } catch (err) {
             console.error('Error fetching approval counts:', err);
         }
@@ -8064,6 +8098,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 st = isExpired ? { text: 'หมดอายุ', class: 'expired' } : { text: 'สมบูรณ์', class: 'active' };
             } else if (w.approvalStatus === 'rejected') {
                 st = { text: 'ไม่อนุมัติ', class: 'rejected' };
+            } else if (w.approvalStatus === 'needs_correction') {
+                st = { text: 'รอแก้ไข', class: 'warning' };
             }
             const rowClass = highlightSet.has(w._id) ? ' class="new-row-highlight"' : (w.reChecked ? ' style="background-color: #ecfdf5;"' : '');
 
@@ -8147,6 +8183,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         action = 'ไม่อนุมัติ';
                         actionTime = formatThaiDateTime(w.rejectDate);
                         actor = w.rejectBy || '-';
+                    } else if (w.approvalStatus === 'needs_correction') {
+                        action = 'ส่งแก้ไข';
+                        actionTime = formatThaiDateTime(w.rejectDate);
+                        actor = w.rejectBy || '-';
                     }
 
                     return `
@@ -8224,6 +8264,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 st = isExpired ? { text: 'หมดอายุ', class: 'expired' } : { text: 'ปกติ', class: 'active' };
             } else if (w.approvalStatus === 'rejected') {
                 st = { text: 'ไม่อนุมัติ', class: 'rejected' };
+            } else if (w.approvalStatus === 'needs_correction') {
+                st = { text: 'รอแก้ไข', class: 'warning' };
             }
 
             if (typeof SwalTheme === 'undefined') {
@@ -8447,6 +8489,20 @@ document.addEventListener('DOMContentLoaded', () => {
                             <span style="color: #ef4444;">${w.rejectReason || '-'}</span>
                         </div>
                         ` : ''}
+                        ${w.approvalStatus === 'needs_correction' ? `
+                        <div class="approval-detail-item">
+                            <label>ผู้สั่งแก้ไข</label>
+                            <span>${w.rejectBy || '-'}</span>
+                        </div>
+                        <div class="approval-detail-item">
+                            <label>วันที่ทำรายการ</label>
+                            <span>${w.rejectDate ? new Date(w.rejectDate).toLocaleString('th-TH') : '-'}</span>
+                        </div>
+                        <div class="approval-detail-item" style="grid-column: span 2;">
+                            <label>รายละเอียดที่ต้องแก้ไข</label>
+                            <span style="color: #d97706;">${w.rejectReason || '-'}</span>
+                        </div>
+                        ` : ''}
                     </div>
 
                     <div style="display:flex; justify-content:center; gap:10px; margin-top: 14px; flex-wrap: wrap;">
@@ -8456,7 +8512,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             ${w.reChecked ? '❌ ยกเลิกการตรวจสอบซ้ำ' : '✅ ตรวจสอบซ้ำ'}
                         </button>
                         ` : ''}
-                        ${w.approvalStatus === 'pending' ? `
+                        ${(w.approvalStatus === 'pending' || w.approvalStatus === 'needs_correction') ? `
                         <button type="button" id="approvalEditBtn" class="submit-btn"
                             style="width:auto; padding: 10px 14px; background: linear-gradient(135deg, #f59e0b, #d97706); margin-right: 5px;">
                             ✏️ แก้ไขข้อมูล
@@ -8780,54 +8836,121 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            const result = await SwalTheme.fire({
-                title: 'ยืนยันไม่อนุมัติ?',
-                text: 'กรุณาระบุเหตุผลที่ไม่อนุมัติสัญญา',
-                input: 'text',
-                inputPlaceholder: 'ระบุเหตุผล...',
-                icon: 'warning',
+            const choiceResult = await SwalTheme.fire({
+                title: 'กรุณาเลือกการดำเนินการ',
+                text: 'คุณต้องการให้เจ้าหน้าที่แก้ไขข้อมูล หรือไม่อนุมัติสัญญานี้อย่างถาวร?',
+                icon: 'question',
                 showCancelButton: true,
-                confirmButtonText: '❌ ไม่อนุมัติ',
+                showDenyButton: true,
+                confirmButtonText: '✏️ ให้แก้ไขข้อมูล',
+                denyButtonText: '❌ ไม่อนุมัติเด็ดขาด',
                 cancelButtonText: 'ยกเลิก',
-                confirmButtonColor: '#ef4444',
-                inputValidator: (value) => {
-                    if (!value) {
-                        return 'กรุณาระบุเหตุผล!';
-                    }
-                }
+                confirmButtonColor: '#f59e0b',
+                denyButtonColor: '#ef4444',
+                cancelButtonColor: '#64748b'
             });
 
-            if (!result.isConfirmed) return;
+            if (choiceResult.isDismissed && choiceResult.dismiss === Swal.DismissReason.cancel) {
+                return; // User clicked cancel
+            }
 
-            const reason = result.value;
-            // Use global currentUser
-            const rejectBy = currentUser ? currentUser.staffName : 'Unknown';
-
-            showLoader('กำลังดำเนินการ...');
-            try {
-                const res = await fetch(`/api/warranties/${id}/reject`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ reason, rejectBy })
+            if (choiceResult.isConfirmed) {
+                // ให้แก้ไขข้อมูล
+                const reasonResult = await SwalTheme.fire({
+                    title: 'ระบุรายละเอียดที่ต้องแก้ไข',
+                    text: 'กรุณาระบุรายละเอียดหรือจุดที่ต้องการให้พนักงานแก้ไขใหม่',
+                    input: 'text',
+                    inputPlaceholder: 'เช่น รูปถ่ายไม่ชัดเจน, เลข IMEI ไม่ถูกต้อง...',
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonText: 'ส่งกลับให้แก้ไข',
+                    cancelButtonText: 'ยกเลิก',
+                    inputValidator: (value) => {
+                        if (!value) {
+                            return 'กรุณาระบุรายละเอียดการแก้ไข!';
+                        }
+                    }
                 });
-                const data = await res.json();
-                if (res.ok) {
-                    SwalTheme.fire({
-                        icon: 'info',
-                        title: 'ไม่อนุมัติสัญญา',
-                        text: 'สัญญาถูกปฏิเสธเรียบร้อยแล้ว',
-                        timer: 2000,
-                        showConfirmButton: false
+
+                if (!reasonResult.isConfirmed) return;
+
+                const reason = reasonResult.value;
+                const rejectBy = currentUser ? currentUser.staffName : 'Unknown';
+
+                showLoader('กำลังส่งข้อมูล...');
+                try {
+                    const res = await fetch(`/api/warranties/${id}/request-correction`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ reason, rejectBy })
                     });
-                    fetchApprovalWarranties(approvalCurrentFilter);
-                } else {
-                    SwalTheme.fire('เกิดข้อผิดพลาด', data.message || 'ไม่สามารถดำเนินการได้', 'error');
+                    const data = await res.json();
+                    if (res.ok) {
+                        SwalTheme.fire({
+                            icon: 'success',
+                            title: 'ส่งกลับแก้ไขสำเร็จ',
+                            text: 'ส่งสัญญากลับให้พนักงานแก้ไขเรียบร้อยแล้ว',
+                            timer: 2000,
+                            showConfirmButton: false
+                        });
+                        fetchApprovalWarranties(approvalCurrentFilter);
+                    } else {
+                        SwalTheme.fire('เกิดข้อผิดพลาด', data.message || 'ไม่สามารถดำเนินการได้', 'error');
+                    }
+                } catch (err) {
+                    console.error('Request correction error:', err);
+                    SwalTheme.fire('เกิดข้อผิดพลาด', 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้: ' + err.message, 'error');
+                } finally {
+                    hideLoader();
                 }
-            } catch (err) {
-                console.error('Reject fetch error:', err);
-                SwalTheme.fire('เกิดข้อผิดพลาด', 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้: ' + err.message, 'error');
-            } finally {
-                hideLoader();
+            } else if (choiceResult.isDenied) {
+                // ไม่อนุมัติเด็ดขาด
+                const reasonResult = await SwalTheme.fire({
+                    title: 'ระบุเหตุผลที่ไม่อนุมัติสัญญา',
+                    input: 'text',
+                    inputPlaceholder: 'ระบุเหตุผลที่ปฏิเสธสัญญาอย่างถาวร...',
+                    icon: 'error',
+                    showCancelButton: true,
+                    confirmButtonText: 'ยืนยันปฏิเสธสัญญา',
+                    cancelButtonText: 'ยกเลิก',
+                    inputValidator: (value) => {
+                        if (!value) {
+                            return 'กรุณาระบุเหตุผล!';
+                        }
+                    }
+                });
+
+                if (!reasonResult.isConfirmed) return;
+
+                const reason = reasonResult.value;
+                const rejectBy = currentUser ? currentUser.staffName : 'Unknown';
+
+                showLoader('กำลังปฏิเสธสัญญา...');
+                try {
+                    const res = await fetch(`/api/warranties/${id}/reject`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ reason, rejectBy })
+                    });
+                    const data = await res.json();
+                    if (res.ok) {
+                        SwalTheme.fire({
+                            icon: 'info',
+                            title: 'ไม่อนุมัติสัญญา',
+                            text: 'ปฏิเสธสัญญาเรียบร้อยแล้ว',
+                            timer: 2000,
+                            showConfirmButton: false
+                        });
+                        fetchApprovalWarranties(approvalCurrentFilter);
+                    } else {
+                        SwalTheme.fire('เกิดข้อผิดพลาด', data.message || 'ไม่สามารถดำเนินการได้', 'error');
+                    }
+                } catch (err) {
+                    console.error('Reject error:', err);
+                    SwalTheme.fire('เกิดข้อผิดพลาด', 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้: ' + err.message, 'error');
+                } finally {
+                    hideLoader();
+                }
             }
         } catch (err) {
             console.error('rejectWarranty outer error:', err);

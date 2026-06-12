@@ -229,7 +229,7 @@ const WarrantySchema = new mongoose.Schema({
     },
     approvalStatus: {
         type: String,
-        enum: ['pending', 'approved', 'Approved_Unpaid', 'Approved_Paid', 'rejected'],
+        enum: ['pending', 'approved', 'Approved_Unpaid', 'Approved_Paid', 'rejected', 'needs_correction'],
         default: 'pending'
     },
     approver: String,
@@ -587,6 +587,8 @@ function applyDashStatusFilter(match, dashStatus) {
             match.approvalStatus = { $in: ['approved', 'Approved_Paid', 'Approved_Unpaid'] };
         } else if (dashStatus === 'approval_rejected') {
             match.approvalStatus = 'rejected';
+        } else if (dashStatus === 'needs_correction') {
+            match.approvalStatus = 'needs_correction';
         } else if (dashStatus === 'claim_pending') {
             match.claimStatus = 'pending';
         } else if (dashStatus === 'claim_completed') {
@@ -2780,6 +2782,29 @@ app.put('/api/warranties/:id/reject', async (req, res) => {
     }
 });
 
+// Request correction for a warranty
+app.put('/api/warranties/:id/request-correction', async (req, res) => {
+    try {
+        const { reason, rejectBy } = req.body;
+        const warranty = await Warranty.findByIdAndUpdate(
+            req.params.id,
+            {
+                approvalStatus: 'needs_correction',
+                rejectReason: reason,
+                rejectBy: rejectBy,
+                rejectDate: new Date()
+            },
+            { new: true }
+        );
+        if (!warranty) return res.status(404).json({ message: 'Record not found' });
+        
+        await logAction('Correction Request', `ส่งคืนสัญญากลับไปแก้ไขเลขที่: ${warranty.policyNumber || req.params.id}`, rejectBy || 'System');
+        res.json({ success: true, warranty });
+    } catch (err) {
+        res.status(400).json({ message: err.message });
+    }
+});
+
 // Check for duplicate Serial or IMEI
 app.get('/api/warranties/check-duplicate', async (req, res) => {
     try {
@@ -3010,6 +3035,12 @@ app.put('/api/warranties/:id', async (req, res) => {
             }
         }
 
+        // If the warranty currently has approvalStatus 'needs_correction', reset it to 'pending' upon update
+        const currentWarranty = await Warranty.findById(req.params.id);
+        if (currentWarranty && currentWarranty.approvalStatus === 'needs_correction') {
+            updateData.approvalStatus = 'pending';
+        }
+
         const updated = await Warranty.findByIdAndUpdate(
             req.params.id,
             updateData,
@@ -3017,6 +3048,21 @@ app.put('/api/warranties/:id', async (req, res) => {
         );
 
         if (!updated) return res.status(404).json({ message: 'Record not found' });
+
+        // Trigger Socket.io event for pending approval if reset to pending
+        if (updated.approvalStatus === 'pending') {
+            if (io) {
+                const firstName = (updated.customer && updated.customer.firstName) ? updated.customer.firstName : '';
+                const lastName = (updated.customer && updated.customer.lastName) ? updated.customer.lastName : '';
+                const customerName = `${firstName} ${lastName}`.trim() || '-';
+                io.emit('urgent_approval_needed', {
+                    warrantyId: updated._id.toString(),
+                    policyNumber: updated.policyNumber,
+                    customerName
+                });
+            }
+        }
+
         res.json(updated);
     } catch (err) {
         res.status(400).json({ message: err.message });
