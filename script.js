@@ -566,7 +566,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     updateStatusTrackingBadge({ showToastIfOverdue: true });
                 } else {
                     const loginError = document.getElementById('loginError');
-                    if (loginError) loginError.style.display = 'block';
+                    if (loginError) {
+                        let errorMsg = data && data.message ? data.message : 'ชื่อผู้ใช้งานหรือรหัสผ่านไม่ถูกต้อง';
+                        if (errorMsg === 'Invalid credentials') {
+                            errorMsg = 'ชื่อผู้ใช้งานหรือรหัสผ่านไม่ถูกต้อง';
+                        }
+                        const svgHtml = loginError.querySelector('svg')?.outerHTML || '';
+                        loginError.innerHTML = (svgHtml + ' ' + errorMsg).trim();
+                        loginError.style.display = 'block';
+                    }
                 }
             } catch (err) {
                 console.error('Fetch error:', err);
@@ -3390,6 +3398,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const totalElem = document.getElementById('totalRecords');
         const activeElem = document.getElementById('activeRecords');
         const expiringElem = document.getElementById('expiringSoon');
+        const rejectedElem = document.getElementById('rejectedRecords');
         const empty = document.getElementById('emptyState');
 
         const getCoverageNumbers = (w) => {
@@ -3416,12 +3425,14 @@ document.addEventListener('DOMContentLoaded', () => {
         // Calculate Stats
         const now = new Date();
         const totalCount = records.length;
-        const activeCount = records.filter(r => new Date(r.warrantyDates.end) >= now).length;
-        const expiredCount = records.filter(r => new Date(r.warrantyDates.end) < now).length;
+        const activeCount = records.filter(r => ['approved', 'Approved_Paid', 'Approved_Unpaid'].includes(r.approvalStatus) && new Date(r.warrantyDates.end) >= now).length;
+        const expiredCount = records.filter(r => ['approved', 'Approved_Paid', 'Approved_Unpaid'].includes(r.approvalStatus) && new Date(r.warrantyDates.end) < now).length;
+        const rejectedCount = records.filter(r => r.approvalStatus === 'rejected').length;
 
         if (totalElem) totalElem.textContent = totalCount.toLocaleString();
         if (activeElem) activeElem.textContent = activeCount.toLocaleString();
         if (expiringElem) expiringElem.textContent = expiredCount.toLocaleString();
+        if (rejectedElem) rejectedElem.textContent = rejectedCount.toLocaleString();
 
         if (totalCount === 0) {
             empty.style.display = 'block';
@@ -9219,6 +9230,13 @@ document.addEventListener('DOMContentLoaded', () => {
             else if (staff.role === 'finance') roleBadgeStr = '<span class="status-badge" style="background:#f43f5e;color:white;">ฝ่ายการเงิน</span>';
             else roleBadgeStr = '<span class="status-badge" style="background:#10b981;color:white;">พนักงานขาย</span>';
 
+            let statusBadge = '';
+            if (staff.status === 'suspended') {
+                statusBadge = '<span class="status-badge status-expired">ระงับการใช้งาน</span>';
+            } else {
+                statusBadge = '<span class="status-badge status-active">ใช้งานปกติ</span>';
+            }
+
             // Prevent admin from deleting themselves
             const isSelf = staff.username === currentUser.username;
             const adminCount = allStaffData.filter(s => s.role === 'admin').length;
@@ -9229,6 +9247,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <td data-label="Username"><strong>${staff.username}</strong></td>
                     <td data-label="ชื่อ-นามสกุล">${staff.staffName}</td>
                     <td data-label="Role">${roleBadgeStr}</td>
+                    <td data-label="สถานะ">${statusBadge}</td>
                     <td data-label="จัดการ">
                         <div style="display: flex; gap: 0.5rem; justify-content: center;">
                             <button class="edit-btn" onclick='window.editStaffData(${JSON.stringify(staff).replace(/'/g, "&#39;")})' title="แก้ไข">
@@ -9269,6 +9288,11 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('staffName').value = staffData.staffName;
             document.getElementById('staffRole').value = staffData.role;
 
+            const staffStatusSelect = document.getElementById('staffStatus');
+            const staffStatusGroup = document.getElementById('staffStatusGroup');
+            if (staffStatusSelect) staffStatusSelect.value = staffData.status || 'active';
+            if (staffStatusGroup) staffStatusGroup.style.display = 'block';
+
             if (staffPwdField) staffPwdField.required = false;
             if (staffPwdReq) staffPwdReq.style.display = 'none';
             if (staffPwdHelp) staffPwdHelp.style.display = 'block';
@@ -9279,6 +9303,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const staffUserField = document.getElementById('staffUsername');
             staffUserField.readOnly = false;
             staffUserField.style.backgroundColor = '';
+
+            const staffStatusSelect = document.getElementById('staffStatus');
+            const staffStatusGroup = document.getElementById('staffStatusGroup');
+            if (staffStatusSelect) staffStatusSelect.value = 'active';
+            if (staffStatusGroup) staffStatusGroup.style.display = 'none';
 
             if (staffPwdField) staffPwdField.required = true;
             if (staffPwdReq) staffPwdReq.style.display = 'inline';
@@ -9301,7 +9330,8 @@ document.addEventListener('DOMContentLoaded', () => {
             username: document.getElementById('staffUsername').value.trim(),
             staffName: document.getElementById('staffName').value.trim(),
             role: document.getElementById('staffRole').value,
-            password: document.getElementById('staffPassword').value
+            password: document.getElementById('staffPassword').value,
+            status: document.getElementById('staffStatus')?.value || 'active'
         };
 
         const url = isEditStaffMode ? `/api/staff/${id}` : '/api/staff';

@@ -325,7 +325,8 @@ const StaffSchema = new mongoose.Schema({
     staffPosition: String,
     username: { type: String, unique: true, index: true },
     password: { type: String, required: true },
-    role: { type: String, enum: ['sales', 'approver', 'finance', 'admin'], default: 'sales' }
+    role: { type: String, enum: ['sales', 'approver', 'finance', 'admin'], default: 'sales' },
+    status: { type: String, enum: ['active', 'suspended'], default: 'active' }
 }, { timestamps: true });
 
 const Staff = mongoose.model('Staff', StaffSchema);
@@ -1673,7 +1674,8 @@ app.get('/api/dashboard/sales/summary', async (req, res) => {
             Warranty.countDocuments({ approvalStatus: 'pending' }),
             Warranty.countDocuments({
                 'payment.method': 'Full Payment',
-                'payment.status': { $ne: 'Paid' }
+                'payment.status': { $ne: 'Paid' },
+                approvalStatus: { $ne: 'rejected' }
             }),
             Warranty.countDocuments({
                 'payment.method': 'Installment',
@@ -1769,6 +1771,9 @@ app.post('/api/login', async (req, res) => {
         const staff = await Staff.findOne({ username, password });
 
         if (staff) {
+            if (staff.status === 'suspended') {
+                return res.status(403).json({ success: false, message: 'บัญชีผู้ใช้นี้ถูกระงับการใช้งาน กรุณาติดต่อผู้ดูแลระบบ' });
+            }
             await logAction('Login', `เข้าสู่ระบบสำเร็จ (${staff.role})`, staff.staffName);
             res.json({
                 success: true,
@@ -2172,7 +2177,7 @@ app.get('/api/staff', checkAdminRole, async (req, res) => {
 // Create new staff
 app.post('/api/staff', checkAdminRole, async (req, res) => {
     try {
-        const { username, password, staffName, role } = req.body;
+        const { username, password, staffName, role, status } = req.body;
 
         const existingStaff = await Staff.findOne({ username });
         if (existingStaff) {
@@ -2186,7 +2191,7 @@ app.post('/api/staff', checkAdminRole, async (req, res) => {
         else if (role === 'approver') staffPosition = 'ผู้อนุมัติ';
         else staffPosition = 'พนักงานขาย';
 
-        const newStaff = new Staff({ staffId, staffName, staffPosition, username, password, role });
+        const newStaff = new Staff({ staffId, staffName, staffPosition, username, password, role, status: status || 'active' });
         await newStaff.save();
 
         const insertedStaff = await Staff.findById(newStaff._id, { password: 0 });
@@ -2199,10 +2204,24 @@ app.post('/api/staff', checkAdminRole, async (req, res) => {
 // Update staff
 app.put('/api/staff/:id', checkAdminRole, async (req, res) => {
     try {
-        const { staffName, role, password } = req.body;
+        const { staffName, role, password, status } = req.body;
+
+        // Safety check: Prevent suspending the last active administrator
+        if (status === 'suspended') {
+            const targetStaff = await Staff.findById(req.params.id);
+            if (targetStaff && targetStaff.role === 'admin') {
+                const activeAdminCount = await Staff.countDocuments({ role: 'admin', status: 'active', _id: { $ne: req.params.id } });
+                if (activeAdminCount === 0) {
+                    return res.status(400).json({ success: false, message: 'ไม่สามารถระงับผู้ดูแลระบบคนสุดท้ายได้' });
+                }
+            }
+        }
 
         // Build update object
         const updateData = { staffName, role };
+        if (status) {
+            updateData.status = status;
+        }
 
         if (role === 'admin') updateData.staffPosition = 'ผู้ดูแลระบบ';
         else if (role === 'approver') updateData.staffPosition = 'ผู้อนุมัติ';

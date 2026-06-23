@@ -695,6 +695,20 @@
                                 <p>หมดอายุ</p>
                             </div>
                         </div>
+                        <div class="stat-card">
+                            <div class="stat-icon red">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <circle cx="12" cy="12" r="10"></circle>
+                                    <line x1="15" y1="9" x2="9" y2="15"></line>
+                                    <line x1="9" y1="9" x2="15" y2="15"></line>
+                                </svg>
+                            </div>
+                            <div class="stat-content">
+                                <h3 id="rejectedRecords">0</h3>
+                                <p>ไม่อนุมัติ</p>
+                            </div>
+                        </div>
                     </div>
 
                     <!-- Advanced Filter Bar -->
@@ -736,6 +750,7 @@
                                 <select id="dashPaymentFilter" class="filter-select">
                                     <option value="all">ทั้งหมด</option>
                                     <option value="full">ชำระเต็มจำนวน</option>
+                                    <option value="unpaid">ยังไม่ได้ชำระเงิน</option>
                                     <option value="installment">ชำระเป็นงวด</option>
                                     <option value="installment_complete">ชำระเป็นงวดครบแล้ว</option>
                                     <option value="finance">ผ่อนด้วยไฟแนนซ์</option>
@@ -2421,6 +2436,7 @@
                                         <th>ชื่อผู้ใช้งาน (Username)</th>
                                         <th>ชื่อ-นามสกุล</th>
                                         <th>สิทธิ์การใช้งาน (Role)</th>
+                                        <th>สถานะ</th>
                                         <th>จัดการ</th>
                                     </tr>
                                 </thead>
@@ -2464,6 +2480,13 @@
                                     <option value="approver">ฝ่ายอนุมัติสัญญา</option>
                                     <option value="finance">ฝ่ายการเงิน</option>
                                     <option value="admin">ผู้ดูแลระบบ</option>
+                                </select>
+                            </div>
+                            <div class="form-group" id="staffStatusGroup" style="display: none;">
+                                <label for="staffStatus">สถานะการใช้งาน</label>
+                                <select id="staffStatus">
+                                    <option value="active">ใช้งานปกติ (Active)</option>
+                                    <option value="suspended">ระงับการใช้งาน (Suspended)</option>
                                 </select>
                             </div>
                             <div style="display: flex; gap: 0.75rem; justify-content: flex-end; margin-top: 1.5rem;">
