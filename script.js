@@ -9886,30 +9886,62 @@ document.addEventListener('DOMContentLoaded', () => {
                         card.className = 'stat-card';
                         card.style.flexDirection = 'column';
                         card.style.alignItems = 'flex-start';
-                        card.style.padding = '20px';
-                        card.style.gap = '15px';
+                        card.style.padding = '24px';
+                        card.style.gap = '20px';
                         card.style.height = 'auto'; // ensure it expands based on content
+                        card.style.borderRadius = '16px';
+                        card.style.border = '1px solid #e2e8f0';
+                        card.style.boxShadow = '0 10px 30px rgba(0,0,0,0.02)';
+                        card.style.background = '#ffffff';
+
+                        // Calculate 3 installments
+                        const base3 = Math.floor(rate.packagePrice / 3);
+                        const rem3 = rate.packagePrice - (base3 * 3);
+                        const inst1 = base3 + rem3;
+                        const inst2 = base3;
+                        const inst3 = base3;
 
                         card.innerHTML = `
-                            <div style="width: 100%; display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 1px solid #e2e8f0; padding-bottom: 10px;">
+                            <div style="width: 100%; display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 1px solid #f1f5f9; padding-bottom: 15px;">
                                 <div>
-                                    <h3 style="margin: 0; color: #0f172a; font-size: 1.1rem;">${rate.tierName ? rate.tierName : 'ช่วงราคา'}</h3>
-                                    <p style="margin: 4px 0 0 0; color: #64748b; font-size: 0.9rem;">ราคาแพ็กเกจ: <span style="color: #0d9488; font-weight: bold;">${rate.packagePrice.toLocaleString()}</span> บาท</p>
-                                    <p style="margin: 4px 0 0 0; color: #64748b; font-size: 0.85rem;">ช่วงราคา: ${rate.minDeviceValue.toLocaleString()} - ${rate.maxDeviceValue.toLocaleString()}</p>
+                                    <h3 style="margin: 0; color: #0f172a; font-size: 1.2rem; font-weight: 700;">${rate.tierName ? rate.tierName : 'ช่วงราคา'}</h3>
+                                    <p style="margin: 6px 0 0 0; color: #64748b; font-size: 0.9rem;">ราคาแพ็กเกจ: <span style="color: #0d9488; font-weight: bold; font-size: 1.05rem;">${rate.packagePrice.toLocaleString()}</span> บาท</p>
+                                    <p style="margin: 4px 0 0 0; color: #94a3b8; font-size: 0.8rem; font-weight: 500;">ช่วงราคาเครื่อง (70%): ${rate.minDeviceValue.toLocaleString()} - ${rate.maxDeviceValue.toLocaleString()}</p>
                                 </div>
-                                <div style="background: rgba(13, 148, 136, 0.1); color: #0d9488; padding: 6px 12px; border-radius: 8px; font-weight: bold; font-size: 0.9rem;">
+                                <div style="background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%); color: white; padding: 8px 16px; border-radius: 10px; font-weight: 700; font-size: 0.9rem; box-shadow: 0 4px 12px rgba(13, 148, 136, 0.2);">
                                     ดาวน์ ${rate.downPayment.toLocaleString()} ฿
                                 </div>
                             </div>
                             <div style="width: 100%;">
-                                <p style="margin: 0 0 10px 0; font-weight: 600; color: #334155; font-size: 0.9rem;">โปรแกรมผ่อนชำระ (บาท/งวด):</p>
+                                <p style="margin: 0 0 12px 0; font-weight: 600; color: #334155; font-size: 0.9rem; display: flex; align-items: center; gap: 6px;">
+                                    <span style="font-size: 1rem;">🏦</span> โปรแกรมผ่อนชำระไฟแนนซ์ (บาท/งวด):
+                                </p>
                                 <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;">
                                     ${(rate.installmentPlans || []).map(plan => `
-                                        <div style="display: flex; justify-content: space-between; background: #f8fafc; padding: 8px 12px; border-radius: 6px; border: 1px solid #e2e8f0;">
-                                            <span style="color: #64748b; font-size: 0.85rem;">${plan.months} งวด</span>
-                                            <span style="font-weight: bold; color: #0f172a; font-size: 0.9rem;">${plan.monthlyAmount.toLocaleString()}</span>
+                                        <div style="display: flex; justify-content: space-between; align-items: center; background: #f8fafc; padding: 8px 12px; border-radius: 8px; border: 1px solid #e2e8f0;">
+                                            <span style="color: #64748b; font-size: 0.85rem; font-weight: 500;">${plan.months} งวด</span>
+                                            <span style="font-weight: 700; color: #0f172a; font-size: 0.9rem;">${plan.monthlyAmount.toLocaleString()} ฿</span>
                                         </div>
                                     `).join('')}
+                                </div>
+                            </div>
+                            <div style="width: 100%; border-top: 1px dashed #e2e8f0; margin-top: 5px; padding-top: 15px;">
+                                <p style="margin: 0 0 12px 0; font-weight: 600; color: #334155; font-size: 0.9rem; display: flex; align-items: center; gap: 6px;">
+                                    <span style="font-size: 1rem;">💳</span> ชำระแบบแบ่งจ่าย 3 งวด (บาท/งวด):
+                                </p>
+                                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;">
+                                    <div style="display: flex; flex-direction: column; align-items: center; background: #f0fdf4; padding: 8px; border-radius: 8px; border: 1px solid #bbf7d0;">
+                                        <span style="color: #166534; font-size: 0.75rem; font-weight: 600;">งวดที่ 1</span>
+                                        <span style="font-weight: bold; color: #15803d; font-size: 0.95rem; margin-top: 4px;">${inst1.toLocaleString()} ฿</span>
+                                    </div>
+                                    <div style="display: flex; flex-direction: column; align-items: center; background: #f0fdf4; padding: 8px; border-radius: 8px; border: 1px solid #bbf7d0;">
+                                        <span style="color: #166534; font-size: 0.75rem; font-weight: 600;">งวดที่ 2</span>
+                                        <span style="font-weight: bold; color: #15803d; font-size: 0.95rem; margin-top: 4px;">${inst2.toLocaleString()} ฿</span>
+                                    </div>
+                                    <div style="display: flex; flex-direction: column; align-items: center; background: #f0fdf4; padding: 8px; border-radius: 8px; border: 1px solid #bbf7d0;">
+                                        <span style="color: #166534; font-size: 0.75rem; font-weight: 600;">งวดที่ 3</span>
+                                        <span style="font-weight: bold; color: #15803d; font-size: 0.95rem; margin-top: 4px;">${inst3.toLocaleString()} ฿</span>
+                                    </div>
                                 </div>
                             </div>
                         `;
