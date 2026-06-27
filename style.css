@@ -4336,3 +4336,35 @@ tr.new-row-highlight {
     font-weight: 400;
 }
 
+
+
+/* Calculator View Styles */
+.calc-card {
+    background: #fff;
+    border-radius: 16px;
+    padding: 24px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+    margin-bottom: 24px;
+    max-width: 600px;
+}
+
+.calc-input-group {
+    display: flex;
+    gap: 12px;
+    align-items: stretch;
+}
+
+@media (max-width: 576px) {
+    .calc-card {
+        padding: 16px;
+    }
+    .calc-input-group {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .calc-input-group button {
+        justify-content: center;
+        padding: 12px 24px;
+        height: 48px;
+    }
+}
