@@ -1792,47 +1792,82 @@ document.addEventListener('DOMContentLoaded', () => {
             const expenses = trend.map(r => Number(r.expenses || 0));
 
             profitTrendChartInstance = new Chart(trendCanvas, {
-                type: 'bar',
                 data: {
                     labels,
                     datasets: [
                         {
-                            label: 'รายรับ',
-                            data: income,
-                            backgroundColor: 'rgba(13,148,136,0.45)',
-                            borderColor: '#0d9488',
-                            borderWidth: 1
-                        },
-                        {
-                            label: 'รายจ่าย',
-                            data: expenses,
-                            backgroundColor: 'rgba(239,68,68,0.35)',
-                            borderColor: '#ef4444',
-                            borderWidth: 1
-                        },
-                        {
+                            type: 'bar',
                             label: 'กำไรสุทธิ',
                             data: net,
-                            backgroundColor: net.map(v => v >= 0 ? 'rgba(59,130,246,0.55)' : 'rgba(239,68,68,0.55)'),
-                            borderColor: '#3b82f6',
-                            borderWidth: 1
+                            backgroundColor: net.map(v => v >= 0 ? 'rgba(16, 185, 129, 0.85)' : 'rgba(244, 63, 94, 0.85)'),
+                            borderRadius: 6,
+                            borderWidth: 0,
+                            barPercentage: 0.55,
+                            order: 1
+                        },
+                        {
+                            type: 'line',
+                            label: 'รายรับ',
+                            data: income,
+                            borderColor: '#0d9488',
+                            backgroundColor: 'rgba(13, 148, 136, 0.06)',
+                            borderWidth: 2.5,
+                            fill: true,
+                            tension: 0.4,
+                            pointRadius: 3,
+                            pointHoverRadius: 5,
+                            order: 2
+                        },
+                        {
+                            type: 'line',
+                            label: 'รายจ่าย',
+                            data: expenses,
+                            borderColor: '#ef4444',
+                            backgroundColor: 'rgba(239, 68, 68, 0.03)',
+                            borderWidth: 2,
+                            fill: true,
+                            tension: 0.4,
+                            pointRadius: 2,
+                            pointHoverRadius: 4,
+                            order: 3
                         }
                     ]
                 },
                 options: {
                     responsive: true,
                     plugins: {
-                        legend: { position: 'top' },
+                        legend: { 
+                            position: 'top',
+                            labels: {
+                                usePointStyle: true,
+                                padding: 20,
+                                font: { family: 'inherit', size: 12 }
+                            }
+                        },
                         tooltip: {
+                            padding: 12,
                             callbacks: {
-                                label: (ctx) => `${ctx.dataset.label}: ${formatNumber(ctx.parsed.y)} ฿`
+                                label: (ctx) => ` ${ctx.dataset.label}: ${formatNumber(ctx.parsed.y)} ฿`
                             }
                         }
                     },
                     scales: {
                         y: {
+                            beginAtZero: true,
+                            grid: {
+                                color: '#f1f5f9'
+                            },
                             ticks: {
-                                callback: (v) => formatNumber(v)
+                                callback: (value) => `${formatNumber(value)} ฿`,
+                                font: { family: 'inherit', size: 11 }
+                            }
+                        },
+                        x: {
+                            grid: {
+                                display: false
+                            },
+                            ticks: {
+                                font: { family: 'inherit', size: 11 }
                             }
                         }
                     }
@@ -5328,6 +5363,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- MEMBERS LOGIC ---
     let allMembers = [];
+    let memberStatusFilterVal = 'all';
 
     async function fetchMembers() {
         try {
@@ -5341,9 +5377,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function applyMembersFilter() {
         const search = (document.getElementById('membersSearchInput') || {}).value?.toLowerCase()?.trim() || '';
+        const startDateVal = (document.getElementById('memberFilterStartDate') || {}).value || '';
+        const endDateVal = (document.getElementById('memberFilterEndDate') || {}).value || '';
+
         let filtered = allMembers;
+
+        // Apply Search Filter
         if (search) {
-            filtered = allMembers.filter(m => {
+            filtered = filtered.filter(m => {
                 const fullName = `${m.firstName} ${m.lastName}`.toLowerCase();
                 return (m.memberId && m.memberId.toLowerCase().includes(search)) ||
                     fullName.includes(search) ||
@@ -5351,6 +5392,57 @@ document.addEventListener('DOMContentLoaded', () => {
                     (m.citizenId && m.citizenId.includes(search));
             });
         }
+
+        // Apply Date Range Filter
+        if (startDateVal || endDateVal) {
+            filtered = filtered.filter(m => {
+                if (!m.createdAt) return false;
+                const regDate = new Date(m.createdAt);
+                regDate.setHours(0, 0, 0, 0);
+
+                if (startDateVal) {
+                    const start = new Date(startDateVal);
+                    start.setHours(0, 0, 0, 0);
+                    if (regDate < start) return false;
+                }
+
+                if (endDateVal) {
+                    const end = new Date(endDateVal);
+                    end.setHours(0, 0, 0, 0);
+                    if (regDate > end) return false;
+                }
+
+                return true;
+            });
+        }
+
+        // Render stats counters based on the matched search/date pool
+        const total = filtered.length;
+        const active = filtered.filter(m => m.memberStatus !== 'ไม่ปกติ').length;
+        const overdue = filtered.filter(m => m.memberStatus === 'ไม่ปกติ').length;
+
+        const totalEl = document.getElementById('totalMembersCount');
+        if (totalEl) totalEl.textContent = total.toLocaleString();
+        const activeEl = document.getElementById('activeMembersCount');
+        if (activeEl) activeEl.textContent = active.toLocaleString();
+        const overdueEl = document.getElementById('overdueMembersCount');
+        if (overdueEl) overdueEl.textContent = overdue.toLocaleString();
+
+        // Style the active card border
+        const cardTotal = document.getElementById('memberCardTotal');
+        const cardActive = document.getElementById('memberCardActive');
+        const cardOverdue = document.getElementById('memberCardOverdue');
+        if (cardTotal) cardTotal.style.border = memberStatusFilterVal === 'all' ? '2px solid #3b82f6' : '1px solid #e2e8f0';
+        if (cardActive) cardActive.style.border = memberStatusFilterVal === 'active' ? '2px solid #10b981' : '1px solid #e2e8f0';
+        if (cardOverdue) cardOverdue.style.border = memberStatusFilterVal === 'overdue' ? '2px solid #ef4444' : '1px solid #e2e8f0';
+
+        // Apply card status filter subset to the table
+        if (memberStatusFilterVal === 'active') {
+            filtered = filtered.filter(m => m.memberStatus !== 'ไม่ปกติ');
+        } else if (memberStatusFilterVal === 'overdue') {
+            filtered = filtered.filter(m => m.memberStatus === 'ไม่ปกติ');
+        }
+
         renderMembers(filtered);
     }
 
@@ -5910,6 +6002,41 @@ document.addEventListener('DOMContentLoaded', () => {
     if (membersResetBtn) {
         membersResetBtn.addEventListener('click', () => {
             const el = document.getElementById('membersSearchInput'); if (el) el.value = '';
+            const startEl = document.getElementById('memberFilterStartDate'); if (startEl) startEl.value = '';
+            const endEl = document.getElementById('memberFilterEndDate'); if (endEl) endEl.value = '';
+            memberStatusFilterVal = 'all';
+            applyMembersFilter();
+        });
+    }
+
+    const memberFilterStartDate = document.getElementById('memberFilterStartDate');
+    if (memberFilterStartDate) {
+        memberFilterStartDate.addEventListener('change', applyMembersFilter);
+    }
+    const memberFilterEndDate = document.getElementById('memberFilterEndDate');
+    if (memberFilterEndDate) {
+        memberFilterEndDate.addEventListener('change', applyMembersFilter);
+    }
+
+    // Interactive Members Stats Cards
+    const cardMTotal = document.getElementById('memberCardTotal');
+    if (cardMTotal) {
+        cardMTotal.addEventListener('click', () => {
+            memberStatusFilterVal = 'all';
+            applyMembersFilter();
+        });
+    }
+    const cardMActive = document.getElementById('memberCardActive');
+    if (cardMActive) {
+        cardMActive.addEventListener('click', () => {
+            memberStatusFilterVal = 'active';
+            applyMembersFilter();
+        });
+    }
+    const cardMOverdue = document.getElementById('memberCardOverdue');
+    if (cardMOverdue) {
+        cardMOverdue.addEventListener('click', () => {
+            memberStatusFilterVal = 'overdue';
             applyMembersFilter();
         });
     }
@@ -9161,11 +9288,36 @@ document.addEventListener('DOMContentLoaded', () => {
         staffResetBtn.addEventListener('click', () => {
             if (staffSearchInput) staffSearchInput.value = '';
             if (staffRoleFilter) staffRoleFilter.value = 'all';
+            staffStatusFilterVal = 'all';
+            applyStaffFilter();
+        });
+    }
+
+    // Interactive Staff Stats Cards
+    const cardSTotal = document.getElementById('staffCardTotal');
+    if (cardSTotal) {
+        cardSTotal.addEventListener('click', () => {
+            staffStatusFilterVal = 'all';
+            applyStaffFilter();
+        });
+    }
+    const cardSActive = document.getElementById('staffCardActive');
+    if (cardSActive) {
+        cardSActive.addEventListener('click', () => {
+            staffStatusFilterVal = 'active';
+            applyStaffFilter();
+        });
+    }
+    const cardSSuspended = document.getElementById('staffCardSuspended');
+    if (cardSSuspended) {
+        cardSSuspended.addEventListener('click', () => {
+            staffStatusFilterVal = 'suspended';
             applyStaffFilter();
         });
     }
 
     // --- APPLY STAFF FILTER (client-side) ---
+    let staffStatusFilterVal = 'all';
     function applyStaffFilter() {
         const searchTerm = (staffSearchInput?.value || '').trim().toLowerCase();
         const roleFilter = staffRoleFilter?.value || 'all';
@@ -9182,6 +9334,33 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (roleFilter !== 'all') {
             filtered = filtered.filter(s => s.role === roleFilter);
+        }
+
+        // Render stats counters based on the matched search/role pool
+        const total = filtered.length;
+        const active = filtered.filter(s => s.status !== 'suspended').length;
+        const suspended = filtered.filter(s => s.status === 'suspended').length;
+
+        const totalEl = document.getElementById('totalStaffCount');
+        if (totalEl) totalEl.textContent = total.toLocaleString();
+        const activeEl = document.getElementById('activeStaffCount');
+        if (activeEl) activeEl.textContent = active.toLocaleString();
+        const suspendedEl = document.getElementById('suspendedStaffCount');
+        if (suspendedEl) suspendedEl.textContent = suspended.toLocaleString();
+
+        // Style the active card border
+        const cardTotal = document.getElementById('staffCardTotal');
+        const cardActive = document.getElementById('staffCardActive');
+        const cardSuspended = document.getElementById('staffCardSuspended');
+        if (cardTotal) cardTotal.style.border = staffStatusFilterVal === 'all' ? '2px solid #3b82f6' : '1px solid #e2e8f0';
+        if (cardActive) cardActive.style.border = staffStatusFilterVal === 'active' ? '2px solid #10b981' : '1px solid #e2e8f0';
+        if (cardSuspended) cardSuspended.style.border = staffStatusFilterVal === 'suspended' ? '2px solid #ef4444' : '1px solid #e2e8f0';
+
+        // Apply card status filter subset to the table
+        if (staffStatusFilterVal === 'active') {
+            filtered = filtered.filter(s => s.status !== 'suspended');
+        } else if (staffStatusFilterVal === 'suspended') {
+            filtered = filtered.filter(s => s.status === 'suspended');
         }
 
         renderStaff(filtered);
@@ -9437,6 +9616,11 @@ document.addEventListener('DOMContentLoaded', () => {
             } else if (searchInputId === 'depositsSearchInput') {
                 const status = document.getElementById('depositsStatusFilter')?.value;
                 if (status && status !== 'all') queryParams.push(`status=${status}`);
+            } else if (searchInputId === 'membersSearchInput') {
+                const startDate = document.getElementById('memberFilterStartDate')?.value;
+                const endDate = document.getElementById('memberFilterEndDate')?.value;
+                if (startDate) queryParams.push(`startDate=${startDate}`);
+                if (endDate) queryParams.push(`endDate=${endDate}`);
             }
 
             if (queryParams.length > 0) {

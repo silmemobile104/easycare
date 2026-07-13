@@ -1293,7 +1293,7 @@ app.get('/api/claims/export/excel', checkAdminRole, async (req, res) => {
 // 3. Export Members
 app.get('/api/members/export/excel', checkAdminRole, async (req, res) => {
     try {
-        const { search } = req.query;
+        const { search, startDate, endDate } = req.query;
         let match = {};
         if (search) {
             const regex = { $regex: search, $options: 'i' };
@@ -1304,6 +1304,18 @@ app.get('/api/members/export/excel', checkAdminRole, async (req, res) => {
                 { lastName: regex },
                 { phone: regex }
             ];
+        }
+
+        if (startDate || endDate) {
+            match.createdAt = {};
+            if (startDate) {
+                match.createdAt.$gte = new Date(startDate);
+            }
+            if (endDate) {
+                const end = new Date(endDate);
+                end.setHours(23, 59, 59, 999);
+                match.createdAt.$lte = end;
+            }
         }
 
         const rows = await Member.find(match).sort({ createdAt: -1 }).lean();
@@ -3833,7 +3845,7 @@ async function buildProfitStatementData({ startDate, endDate, includeCompare = f
                 { $match: incomeMatch },
                 {
                     $addFields: {
-                        __bucket: { $dateToString: { format: '%Y-%m-%d', date: '$transactionDate' } },
+                        __bucket: { $dateToString: { format: '%Y-%m', date: '$transactionDate' } },
                         __incomeAmount: { $ifNull: ['$fullRevenue', '$netTotal'] }
                     }
                 },
@@ -3844,7 +3856,7 @@ async function buildProfitStatementData({ startDate, endDate, includeCompare = f
                 { $match: refundMatch },
                 {
                     $addFields: {
-                        __bucket: { $dateToString: { format: '%Y-%m-%d', date: '$transactionDate' } },
+                        __bucket: { $dateToString: { format: '%Y-%m', date: '$transactionDate' } },
                         __refundAbs: { $abs: '$netTotal' }
                     }
                 },
@@ -3863,7 +3875,7 @@ async function buildProfitStatementData({ startDate, endDate, includeCompare = f
                             ...(Object.keys(rangeMatchClaimUpdate).length > 0 ? [{ $match: rangeMatchClaimUpdate }] : []),
                             {
                                 $addFields: {
-                                    __bucket: { $dateToString: { format: '%Y-%m-%d', date: '$updates.date' } },
+                                    __bucket: { $dateToString: { format: '%Y-%m', date: '$updates.date' } },
                                     __amount: { $ifNull: ['$updates.cost', 0] }
                                 }
                             },
@@ -3873,7 +3885,7 @@ async function buildProfitStatementData({ startDate, endDate, includeCompare = f
                         totalTrend: [
                             {
                                 $addFields: {
-                                    __bucket: { $dateToString: { format: '%Y-%m-%d', date: '$claimDate' } },
+                                    __bucket: { $dateToString: { format: '%Y-%m', date: '$claimDate' } },
                                     __amount: { $ifNull: ['$totalCost', 0] }
                                 }
                             },
@@ -3898,7 +3910,7 @@ async function buildProfitStatementData({ startDate, endDate, includeCompare = f
                 ...(Object.keys(rangeMatchAdmin).length > 0 ? [{ $match: rangeMatchAdmin }] : []),
                 {
                     $addFields: {
-                        __bucket: { $dateToString: { format: '%Y-%m-%d', date: '$expenseDate' } },
+                        __bucket: { $dateToString: { format: '%Y-%m', date: '$expenseDate' } },
                         __amount: { $ifNull: ['$amount', 0] }
                     }
                 },
@@ -3909,7 +3921,7 @@ async function buildProfitStatementData({ startDate, endDate, includeCompare = f
                 ...(Object.keys(rangeMatchManual).length > 0 ? [{ $match: rangeMatchManual }] : []),
                 {
                     $addFields: {
-                        __bucket: { $dateToString: { format: '%Y-%m-%d', date: '$expenseDate' } },
+                        __bucket: { $dateToString: { format: '%Y-%m', date: '$expenseDate' } },
                         __amount: { $ifNull: ['$amount', 0] }
                     }
                 },

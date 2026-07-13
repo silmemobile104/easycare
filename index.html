@@ -1079,6 +1079,19 @@
                                 </div>
                             </div>
                             <div class="stat-card">
+                                <div class="stat-icon green">
+                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                                        <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                                    </svg>
+                                </div>
+                                <div class="stat-content">
+                                    <h3 id="totalFinanceReceivedAmountDisplay">0</h3>
+                                    <p>ยอดเงินที่ได้รับจากไฟแนนซ์แล้ว</p>
+                                </div>
+                            </div>
+                            <div class="stat-card">
                                 <div class="stat-icon orange">
                                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                         stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -1123,145 +1136,122 @@
                                     <p>รอการชำระเงินจากไฟแนนซ์ Thunder</p>
                                 </div>
                             </div>
-                            <div class="stat-card">
-                                <div class="stat-icon green">
-                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                                        <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                                    </svg>
-                                </div>
-                                <div class="stat-content">
-                                    <h3 id="totalFinanceReceivedAmountDisplay">0</h3>
-                                    <p>ยอดเงินที่ได้รับจากไฟแนนซ์แล้ว</p>
-                                </div>
-                            </div>
                         </div>
 
-                        <div class="advanced-filter-bar" style="margin-top: 14px;">
-                            <div class="filter-bar-row" style="align-items: flex-end; flex-wrap: wrap; gap: 12px;">
-                                <div class="search-container">
-                                    <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none"
-                                        stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                        stroke-linejoin="round">
-                                        <circle cx="11" cy="11" r="8"></circle>
-                                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                                    </svg>
-                                    <input type="text" id="financeSearchInput"
-                                        placeholder="ค้นหาชื่อลูกค้า, เลขกรมธรรม์...">
-                                </div>
-                                <div class="filter-group">
-                                    <label>ประเภทชำระ (Payment):</label>
-                                    <select id="financePaymentTypeFilter" class="filter-select">
+                        <div class="advanced-filter-bar" style="margin-top: 14px; padding: 20px; border-radius: 12px; background: #fff; border: 1px solid #f1f5f9;">
+                            <!-- Search Bar (Full Width) -->
+                            <div class="search-container" style="width: 100%; max-width: none; margin: 0 0 16px 0;">
+                                <input type="text" id="financeSearchInput" style="width: 100%; border: 1.5px solid #cbd5e1; border-radius: 8px; height: 40px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); padding-left: 2.75rem;" placeholder="ค้นหาชื่อลูกค้า, เลขกรมธรรม์...">
+                            </div>
+
+                            <!-- Filter Grid -->
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 20px;">
+                                <div class="filter-group" style="margin: 0; display: flex; flex-direction: column; gap: 6px;">
+                                    <label style="font-weight: 600; color: #475569; font-size: 0.85rem;">ประเภทชำระ (Payment):</label>
+                                    <select id="financePaymentTypeFilter" class="filter-select" style="width: 100%; height: 40px; border-radius: 8px;">
                                         <option value="all">ประเภทการชำระทั้งหมด</option>
                                         <option value="Full Payment">ชำระเต็มจำนวน</option>
                                         <option value="Installment">ชำระแบบแบ่งจ่าย</option>
                                         <option value="Finance">ชำระแบบผ่อนด้วยไฟแนนซ์</option>
                                     </select>
                                 </div>
-                                <div class="filter-group">
-                                    <label>บริษัทไฟแนนซ์:</label>
-                                    <select id="financeProviderFilter" class="filter-select">
+                                <div class="filter-group" style="margin: 0; display: flex; flex-direction: column; gap: 6px;">
+                                    <label style="font-weight: 600; color: #475569; font-size: 0.85rem;">บริษัทไฟแนนซ์:</label>
+                                    <select id="financeProviderFilter" class="filter-select" style="width: 100%; height: 40px; border-radius: 8px;">
                                         <option value="all">ทั้งหมด</option>
                                         <option value="SG">SG</option>
                                         <option value="T-Plus">T-Plus</option>
                                         <option value="Thunder">Thunder</option>
                                     </select>
                                 </div>
-                                <div class="filter-group">
-                                    <label>ร้านค้า:</label>
-                                    <select id="financeShopFilter" class="filter-select">
+                                <div class="filter-group" style="margin: 0; display: flex; flex-direction: column; gap: 6px;">
+                                    <label style="font-weight: 600; color: #475569; font-size: 0.85rem;">ร้านค้า:</label>
+                                    <select id="financeShopFilter" class="filter-select" style="width: 100%; height: 40px; border-radius: 8px;">
                                         <option value="all">ทั้งหมด</option>
                                     </select>
                                 </div>
-                                <div class="filter-group">
-                                    <label>จากวันที่:</label>
-                                    <input type="date" id="financeExportStartDate" class="filter-date-input">
+                                <div class="filter-group" style="margin: 0; display: flex; flex-direction: column; gap: 6px;">
+                                    <label style="font-weight: 600; color: #475569; font-size: 0.85rem;">จากวันที่สมัคร:</label>
+                                    <input type="date" id="financeExportStartDate" class="filter-date-input" style="width: 100%; height: 40px; border-radius: 8px;">
                                 </div>
-                                <div class="filter-group">
-                                    <label>ถึงวันที่:</label>
-                                    <input type="date" id="financeExportEndDate" class="filter-date-input">
+                                <div class="filter-group" style="margin: 0; display: flex; flex-direction: column; gap: 6px;">
+                                    <label style="font-weight: 600; color: #475569; font-size: 0.85rem;">ถึงวันที่สมัคร:</label>
+                                    <input type="date" id="financeExportEndDate" class="filter-date-input" style="width: 100%; height: 40px; border-radius: 8px;">
                                 </div>
-                                <div class="filter-group">
-                                    <label>วิธีชำระ:</label>
-                                    <select id="financeExportPaymentMethod" class="filter-select">
+                                <div class="filter-group" style="margin: 0; display: flex; flex-direction: column; gap: 6px;">
+                                    <label style="font-weight: 600; color: #475569; font-size: 0.85rem;">วิธีชำระ:</label>
+                                    <select id="financeExportPaymentMethod" class="filter-select" style="width: 100%; height: 40px; border-radius: 8px;">
                                         <option value="all">ทั้งหมด</option>
                                         <option value="เงินสด">เงินสด</option>
                                         <option value="โอนเงิน">โอนเงิน</option>
                                         <option value="เงินสด+โอนเงิน">เงินสด+โอนเงิน</option>
                                     </select>
                                 </div>
-                                <div class="filter-actions"
-                                    style="margin-left: auto; display: flex; gap: 10px; align-items: center;">
-                                    <label
-                                        style="display: inline-flex; align-items: center; gap: 8px; font-size: 0.9rem; color: var(--text-muted);">
-                                        <input type="checkbox" id="financeExportIncludeSummary" checked>
-                                        รวม Summary
-                                    </label>
-                                    <button type="button" class="add-btn" id="financeExportExcelBtn"
-                                        style="white-space: nowrap;">
-                                        Export Excel
-                                    </button>
-                                </div>
                             </div>
 
-                            <div class="filter-bar-row" style="margin-top: 10px; flex-direction: column; align-items: flex-start;">
-                                <div style="display: flex; flex-wrap: wrap; gap: 12px;">
-                                    <label style="display:inline-flex; gap:8px; align-items:center;">
-                                        <input type="checkbox" class="finance-export-field" value="transactionDate"
-                                            checked>
+                            <!-- Export Columns Config Section -->
+                            <div style="border-top: 1px dashed #e2e8f0; padding-top: 16px; margin-top: 16px;">
+                                <p style="margin: 0 0 12px 0; font-weight: 600; color: #334155; font-size: 0.9rem; display: flex; align-items: center; gap: 6px;">
+                                    <span>📋</span> เลือกคอลัมน์ที่จะส่งออก (Columns to Export):
+                                </p>
+                                <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px;">
+                                    <label class="finance-export-label">
+                                        <input type="checkbox" class="finance-export-field" value="transactionDate" checked>
                                         วันที่
                                     </label>
-                                    <label style="display:inline-flex; gap:8px; align-items:center;">
+                                    <label class="finance-export-label">
                                         <input type="checkbox" class="finance-export-field" value="actionType" checked>
                                         ประเภทรายการ
                                     </label>
-                                    <label style="display:inline-flex; gap:8px; align-items:center;">
-                                        <input type="checkbox" class="finance-export-field" value="policyNumber"
-                                            checked>
+                                    <label class="finance-export-label">
+                                        <input type="checkbox" class="finance-export-field" value="policyNumber" checked>
                                         เลขที่สัญญา
                                     </label>
-                                    <label style="display:inline-flex; gap:8px; align-items:center;">
-                                        <input type="checkbox" class="finance-export-field" value="customerName"
-                                            checked>
+                                    <label class="finance-export-label">
+                                        <input type="checkbox" class="finance-export-field" value="customerName" checked>
                                         ชื่อลูกค้า
                                     </label>
-                                    <label style="display:inline-flex; gap:8px; align-items:center;">
-                                        <input type="checkbox" class="finance-export-field" value="paymentMethod"
-                                            checked>
+                                    <label class="finance-export-label">
+                                        <input type="checkbox" class="finance-export-field" value="paymentMethod" checked>
                                         วิธีชำระ
                                     </label>
-                                    <label style="display:inline-flex; gap:8px; align-items:center;">
-                                        <input type="checkbox" class="finance-export-field" value="cashReceived"
-                                            checked>
+                                    <label class="finance-export-label">
+                                        <input type="checkbox" class="finance-export-field" value="cashReceived" checked>
                                         รับเงินสด
                                     </label>
-                                    <label style="display:inline-flex; gap:8px; align-items:center;">
-                                        <input type="checkbox" class="finance-export-field" value="transferAmount"
-                                            checked>
+                                    <label class="finance-export-label">
+                                        <input type="checkbox" class="finance-export-field" value="transferAmount" checked>
                                         เงินโอน
                                     </label>
-                                    <label style="display:inline-flex; gap:8px; align-items:center;">
-                                        <input type="checkbox" class="finance-export-field" value="changeAmount"
-                                            checked>
+                                    <label class="finance-export-label">
+                                        <input type="checkbox" class="finance-export-field" value="changeAmount" checked>
                                         เงินทอน
                                     </label>
-                                    <label style="display:inline-flex; gap:8px; align-items:center;">
+                                    <label class="finance-export-label">
                                         <input type="checkbox" class="finance-export-field" value="netTotal" checked>
                                         ยอดสุทธิ
                                     </label>
-                                    <label style="display:inline-flex; gap:8px; align-items:center;">
+                                    <label class="finance-export-label">
                                         <input type="checkbox" class="finance-export-field" value="evidenceUrl" checked>
                                         หลักฐาน
                                     </label>
-                                    <label style="display:inline-flex; gap:8px; align-items:center;">
+                                    <label class="finance-export-label">
                                         <input type="checkbox" class="finance-export-field" value="recordedBy" checked>
                                         ผู้ทำรายการ
                                     </label>
+                                    <div style="display: flex; gap: 12px; align-items: flex-end; justify-content: flex-start; margin-bottom: 2px;">
+                                        <label style="display: inline-flex; align-items: center; gap: 8px; font-size: 0.9rem; color: var(--text-muted); cursor: pointer; user-select: none; margin-bottom: 10px;">
+                                            <input type="checkbox" id="financeExportIncludeSummary" checked style="width: 16px; height: 16px; accent-color: #0d9488;">
+                                            รวม Summary
+                                        </label>
+                                        <button type="button" class="add-btn" id="financeExportExcelBtn" style="white-space: nowrap; height: 40px; margin-bottom: 0; padding: 0 24px; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 4px 12px rgba(13, 148, 136, 0.2);">
+                                            <i class="fas fa-file-excel"></i> Export Excel
+                                        </button>
+                                    </div>
                                 </div>
-                                <div style="display: flex; gap: 10px; margin-bottom: 10px;">
-                                    <button type="button" id="selectAllFinanceColumns" style="padding: 4px 12px; font-size: 0.85rem; background: #e2e8f0; color: #334155; border: 1px solid #cbd5e1; border-radius: 4px; cursor: pointer;">เลือกทั้งหมด</button>
-                                    <button type="button" id="clearAllFinanceColumns" style="padding: 4px 12px; font-size: 0.85rem; background: #f8fafc; color: #64748b; border: 1px solid #cbd5e1; border-radius: 4px; cursor: pointer;">ล้างตัวเลือก</button>
+                                <div style="display: flex; gap: 8px;">
+                                    <button type="button" id="selectAllFinanceColumns" class="filter-reset-btn" style="padding: 6px 14px; font-size: 0.8rem; margin: 0; background: #f1f5f9; border: 1px solid #e2e8f0; height: 32px;">เลือกทั้งหมด</button>
+                                    <button type="button" id="clearAllFinanceColumns" class="filter-reset-btn" style="padding: 6px 14px; font-size: 0.8rem; margin: 0; background: #fff; border: 1px solid #e2e8f0; color: #64748b; height: 32px;">ล้างตัวเลือก</button>
                                 </div>
                             </div>
                         </div>
@@ -1534,10 +1524,6 @@
                                     <input type="date" id="profitStatementEndDate" class="filter-date-input">
                                 </div>
                                 <div class="filter-actions" style="margin-left: auto; display: flex; gap: 10px; align-items: center;">
-                                    <label style="display: flex; align-items: center; gap: 6px; font-weight: 700; color: #334155; white-space: nowrap;">
-                                        <input type="checkbox" id="profitStatementCompareToggle" style="width: 16px; height: 16px;">
-                                        เทียบช่วงก่อนหน้า
-                                    </label>
                                     <button type="button" class="add-btn" id="profitStatementAnalyzeBtn" style="white-space: nowrap;">
                                         <i class="fas fa-search"></i> วิเคราะห์
                                     </button>
@@ -2278,6 +2264,49 @@
                         </button>
                     </header>
 
+                    <!-- Members Stats Overview -->
+                    <div class="stats-overview" style="margin-bottom: 24px;">
+                        <div class="stat-card" id="memberCardTotal" style="cursor: pointer; border: 1px solid #e2e8f0; transition: all 0.2s;">
+                            <div class="stat-icon blue">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                                    <circle cx="9" cy="7" r="4"></circle>
+                                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                                    <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                                </svg>
+                            </div>
+                            <div class="stat-info">
+                                <h3 id="totalMembersCount">0</h3>
+                                <p>สมาชิกทั้งหมด</p>
+                            </div>
+                        </div>
+                        <div class="stat-card" id="memberCardActive" style="cursor: pointer; border: 1px solid #e2e8f0; transition: all 0.2s;">
+                            <div class="stat-icon green">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                                    <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                                </svg>
+                            </div>
+                            <div class="stat-info">
+                                <h3 id="activeMembersCount">0</h3>
+                                <p>สมาชิกสถานะปกติ</p>
+                            </div>
+                        </div>
+                        <div class="stat-card" id="memberCardOverdue" style="cursor: pointer; border: 1px solid #e2e8f0; transition: all 0.2s;">
+                            <div class="stat-icon red">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <polygon points="7.86 2 16.14 2 22 7.86 22 16.14 16.14 22 7.86 22 2 16.14 2 7.86 7.86 2"></polygon>
+                                    <line x1="12" y1="8" x2="12" y2="12"></line>
+                                    <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                                </svg>
+                            </div>
+                            <div class="stat-info">
+                                <h3 id="overdueMembersCount">0</h3>
+                                <p>สมาชิกค้างชำระ / ไม่ปกติ</p>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Members Filter Bar -->
                     <div class="advanced-filter-bar">
                         <div class="filter-bar-row">
@@ -2290,6 +2319,16 @@
                                 </svg>
                                 <input type="text" id="membersSearchInput"
                                     placeholder="ค้นหารหัสสมาชิก, ชื่อ, เบอร์โทร...">
+                            </div>
+                            <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-left: 15px;">
+                                <div style="display: flex; align-items: center; gap: 6px;">
+                                    <span style="font-size: 0.85rem; font-weight: 500; color: #64748b; white-space: nowrap;">วันที่สมัคร:</span>
+                                    <input type="date" id="memberFilterStartDate" class="filter-date-input" style="padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.85rem; color: #334155;">
+                                </div>
+                                <span style="color: #64748b; font-size: 0.85rem;">ถึง</span>
+                                <div style="display: flex; align-items: center; gap: 6px;">
+                                    <input type="date" id="memberFilterEndDate" class="filter-date-input" style="padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.85rem; color: #334155;">
+                                </div>
                             </div>
                             <div class="filter-actions" style="margin-left: auto; display: flex; gap: 10px;">
                                 <button type="button" class="filter-reset-btn" id="membersResetBtn"> ล้างค่า</button>
@@ -2397,6 +2436,49 @@
                             เพิ่มพนักงานใหม่
                         </button>
                     </header>
+
+                    <!-- Staff Stats Overview -->
+                    <div class="stats-overview" style="margin-bottom: 24px;">
+                        <div class="stat-card" id="staffCardTotal" style="cursor: pointer; border: 1px solid #e2e8f0; transition: all 0.2s;">
+                            <div class="stat-icon blue">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                                    <circle cx="9" cy="7" r="4"></circle>
+                                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                                    <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                                </svg>
+                            </div>
+                            <div class="stat-info">
+                                <h3 id="totalStaffCount">0</h3>
+                                <p>พนักงานทั้งหมด</p>
+                            </div>
+                        </div>
+                        <div class="stat-card" id="staffCardActive" style="cursor: pointer; border: 1px solid #e2e8f0; transition: all 0.2s;">
+                            <div class="stat-icon green">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                                    <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                                </svg>
+                            </div>
+                            <div class="stat-info">
+                                <h3 id="activeStaffCount">0</h3>
+                                <p>พนักงานปกติ</p>
+                            </div>
+                        </div>
+                        <div class="stat-card" id="staffCardSuspended" style="cursor: pointer; border: 1px solid #e2e8f0; transition: all 0.2s;">
+                            <div class="stat-icon red">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <polygon points="7.86 2 16.14 2 22 7.86 22 16.14 16.14 22 7.86 22 2 16.14 2 7.86 7.86 2"></polygon>
+                                    <line x1="12" y1="8" x2="12" y2="12"></line>
+                                    <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                                </svg>
+                            </div>
+                            <div class="stat-info">
+                                <h3 id="suspendedStaffCount">0</h3>
+                                <p>ถูกระงับการใช้งาน</p>
+                            </div>
+                        </div>
+                    </div>
 
                     <!-- Staff Filter Bar -->
                     <div class="advanced-filter-bar">
