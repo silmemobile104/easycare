@@ -305,7 +305,9 @@ const MemberSchema = new mongoose.Schema({
     facebook: { type: String },
     facebookLink: { type: String },
     photo: { type: String }, // Base64 encoded image string from Smart Card
-    idCardImage: { type: String } // URL of uploaded ID card image (Cloudinary)
+    idCardImage: { type: String }, // URL of uploaded ID card image (Cloudinary)
+    knowFrom: { type: String },
+    knowFromOther: { type: String }
 }, { timestamps: true });
 
 const Member = mongoose.model('Member', MemberSchema);
@@ -1345,6 +1347,8 @@ app.get('/api/members/export/excel', checkAdminRole, async (req, res) => {
             { header: 'บัญชี Facebook', key: 'facebook', width: 20 },
             { header: 'ลิงก์ Facebook', key: 'facebookLink', width: 30 },
             { header: 'ช่องทางรูปภาพ (Base64)', key: 'photo', width: 15 },
+            { header: 'รู้จัก Easy.Care จากไหน', key: 'knowFrom', width: 22 },
+            { header: 'ระบุเพิ่มเติม (ถ้ามี)', key: 'knowFromOther', width: 25 },
             { header: 'วันที่แก้ไข (UpdatedAt)', key: 'updatedAt', width: 22 }
         ];
         ws.getRow(1).font = { bold: true };
@@ -1372,6 +1376,8 @@ app.get('/api/members/export/excel', checkAdminRole, async (req, res) => {
                 facebook: r.facebook || '-',
                 facebookLink: r.facebookLink || '-',
                 photo: r.photo ? 'มีข้อมูลรูปภาพ' : 'ไม่มี',
+                knowFrom: r.knowFrom || '-',
+                knowFromOther: r.knowFromOther || '-',
                 updatedAt: r.updatedAt ? new Date(r.updatedAt) : null
             });
         }

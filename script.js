@@ -5564,6 +5564,16 @@ document.addEventListener('DOMContentLoaded', () => {
             const memberFacebookLinkEl = document.getElementById('memberFacebookLink');
             if (memberFacebookLinkEl) memberFacebookLinkEl.value = member.facebookLink || '';
 
+            const knowFromVal = member.knowFrom || '';
+            const memberKnowFromEl = document.getElementById('memberKnowFrom');
+            if (memberKnowFromEl) memberKnowFromEl.value = knowFromVal;
+            const memberKnowFromOtherEl = document.getElementById('memberKnowFromOther');
+            if (memberKnowFromOtherEl) memberKnowFromOtherEl.value = member.knowFromOther || '';
+            const knowFromOtherWrap = document.getElementById('memberKnowFromOtherWrap');
+            if (knowFromOtherWrap) {
+                knowFromOtherWrap.style.display = knowFromVal === 'อื่นๆ' ? 'block' : 'none';
+            }
+
             document.getElementById('memberCitizenId').readOnly = false;
             document.getElementById('memberPrefix').readOnly = false;
             document.getElementById('memberFirstName').readOnly = false;
@@ -5634,6 +5644,16 @@ document.addEventListener('DOMContentLoaded', () => {
             if (memberFacebookEl) memberFacebookEl.value = '';
             const memberFacebookLinkEl = document.getElementById('memberFacebookLink');
             if (memberFacebookLinkEl) memberFacebookLinkEl.value = '';
+            
+            const memberKnowFromEl = document.getElementById('memberKnowFrom');
+            if (memberKnowFromEl) memberKnowFromEl.value = '';
+            const memberKnowFromOtherEl = document.getElementById('memberKnowFromOther');
+            if (memberKnowFromOtherEl) memberKnowFromOtherEl.value = '';
+            const knowFromOtherWrap = document.getElementById('memberKnowFromOtherWrap');
+            if (knowFromOtherWrap) {
+                knowFromOtherWrap.style.display = 'none';
+                document.getElementById('memberKnowFromOther').removeAttribute('required');
+            }
             document.getElementById('smartCardPhotoContainer').style.display = 'none';
             document.getElementById('smartCardPhoto').src = '';
 
@@ -5892,7 +5912,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 expiryDate: document.getElementById('memberCardExpiry') ? document.getElementById('memberCardExpiry').value : undefined,
                 facebook: document.getElementById('memberFacebook') ? document.getElementById('memberFacebook').value : undefined,
                 facebookLink: document.getElementById('memberFacebookLink') ? document.getElementById('memberFacebookLink').value : undefined,
-                photo: document.getElementById('smartCardPhoto').src.startsWith('data:image') ? document.getElementById('smartCardPhoto').src : undefined
+                photo: document.getElementById('smartCardPhoto').src.startsWith('data:image') ? document.getElementById('smartCardPhoto').src : undefined,
+                knowFrom: document.getElementById('memberKnowFrom') ? document.getElementById('memberKnowFrom').value : undefined,
+                knowFromOther: document.getElementById('memberKnowFromOther') ? document.getElementById('memberKnowFromOther').value : undefined
             };
 
             try {
@@ -5998,6 +6020,25 @@ document.addEventListener('DOMContentLoaded', () => {
     if (membersSearchInput) {
         membersSearchInput.addEventListener('input', applyMembersFilter);
     }
+    // Referral Channel Change Event Listener
+    const memberKnowFromEl = document.getElementById('memberKnowFrom');
+    if (memberKnowFromEl) {
+        memberKnowFromEl.addEventListener('change', (e) => {
+            const wrap = document.getElementById('memberKnowFromOtherWrap');
+            const input = document.getElementById('memberKnowFromOther');
+            if (wrap && input) {
+                if (e.target.value === 'อื่นๆ') {
+                    wrap.style.display = 'block';
+                    input.setAttribute('required', 'required');
+                } else {
+                    wrap.style.display = 'none';
+                    input.removeAttribute('required');
+                    input.value = '';
+                }
+            }
+        });
+    }
+
     const membersResetBtn = document.getElementById('membersResetBtn');
     if (membersResetBtn) {
         membersResetBtn.addEventListener('click', () => {
