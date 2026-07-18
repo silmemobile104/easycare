@@ -494,7 +494,7 @@
                                 <line x1="12" y1="20" x2="12" y2="4"></line>
                                 <line x1="6" y1="20" x2="6" y2="14"></line>
                             </svg>
-                            แดชบอร์ดผู้บริหาร
+                            แดชบอร์ด
                         </a>
                         <a href="#" id="salesDashboardLink" data-permission="nav-dashboard-sales">
                             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -577,6 +577,15 @@
                                 <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
                             </svg>
                             จัดการพนักงาน
+                        </a>
+                        <a href="#" id="financeCompaniesNavLink" data-permission="nav-finance-companies">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M19 21V5a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v16"></path>
+                                <path d="M12 7v10"></path>
+                                <path d="M9 10h6"></path>
+                            </svg>
+                            จัดการไฟแนนซ์
                         </a>
 
                         <a href="#" id="financeNavLink" data-permission="nav-finance">
@@ -960,12 +969,12 @@
                         <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 16px;">
                             <div
                                 style="background: #fff; border-radius: 14px; padding: 16px; border: 1px solid rgba(148,163,184,.35);">
-                                <h3 style="margin: 0 0 12px 0;">Trend: ยอดขาย vs การเคลม</h3>
+                                <h3 style="margin: 0 0 12px 0;">ยอดการขาย/ยอดการเคลม</h3>
                                 <canvas id="trendChart"></canvas>
                             </div>
                             <div
                                 style="background: #fff; border-radius: 14px; padding: 16px; border: 1px solid rgba(148,163,184,.35);">
-                                <h3 style="margin: 0 0 12px 0;">Packages: สัดส่วนแพ็กเกจ</h3>
+                                <h3 style="margin: 0 0 12px 0;">สัดส่วนแพ็กเกจ</h3>
                                 <canvas id="packagesChart"></canvas>
                             </div>
                         </div>
@@ -975,8 +984,8 @@
                                 <canvas id="claimStatusChart" style="max-height: 300px;"></canvas>
                             </div>
                             <div style="background: #fff; border-radius: 14px; padding: 16px; border: 1px solid rgba(148,163,184,.35); display: flex; flex-direction: column;">
-                                <h3 style="margin: 0 0 12px 0;">ภาพรวมร้านค้า (Top 15 Shops)</h3>
-                                <div style="flex: 1; overflow-y: auto; max-height: 300px; padding-right: 4px;">
+                                <h3 style="margin: 0 0 12px 0;">ภาพรวมยอดขายตามร้านค้า</h3>
+                                <div class="exec-table-scroll-container">
                                     <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.9rem;">
                                         <thead style="position: sticky; top: 0; background: #fff; z-index: 1;">
                                             <tr style="border-bottom: 2px solid #f1f5f9;">
@@ -986,6 +995,40 @@
                                             </tr>
                                         </thead>
                                         <tbody id="execShopsTableBody">
+                                            <!-- Dynamically injected rows -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                            <div style="background: #fff; border-radius: 14px; padding: 16px; border: 1px solid rgba(148,163,184,.35); display: flex; flex-direction: column;">
+                                <h3 style="margin: 0 0 12px 0;">ยอดขายสะสมพนักงานขาย</h3>
+                                <div class="exec-table-scroll-container">
+                                    <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.9rem;">
+                                        <thead style="position: sticky; top: 0; background: #fff; z-index: 1;">
+                                            <tr style="border-bottom: 2px solid #f1f5f9;">
+                                                <th style="padding: 10px 8px; color: #64748b; font-weight: 600;">ชื่อพนักงาน</th>
+                                                <th style="padding: 10px 8px; color: #64748b; font-weight: 600; text-align: right;">จำนวนสัญญา</th>
+                                                <th style="padding: 10px 8px; color: #64748b; font-weight: 600; text-align: right;">ยอดขายรวม</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="execStaffTableBody">
+                                            <!-- Dynamically injected rows -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                            <div style="background: #fff; border-radius: 14px; padding: 16px; border: 1px solid rgba(148,163,184,.35); display: flex; flex-direction: column;">
+                                <h3 style="margin: 0 0 12px 0;">ยอดขายสะสมตามรุ่นสินค้า</h3>
+                                <div class="exec-table-scroll-container">
+                                    <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.9rem;">
+                                        <thead style="position: sticky; top: 0; background: #fff; z-index: 1;">
+                                            <tr style="border-bottom: 2px solid #f1f5f9;">
+                                                <th style="padding: 10px 8px; color: #64748b; font-weight: 600;">ชื่อรุ่นสินค้า</th>
+                                                <th style="padding: 10px 8px; color: #64748b; font-weight: 600; text-align: right;">จำนวนสัญญา</th>
+                                                <th style="padding: 10px 8px; color: #64748b; font-weight: 600; text-align: right;">ยอดขายรวม</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="execProductsTableBody">
                                             <!-- Dynamically injected rows -->
                                         </tbody>
                                     </table>
@@ -1091,51 +1134,8 @@
                                     <p>ยอดเงินที่ได้รับจากไฟแนนซ์แล้ว</p>
                                 </div>
                             </div>
-                            <div class="stat-card">
-                                <div class="stat-icon orange">
-                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                        <path
-                                            d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z">
-                                        </path>
-                                        <polyline points="22,6 12,13 2,6"></polyline>
-                                    </svg>
-                                </div>
-                                <div class="stat-content">
-                                    <h3 id="unpaidAmountSGDisplay">0</h3>
-                                    <p>รอการชำระเงินจากไฟแนนซ์ SG</p>
-                                </div>
-                            </div>
-                            <div class="stat-card">
-                                <div class="stat-icon orange">
-                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                        <path
-                                            d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z">
-                                        </path>
-                                        <polyline points="22,6 12,13 2,6"></polyline>
-                                    </svg>
-                                </div>
-                                <div class="stat-content">
-                                    <h3 id="unpaidAmountTPlusDisplay">0</h3>
-                                    <p>รอการชำระเงินจากไฟแนนซ์ T-Plus</p>
-                                </div>
-                            </div>
-                            <div class="stat-card">
-                                <div class="stat-icon orange">
-                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                        <path
-                                            d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z">
-                                        </path>
-                                        <polyline points="22,6 12,13 2,6"></polyline>
-                                    </svg>
-                                </div>
-                                <div class="stat-content">
-                                    <h3 id="unpaidAmountThunderDisplay">0</h3>
-                                    <p>รอการชำระเงินจากไฟแนนซ์ Thunder</p>
-                                </div>
-                            </div>
+                            <!-- Dynamic Finance Unpaid Stats Cards -->
+                            <div id="dynamicFinanceCardsContainer" style="display: contents;"></div>
                         </div>
 
                         <div class="advanced-filter-bar" style="margin-top: 14px; padding: 20px; border-radius: 12px; background: #fff; border: 1px solid #f1f5f9;">
@@ -2575,6 +2575,77 @@
                                 <button type="button" class="filter-reset-btn"
                                     onclick="document.getElementById('staffModal').style.display='none'">ยกเลิก</button>
                                 <button type="submit" class="add-btn">บันทึก</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Finance Companies Main Content -->
+                <main id="financeCompaniesMain" class="main-content" style="display: none;">
+                    <header class="dashboard-header">
+                        <div class="header-titles">
+                            <h1>จัดการบริษัทไฟแนนซ์</h1>
+                            <p>จัดการรายชื่อบริษัทไฟแนนซ์ที่ร่วมรายการและสถานะการระงับการใช้งาน</p>
+                        </div>
+                        <button id="addFinanceCompanyBtn" class="add-btn">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <line x1="12" y1="5" x2="12" y2="19"></line>
+                                <line x1="5" y1="12" x2="19" y2="12"></line>
+                            </svg>
+                            เพิ่มบริษัทไฟแนนซ์
+                        </button>
+                    </header>
+
+                    <!-- Finance Companies Filter Bar -->
+                    <div class="advanced-filter-bar">
+                        <div class="filter-bar-row">
+                            <div class="search-container" style="width: 100%; max-width: none; margin: 0 0 16px 0;">
+                                <input type="text" id="financeCompaniesSearchInput" style="width: 100%;"
+                                    placeholder="ค้นหารหัสบริษัท, ชื่อบริษัท...">
+                            </div>
+                            <div class="filter-actions">
+                                <button type="button" class="filter-reset-btn" id="financeCompaniesResetBtn"> ล้างค่า</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="table-container">
+                        <div class="table-responsive">
+                            <table id="financeCompaniesTable">
+                                <thead>
+                                    <tr>
+                                        <th>รหัสบริษัท</th>
+                                        <th>ชื่อบริษัทไฟแนนซ์</th>
+                                        <th>สถานะการใช้งาน</th>
+                                        <th>จัดการ</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="financeCompaniesBody"></tbody>
+                            </table>
+                        </div>
+                        <div id="financeCompaniesEmptyState" class="empty-state" style="display: none;">
+                            <p>ยังไม่มีข้อมูลบริษัทไฟแนนซ์</p>
+                        </div>
+                    </div>
+                </main>
+
+                <!-- Finance Company Add/Edit Modal -->
+                <div id="financeCompanyModal" class="modal" style="display: none;">
+                    <div class="modal-content" style="max-width: 480px;">
+                        <div class="modal-header">
+                            <h2 id="financeCompanyModalTitle">เพิ่มบริษัทไฟแนนซ์</h2>
+                            <button class="modal-close-btn" id="closeFinanceCompanyModal">&times;</button>
+                        </div>
+                        <form id="financeCompanyForm">
+                            <input type="hidden" id="editFinanceCompanyId">
+                            <div class="form-group full-width">
+                                <label for="financeCompanyName">ชื่อบริษัทไฟแนนซ์ <span style="color: #ef4444;">*</span></label>
+                                <input type="text" id="financeCompanyName" required placeholder="กรอกชื่อบริษัทไฟแนนซ์...">
+                            </div>
+                            <div class="modal-footer" style="margin-top: 20px; display: flex; justify-content: flex-end; gap: 10px;">
+                                <button type="button" class="cancel-btn" id="cancelFinanceCompanyModal">ยกเลิก</button>
+                                <button type="submit" class="submit-btn" style="background-color: var(--primary);">บันทึก</button>
                             </div>
                         </form>
                     </div>

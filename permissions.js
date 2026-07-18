@@ -8,6 +8,7 @@ const menuPermissions = {
     'nav-dashboard-sales': ['admin', 'sales'],
     'nav-dashboard-approver': ['admin', 'approver'],
     'nav-staff': ['admin'],
+    'nav-finance-companies': ['admin'],
     'nav-executive': ['admin'],
     'nav-finance': ['approver', 'admin', 'finance'],
     'nav-deposit': ['sales', 'admin', 'finance']

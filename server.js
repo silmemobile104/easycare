@@ -225,7 +225,7 @@ const WarrantySchema = new mongoose.Schema({
     financeDetails: {
         financeDueDay: Number,
         financeMonths: Number,
-        provider: { type: String, enum: ['SG', 'T-Plus', 'Tunder', 'Thunder'] }
+        provider: { type: String }
     },
     approvalStatus: {
         type: String,
@@ -333,6 +333,15 @@ const StaffSchema = new mongoose.Schema({
 
 const Staff = mongoose.model('Staff', StaffSchema);
 
+// Finance Company Schema
+const FinanceCompanySchema = new mongoose.Schema({
+    companyId: { type: String, unique: true, index: true, required: true },
+    name: { type: String, required: true },
+    status: { type: String, enum: ['active', 'suspended'], default: 'active' }
+}, { timestamps: true });
+
+const FinanceCompany = mongoose.model('FinanceCompany', FinanceCompanySchema);
+
 // Claim Schema
 const ClaimSchema = new mongoose.Schema({
     claimId: { type: String, unique: true, index: true },
@@ -418,7 +427,7 @@ const FinanceTransactionSchema = new mongoose.Schema({
     fullRevenue: { type: Number },
     financedAmount: { type: Number },
     financeDisplay: { type: String },
-    financeProvider: { type: String, enum: ['SG', 'T-Plus', 'Thunder', 'Tunder'] },
+    financeProvider: { type: String },
     financeReceived: { type: Boolean, default: false },
     financeReceivedDate: { type: Date },
     branch: String,
@@ -1869,7 +1878,7 @@ app.get('/api/dashboard/stats', checkAdminRole, async (req, res) => {
 
         const [
             revenueAgg, claimCostAgg, activeAgg, overdueAgg, packagesAgg,
-            claimStatusAgg, warrantyTrendAgg, claimTrendAgg, memberCountAgg, shopsSummaryAgg
+            claimStatusAgg, warrantyTrendAgg, claimTrendAgg, memberCountAgg, shopsSummaryAgg, staffSummaryAgg, productsSummaryAgg
         ] = await Promise.all([
             Warranty.aggregate([
                 { $match: warrantyMatch },
@@ -2008,8 +2017,31 @@ app.get('/api/dashboard/stats', checkAdminRole, async (req, res) => {
                     }
                 },
                 { $project: { _id: 0, shopName: '$_id', contracts: 1, revenue: 1 } },
-                { $sort: { contracts: -1 } },
-                { $limit: 15 } // Configurable limit for top stores
+                { $sort: { revenue: -1 } }
+            ]),
+            Warranty.aggregate([
+                { $match: warrantyMatch },
+                {
+                    $group: {
+                        _id: { $ifNull: ['$staffName', 'ไม่ระบุพนักงาน'] },
+                        contracts: { $sum: 1 },
+                        revenue: { $sum: { $ifNull: ['$package.price', 0] } }
+                    }
+                },
+                { $project: { _id: 0, staffName: '$_id', contracts: 1, revenue: 1 } },
+                { $sort: { revenue: -1 } }
+            ]),
+            Warranty.aggregate([
+                { $match: warrantyMatch },
+                {
+                    $group: {
+                        _id: { $ifNull: ['$device.model', 'ไม่ระบุรุ่น'] },
+                        contracts: { $sum: 1 },
+                        revenue: { $sum: { $ifNull: ['$package.price', 0] } }
+                    }
+                },
+                { $project: { _id: 0, deviceModel: '$_id', contracts: 1, revenue: 1 } },
+                { $sort: { revenue: -1 } }
             ])
         ]);
 
@@ -2057,7 +2089,9 @@ app.get('/api/dashboard/stats', checkAdminRole, async (req, res) => {
                 packages: Array.isArray(packagesAgg) ? packagesAgg : [],
                 claimStatus: Array.isArray(claimStatusAgg) ? claimStatusAgg : []
             },
-            shopsSummary: Array.isArray(shopsSummaryAgg) ? shopsSummaryAgg : []
+            shopsSummary: Array.isArray(shopsSummaryAgg) ? shopsSummaryAgg : [],
+            staffSummary: Array.isArray(staffSummaryAgg) ? staffSummaryAgg : [],
+            productsSummary: Array.isArray(productsSummaryAgg) ? productsSummaryAgg : []
         });
     } catch (err) {
         return res.status(500).json({ success: false, message: err.message });
@@ -5128,6 +5162,80 @@ app.post('/api/members/:id/upload-id-card', memberUpload.single('idCardImage'), 
 });
 
 // --- Shops API ---
+
+// Get all finance companies
+app.get('/api/finance-companies', async (req, res) => {
+    try {
+        const companies = await FinanceCompany.find().sort({ createdAt: -1 });
+        res.json(companies);
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// Create new finance company
+app.post('/api/finance-companies', checkAdminRole, async (req, res) => {
+    try {
+        const { name } = req.body;
+        if (!name) return res.status(400).json({ success: false, message: 'กรุณากรอกชื่อบริษัทไฟแนนซ์' });
+
+        // Generate Unique Company ID: FIN + 6 digits
+        let companyId;
+        let isUnique = false;
+        while (!isUnique) {
+            const random = Math.floor(100000 + Math.random() * 900000).toString();
+            companyId = 'FIN' + random;
+            const existing = await FinanceCompany.findOne({ companyId });
+            if (!existing) isUnique = true;
+        }
+
+        const newCompany = new FinanceCompany({
+            name,
+            companyId
+        });
+        await newCompany.save();
+        res.status(201).json({ success: true, company: newCompany });
+    } catch (err) {
+        res.status(400).json({ success: false, message: err.message });
+    }
+});
+
+// Update finance company name
+app.put('/api/finance-companies/:id', checkAdminRole, async (req, res) => {
+    try {
+        const { name } = req.body;
+        if (!name) return res.status(400).json({ success: false, message: 'กรุณากรอกชื่อบริษัทไฟแนนซ์' });
+
+        const updated = await FinanceCompany.findByIdAndUpdate(
+            req.params.id,
+            { name },
+            { new: true }
+        );
+        if (!updated) return res.status(404).json({ success: false, message: 'ไม่พบข้อมูลบริษัทไฟแนนซ์' });
+        res.json({ success: true, company: updated });
+    } catch (err) {
+        res.status(400).json({ success: false, message: err.message });
+    }
+});
+
+// Toggle status of finance company
+app.put('/api/finance-companies/:id/status', checkAdminRole, async (req, res) => {
+    try {
+        const { status } = req.body;
+        if (!['active', 'suspended'].includes(status)) {
+            return res.status(400).json({ success: false, message: 'สถานะไม่ถูกต้อง' });
+        }
+        const updated = await FinanceCompany.findByIdAndUpdate(
+            req.params.id,
+            { status },
+            { new: true }
+        );
+        if (!updated) return res.status(404).json({ success: false, message: 'ไม่พบข้อมูลบริษัทไฟแนนซ์' });
+        res.json({ success: true, company: updated });
+    } catch (err) {
+        res.status(400).json({ success: false, message: err.message });
+    }
+});
 
 // Get all shops
 app.get('/api/shops', async (req, res) => {

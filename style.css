@@ -4399,3 +4399,16 @@ tr.new-row-highlight {
     accent-color: #0d9488;
     cursor: pointer;
 }
+
+/* Hide Scrollbars while keeping scroll functionality for executive dashboard tables */
+.exec-table-scroll-container {
+    flex: 1;
+    overflow-y: auto;
+    max-height: 300px;
+    padding-right: 4px;
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE and Edge */
+}
+.exec-table-scroll-container::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, Edge */
+}

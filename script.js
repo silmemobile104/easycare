@@ -343,7 +343,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const membersNavLink = document.getElementById('membersNavLink');
         const shopsNavLink = document.getElementById('shopsNavLink');
 
-        if (viewName === 'dashboard' || viewName === 'members' || viewName === 'shops' || viewName === 'claims' || viewName === 'statusTracking' || viewName === 'approval' || viewName === 'staff' || viewName === 'executive' || viewName === 'finance' || viewName === 'deposit' || viewName === 'calculator' || viewName === 'dashboard-sales' || viewName === 'dashboard-approver') {
+        if (viewName === 'dashboard' || viewName === 'members' || viewName === 'shops' || viewName === 'claims' || viewName === 'statusTracking' || viewName === 'approval' || viewName === 'staff' || viewName === 'executive' || viewName === 'finance' || viewName === 'deposit' || viewName === 'calculator' || viewName === 'dashboard-sales' || viewName === 'dashboard-approver' || viewName === 'finance-companies') {
             views.dashboard.style.display = 'block';
 
             // Hide all sub-views first
@@ -366,6 +366,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (approvalMain) approvalMain.style.display = 'none';
             const staffMain = document.getElementById('staffMain');
             if (staffMain) staffMain.style.display = 'none';
+            const financeCompaniesMain = document.getElementById('financeCompaniesMain');
+            if (financeCompaniesMain) financeCompaniesMain.style.display = 'none';
             const depositMainEl = document.getElementById('depositMain');
             if (depositMainEl) depositMainEl.style.display = 'none';
             const calculatorMainEl = document.getElementById('calculatorView');
@@ -383,6 +385,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (approvalNavLinkEl) approvalNavLinkEl.classList.remove('active');
             const staffNavLinkEl = document.getElementById('staffNavLink');
             if (staffNavLinkEl) staffNavLinkEl.classList.remove('active');
+            const financeCompaniesNavLinkEl = document.getElementById('financeCompaniesNavLink');
+            if (financeCompaniesNavLinkEl) financeCompaniesNavLinkEl.classList.remove('active');
             const executiveNavLinkEl = document.getElementById('nav-executive');
             if (executiveNavLinkEl) executiveNavLinkEl.classList.remove('active');
             const financeNavLinkEl = document.getElementById('financeNavLink');
@@ -432,6 +436,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (staffNavLinkEl) staffNavLinkEl.classList.add('active');
                 fetchStaff();
                 stopApprovalAutoRefresh();
+            } else if (viewName === 'finance-companies') {
+                if (financeCompaniesMain) financeCompaniesMain.style.display = 'block';
+                if (financeCompaniesNavLinkEl) financeCompaniesNavLinkEl.classList.add('active');
+                fetchFinanceCompanies();
+                stopApprovalAutoRefresh();
             } else if (viewName === 'executive') {
                 const executiveMainEl = document.getElementById('executiveMain');
                 if (executiveMainEl) executiveMainEl.style.display = 'block';
@@ -445,6 +454,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const financeNav = document.getElementById('financeNavLink');
                 if (financeNav) financeNav.classList.add('active');
                 stopApprovalAutoRefresh();
+                populateFinanceFilterDropdown();
                 setFinanceTab('income');
             } else if (viewName === 'dashboard-sales') {
                 const salesMainEl = document.getElementById('salesDashboardMain');
@@ -713,6 +723,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const staffNavLink = document.getElementById('staffNavLink');
     if (staffNavLink) staffNavLink.addEventListener('click', (e) => { e.preventDefault(); showView('staff'); });
+
+    const financeCompaniesNavLink = document.getElementById('financeCompaniesNavLink');
+    if (financeCompaniesNavLink) financeCompaniesNavLink.addEventListener('click', (e) => { e.preventDefault(); showView('finance-companies'); });
 
     const executiveNavLink = document.getElementById('nav-executive');
     if (executiveNavLink) executiveNavLink.addEventListener('click', (e) => { e.preventDefault(); showView('executive'); });
@@ -2375,6 +2388,18 @@ document.addEventListener('DOMContentLoaded', () => {
             const trxRes = await fetch('/api/finance/transactions');
             const transactions = await trxRes.json();
 
+            // Fetch finance companies list for cards
+            try {
+                const headers = {};
+                if (currentUser && currentUser.role) {
+                    headers['x-user-role'] = currentUser.role;
+                }
+                const finRes = await fetch('/api/finance-companies', { headers });
+                financeCompaniesList = await finRes.json();
+            } catch (e) {
+                console.error('Failed to load finance companies for summary cards:', e);
+            }
+
             // Populate shop filter
             try {
                 const shopsRes = await fetch('/api/shops');
@@ -2416,7 +2441,7 @@ document.addEventListener('DOMContentLoaded', () => {
             applyFinanceIncomeFilter();
         } catch (err) {
             console.error('Fetch finance data error:', err);
-            showAlert('error', 'ไม่สามารถโหลดข้อมูลการเงินได้');
+            showAlert('error', 'ไม่สามารถโหลดข้อมูลการเงินได้: ' + err.message);
         } finally {
             hideLoader();
         }
@@ -2474,10 +2499,28 @@ document.addEventListener('DOMContentLoaded', () => {
         let totalTransfer = 0;
         let totalChange = 0;
         let totalRevenue = 0;
-        let pendingSG = 0;
-        let pendingTPlus = 0;
-        let pendingThunder = 0;
         let receivedFinance = 0;
+
+        // Initialize dynamic unpaid map for all registered finance companies (active & suspended)
+        const unpaidMap = {};
+        if (Array.isArray(financeCompaniesList)) {
+            financeCompaniesList.forEach(comp => {
+                unpaidMap[comp.name] = 0;
+            });
+        }
+
+        // Helper to count unpaid amounts
+        function addUnpaid(provider, amount) {
+            const key = provider || 'ไม่ระบุ';
+            // Normalize old 'Tunder' typo to 'Thunder' if applicable
+            let normalizedKey = key;
+            if (key === 'Tunder') normalizedKey = 'Thunder';
+            
+            if (unpaidMap[normalizedKey] === undefined) {
+                unpaidMap[normalizedKey] = 0;
+            }
+            unpaidMap[normalizedKey] += amount;
+        }
 
         (filteredData || []).forEach(tx => {
             const cash = Number(tx.cashReceived || 0);
@@ -2494,23 +2537,15 @@ document.addEventListener('DOMContentLoaded', () => {
             // Finance-specific calculations
             if (finAmount > 0) {
                 if (tx.financeReceived === true) {
-                    // ยอดไฟแนนซ์ที่รับแล้ว
                     receivedFinance += finAmount;
                 } else {
-                    // ยอดไฟแนนซ์ที่ยังรอ — แยกตาม Provider
-                    if (tx.financeProvider === 'SG') {
-                        pendingSG += finAmount;
-                    } else if (tx.financeProvider === 'T-Plus') {
-                        pendingTPlus += finAmount;
-                    } else if (tx.financeProvider === 'Thunder' || tx.financeProvider === 'Tunder') {
-                        pendingThunder += finAmount;
-                    }
+                    addUnpaid(tx.financeProvider, finAmount);
                 }
             } else if (tx.financeDisplay && !tx.financedAmount) {
-                // Fallback สำหรับ record เก่าที่ไม่มี financedAmount
+                // Fallback for older records
                 let amount = 0;
                 if (tx.financeDisplay.includes('(')) {
-                    const match = tx.financeDisplay.match(/\(([^)]+)\)/);
+                    const match = tx.financeDisplay.match(/(([^)]+))/);
                     if (match) amount = parseFloat(match[1]) || 0;
                 } else {
                     amount = parseFloat(String(tx.financeDisplay).replace(/[^0-9.]/g, '')) || 0;
@@ -2519,9 +2554,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (tx.financeReceived === true) {
                         receivedFinance += amount;
                     } else {
-                        if (tx.financeProvider === 'SG') pendingSG += amount;
-                        else if (tx.financeProvider === 'T-Plus') pendingTPlus += amount;
-                        else if (tx.financeProvider === 'Thunder' || tx.financeProvider === 'Tunder') pendingThunder += amount;
+                        addUnpaid(tx.financeProvider, amount);
                     }
                 }
             }
@@ -2529,7 +2562,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const netCash = totalCashReceived - totalChange;
         
-        // อัปเดต DOM elements ของ KPI Cards
+        // Update basic KPI Cards
         const cashEl = document.getElementById('totalCashDisplay');
         if (cashEl) cashEl.textContent = formatNumber(netCash) + ' ฿';
 
@@ -2542,17 +2575,31 @@ document.addEventListener('DOMContentLoaded', () => {
         const changeEl = document.getElementById('totalChangeDisplay');
         if (changeEl) changeEl.textContent = formatNumber(totalChange) + ' ฿';
 
-        const sgEl = document.getElementById('unpaidAmountSGDisplay');
-        if (sgEl) sgEl.textContent = formatNumber(pendingSG) + ' ฿';
-
-        const tpEl = document.getElementById('unpaidAmountTPlusDisplay');
-        if (tpEl) tpEl.textContent = formatNumber(pendingTPlus) + ' ฿';
-
-        const thunderEl = document.getElementById('unpaidAmountThunderDisplay');
-        if (thunderEl) thunderEl.textContent = formatNumber(pendingThunder) + ' ฿';
-
         const receivedEl = document.getElementById('totalFinanceReceivedAmountDisplay');
         if (receivedEl) receivedEl.textContent = formatNumber(receivedFinance) + ' ฿';
+
+        // Update dynamic unpaid cards
+        const container = document.getElementById('dynamicFinanceCardsContainer');
+        if (container) {
+            container.innerHTML = Object.keys(unpaidMap).map(provider => {
+                const amount = unpaidMap[provider];
+                return `
+                    <div class="stat-card">
+                        <div class="stat-icon orange">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                                <polyline points="22,6 12,13 2,6"></polyline>
+                            </svg>
+                        </div>
+                        <div class="stat-content">
+                            <h3>${formatNumber(amount)} ฿</h3>
+                            <p>รอการชำระเงินจากไฟแนนซ์ ${provider}</p>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
     }
 
     function applyFinanceIncomeFilter() {
@@ -2901,6 +2948,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Render shops summary table
             renderExecutiveShopsTable(data.shopsSummary || []);
+
+            // Render staff summary table
+            renderExecutiveStaffTable(data.staffSummary || []);
+
+            // Render products summary table
+            renderExecutiveProductsTable(data.productsSummary || []);
         } catch (err) {
             console.error('Load executive dashboard error:', err);
             showAlert('error', err.message || 'เกิดข้อผิดพลาดในการโหลดแดชบอร์ด');
@@ -2939,6 +2992,82 @@ document.addEventListener('DOMContentLoaded', () => {
             tdRev.style.color = '#0d9488';
             tdRev.style.fontWeight = '600';
             tdRev.textContent = formatNumber(shop.revenue || 0) + ' ฿';
+
+            tr.appendChild(tdName);
+            tr.appendChild(tdCount);
+            tr.appendChild(tdRev);
+            tbody.appendChild(tr);
+        });
+    }
+
+    function renderExecutiveStaffTable(staffData) {
+        const tbody = document.getElementById('execStaffTableBody');
+        if (!tbody) return;
+
+        tbody.innerHTML = '';
+        if (staffData.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; padding: 20px; color: var(--text-muted);">ไม่มีข้อมูลพนักงาน</td></tr>';
+            return;
+        }
+
+        staffData.forEach(staff => {
+            const tr = document.createElement('tr');
+            tr.style.borderBottom = '1px solid #f1f5f9';
+
+            const tdName = document.createElement('td');
+            tdName.style.padding = '12px 8px';
+            tdName.textContent = staff.staffName || 'ไม่ระบุพนักงาน';
+
+            const tdCount = document.createElement('td');
+            tdCount.style.padding = '12px 8px';
+            tdCount.style.textAlign = 'right';
+            tdCount.style.fontWeight = '500';
+            tdCount.textContent = formatNumber(staff.contracts || 0);
+
+            const tdRev = document.createElement('td');
+            tdRev.style.padding = '12px 8px';
+            tdRev.style.textAlign = 'right';
+            tdRev.style.color = '#0d9488';
+            tdRev.style.fontWeight = '600';
+            tdRev.textContent = formatNumber(staff.revenue || 0) + ' ฿';
+
+            tr.appendChild(tdName);
+            tr.appendChild(tdCount);
+            tr.appendChild(tdRev);
+            tbody.appendChild(tr);
+        });
+    }
+
+    function renderExecutiveProductsTable(productsData) {
+        const tbody = document.getElementById('execProductsTableBody');
+        if (!tbody) return;
+
+        tbody.innerHTML = '';
+        if (productsData.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; padding: 20px; color: var(--text-muted);">ไม่มีข้อมูลสินค้า</td></tr>';
+            return;
+        }
+
+        productsData.forEach(product => {
+            const tr = document.createElement('tr');
+            tr.style.borderBottom = '1px solid #f1f5f9';
+
+            const tdName = document.createElement('td');
+            tdName.style.padding = '12px 8px';
+            tdName.textContent = product.deviceModel || 'ไม่ระบุสินค้า';
+
+            const tdCount = document.createElement('td');
+            tdCount.style.padding = '12px 8px';
+            tdCount.style.textAlign = 'right';
+            tdCount.style.fontWeight = '500';
+            tdCount.textContent = formatNumber(product.contracts || 0);
+
+            const tdRev = document.createElement('td');
+            tdRev.style.padding = '12px 8px';
+            tdRev.style.textAlign = 'right';
+            tdRev.style.color = '#0d9488';
+            tdRev.style.fontWeight = '600';
+            tdRev.textContent = formatNumber(product.revenue || 0) + ' ฿';
 
             tr.appendChild(tdName);
             tr.appendChild(tdCount);
@@ -3789,6 +3918,7 @@ document.addEventListener('DOMContentLoaded', () => {
             updateRemainingDays();
             updatePaymentUI();
             populateShopsDropdown(data.shopName);
+            populateFinanceProvidersDropdown(data.payment ? data.payment.financeProvider : '');
 
             // === Section 04: จัดการการชำระเงิน ===
             const pmSection = document.getElementById('paymentManagementSection');
@@ -3897,6 +4027,7 @@ document.addEventListener('DOMContentLoaded', () => {
         updateRemainingDays();
         updatePaymentUI();
         populateShopsDropdown();
+        populateFinanceProvidersDropdown();
         populateDepositOptionsForPackage();
     }
 
@@ -3962,6 +4093,68 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (err) {
             console.error('Populate shops error:', err);
             shopSelect.innerHTML = '<option value="" disabled selected>ไม่สามารถโหลดข้อมูลร้านค้าได้</option>';
+        }
+    }
+
+    async function populateFinanceProvidersDropdown(selectedProvider = '') {
+        const providerSelect = document.getElementById('financeProvider');
+        if (!providerSelect) return;
+
+        try {
+            // Fetch finance companies (now public API, but if admin is logged in, pass current headers)
+            const headers = {};
+            if (currentUser && currentUser.role) {
+                headers['x-user-role'] = currentUser.role;
+            }
+            const res = await fetch('/api/finance-companies', { headers });
+            const companies = await res.json();
+            
+            // Only show active ones for selecting in registration
+            const activeCompanies = Array.isArray(companies) ? companies.filter(c => c.status === 'active') : [];
+
+            providerSelect.innerHTML = '<option value="">-- เลือกบริษัทไฟแนนซ์ --</option>';
+            activeCompanies.forEach(comp => {
+                const option = document.createElement('option');
+                option.value = comp.name;
+                option.textContent = comp.name;
+                if (selectedProvider && comp.name === selectedProvider) {
+                    option.selected = true;
+                }
+                providerSelect.appendChild(option);
+            });
+        } catch (err) {
+            console.error('Populate finance providers error:', err);
+            providerSelect.innerHTML = '<option value="" disabled selected>ไม่สามารถโหลดข้อมูลบริษัทไฟแนนซ์ได้</option>';
+        }
+    }
+
+    async function populateFinanceFilterDropdown() {
+        const filterSelect = document.getElementById('financeProviderFilter');
+        if (!filterSelect) return;
+
+        try {
+            const headers = {};
+            if (currentUser && currentUser.role) {
+                headers['x-user-role'] = currentUser.role;
+            }
+            const res = await fetch('/api/finance-companies', { headers });
+            const companies = await res.json();
+            
+            const list = Array.isArray(companies) ? companies : [];
+            const currentVal = filterSelect.value || 'all';
+
+            filterSelect.innerHTML = '<option value="all">ทั้งหมด</option>';
+            list.forEach(comp => {
+                const option = document.createElement('option');
+                option.value = comp.name;
+                option.textContent = comp.name;
+                if (comp.name === currentVal) {
+                    option.selected = true;
+                }
+                filterSelect.appendChild(option);
+            });
+        } catch (err) {
+            console.error('Populate finance filter dropdown error:', err);
         }
     }
 
@@ -5934,7 +6127,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const res = await fetch(url, {
                     method: method,
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'x-user-role': currentUser.role
+                    },
                     body: JSON.stringify(payload)
                 });
                 const data = await res.json();
@@ -6142,6 +6338,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- SHOPS LOGIC ---
     let allShops = [];
+    let financeCompaniesList = [];
+    
+    // --- FINANCE COMPANIES LOGIC ---
+    let allFinanceCompanies = [];
 
     async function fetchShops() {
         try {
@@ -10286,5 +10486,221 @@ document.addEventListener('DOMContentLoaded', () => {
             slider.scrollLeft = scrollLeft - walk;
         });
     });
+
+    // --- FINANCE COMPANIES FUNCTIONS ---
+    async function fetchFinanceCompanies() {
+        try {
+            const res = await fetch('/api/finance-companies', {
+                headers: { 'x-user-role': currentUser.role }
+            });
+            allFinanceCompanies = await res.json();
+            applyFinanceCompaniesFilter();
+        } catch (err) {
+            console.error('Fetch finance companies error:', err);
+        }
+    }
+
+    function applyFinanceCompaniesFilter() {
+        const search = (document.getElementById('financeCompaniesSearchInput') || {}).value?.toLowerCase()?.trim() || '';
+        let filtered = allFinanceCompanies;
+        if (search) {
+            filtered = allFinanceCompanies.filter(c => {
+                return (c.companyId && c.companyId.toLowerCase().includes(search)) ||
+                    (c.name && c.name.toLowerCase().includes(search));
+            });
+        }
+        renderFinanceCompanies(filtered);
+    }
+
+    function renderFinanceCompanies(companies) {
+        const body = document.getElementById('financeCompaniesBody');
+        const empty = document.getElementById('financeCompaniesEmptyState');
+        if (!body) return;
+
+        if (companies.length === 0) {
+            if (empty) empty.style.display = 'block';
+            body.innerHTML = '';
+            return;
+        }
+
+        if (empty) empty.style.display = 'none';
+        body.innerHTML = companies.map(c => {
+            const statusLabel = c.status === 'active' ? 'ใช้งานปกติ' : 'ระงับการใช้งาน';
+            const statusClass = c.status === 'active' ? 'status-pill approved' : 'status-pill rejected';
+            const toggleText = c.status === 'active' ? 'ระงับการใช้งาน' : 'เปิดใช้งาน';
+            const toggleColor = c.status === 'active' ? '#ef4444' : '#10b981';
+
+            return `
+                <tr>
+                    <td data-label="รหัสบริษัท" style="font-weight: 600;">${c.companyId}</td>
+                    <td data-label="ชื่อบริษัทไฟแนนซ์">${c.name}</td>
+                    <td data-label="สถานะการใช้งาน">
+                        <span class="${statusClass}">${statusLabel}</span>
+                    </td>
+                    <td data-label="จัดการ">
+                        <div style="display: flex; gap: 0.5rem; justify-content: center;">
+                            <button class="edit-fcomp-btn edit-btn" data-id="${c._id}" title="แก้ไขชื่อ">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                            </button>
+                            <button class="toggle-fcomp-status-btn edit-btn" data-id="${c._id}" data-status="${c.status}" title="${toggleText}" style="color: ${toggleColor}; border-color: ${toggleColor}; display: inline-flex; align-items: center; justify-content: center; padding: 4px;">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <circle cx="12" cy="12" r="10"></circle>
+                                    <line x1="12" y1="8" x2="12" y2="16"></line>
+                                    <line x1="8" y1="12" x2="16" y2="12"></line>
+                                </svg>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+
+        // Attach action button event listeners
+        document.querySelectorAll('.edit-fcomp-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const id = e.currentTarget.getAttribute('data-id');
+                editFinanceCompany(id);
+            });
+        });
+
+        document.querySelectorAll('.toggle-fcomp-status-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const id = e.currentTarget.getAttribute('data-id');
+                const currentStatus = e.currentTarget.getAttribute('data-status');
+                const nextStatus = currentStatus === 'active' ? 'suspended' : 'active';
+                toggleFinanceCompanyStatus(id, nextStatus);
+            });
+        });
+    }
+
+    async function editFinanceCompany(id) {
+        const company = allFinanceCompanies.find(c => c._id === id);
+        if (company) {
+            document.getElementById('editFinanceCompanyId').value = company._id;
+            document.getElementById('financeCompanyModalTitle').textContent = 'แก้ไขชื่อบริษัทไฟแนนซ์';
+            document.getElementById('financeCompanyName').value = company.name;
+            document.getElementById('financeCompanyModal').style.display = 'flex';
+        }
+    }
+
+    async function toggleFinanceCompanyStatus(id, nextStatus) {
+        const actionText = nextStatus === 'suspended' ? 'ระงับการใช้งาน' : 'เปิดใช้งานปกติ';
+        const confirmResult = await Swal.fire({
+            title: `ยืนยันการ${actionText}?`,
+            text: `คุณต้องการเปลี่ยนสถานะบริษัทไฟแนนซ์นี้เป็น ${actionText} ใช่หรือไม่?`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: nextStatus === 'suspended' ? '#ef4444' : '#0d9488',
+            cancelButtonColor: '#64748b',
+            confirmButtonText: 'ยืนยัน',
+            cancelButtonText: 'ยกเลิก'
+        });
+
+        if (confirmResult.isConfirmed) {
+            try {
+                const res = await fetch(`/api/finance-companies/${id}/status`, {
+                    method: 'PUT',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'x-user-role': currentUser.role
+                    },
+                    body: JSON.stringify({ status: nextStatus })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    Swal.fire('เปลี่ยนสถานะสำเร็จ', `บริษัทไฟแนนซ์ได้รับการ${actionText}แล้ว`, 'success');
+                    fetchFinanceCompanies();
+                } else {
+                    showAlert('error', data.message || 'ไม่สามารถเปลี่ยนสถานะได้');
+                }
+            } catch (err) {
+                console.error('Toggle status error:', err);
+                showAlert('error', 'ระบบหลังบ้านทำงานผิดพลาด');
+            }
+        }
+    }
+
+    // Modal and filter listeners
+    const financeCompanyModal = document.getElementById('financeCompanyModal');
+    const financeCompanyForm = document.getElementById('financeCompanyForm');
+    const addFinanceCompanyBtn = document.getElementById('addFinanceCompanyBtn');
+    if (addFinanceCompanyBtn) {
+        addFinanceCompanyBtn.addEventListener('click', () => {
+            financeCompanyForm.reset();
+            document.getElementById('editFinanceCompanyId').value = '';
+            document.getElementById('financeCompanyModalTitle').textContent = 'เพิ่มบริษัทไฟแนนซ์';
+            financeCompanyModal.style.display = 'flex';
+        });
+    }
+
+    const closeFinanceCompanyModal = document.getElementById('closeFinanceCompanyModal');
+    if (closeFinanceCompanyModal) {
+        closeFinanceCompanyModal.addEventListener('click', () => {
+            financeCompanyModal.style.display = 'none';
+        });
+    }
+
+    const cancelFinanceCompanyModal = document.getElementById('cancelFinanceCompanyModal');
+    if (cancelFinanceCompanyModal) {
+        cancelFinanceCompanyModal.addEventListener('click', () => {
+            financeCompanyModal.style.display = 'none';
+        });
+    }
+
+    if (financeCompanyForm) {
+        financeCompanyForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const editId = document.getElementById('editFinanceCompanyId').value;
+            const payload = {
+                name: document.getElementById('financeCompanyName').value
+            };
+
+            try {
+                const url = editId ? `/api/finance-companies/${editId}` : '/api/finance-companies';
+                const method = editId ? 'PUT' : 'POST';
+
+                const res = await fetch(url, {
+                    method: method,
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'x-user-role': currentUser.role
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                const data = await res.json();
+                if (data.success) {
+                    financeCompanyModal.style.display = 'none';
+                    fetchFinanceCompanies();
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'บันทึกข้อมูลเรียบร้อยแล้ว',
+                        showConfirmButton: false,
+                        timer: 1500
+                    });
+                } else {
+                    showAlert('error', data.message || 'ไม่สามารถบันทึกข้อมูลได้');
+                }
+            } catch (err) {
+                console.error('Save finance company error:', err);
+                showAlert('error', 'ระบบหลังบ้านทำงานผิดพลาด');
+            }
+        });
+    }
+
+    const financeCompaniesSearchInput = document.getElementById('financeCompaniesSearchInput');
+    if (financeCompaniesSearchInput) {
+        financeCompaniesSearchInput.addEventListener('keyup', () => {
+            applyFinanceCompaniesFilter();
+        });
+    }
+
+    const financeCompaniesResetBtn = document.getElementById('financeCompaniesResetBtn');
+    if (financeCompaniesResetBtn) {
+        financeCompaniesResetBtn.addEventListener('click', () => {
+            if (financeCompaniesSearchInput) financeCompaniesSearchInput.value = '';
+            applyFinanceCompaniesFilter();
+        });
+    }
 
 });
