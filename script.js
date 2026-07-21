@@ -3918,7 +3918,7 @@ document.addEventListener('DOMContentLoaded', () => {
             updateRemainingDays();
             updatePaymentUI();
             populateShopsDropdown(data.shopName);
-            populateFinanceProvidersDropdown(data.payment ? data.payment.financeProvider : '');
+            populateFinanceProvidersDropdown(data.financeDetails ? data.financeDetails.provider : '');
 
             // === Section 04: จัดการการชำระเงิน ===
             const pmSection = document.getElementById('paymentManagementSection');
