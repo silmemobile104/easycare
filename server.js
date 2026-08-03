@@ -219,7 +219,11 @@ const WarrantySchema = new mongoose.Schema({
             paidDate: Date,
             paidCash: Number,
             paidTransfer: Number,
-            refId: String
+            refId: String,
+            callStatus: { type: String, default: 'Not Called' },
+            calledDate: Date,
+            calledBy: String,
+            callRemark: String
         }]
     },
     financeDetails: {
@@ -1692,6 +1696,8 @@ app.get('/api/dashboard/sales/summary', async (req, res) => {
         const cutoff = new Date(Date.now() - (5 * 24 * 60 * 60 * 1000));
         const now = new Date();
         const overdueInstallmentCutoff = new Date(Date.now() - (5 * 24 * 60 * 60 * 1000));
+        const endOfToday = new Date();
+        endOfToday.setHours(23, 59, 59, 999);
 
         const [overdueClaims, pendingApprovals, unpaidPackages, installmentOverdue] = await Promise.all([
             Claim.countDocuments({
@@ -1706,10 +1712,11 @@ app.get('/api/dashboard/sales/summary', async (req, res) => {
             }),
             Warranty.countDocuments({
                 'payment.method': 'Installment',
+                'warrantyDates.end': { $gte: now },
                 'payment.schedule': {
                     $elemMatch: {
                         status: 'Pending',
-                        dueDate: { $lt: overdueInstallmentCutoff }
+                        dueDate: { $lte: endOfToday }
                     }
                 }
             })
@@ -1725,6 +1732,97 @@ app.get('/api/dashboard/sales/summary', async (req, res) => {
         return res.status(500).json({ message: err.message });
     }
 });
+
+app.get('/api/dashboard/sales/overdue-installments', async (req, res) => {
+    try {
+        const now = new Date();
+        const endOfToday = new Date();
+        endOfToday.setHours(23, 59, 59, 999);
+
+        const warranties = await Warranty.find({
+            'payment.method': 'Installment',
+            'warrantyDates.end': { $gte: now },
+            'payment.schedule': {
+                $elemMatch: {
+                    status: 'Pending',
+                    dueDate: { $lte: endOfToday }
+                }
+            }
+        }).sort({ createdAt: -1 }).lean();
+
+        const results = warranties.map(w => {
+            const overdueInstallments = (w.payment && Array.isArray(w.payment.schedule) ? w.payment.schedule : [])
+                .filter(s => s && s.status === 'Pending' && s.dueDate && new Date(s.dueDate) <= endOfToday)
+                .map(s => {
+                    const daysOverdue = Math.max(0, Math.floor((Date.now() - new Date(s.dueDate).getTime()) / 86400000));
+                    return {
+                        installmentNo: s.installmentNo,
+                        amount: s.amount,
+                        dueDate: s.dueDate,
+                        daysOverdue,
+                        callStatus: s.callStatus || 'Not Called',
+                        calledDate: s.calledDate || null,
+                        calledBy: s.calledBy || null,
+                        callRemark: s.callRemark || ''
+                    };
+                });
+            
+            return {
+                _id: w._id,
+                policyNumber: w.policyNumber,
+                customerName: `${w.customer?.firstName || ''} ${w.customer?.lastName || ''}`.trim(),
+                phone: w.customer?.phone || '-',
+                deviceModel: w.device?.model || '-',
+                planName: w.package?.plan || '-',
+                shopName: w.shopName || '-',
+                overdueInstallments
+            };
+        });
+
+        res.json({ success: true, data: results });
+    } catch (err) {
+        console.error('GET /api/dashboard/sales/overdue-installments error:', err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+app.patch('/api/warranties/:id/installments/called', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { staffName, remark } = req.body || {};
+        
+        const warranty = await Warranty.findById(id);
+        if (!warranty) return res.status(404).json({ success: false, message: 'ไม่พบกรมธรรม์ดังกล่าว' });
+        
+        const endOfToday = new Date();
+        endOfToday.setHours(23, 59, 59, 999);
+        
+        let updatedCount = 0;
+        if (warranty.payment && Array.isArray(warranty.payment.schedule)) {
+            warranty.payment.schedule.forEach(s => {
+                if (s && s.status === 'Pending' && s.dueDate && new Date(s.dueDate) <= endOfToday) {
+                    s.callStatus = 'Called';
+                    s.calledDate = new Date();
+                    s.calledBy = staffName || 'System';
+                    s.callRemark = remark || '';
+                    updatedCount++;
+                }
+            });
+        }
+        
+        if (updatedCount > 0) {
+            await warranty.save();
+            await logAction('Call Customer', `โทรติดตามค่างวดค้างชำระของสัญญา ${warranty.policyNumber} (ลูกค้า: ${warranty.customer?.firstName || ''} ${warranty.customer?.lastName || ''})${remark ? ' - หมายเหตุ: ' + remark : ''}`, staffName);
+        }
+        
+        res.json({ success: true, message: `อัปเดตสถานะการโทร ${updatedCount} งวดเรียบร้อยแล้ว` });
+    } catch (err) {
+        console.error('PATCH /api/warranties/:id/installments/called error:', err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+
 
 app.get('/api/dashboard/approver/pending-warranties', async (req, res) => {
     try {

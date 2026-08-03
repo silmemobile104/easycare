@@ -815,7 +815,194 @@ document.addEventListener('DOMContentLoaded', () => {
     if (cardSalesUnpaid) cardSalesUnpaid.addEventListener('click', () => goToSalesFilteredTab('unpaid_packages'));
 
     const cardSalesDueInstallments = document.getElementById('cardSalesDueInstallments');
-    if (cardSalesDueInstallments) cardSalesDueInstallments.addEventListener('click', () => goToSalesFilteredTab('due_installments'));
+    if (cardSalesDueInstallments) cardSalesDueInstallments.addEventListener('click', () => openOverdueInstallmentsModal());
+
+    // Overdue Installments Modal Elements
+    const overdueInstallmentsModal = document.getElementById('overdueInstallmentsModal');
+    const overdueInstallmentsBody = document.getElementById('overdueInstallmentsBody');
+    const overdueInstallmentsEmpty = document.getElementById('overdueInstallmentsEmpty');
+    const overdueInstallmentsShopFilter = document.getElementById('overdueInstallmentsShopFilter');
+    let currentOverdueRecords = [];
+
+    // Call Details Modal Elements
+    const callDetailsModal = document.getElementById('callDetailsModal');
+
+    if (overdueInstallmentsModal) {
+        document.getElementById('closeOverdueInstallmentsModal')?.addEventListener('click', () => {
+            overdueInstallmentsModal.style.display = 'none';
+        });
+        document.getElementById('closeOverdueInstallmentsModalBtn')?.addEventListener('click', () => {
+            overdueInstallmentsModal.style.display = 'none';
+        });
+        overdueInstallmentsShopFilter?.addEventListener('change', () => {
+            renderOverdueInstallmentsTable();
+        });
+    }
+
+    if (callDetailsModal) {
+        document.getElementById('closeCallDetailsModal')?.addEventListener('click', () => {
+            callDetailsModal.style.display = 'none';
+        });
+        document.getElementById('closeCallDetailsModalBtn')?.addEventListener('click', () => {
+            callDetailsModal.style.display = 'none';
+        });
+    }
+
+    async function openOverdueInstallmentsModal() {
+        if (!overdueInstallmentsModal) return;
+        showLoader('กำลังโหลดข้อมูลค้างชำระ...');
+        try {
+            // 1. Fetch overdue data
+            const res = await fetch('/api/dashboard/sales/overdue-installments');
+            const result = await res.json();
+            currentOverdueRecords = (result && result.success) ? (result.data || []) : [];
+
+            // 2. Fetch shops to populate filter dropdown
+            try {
+                const shopRes = await fetch('/api/shops');
+                const shops = await shopRes.json();
+                if (overdueInstallmentsShopFilter) {
+                    overdueInstallmentsShopFilter.innerHTML = '<option value="all">ทั้งหมด</option>';
+                    shops.forEach(shop => {
+                        const opt = document.createElement('option');
+                        opt.value = shop.shopName;
+                        opt.textContent = shop.shopName;
+                        overdueInstallmentsShopFilter.appendChild(opt);
+                    });
+                    overdueInstallmentsShopFilter.value = 'all'; // Default
+                }
+            } catch (shopErr) {
+                console.error('Failed to populate shops dropdown in overdue modal:', shopErr);
+            }
+
+            // 3. Render table
+            renderOverdueInstallmentsTable();
+            overdueInstallmentsModal.style.display = 'flex';
+        } catch (err) {
+            console.error('Fetch overdue installments error:', err);
+            showAlert('error', 'ไม่สามารถดึงข้อมูลคนค้างจ่ายค่างวดได้');
+        } finally {
+            hideLoader();
+        }
+    }
+
+    function renderOverdueInstallmentsTable() {
+        if (!overdueInstallmentsBody) return;
+        
+        const selectedShop = overdueInstallmentsShopFilter ? overdueInstallmentsShopFilter.value : 'all';
+        const filteredRecords = selectedShop === 'all'
+            ? currentOverdueRecords
+            : currentOverdueRecords.filter(r => r.shopName === selectedShop);
+
+        const countSpan = document.getElementById('overdueInstallmentsCount');
+        if (countSpan) countSpan.textContent = filteredRecords.length;
+
+        if (filteredRecords.length === 0) {
+            overdueInstallmentsBody.innerHTML = '';
+            if (overdueInstallmentsEmpty) overdueInstallmentsEmpty.style.display = 'block';
+        } else {
+            if (overdueInstallmentsEmpty) overdueInstallmentsEmpty.style.display = 'none';
+            overdueInstallmentsBody.innerHTML = filteredRecords.map(r => {
+                const instNumbers = r.overdueInstallments.map(i => {
+                    let badge = '';
+                    if (i.callStatus === 'Called') {
+                        const remarkText = i.callRemark ? ` (${i.callRemark})` : '';
+                        badge = `<span style="background: #e0f2fe; color: #0369a1; padding: 2px 6px; border-radius: 4px; font-size: 0.72rem; font-weight: 500; margin-left: 5px; display: inline-block;" title="${i.callRemark || ''}">📞 โทรแล้ว${remarkText}</span>`;
+                    }
+                    return `งวดที่ ${i.installmentNo}${badge}`;
+                }).join(', ');
+                
+                const totalOverdueAmount = r.overdueInstallments.reduce((sum, i) => sum + i.amount, 0);
+                const maxDaysOverdue = Math.max(...r.overdueInstallments.map(i => i.daysOverdue));
+                const hasBeenCalled = r.overdueInstallments.some(i => i.callStatus === 'Called');
+                
+                const btnBg = hasBeenCalled ? '#64748b' : '#10b981';
+                const btnText = hasBeenCalled ? 'โทรอีกครั้ง' : 'โทรออก';
+                const btnShadow = hasBeenCalled ? 'rgba(100,116,139,0.3)' : 'rgba(16,185,129,0.3)';
+                
+                return `
+                    <tr style="border-bottom: 1px solid #e2e8f0; font-size: 0.95rem;">
+                        <td style="padding: 12px 10px; font-weight:600; color:var(--primary);">${r.policyNumber || '-'}</td>
+                        <td style="padding: 12px 10px;">${r.customerName || '-'}</td>
+                        <td style="padding: 12px 10px; font-weight:500;">${r.phone || '-'}</td>
+                        <td style="padding: 12px 10px;">${r.deviceModel || '-'}</td>
+                        <td style="padding: 12px 10px;">${r.planName || '-'}</td>
+                        <td style="padding: 12px 10px; font-weight: 500;">${r.shopName || '-'}</td>
+                        <td style="padding: 12px 10px; color:#ef4444; font-weight:600;">${instNumbers || '-'}</td>
+                        <td style="padding: 12px 10px; font-weight:600;">${totalOverdueAmount.toLocaleString()} บาท</td>
+                        <td style="padding: 12px 10px; color:#f59e0b; font-weight:600;">${maxDaysOverdue} วัน</td>
+                        <td style="padding: 12px 10px; text-align: center;">
+                            <button type="button" class="add-btn" onclick="showCallDetailsPopup('${r._id}')" style="padding: 6px 12px; font-size:0.85rem; display:inline-flex; align-items:center; gap:6px; background:${btnBg}; border:none; box-shadow:0 2px 5px ${btnShadow}; cursor:pointer;">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+                                </svg>
+                                ${btnText}
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+    }
+
+    window.showCallDetailsPopup = function(id) {
+        const r = currentOverdueRecords.find(item => item._id === id);
+        if (!r) return;
+
+        document.getElementById('callPolicyNumber').textContent = r.policyNumber || '-';
+        document.getElementById('callCustomerName').textContent = r.customerName || '-';
+        document.getElementById('callCustomerPhone').textContent = r.phone || '-';
+        document.getElementById('callDeviceModel').textContent = r.deviceModel || '-';
+        document.getElementById('callPlanName').textContent = r.planName || '-';
+        document.getElementById('callShopName').textContent = r.shopName || '-';
+        document.getElementById('callInstallments').textContent = r.overdueInstallments.map(i => 'งวดที่ ' + i.installmentNo).join(', ') || '-';
+        
+        const totalOverdueAmount = r.overdueInstallments.reduce((sum, i) => sum + i.amount, 0);
+        document.getElementById('callTotalAmount').textContent = totalOverdueAmount.toLocaleString() + ' บาท';
+        
+        // Reset remark text
+        const remarkInput = document.getElementById('callRemark');
+        if (remarkInput) remarkInput.value = '';
+
+        const markBtn = document.getElementById('markAsCalledBtn');
+        if (markBtn) {
+            markBtn.onclick = async () => {
+                const remark = remarkInput ? remarkInput.value.trim() : '';
+                const staffName = localStorage.getItem('staffName') || (window.currentStaff ? window.currentStaff.staffName : 'System');
+                
+                showLoader('กำลังบันทึกสถานะการโทร...');
+                try {
+                    const patchRes = await fetch(`/api/warranties/${r._id}/installments/called`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ staffName, remark })
+                    });
+                    const patchResult = await patchRes.json();
+                    if (patchResult.success) {
+                        showAlert('success', 'บันทึกสถานะการโทรเรียบร้อยแล้ว');
+                        if (callDetailsModal) callDetailsModal.style.display = 'none';
+                        
+                        // Re-fetch list
+                        await openOverdueInstallmentsModal();
+                        
+                        // Re-fetch dashboard count
+                        if (typeof fetchSalesDashboard === 'function') {
+                            fetchSalesDashboard();
+                        }
+                    } else {
+                        showAlert('error', patchResult.message || 'บันทึกไม่สำเร็จ');
+                    }
+                } catch (patchErr) {
+                    console.error('PATCH called status error:', patchErr);
+                    showAlert('error', 'เกิดข้อผิดพลาดในการบันทึกข้อมูล');
+                } finally {
+                    hideLoader();
+                }
+            };
+        }
+
+        if (callDetailsModal) callDetailsModal.style.display = 'flex';
+    };
 
     const approverDashboardLink = document.getElementById('approverDashboardLink');
     if (approverDashboardLink) approverDashboardLink.addEventListener('click', (e) => { e.preventDefault(); showView('dashboard-approver'); });
