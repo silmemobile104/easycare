@@ -3348,13 +3348,7 @@ app.patch('/api/warranties/:id/payment', async (req, res) => {
                 }
             } else if (payAllRemaining) {
                 actType = 'ชำระปิดยอด/จ่ายเต็ม';
-                const NORMAL_TOTALS = {
-                    'Package 1': 699, 'Package 2': 899, 'Package 3': 1099, 'Package 4': 1299, 'Package 5': 1499,
-                    'Package 6': 1699, 'Package 7': 1899, 'Package 8': 2099, 'Package 9': 2299, 'Package 10': 2499
-                };
-                if (planName && NORMAL_TOTALS[planName]) {
-                    transactionFullRevenue = NORMAL_TOTALS[planName];
-                }
+                transactionFullRevenue = net;
             } else if (installmentNo) {
                 actType = `ชำระค่างวดที่ ${installmentNo}`;
             }
@@ -5904,8 +5898,20 @@ app.get('*', (req, res) => {
 const startServer = () => {
     const server = http.createServer(app);
     io = new Server(server, { cors: { origin: '*' }, pingTimeout: 60000, pingInterval: 25000 });
-    server.listen(PORT, () => {
+    server.listen(PORT, async () => {
         console.log(`Server running on http://localhost:${PORT}`);
+        try {
+            // Fix any historical 'ชำระปิดยอด/จ่ายเต็ม' transactions where fullRevenue was incorrectly set to package totals
+            const res = await FinanceTransaction.updateMany(
+                { actionType: 'ชำระปิดยอด/จ่ายเต็ม' },
+                [{ $set: { fullRevenue: '$netTotal' } }]
+            );
+            if (res.modifiedCount > 0) {
+                console.log(`Migrated ${res.modifiedCount} overdue payment transactions to use correct fullRevenue.`);
+            }
+        } catch (err) {
+            console.error('Failed to run startup migration for FinanceTransaction:', err);
+        }
     });
 };
 

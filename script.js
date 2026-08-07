@@ -2914,7 +2914,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 } else if (tx.actionType !== 'คืนเงินชดเชยสละสิทธิ์เครื่อง' && tx.actionType.startsWith('ชำระ')) {
                     // สำหรับรายการ "ชำระค่างวดที่" ให้แสดงยอดที่รับจริง (เงินสด + โอน - ทอน)
-                    if (tx.actionType.includes('ชำระค่างวดที่')) {
+                    if (tx.actionType.includes('ชำระค่างวดที่') || tx.actionType === 'ชำระปิดยอด/จ่ายเต็ม') {
                         const actualReceived = (tx.cashReceived || 0) + (tx.transferAmount || 0) - (tx.changeAmount || 0);
                         displayNetTotalText = formatNumber(actualReceived);
                     } else {
