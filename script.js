@@ -2853,6 +2853,10 @@ document.addEventListener('DOMContentLoaded', () => {
         updateFinanceSummaryCards(filtered);
     }
 
+    let currentFinanceRecords = [];
+    let currentFinanceIndex = 0;
+    const financeItemsPerPage = 15;
+
     function renderFinanceIncomeTable(transactions) {
         const tbody = document.getElementById('financeBody');
         const emptyState = document.getElementById('financeEmptyState');
@@ -2874,83 +2878,133 @@ document.addEventListener('DOMContentLoaded', () => {
         const countEl = document.getElementById('financeIncomeCount');
         if (countEl) countEl.textContent = transactions.length;
 
-        transactions.forEach((tx, index) => {
-            const tr = document.createElement('tr');
-            const dateText = new Date(tx.transactionDate).toLocaleString('th-TH');
+        // Bind scroll event listener once on financeMain and window
+        if (!window.financeScrollEventBound) {
+            window.financeScrollEventBound = true;
+            const financeMain = document.getElementById('financeMain');
+            const handleFinanceScroll = () => {
+                const threshold = 150;
+                let isNearBottom = false;
 
-            const netColor = tx.netTotal > 0 ? 'color: #0d9488; font-weight: bold;' : '';
-            const changeColor = tx.changeAmount > 0 ? 'color: #ef4444;' : '';
-            const changeDisplay = tx.changeAmount > 0 ? '-' + formatNumber(tx.changeAmount) : '0';
+                if (financeMain && financeMain.scrollHeight > financeMain.clientHeight + 10) {
+                    isNearBottom = (financeMain.scrollTop + financeMain.clientHeight >= financeMain.scrollHeight - threshold);
+                } else {
+                    const docHeight = Math.max(
+                        document.body.scrollHeight,
+                        document.documentElement.scrollHeight,
+                        document.body.offsetHeight,
+                        document.documentElement.offsetHeight
+                    );
+                    const scrollY = window.scrollY || window.pageYOffset || document.documentElement.scrollTop;
+                    isNearBottom = (window.innerHeight + scrollY >= docHeight - threshold);
+                }
 
-            const urls = tx.evidenceUrls && tx.evidenceUrls.length > 0 ? tx.evidenceUrls : (tx.evidenceUrl ? [tx.evidenceUrl] : []);
-            let evidenceHtml = '';
-            if (urls.length === 0) {
-                evidenceHtml = '<span style="color: #94a3b8;">-</span>';
-            } else if (urls.length === 1) {
-                evidenceHtml = `<a href="${urls[0]}" target="_blank" style="color: #3b82f6; text-decoration: underline;">รูปที่ 1</a>`;
-            } else {
-                evidenceHtml = urls.map((url, idx) => `<a href="${url}" target="_blank" style="color: #3b82f6; text-decoration: underline; display: block; margin-bottom: 2px;">รูปที่ ${idx + 1}</a>`).join('');
-            }
-
-            let displayNetTotalText = tx.financeDisplay ? tx.financeDisplay : formatNumber(tx.netTotal);
-
-            if (tx.packagePlan) {
-                if (tx.actionType === 'ชำระงวดผ่อนด้วยไฟแนนซ์') {
-                    const FINANCE_TOTALS = {
-                        'Package 1': 699, 'Package 2': 899, 'Package 3': 1099, 'Package 4': 1299, 'Package 5': 1499,
-                        'Package 6': 1699, 'Package 7': 1899, 'Package 8': 2099, 'Package 9': 2299, 'Package 10': 2499
-                    };
-                    if (FINANCE_TOTALS[tx.packagePlan]) {
-                        displayNetTotalText = formatNumber(FINANCE_TOTALS[tx.packagePlan]);
+                if (isNearBottom) {
+                    if (currentFinanceIndex < currentFinanceRecords.length) {
+                        appendFinanceChunk();
                     }
+                }
+            };
+            if (financeMain) financeMain.addEventListener('scroll', handleFinanceScroll);
+            window.addEventListener('scroll', handleFinanceScroll);
+        }
 
-                    if (!tx.financeReceived) {
-                        displayNetTotalText += ` ฿<br><span style="color: #dc2626; font-size: 0.85em;">รอการชำระเงินจากไฟแนนซ์</span><br><button class="btn btn-sm" style="margin-top: 5px; padding: 2px 8px; font-size: 12px; background-color: #3b82f6; color: white; border-radius: 4px;" onclick="receiveFinanceAmount('${tx._id}')">รับยอด</button>`;
-                    } else if (tx.financeReceivedDate) {
-                        const receivedDateText = new Date(tx.financeReceivedDate).toLocaleDateString('th-TH');
-                        displayNetTotalText += ` ฿<br><span style="color: #0d9488; font-size: 0.85em;">รับยอดเมื่อ: ${receivedDateText}</span>`;
-                    } else {
-                        displayNetTotalText += ` ฿<br><span style="color: #0d9488; font-size: 0.85em;">รับยอดแล้ว</span>`;
-                    }
-                } else if (tx.actionType !== 'คืนเงินชดเชยสละสิทธิ์เครื่อง' && tx.actionType.startsWith('ชำระ')) {
-                    // สำหรับรายการ "ชำระค่างวดที่" ให้แสดงยอดที่รับจริง (เงินสด + โอน - ทอน)
-                    if (tx.actionType.includes('ชำระค่างวดที่') || tx.actionType === 'ชำระปิดยอด/จ่ายเต็ม') {
-                        const actualReceived = (tx.cashReceived || 0) + (tx.transferAmount || 0) - (tx.changeAmount || 0);
-                        displayNetTotalText = formatNumber(actualReceived);
-                    } else {
-                        const NORMAL_TOTALS = {
+        // Initialize variables for paging
+        currentFinanceRecords = transactions;
+        currentFinanceIndex = 0;
+
+        // Render first chunk
+        appendFinanceChunk();
+
+        // Inner function to append finance chunk
+        function appendFinanceChunk() {
+            const nextBatch = currentFinanceRecords.slice(currentFinanceIndex, currentFinanceIndex + financeItemsPerPage);
+            if (nextBatch.length === 0) return;
+
+            const chunkHtml = nextBatch.map((tx, idx) => {
+                const index = currentFinanceIndex + idx;
+                const dateText = new Date(tx.transactionDate).toLocaleString('th-TH');
+
+                const netColor = tx.netTotal > 0 ? 'color: #0d9488; font-weight: bold;' : '';
+                const changeColor = tx.changeAmount > 0 ? 'color: #ef4444;' : '';
+                const changeDisplay = tx.changeAmount > 0 ? '-' + formatNumber(tx.changeAmount) : '0';
+
+                const urls = tx.evidenceUrls && tx.evidenceUrls.length > 0 ? tx.evidenceUrls : (tx.evidenceUrl ? [tx.evidenceUrl] : []);
+                let evidenceHtml = '';
+                if (urls.length === 0) {
+                    evidenceHtml = '<span style="color: #94a3b8;">-</span>';
+                } else if (urls.length === 1) {
+                    evidenceHtml = `<a href="${urls[0]}" target="_blank" style="color: #3b82f6; text-decoration: underline;">รูปที่ 1</a>`;
+                } else {
+                    evidenceHtml = urls.map((url, idx2) => `<a href="${url}" target="_blank" style="color: #3b82f6; text-decoration: underline; display: block; margin-bottom: 2px;">รูปที่ ${idx2 + 1}</a>`).join('');
+                }
+
+                let displayNetTotalText = tx.financeDisplay ? tx.financeDisplay : formatNumber(tx.netTotal);
+
+                if (tx.packagePlan) {
+                    if (tx.actionType === 'ชำระงวดผ่อนด้วยไฟแนนซ์') {
+                        const FINANCE_TOTALS = {
                             'Package 1': 699, 'Package 2': 899, 'Package 3': 1099, 'Package 4': 1299, 'Package 5': 1499,
                             'Package 6': 1699, 'Package 7': 1899, 'Package 8': 2099, 'Package 9': 2299, 'Package 10': 2499
                         };
-                        if (NORMAL_TOTALS[tx.packagePlan]) {
-                            displayNetTotalText = formatNumber(NORMAL_TOTALS[tx.packagePlan]);
+                        if (FINANCE_TOTALS[tx.packagePlan]) {
+                            displayNetTotalText = formatNumber(FINANCE_TOTALS[tx.packagePlan]);
+                        }
+
+                        if (!tx.financeReceived) {
+                            displayNetTotalText += ` ฿<br><span style="color: #dc2626; font-size: 0.85em;">รอการชำระเงินจากไฟแนนซ์</span><br><button class="btn btn-sm" style="margin-top: 5px; padding: 2px 8px; font-size: 12px; background-color: #3b82f6; color: white; border-radius: 4px;" onclick="receiveFinanceAmount('${tx._id}')">รับยอด</button>`;
+                        } else if (tx.financeReceivedDate) {
+                            const receivedDateText = new Date(tx.financeReceivedDate).toLocaleDateString('th-TH');
+                            displayNetTotalText += ` ฿<br><span style="color: #0d9488; font-size: 0.85em;">รับยอดเมื่อ: ${receivedDateText}</span>`;
+                        } else {
+                            displayNetTotalText += ` ฿<br><span style="color: #0d9488; font-size: 0.85em;">รับยอดแล้ว</span>`;
+                        }
+                    } else if (tx.actionType !== 'คืนเงินชดเชยสละสิทธิ์เครื่อง' && tx.actionType.startsWith('ชำระ')) {
+                        if (tx.actionType.includes('ชำระค่างวดที่') || tx.actionType === 'ชำระปิดยอด/จ่ายเต็ม') {
+                            const actualReceived = (tx.cashReceived || 0) + (tx.transferAmount || 0) - (tx.changeAmount || 0);
+                            displayNetTotalText = formatNumber(actualReceived);
+                        } else {
+                            const NORMAL_TOTALS = {
+                                'Package 1': 699, 'Package 2': 899, 'Package 3': 1099, 'Package 4': 1299, 'Package 5': 1499,
+                                'Package 6': 1699, 'Package 7': 1899, 'Package 8': 2099, 'Package 9': 2299, 'Package 10': 2499
+                            };
+                            if (NORMAL_TOTALS[tx.packagePlan]) {
+                                displayNetTotalText = formatNumber(NORMAL_TOTALS[tx.packagePlan]);
+                            }
                         }
                     }
                 }
+
+                return `
+                    <tr>
+                        <td>${index + 1}</td>
+                        <td>${dateText}</td>
+                        <td><span class="status-badge" style="background: #e0e7ff; color: #4338ca;">${tx.actionType}</span></td>
+                        <td>${tx.policyNumber}</td>
+                        <td>${tx.customerName || '-'}</td>
+                        <td>${tx.financeProvider || 'Easy.Care'}</td>
+                        <td>${tx.branch || '-'}</td>
+                        <td>${tx.paymentMethod}</td>
+                        <td>${formatNumber(tx.cashReceived)}</td>
+                        <td>${formatNumber(tx.transferAmount)}</td>
+                        <td style="${changeColor}">${changeDisplay}</td>
+                        <td style="${netColor}">${displayNetTotalText}</td>
+                        <td>${evidenceHtml}</td>
+                        <td>${tx.recordedBy || 'System'}</td>
+                    </tr>
+                `;
+            }).join('');
+
+            if (tbody) {
+                tbody.insertAdjacentHTML('beforeend', chunkHtml);
             }
+            currentFinanceIndex += nextBatch.length;
 
-            tr.innerHTML = `
-                <td>${index + 1}</td>
-                <td>${dateText}</td>
-                <td><span class="status-badge" style="background: #e0e7ff; color: #4338ca;">${tx.actionType}</span></td>
-                <td>${tx.policyNumber}</td>
-                <td>${tx.customerName || '-'}</td>
-                <td>${tx.financeProvider || 'Easy.Care'}</td>
-                <td>${tx.branch || '-'}</td>
-                <td>${tx.paymentMethod}</td>
-                <td>${formatNumber(tx.cashReceived)}</td>
-                <td>${formatNumber(tx.transferAmount)}</td>
-                <td style="${changeColor}">${changeDisplay}</td>
-                <td style="${netColor}">${displayNetTotalText}</td>
-                <td>${evidenceHtml}</td>
-                <td>${tx.recordedBy || 'System'}</td>
-            `;
-            tbody.appendChild(tr);
-        });
-
-        // Update column visibility immediately after rendering rows
-        updateFinanceTableColumnVisibility();
+            // Update column visibility immediately after rendering rows
+            updateFinanceTableColumnVisibility();
+        }
     }
+
 
     const financeColumnsMap = {
         'transactionDate': 0,
@@ -3744,6 +3798,10 @@ document.addEventListener('DOMContentLoaded', () => {
         renderDashboard(filtered);
     }
 
+    let currentDashboardRecords = [];
+    let currentIndex = 0;
+    const itemsPerPage = 15;
+
     function renderDashboard(records) {
         const body = document.getElementById('recordsBody');
         const totalElem = document.getElementById('totalRecords');
@@ -3786,138 +3844,197 @@ document.addEventListener('DOMContentLoaded', () => {
         if (rejectedElem) rejectedElem.textContent = rejectedCount.toLocaleString();
 
         if (totalCount === 0) {
-            empty.style.display = 'block';
-            body.innerHTML = '';
+            if (empty) empty.style.display = 'block';
+            if (body) body.innerHTML = '';
             return;
         }
 
-        empty.style.display = 'none';
-        body.innerHTML = records.map(r => {
-            const isExpired = new Date(r.warrantyDates.end) < new Date();
-            let paymentStatus = '';
-            if (r.payment.method === 'Full Payment' || r.payment.method === 'finance') {
-                const statusText = r.payment.status === 'Paid' ? 'ชำระแล้ว' : 'ค้างชำระ';
-                const statusClass = r.payment.status === 'Paid' ? 'status-paid' : 'status-pending';
-                paymentStatus = `<span class="status-badge ${statusClass}">${statusText}</span>`;
-            } else {
-                const paidCount = r.payment.schedule.filter(s => s.status === 'Paid').length;
-                const totalCount = 3;
-                const statusClass = paidCount === totalCount ? 'status-paid' : 'status-pending';
-                paymentStatus = `<span class="status-badge ${statusClass}">ชำระแล้ว ${paidCount}/${totalCount}</span>`;
-            }
+        if (empty) empty.style.display = 'none';
+        if (body) body.innerHTML = '';
 
-            // Calculation for Remaining Time: X Days, Y Hours
-            const now = new Date();
-            const end = new Date(r.warrantyDates.end);
-            const diffMs = end - now;
-            let timeRemainingText = '';
-            if (diffMs > 0) {
-                const totalHours = Math.floor(diffMs / (1000 * 60 * 60));
-                const days = Math.floor(totalHours / 24);
-                const hours = totalHours % 24;
-                timeRemainingText = `${days} วัน, ${hours} ชม.`;
-            } else {
-                timeRemainingText = 'หมดอายุ';
-            }
+        // Bind event delegation listener once on the recordsBody container
+        if (body && !body.dataset.listenerBound) {
+            body.dataset.listenerBound = 'true';
+            body.addEventListener('click', (e) => {
+                const editBtn = e.target.closest('.edit-btn');
+                if (editBtn) {
+                    editWarranty(editBtn.dataset.id);
+                    return;
+                }
 
-            let statusBadge = '';
-            if (r.approvalStatus === 'pending') {
-                statusBadge = `<span class="status-badge status-pending">รออนุมัติ</span>`;
-            } else if (r.approvalStatus === 'needs_correction') {
-                statusBadge = `<span class="status-badge status-pending">รอแก้ไข</span>`;
-            } else if (r.approvalStatus === 'rejected') {
-                statusBadge = `<span class="status-badge status-expired">ไม่อนุมัติ</span>`;
-            } else if (r.claimStatus === 'pending') {
-                statusBadge = `<span class="status-badge" style="background: linear-gradient(135deg, #ef4444, #dc2626); color: white; box-shadow: 0 2px 8px rgba(239, 68, 68, 0.4); font-weight: 700;">รอเคลม</span>`;
-            } else {
-                const isExpired = new Date(r.warrantyDates.end) < new Date();
-                statusBadge = `<span class="status-badge ${isExpired ? 'status-expired' : 'status-active'}">${isExpired ? 'หมดอายุ' : 'ปกติ'}</span>`;
-            }
-
-            return `
-                <tr>
-                    <td data-label="วันที่ทำรายการ">${r.createdAt ? new Date(r.createdAt).toLocaleString('th-TH') : '-'}</td>
-                    <td data-label="เลขกรมธรรม์" style="font-weight: 600; color: var(--primary);">${r.policyNumber || '-'}</td>
-                    <td data-label="รหัสสมาชิก">${r.memberId || '-'}</td>
-                    <td data-label="ชื่อลูกค้า">${r.customer.firstName} ${r.customer.lastName}</td>
-                    <td data-label="เบอร์โทรศัพท์">${r.customer.phone}</td>
-                    <td data-label="รุ่นอุปกรณ์">${r.device.model}</td>
-                    <td data-label="แพ็กเกจ"><span style="color: var(--primary); font-weight: 500;">${r.package.plan}</span></td>
-                    <td data-label="ประกันคงเหลือ">${timeRemainingText}</td>
-                    <td data-label="วงเงินคงเหลือ">
-                        ${(() => {
-                    const cov = getCoverageNumbers(r);
-                    const balance = cov.remainingLimit;
-                    const color = balance < 0 ? '#ef4444' : '#10b981';
-                    return `
-                            <div style="display: flex; flex-direction: column; align-items: flex-start;">
-                                <span style="color: ${color}; font-weight: 600;">${balance.toLocaleString()} บาท</span>
-                                <span style="font-size: 0.75rem; color: #64748b;">(วงเงินสูงสุด ${cov.maxLimit.toLocaleString()})</span>
-                            </div>
-                        `;
-                })()}
-                    </td>
-                    <td data-label="ร้านค้า">${r.shopName || '-'}</td>
-                    <td data-label="ผู้บันทึก">${r.staffName}</td>
-                    <td data-label="สถานะ">${statusBadge}</td>
-                    <td data-label="การชำระเงิน">${paymentStatus}</td>
-                    <td data-label="จัดการ">
-                    <div style="display: flex; gap: 0.5rem; justify-content: center;">
-                        <button class="edit-btn" data-id="${r._id}" title="แก้ไขข้อมูล">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
-                        </button>
-                        </button>
-                        ${(() => {
-                    if (r.approvalStatus === 'pending') {
-                        return `
-                                <button class="print-btn" style="cursor: not-allowed; opacity: 0.8; pointer-events: none;" title="รออนุมัติ...">
-                                    <div style="width: 18px; height: 18px; border: 2px solid #e2e8f0; border-top-color: #f59e0b; border-radius: 50%; animation: spinnerRotate 1.5s linear infinite;"></div>
-                                </button>`;
-                    } else if (r.approvalStatus === 'needs_correction') {
-                        return `
-                                <button class="print-btn" style="cursor: not-allowed; opacity: 0.5; color: #f59e0b; pointer-events: none;" title="รอแก้ไขข้อมูล">
-                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
-                                </button>`;
-                    } else if (r.approvalStatus === 'rejected') {
-                        return `
-                                <button class="print-btn" style="cursor: not-allowed; opacity: 0.5; color: #ef4444; pointer-events: none;" title="ไม่อนุมัติ">
-                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>
-                                </button>`;
-                    } else {
-                        return `
-                                <button class="print-btn" data-id="${r._id}" title="พิมพ์เอกสาร">
-                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
-                                </button>`;
+                const printBtn = e.target.closest('.print-btn');
+                if (printBtn) {
+                    if (printBtn.style.pointerEvents !== 'none') {
+                        window.open(`document.html?id=${printBtn.dataset.id}`, '_blank');
                     }
-                })()}
-                        ${(currentUser && currentUser.role === 'admin') ? `
-                        <button class="delete-btn" data-id="${r._id}" title="ลบข้อมูล" style="color: #ef4444;">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
-                        </button>
-                        ` : ''}
-                    </div>
-                </td>
-            </tr>
-            `;
-        }).join('');
+                    return;
+                }
 
-        // Add listeners to edit buttons
-        document.querySelectorAll('.edit-btn').forEach(btn => {
-            btn.addEventListener('click', () => editWarranty(btn.dataset.id));
-        });
-
-        // Add listeners to print buttons (Contract Document)
-        document.querySelectorAll('.print-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                window.open(`document.html?id=${btn.dataset.id}`, '_blank');
+                const deleteBtn = e.target.closest('.delete-btn');
+                if (deleteBtn) {
+                    deleteWarranty(deleteBtn.dataset.id);
+                    return;
+                }
             });
-        });
+        }
 
-        // Add listeners to delete buttons
-        document.querySelectorAll('.delete-btn').forEach(btn => {
-            btn.addEventListener('click', () => deleteWarranty(btn.dataset.id));
-        });
+        // Bind scroll event listener once on dashMain and window with robust detection
+        if (!window.dashScrollEventBound) {
+            window.dashScrollEventBound = true;
+            const dashMain = document.getElementById('dashMain');
+            const handleScroll = () => {
+                const threshold = 150;
+                let isNearBottom = false;
+
+                // Check if dashMain is scrollable and scrolling
+                if (dashMain && dashMain.scrollHeight > dashMain.clientHeight + 10) {
+                    isNearBottom = (dashMain.scrollTop + dashMain.clientHeight >= dashMain.scrollHeight - threshold);
+                } else {
+                    // Check if window is scrolling
+                    const docHeight = Math.max(
+                        document.body.scrollHeight,
+                        document.documentElement.scrollHeight,
+                        document.body.offsetHeight,
+                        document.documentElement.offsetHeight
+                    );
+                    const scrollY = window.scrollY || window.pageYOffset || document.documentElement.scrollTop;
+                    isNearBottom = (window.innerHeight + scrollY >= docHeight - threshold);
+                }
+
+                if (isNearBottom) {
+                    if (currentIndex < currentDashboardRecords.length) {
+                        appendRecordsChunk();
+                    }
+                }
+            };
+            if (dashMain) dashMain.addEventListener('scroll', handleScroll);
+            window.addEventListener('scroll', handleScroll);
+        }
+
+        // Initialize variables for paging
+        currentDashboardRecords = records;
+        currentIndex = 0;
+
+        // Render first chunk of records
+        appendRecordsChunk();
+
+        // Inner function to append records chunk
+        function appendRecordsChunk() {
+            const nextBatch = currentDashboardRecords.slice(currentIndex, currentIndex + itemsPerPage);
+            if (nextBatch.length === 0) return;
+
+            const chunkHtml = nextBatch.map(r => {
+                const isExpired = new Date(r.warrantyDates.end) < new Date();
+                let paymentStatus = '';
+                if (r.payment.method === 'Full Payment' || r.payment.method === 'finance') {
+                    const statusText = r.payment.status === 'Paid' ? 'ชำระแล้ว' : 'ค้างชำระ';
+                    const statusClass = r.payment.status === 'Paid' ? 'status-paid' : 'status-pending';
+                    paymentStatus = `<span class="status-badge ${statusClass}">${statusText}</span>`;
+                } else {
+                    const paidCount = r.payment.schedule.filter(s => s.status === 'Paid').length;
+                    const totalCount = 3;
+                    const statusClass = paidCount === totalCount ? 'status-paid' : 'status-pending';
+                    paymentStatus = `<span class="status-badge ${statusClass}">ชำระแล้ว ${paidCount}/${totalCount}</span>`;
+                }
+
+                const now = new Date();
+                const end = new Date(r.warrantyDates.end);
+                const diffMs = end - now;
+                let timeRemainingText = '';
+                if (diffMs > 0) {
+                    const totalHours = Math.floor(diffMs / (1000 * 60 * 60));
+                    const days = Math.floor(totalHours / 24);
+                    const hours = totalHours % 24;
+                    timeRemainingText = `${days} วัน, ${hours} ชม.`;
+                } else {
+                    timeRemainingText = 'หมดอายุ';
+                }
+
+                let statusBadge = '';
+                if (r.approvalStatus === 'pending') {
+                    statusBadge = `<span class="status-badge status-pending">รออนุมัติ</span>`;
+                } else if (r.approvalStatus === 'needs_correction') {
+                    statusBadge = `<span class="status-badge status-pending">รอแก้ไข</span>`;
+                } else if (r.approvalStatus === 'rejected') {
+                    statusBadge = `<span class="status-badge status-expired">ไม่อนุมัติ</span>`;
+                } else if (r.claimStatus === 'pending') {
+                    statusBadge = `<span class="status-badge" style="background: linear-gradient(135deg, #ef4444, #dc2626); color: white; box-shadow: 0 2px 8px rgba(239, 68, 68, 0.4); font-weight: 700;">รอเคลม</span>`;
+                } else {
+                    const isExpired = new Date(r.warrantyDates.end) < new Date();
+                    statusBadge = `<span class="status-badge ${isExpired ? 'status-expired' : 'status-active'}">${isExpired ? 'หมดอายุ' : 'ปกติ'}</span>`;
+                }
+
+                return `
+                    <tr>
+                        <td data-label="วันที่ทำรายการ">${r.createdAt ? new Date(r.createdAt).toLocaleString('th-TH') : '-'}</td>
+                        <td data-label="เลขกรมธรรม์" style="font-weight: 600; color: var(--primary);">${r.policyNumber || '-'}</td>
+                        <td data-label="รหัสสมาชิก">${r.memberId || '-'}</td>
+                        <td data-label="ชื่อลูกค้า">${r.customer.firstName} ${r.customer.lastName}</td>
+                        <td data-label="เบอร์โทรศัพท์">${r.customer.phone}</td>
+                        <td data-label="รุ่นอุปกรณ์">${r.device.model}</td>
+                        <td data-label="แพ็กเกจ"><span style="color: var(--primary); font-weight: 500;">${r.package.plan}</span></td>
+                        <td data-label="ประกันคงเหลือ">${timeRemainingText}</td>
+                        <td data-label="วงเงินคงเหลือ">
+                            ${(() => {
+                                const cov = getCoverageNumbers(r);
+                                const balance = cov.remainingLimit;
+                                const color = balance < 0 ? '#ef4444' : '#10b981';
+                                return `
+                                        <div style="display: flex; flex-direction: column; align-items: flex-start;">
+                                            <span style="color: ${color}; font-weight: 600;">${balance.toLocaleString()} บาท</span>
+                                            <span style="font-size: 0.75rem; color: #64748b;">(วงเงินสูงสุด ${cov.maxLimit.toLocaleString()})</span>
+                                        </div>
+                                    `;
+                            })()}
+                        </td>
+                        <td data-label="ร้านค้า">${r.shopName || '-'}</td>
+                        <td data-label="ผู้บันทึก">${r.staffName}</td>
+                        <td data-label="สถานะ">${statusBadge}</td>
+                        <td data-label="การชำระเงิน">${paymentStatus}</td>
+                        <td data-label="จัดการ">
+                        <div style="display: flex; gap: 0.5rem; justify-content: center;">
+                            <button class="edit-btn" data-id="${r._id}" title="แก้ไขข้อมูล">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                            </button>
+                            ${(() => {
+                                if (r.approvalStatus === 'pending') {
+                                    return `
+                                            <button class="print-btn" style="cursor: not-allowed; opacity: 0.8; pointer-events: none;" title="รออนุมัติ...">
+                                                <div style="width: 18px; height: 18px; border: 2px solid #e2e8f0; border-top-color: #f59e0b; border-radius: 50%; animation: spinnerRotate 1.5s linear infinite;"></div>
+                                            </button>`;
+                                } else if (r.approvalStatus === 'needs_correction') {
+                                    return `
+                                            <button class="print-btn" style="cursor: not-allowed; opacity: 0.5; color: #f59e0b; pointer-events: none;" title="รอแก้ไขข้อมูล">
+                                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                                            </button>`;
+                                } else if (r.approvalStatus === 'rejected') {
+                                    return `
+                                            <button class="print-btn" style="cursor: not-allowed; opacity: 0.5; color: #ef4444; pointer-events: none;" title="ไม่อนุมัติ">
+                                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>
+                                            </button>`;
+                                } else {
+                                    return `
+                                            <button class="print-btn" data-id="${r._id}" title="พิมพ์เอกสาร">
+                                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+                                            </button>`;
+                                }
+                            })()}
+                            ${(currentUser && currentUser.role === 'admin') ? `
+                            <button class="delete-btn" data-id="${r._id}" title="ลบข้อมูล" style="color: #ef4444;">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                            </button>
+                            ` : ''}
+                        </div>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+
+            body.insertAdjacentHTML('beforeend', chunkHtml);
+            currentIndex += nextBatch.length;
+        }
     }
+
 
     async function deleteWarranty(id) {
         const confirmed = await showDeleteConfirm('คุณต้องการลบข้อมูลประกันนี้ใช่หรือไม่? การกระทำนี้ไม่สามารถย้อนกลับได้');
@@ -5826,55 +5943,111 @@ document.addEventListener('DOMContentLoaded', () => {
         renderMembers(filtered);
     }
 
+    let currentMembersRecords = [];
+    let currentMembersIndex = 0;
+    const membersItemsPerPage = 15;
+
     function renderMembers(members) {
         const body = document.getElementById('membersBody');
         const empty = document.getElementById('membersEmptyState');
 
         if (members.length === 0) {
-            empty.style.display = 'block';
-            body.innerHTML = '';
+            if (empty) empty.style.display = 'block';
+            if (body) body.innerHTML = '';
             return;
         }
 
-        empty.style.display = 'none';
-        body.innerHTML = members.map(m => `
-            <tr>
-                <td data-label="รหัสสมาชิก" style="font-weight: 600;">${m.memberId || '-'}</td>
-                <td data-label="วันที่สมัคร">${m.createdAt ? new Date(m.createdAt).toLocaleDateString('th-TH') : '-'}</td>
-                <td data-label="ชื่อ-นามสกุล">${m.firstName} ${m.lastName}</td>
-                <td data-label="เบอร์โทรศัพท์">${m.phone}</td>
-                <td data-label="เลขบัตรประชาชน">${m.citizenId || '-'}</td>
-                <td data-label="ที่อยู่ตามบัตร">${m.idCardAddress || '-'}${m.postalCode ? ` (${m.postalCode})` : ''}</td>
-                <td data-label="สถานะ">${m.memberStatus === 'ไม่ปกติ' ? '<span class="status-badge status-expired">ไม่ปกติ</span>' : '<span class="status-badge status-active">ปกติ</span>'}</td>
-                <td data-label="จัดการ">
-                    <div style="display: flex; gap: 0.5rem; justify-content: center;">
-                        <button class="edit-member-btn edit-btn" data-id="${m._id}" title="แก้ไข">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
-                        </button>
-                        <button class="delete-member-btn edit-btn" data-id="${m._id}" title="ลบ" style="color: #ef4444;">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
-                        </button>
-                    </div>
-                </td>
-            </tr>
-        `).join('');
+        if (empty) empty.style.display = 'none';
+        if (body) body.innerHTML = '';
 
-        // Add event listeners for edit buttons
-        body.querySelectorAll('.edit-member-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                const id = btn.getAttribute('data-id');
-                editMember(id);
-            });
-        });
+        // Bind event delegation listener once on membersBody
+        if (body && !body.dataset.listenerBound) {
+            body.dataset.listenerBound = 'true';
+            body.addEventListener('click', (e) => {
+                const editBtn = e.target.closest('.edit-member-btn');
+                if (editBtn) {
+                    editMember(editBtn.dataset.id);
+                    return;
+                }
 
-        // Add event listeners for delete buttons
-        body.querySelectorAll('.delete-member-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                const id = btn.getAttribute('data-id');
-                deleteMember(id);
+                const deleteBtn = e.target.closest('.delete-member-btn');
+                if (deleteBtn) {
+                    deleteMember(deleteBtn.dataset.id);
+                    return;
+                }
             });
-        });
+        }
+
+        // Bind scroll event listener once on membersMain and window
+        if (!window.membersScrollEventBound) {
+            window.membersScrollEventBound = true;
+            const membersMain = document.getElementById('membersMain');
+            const handleMembersScroll = () => {
+                const threshold = 150;
+                let isNearBottom = false;
+
+                if (membersMain && membersMain.scrollHeight > membersMain.clientHeight + 10) {
+                    isNearBottom = (membersMain.scrollTop + membersMain.clientHeight >= membersMain.scrollHeight - threshold);
+                } else {
+                    const docHeight = Math.max(
+                        document.body.scrollHeight,
+                        document.documentElement.scrollHeight,
+                        document.body.offsetHeight,
+                        document.documentElement.offsetHeight
+                    );
+                    const scrollY = window.scrollY || window.pageYOffset || document.documentElement.scrollTop;
+                    isNearBottom = (window.innerHeight + scrollY >= docHeight - threshold);
+                }
+
+                if (isNearBottom) {
+                    if (currentMembersIndex < currentMembersRecords.length) {
+                        appendMembersChunk();
+                    }
+                }
+            };
+            if (membersMain) membersMain.addEventListener('scroll', handleMembersScroll);
+            window.addEventListener('scroll', handleMembersScroll);
+        }
+
+        // Initialize variables for paging
+        currentMembersRecords = members;
+        currentMembersIndex = 0;
+
+        // Render first chunk of members
+        appendMembersChunk();
+
+        // Inner function to append members chunk
+        function appendMembersChunk() {
+            const nextBatch = currentMembersRecords.slice(currentMembersIndex, currentMembersIndex + membersItemsPerPage);
+            if (nextBatch.length === 0) return;
+
+            const chunkHtml = nextBatch.map(m => `
+                <tr>
+                    <td data-label="รหัสสมาชิก" style="font-weight: 600;">${m.memberId || '-'}</td>
+                    <td data-label="วันที่สมัคร">${m.createdAt ? new Date(m.createdAt).toLocaleDateString('th-TH') : '-'}</td>
+                    <td data-label="ชื่อ-นามสกุล">${m.firstName} ${m.lastName}</td>
+                    <td data-label="เบอร์โทรศัพท์">${m.phone}</td>
+                    <td data-label="เลขบัตรประชาชน">${m.citizenId || '-'}</td>
+                    <td data-label="ที่อยู่ตามบัตร">${m.idCardAddress || '-'}${m.postalCode ? ` (${m.postalCode})` : ''}</td>
+                    <td data-label="สถานะ">${m.memberStatus === 'ไม่ปกติ' ? '<span class="status-badge status-expired">ไม่ปกติ</span>' : '<span class="status-badge status-active">ปกติ</span>'}</td>
+                    <td data-label="จัดการ">
+                        <div style="display: flex; gap: 0.5rem; justify-content: center;">
+                            <button class="edit-member-btn edit-btn" data-id="${m._id}" title="แก้ไข">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                            </button>
+                            <button class="delete-member-btn edit-btn" data-id="${m._id}" title="ลบ" style="color: #ef4444;">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
+
+            body.insertAdjacentHTML('beforeend', chunkHtml);
+            currentMembersIndex += nextBatch.length;
+        }
     }
+
 
     async function deleteMember(id) {
         const confirmed = await showDeleteConfirm('คุณต้องการลบสมาชิกนี้ใช่หรือไม่? บัญชีและประวัติจะถูกลบออกถาวร');
@@ -8573,14 +8746,18 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- Fetch Stats Counts (silent) ---
-    async function fetchApprovalCounts() {
+        async function fetchApprovalCounts() {
         try {
+            const qs = buildFilterQueryString('approval');
+            const separator = qs ? '&' : '';
+            const suffix = qs ? `${separator}${qs.substring(1)}` : '';
+
             const [pendingRes, unpaidRes, paidRes, rejectedRes, needsCorrectionRes] = await Promise.all([
-                fetch('/api/warranties/pending?status=pending'),
-                fetch('/api/warranties/pending?status=Approved_Unpaid'),
-                fetch('/api/warranties/pending?status=Approved_Paid'),
-                fetch('/api/warranties/pending?status=rejected'),
-                fetch('/api/warranties/pending?status=needs_correction')
+                fetch(`/api/warranties/pending?status=pending${suffix}`),
+                fetch(`/api/warranties/pending?status=Approved_Unpaid${suffix}`),
+                fetch(`/api/warranties/pending?status=Approved_Paid${suffix}`),
+                fetch(`/api/warranties/pending?status=rejected${suffix}`),
+                fetch(`/api/warranties/pending?status=needs_correction${suffix}`)
             ]);
             const pending = await pendingRes.json();
             const unpaid = await unpaidRes.json();
@@ -8597,6 +8774,7 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error('Error fetching approval counts:', err);
         }
     }
+
 
     // --- Full Fetch (with loader) ---
     async function fetchApprovalWarranties(status) {
@@ -8623,7 +8801,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         approvalIsSilentFetching = true;
         try {
-            const res = await fetch(`/api/warranties/pending?status=${approvalCurrentFilter}`);
+            const qs = buildFilterQueryString('approval');
+            const separator = qs ? '&' : '';
+            const url = `/api/warranties/pending?status=${approvalCurrentFilter}${separator}${qs ? qs.substring(1) : ''}`;
+            const res = await fetch(url);
             const freshData = await res.json();
 
             // Skip DOM update if modal opened while we were fetching
@@ -8652,6 +8833,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- Render Table ---
+    let currentApprovalRecords = [];
+    let currentApprovalIndex = 0;
+    const approvalItemsPerPage = 15;
+
     function renderApprovalTable(records, highlightIds = []) {
         const body = document.getElementById('approvalBody');
         const empty = document.getElementById('approvalEmptyState');
@@ -8665,57 +8850,107 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         if (empty) empty.style.display = 'none';
-        const highlightSet = new Set(highlightIds);
+        if (body) body.innerHTML = '';
 
-        body.innerHTML = records.map(w => {
-            let st = { text: 'รออนุมัติ', class: 'pending' };
-            if (w.approvalStatus === 'approved') {
-                const isExpired = new Date(w.warrantyDates?.end) < new Date();
-                st = isExpired ? { text: 'หมดอายุ', class: 'expired' } : { text: 'ปกติ', class: 'active' };
-            } else if (w.approvalStatus === 'Approved_Unpaid') {
-                st = { text: 'รอชำระเงิน', class: 'warning' };
-            } else if (w.approvalStatus === 'Approved_Paid') {
-                const isExpired = new Date(w.warrantyDates?.end) < new Date();
-                st = isExpired ? { text: 'หมดอายุ', class: 'expired' } : { text: 'สมบูรณ์', class: 'active' };
-            } else if (w.approvalStatus === 'rejected') {
-                st = { text: 'ไม่อนุมัติ', class: 'rejected' };
-            } else if (w.approvalStatus === 'needs_correction') {
-                st = { text: 'รอแก้ไข', class: 'warning' };
-            }
-            const rowClass = highlightSet.has(w._id) ? ' class="new-row-highlight"' : (w.reChecked ? ' style="background-color: #ecfdf5;"' : '');
+        // Bind scroll event listener once on approverDashboardMain and window
+        if (!window.approvalScrollEventBound) {
+            window.approvalScrollEventBound = true;
+            const approvalMain = document.getElementById('approverDashboardMain');
+            const handleApprovalScroll = () => {
+                const threshold = 150;
+                let isNearBottom = false;
 
-            let paymentMethodDisplay = '-';
-            if (w.payment?.method === 'Installment') {
-                paymentMethodDisplay = 'แบ่งจ่าย';
-            } else if (w.payment?.method === 'Full Payment') {
-                paymentMethodDisplay = 'เต็มจำนวน';
-            } else if (w.payment?.method === 'finance') {
-                paymentMethodDisplay = `ผ่อนไฟแนนซ์${w.financeDetails?.provider ? ` (${w.financeDetails.provider})` : ''}`;
-            } else if (w.payment?.method) {
-                paymentMethodDisplay = w.payment.method;
-            }
+                if (approvalMain && approvalMain.scrollHeight > approvalMain.clientHeight + 10) {
+                    isNearBottom = (approvalMain.scrollTop + approvalMain.clientHeight >= approvalMain.scrollHeight - threshold);
+                } else {
+                    const docHeight = Math.max(
+                        document.body.scrollHeight,
+                        document.documentElement.scrollHeight,
+                        document.body.offsetHeight,
+                        document.documentElement.offsetHeight
+                    );
+                    const scrollY = window.scrollY || window.pageYOffset || document.documentElement.scrollTop;
+                    isNearBottom = (window.innerHeight + scrollY >= docHeight - threshold);
+                }
 
-            return `
-                <tr${rowClass}>
-                    <td data-label="เลขกรมธรรม์" style="font-weight: 600;">${w.policyNumber || '-'}</td>
-                    <td data-label="ชื่อลูกค้า">${w.customer?.firstName || ''} ${w.customer?.lastName || ''}</td>
-                    <td data-label="รุ่นอุปกรณ์">${w.device?.model || '-'}</td>
-                    <td data-label="แพ็กเกจ">${w.package?.plan || '-'} (${w.package?.price?.toLocaleString() || 0} บาท)</td>
-                    <td data-label="วิธีชำระเงิน">${paymentMethodDisplay}</td>
-                    <td data-label="ร้านค้า">${w.shopName || '-'}</td>
-                    <td data-label="สถานะ"><span class="status-badge ${st.class}">${st.text}</span></td>
-                    <td data-label="ตรวจสอบซ้ำ" style="text-align: center; font-size: 1.2rem;">
-                        ${(w.approvalStatus === 'approved' || w.approvalStatus === 'Approved_Paid' || w.approvalStatus === 'Approved_Unpaid') ? (w.reChecked ? '✅' : '<span style="color: #cbd5e1;">⬜</span>') : '-'}
-                    </td>
-                    <td data-label="ดำเนินการ">
-                        <div class="approval-actions">
-                            <button class="btn-view" onclick="viewApprovalDetails('${w._id}')">👁 ดูรายละเอียด</button>
-                        </div>
-                    </td>
-                </tr>
-            `;
-        }).join('');
+                if (isNearBottom) {
+                    if (currentApprovalIndex < currentApprovalRecords.length) {
+                        appendApprovalChunk(highlightIds);
+                    }
+                }
+            };
+            if (approvalMain) approvalMain.addEventListener('scroll', handleApprovalScroll);
+            window.addEventListener('scroll', handleApprovalScroll);
+        }
+
+        // Initialize variables for paging
+        currentApprovalRecords = records;
+        currentApprovalIndex = 0;
+
+        // Render first chunk of approval records
+        appendApprovalChunk(highlightIds);
+
+        // Inner function to append approval chunk
+        function appendApprovalChunk(hIds = []) {
+            const nextBatch = currentApprovalRecords.slice(currentApprovalIndex, currentApprovalIndex + approvalItemsPerPage);
+            if (nextBatch.length === 0) return;
+
+            const highlightSet = new Set(hIds);
+
+            const chunkHtml = nextBatch.map(w => {
+                let st = { text: 'รออนุมัติ', class: 'pending' };
+                if (w.approvalStatus === 'approved') {
+                    const isExpired = new Date(w.warrantyDates?.end) < new Date();
+                    st = isExpired ? { text: 'หมดอายุ', class: 'expired' } : { text: 'ปกติ', class: 'active' };
+                } else if (w.approvalStatus === 'Approved_Unpaid') {
+                    st = { text: 'รอชำระเงิน', class: 'warning' };
+                } else if (w.approvalStatus === 'Approved_Paid') {
+                    const isExpired = new Date(w.warrantyDates?.end) < new Date();
+                    st = isExpired ? { text: 'หมดอายุ', class: 'expired' } : { text: 'สมบูรณ์', class: 'active' };
+                } else if (w.approvalStatus === 'rejected') {
+                    st = { text: 'ไม่อนุมัติ', class: 'rejected' };
+                } else if (w.approvalStatus === 'needs_correction') {
+                    st = { text: 'รอแก้ไข', class: 'warning' };
+                }
+                const rowClass = highlightSet.has(w._id) ? ' class="new-row-highlight"' : (w.reChecked ? ' style="background-color: #ecfdf5;"' : '');
+
+                let paymentMethodDisplay = '-';
+                if (w.payment?.method === 'Installment') {
+                    paymentMethodDisplay = 'แบ่งจ่าย';
+                } else if (w.payment?.method === 'Full Payment') {
+                    paymentMethodDisplay = 'เต็มจำนวน';
+                } else if (w.payment?.method === 'finance') {
+                    paymentMethodDisplay = `ผ่อนไฟแนนซ์${w.financeDetails?.provider ? ` (${w.financeDetails.provider})` : ''}`;
+                } else if (w.payment?.method) {
+                    paymentMethodDisplay = w.payment.method;
+                }
+
+                return `
+                    <tr${rowClass}>
+                        <td data-label="เลขกรมธรรม์" style="font-weight: 600;">${w.policyNumber || '-'}</td>
+                        <td data-label="ชื่อลูกค้า">${w.customer?.firstName || ''} ${w.customer?.lastName || ''}</td>
+                        <td data-label="รุ่นอุปกรณ์">${w.device?.model || '-'}</td>
+                        <td data-label="แพ็กเกจ">${w.package?.plan || '-'} (${w.package?.price?.toLocaleString() || 0} บาท)</td>
+                        <td data-label="วิธีชำระเงิน">${paymentMethodDisplay}</td>
+                        <td data-label="ร้านค้า">${w.shopName || '-'}</td>
+                        <td data-label="สถานะ"><span class="status-badge ${st.class}">${st.text}</span></td>
+                        <td data-label="ตรวจสอบซ้ำ" style="text-align: center; font-size: 1.2rem;">
+                            ${(w.approvalStatus === 'approved' || w.approvalStatus === 'Approved_Paid' || w.approvalStatus === 'Approved_Unpaid') ? (w.reChecked ? '✅' : '<span style="color: #cbd5e1;">⬜</span>') : '-'}
+                        </td>
+                        <td data-label="ดำเนินการ">
+                            <div class="approval-actions">
+                                <button class="btn-view" onclick="viewApprovalDetails('${w._id}')">👁 ดูรายละเอียด</button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+
+            body.insertAdjacentHTML('beforeend', chunkHtml);
+            currentApprovalIndex += nextBatch.length;
+        }
     }
+
 
     function escapeHtml(s) {
         return String(s).replace(/</g, '&lt;').replace(/>/g, '&gt;');

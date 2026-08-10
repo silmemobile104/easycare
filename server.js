@@ -5906,9 +5906,6 @@ const startServer = () => {
                 { actionType: 'ชำระปิดยอด/จ่ายเต็ม' },
                 [{ $set: { fullRevenue: '$netTotal' } }]
             );
-            if (res.modifiedCount > 0) {
-                console.log(`Migrated ${res.modifiedCount} overdue payment transactions to use correct fullRevenue.`);
-            }
         } catch (err) {
             console.error('Failed to run startup migration for FinanceTransaction:', err);
         }
