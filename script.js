@@ -9230,7 +9230,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             <span>${w.device?.officialWarrantyEnd ? new Date(w.device.officialWarrantyEnd).toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' }) : '-'}</span>
                         </div>
                         <div class="approval-detail-item">
-                            <label>มูลค่าเครื่อง</label>
+                            <label>วงเงินคุมคร้อง</label>
                             <span>${w.device?.deviceValue?.toLocaleString() || 0} บาท</span>
                         </div>
                         <div class="approval-detail-item">
