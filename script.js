@@ -4505,9 +4505,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function updateModelOptions(selectedModel = '') {
+        function updateModelOptions(selectedModel = '') {
         const productTypeEl = document.getElementById('productType');
         const modelEl = document.getElementById('model');
+        const modelListEl = document.getElementById('modelList');
         if (!productTypeEl || !modelEl) return;
 
         const type = productTypeEl.value;
@@ -4542,18 +4543,22 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         const list = MODELS[type] || [];
-        modelEl.innerHTML = '<option value="" disabled selected>เลือก</option>';
-        list.forEach(m => {
-            const opt = document.createElement('option');
-            opt.value = m;
-            opt.textContent = m;
-            modelEl.appendChild(opt);
-        });
+        if (modelListEl) {
+            modelListEl.innerHTML = '';
+            list.forEach(m => {
+                const opt = document.createElement('option');
+                opt.value = m;
+                modelListEl.appendChild(opt);
+            });
+        }
 
         if (list.includes(currentVal)) {
             modelEl.value = currentVal;
+        } else if (!selectedModel) {
+            modelEl.value = '';
         }
     }
+
 
     function updateAge() {
         const day = parseInt(document.getElementById('dobDay').value);
