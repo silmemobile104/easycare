@@ -587,9 +587,11 @@
                                         <li id="finance-only-coverage" style="display: none;">3. สิทธ์ความคุ้มครองและการเคลม
                                             จะเริ่มมีผลหลังจากลูกค้า
                                             ชำระค่างวดในงวดแรกเรียบร้อยแล้วเท่านั้น</li>
-                                        <li id="second-hand-coverage" style="display: none;">4. กรณีเป็นเครื่องมือสอง จะต้องเป็นเครื่องที่ไม่เคยผ่านการแกะมาก่อน
+                                        <li class="second-hand-coverage" style="display: none;">4. กรณีเป็นเครื่องมือสอง จะต้องเป็นเครื่องที่ไม่เคยผ่านการแกะมาก่อน
                                             หากตรวจสอบแล้วทราบหลังจากวันที่ทำสัญญาไปแล้วว่าเครื่องเคยถูกแกะจะถือว่าสัญญา
                                             เป็นโมฆะทันที</li>
+                                        <li class="second-hand-coverage" style="display: none;">5. กรณีเป็นเครื่องมือสอง เครื่องนอก ศูนย์Apple ในไทยจะไม่รับซ่อม เนื่องจากเป็นเครื่องนอก
+                                            หากเครื่องเกิดความเสียหายและลูกค้าต้องการเคลม Easy.Care ทาง Easy.Care จะดำเนินการส่งเครื่องไปซ่อมที่ ร้านซ่อมมือถือในเครือEasy.Careเท่านั้น(ไม่ส่งศูนย์ Apple)</li>
                                     </ul>
                                 </div>
                                 <div class="coverage-section" style="margin-top: 20px;">
@@ -721,13 +723,21 @@
                 document.getElementById('doc_serial').textContent = data.device.serial;
                 document.getElementById('doc_imei').textContent = data.device.imei || '-';
                 let conditionText = '-';
-                const secondHandCoverage = document.getElementById('second-hand-coverage');
+                // ดึงข้อมูลทุก <li> ที่ใช้ class="second-hand-coverage"
+                const secondHandCoverages = document.querySelectorAll('.second-hand-coverage');
+                
                 if (data.device.deviceCondition === 'Second-hand') {
                     conditionText = 'มือ 2';
-                    if (secondHandCoverage) secondHandCoverage.style.display = 'list-item';
+                    // สั่งเปิดแสดงผลทุกข้อ
+                    secondHandCoverages.forEach(item => {
+                        item.style.display = 'list-item';
+                    });
                 } else if (data.device.deviceCondition === 'New') {
                     conditionText = 'มือ 1';
-                    if (secondHandCoverage) secondHandCoverage.style.display = 'none';
+                    // สั่งซ่อนทุกข้อ
+                    secondHandCoverages.forEach(item => {
+                        item.style.display = 'none';
+                    });
                 }
                 document.getElementById('doc_deviceCondition').textContent = conditionText;
                 const fullPrice = data.devicePrice || data.device.deviceValue || 0;

@@ -4,6 +4,20 @@ document.addEventListener('DOMContentLoaded', () => {
         applyMenuPermissions();
     }
 
+    // Refresh page when clicking the sidebar logo or mobile logo text
+    const sidebarLogo = document.querySelector('.sidebar .logo');
+    if (sidebarLogo) {
+        sidebarLogo.addEventListener('click', () => {
+            window.location.reload();
+        });
+    }
+    const mobileLogo = document.querySelector('.mobile-logo-text');
+    if (mobileLogo) {
+        mobileLogo.addEventListener('click', () => {
+            window.location.reload();
+        });
+    }
+
     // ═══════════════════════════════════════════════════════════════════
     // SWEETALERT2 HELPER FUNCTIONS - SmileCare Theme
     // ═══════════════════════════════════════════════════════════════════
@@ -488,7 +502,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
         } else if (views[viewName]) {
-            views[viewName].style.display = 'block';
+            views[viewName].style.display = viewName === 'login' ? 'flex' : 'block';
             if (viewName === 'registration') initRegistrationForm();
         }
 
@@ -3115,30 +3129,31 @@ document.addEventListener('DOMContentLoaded', () => {
         return n.toLocaleString('en-US');
     }
 
-    async function populateExecutiveStaffDropdown() {
-        const staffSelect = document.getElementById('execStaff');
-        if (!staffSelect) return;
+    async function populateExecutiveShopsDropdown() {
+        const shopSelect = document.getElementById('execShop');
+        if (!shopSelect) return;
         if (!currentUser || currentUser.role !== 'admin') return;
+        if (shopSelect.options.length > 1) return;
 
         try {
-            const res = await fetch('/api/staff', {
+            const res = await fetch('/api/shops', {
                 headers: { 'x-user-role': currentUser.role }
             });
-            const staffList = await res.json();
+            const shopList = await res.json();
 
-            const previous = staffSelect.value;
-            staffSelect.innerHTML = '<option value="">ทั้งหมด</option>';
-            (Array.isArray(staffList) ? staffList : []).forEach(s => {
-                const name = (s && s.staffName) ? String(s.staffName) : '';
+            const previous = shopSelect.value;
+            shopSelect.innerHTML = '<option value="">ทั้งหมด</option>';
+            (Array.isArray(shopList) ? shopList : []).forEach(s => {
+                const name = (s && s.shopName) ? String(s.shopName) : '';
                 if (!name) return;
                 const opt = document.createElement('option');
                 opt.value = name;
                 opt.textContent = name;
-                staffSelect.appendChild(opt);
+                shopSelect.appendChild(opt);
             });
-            if (previous) staffSelect.value = previous;
+            if (previous) shopSelect.value = previous;
         } catch (err) {
-            console.error('Populate executive staff dropdown error:', err);
+            console.error('Populate executive shops dropdown error:', err);
         }
     }
 
@@ -3151,16 +3166,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const startDate = (document.getElementById('execStartDate') || {}).value || '';
         const endDate = (document.getElementById('execEndDate') || {}).value || '';
-        const staff = (document.getElementById('execStaff') || {}).value || '';
+        const shop = (document.getElementById('execShop') || {}).value || '';
 
         const params = new URLSearchParams();
         if (startDate) params.set('startDate', startDate);
         if (endDate) params.set('endDate', endDate);
-        if (staff) params.set('staff', staff);
+        if (shop) params.set('shop', shop);
 
         showLoader('กำลังวิเคราะห์ข้อมูล...');
         try {
-            await populateExecutiveStaffDropdown();
+            await populateExecutiveShopsDropdown();
 
             const res = await fetch(`/api/dashboard/stats?${params.toString()}`, {
                 headers: { 'x-user-role': currentUser.role }
@@ -3178,12 +3193,14 @@ document.addEventListener('DOMContentLoaded', () => {
             const elActive = document.getElementById('kpiActiveWarranties');
             const elOverdue = document.getElementById('kpiOverdueClaims');
             const elMembers = document.getElementById('kpiTotalMembers');
+            const elExposure = document.getElementById('kpiActiveExposure');
 
-            if (elRevenue) elRevenue.textContent = formatNumber(kpi.totalRevenue || 0);
-            if (elClaimCost) elClaimCost.textContent = formatNumber(kpi.totalClaimCost || 0);
-            if (elActive) elActive.textContent = formatNumber(kpi.activeWarranties || 0);
-            if (elOverdue) elOverdue.textContent = formatNumber(kpi.overdueClaims || 0);
-            if (elMembers) elMembers.textContent = formatNumber(kpi.totalMembers || 0);
+            if (elRevenue) animateCountUp(elRevenue, kpi.totalRevenue || 0);
+            if (elClaimCost) animateCountUp(elClaimCost, kpi.totalClaimCost || 0);
+            if (elActive) animateCountUp(elActive, kpi.activeWarranties || 0);
+            if (elOverdue) animateCountUp(elOverdue, kpi.overdueClaims || 0);
+            if (elMembers) animateCountUp(elMembers, kpi.totalMembers || 0);
+            if (elExposure) animateCountUp(elExposure, kpi.totalActiveExposure || 0);
 
             renderCharts(data.charts || {});
 
@@ -3471,6 +3488,14 @@ document.addEventListener('DOMContentLoaded', () => {
         loadExecutiveDashboard();
     });
 
+    const execStartDate = document.getElementById('execStartDate');
+    const execEndDate = document.getElementById('execEndDate');
+    const execShop = document.getElementById('execShop');
+
+    if (execStartDate) execStartDate.addEventListener('change', () => loadExecutiveDashboard());
+    if (execEndDate) execEndDate.addEventListener('change', () => loadExecutiveDashboard());
+    if (execShop) execShop.addEventListener('change', () => loadExecutiveDashboard());
+
     // Executive Dashboard Report Listeners
     const cardExecTotalRevenue = document.getElementById('cardExecTotalRevenue');
     const cardExecTotalClaimCost = document.getElementById('cardExecTotalClaimCost');
@@ -3541,13 +3566,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const startDate = (document.getElementById('execStartDate') || {}).value || '';
         const endDate = (document.getElementById('execEndDate') || {}).value || '';
-        const staff = (document.getElementById('execStaff') || {}).value || '';
+        const shop = (document.getElementById('execShop') || {}).value || '';
 
         const params = new URLSearchParams();
         params.set('type', type);
         if (startDate) params.set('startDate', startDate);
         if (endDate) params.set('endDate', endDate);
-        if (staff) params.set('staff', staff);
+        if (shop) params.set('shop', shop);
 
         showLoader('กำลังโหลดรายงาน...');
         const tbody = document.getElementById('execReportModalBody');
@@ -3760,9 +3785,18 @@ document.addEventListener('DOMContentLoaded', () => {
                     html: htmlContent,
                     width: '850px',
                     showCloseButton: true,
-                    showConfirmButton: false,
+                    showConfirmButton: true,
+                    confirmButtonText: '<i class="fas fa-file-excel"></i> Export Logs',
+                    confirmButtonColor: '#10b981',
+                    showCancelButton: true,
+                    cancelButtonText: 'ปิดหน้าต่าง',
+                    cancelButtonColor: '#64748b',
                     customClass: {
                         popup: 'swal-wide'
+                    }
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        handleExportExcel('/api/logs/export/excel', 'AuditLogs.xlsx', null);
                     }
                 });
 
@@ -3771,6 +3805,51 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.error('Audit Log Error:', err);
                 showAlert('error', err.message);
             }
+        });
+    }
+
+    const btnExportDashboardExcel = document.getElementById('btnExportDashboardExcel');
+    if (btnExportDashboardExcel) {
+        btnExportDashboardExcel.addEventListener('click', () => {
+            const currentStartDate = (document.getElementById('execStartDate') || {}).value || '';
+            const currentEndDate = (document.getElementById('execEndDate') || {}).value || '';
+            const shop = (document.getElementById('execShop') || {}).value || '';
+
+            Swal.fire({
+                title: 'เลือกช่วงเวลาในการส่งออกรายงาน',
+                html: `
+                    <div style="text-align: left; padding: 10px;">
+                        <div style="margin-bottom: 15px;">
+                            <label style="display: block; font-weight: 600; margin-bottom: 6px; font-size: 0.9em; color: #475569;">จากวันที่ (Start Date):</label>
+                            <input type="date" id="exportStartDate" class="swal2-input" style="margin: 0; width: 100%; border-radius: 8px; border: 1px solid #cbd5e1; box-sizing: border-box;" value="${currentStartDate}">
+                        </div>
+                        <div>
+                            <label style="display: block; font-weight: 600; margin-bottom: 6px; font-size: 0.9em; color: #475569;">ถึงวันที่ (End Date):</label>
+                            <input type="date" id="exportEndDate" class="swal2-input" style="margin: 0; width: 100%; border-radius: 8px; border: 1px solid #cbd5e1; box-sizing: border-box;" value="${currentEndDate}">
+                        </div>
+                    </div>
+                `,
+                showCancelButton: true,
+                confirmButtonText: '<i class="fas fa-file-excel"></i> ส่งออกรายงาน',
+                confirmButtonColor: '#10b981',
+                cancelButtonText: 'ยกเลิก',
+                cancelButtonColor: '#64748b',
+                preConfirm: () => {
+                    const startDate = document.getElementById('exportStartDate').value;
+                    const endDate = document.getElementById('exportEndDate').value;
+                    return { startDate, endDate };
+                }
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    const { startDate, endDate } = result.value;
+                    const params = new URLSearchParams();
+                    if (startDate) params.set('startDate', startDate);
+                    if (endDate) params.set('endDate', endDate);
+                    if (shop) params.set('shop', shop);
+
+                    handleExportExcel(`/api/dashboard/export/excel?${params.toString()}`, `ExecutiveDashboardSummary_${Date.now()}.xlsx`, null);
+                }
+            });
         });
     }
 
@@ -3856,9 +3935,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (body && !body.dataset.listenerBound) {
             body.dataset.listenerBound = 'true';
             body.addEventListener('click', (e) => {
-                const editBtn = e.target.closest('.edit-btn');
-                if (editBtn) {
-                    editWarranty(editBtn.dataset.id);
+                const viewBtn = e.target.closest('.view-btn');
+                if (viewBtn) {
+                    showWarrantyDetails(viewBtn.dataset.id);
                     return;
                 }
 
@@ -3993,8 +4072,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         <td data-label="การชำระเงิน">${paymentStatus}</td>
                         <td data-label="จัดการ">
                         <div style="display: flex; gap: 0.5rem; justify-content: center;">
-                            <button class="edit-btn" data-id="${r._id}" title="แก้ไขข้อมูล">
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                            <button class="view-btn" data-id="${r._id}" title="ดูรายละเอียดข้อมูล">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
                             </button>
                             ${(() => {
                                 if (r.approvalStatus === 'pending') {
@@ -4054,6 +4133,379 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error('Delete error:', err);
         } finally {
             hideLoader();
+        }
+    }
+
+    async function showWarrantyHistory(id, returnToDetails = false) {
+        showLoader('กำลังดึงประวัติการแก้ไข...');
+        try {
+            const res = await fetch(`/api/warranties/${id}`);
+            const data = await res.json();
+            hideLoader();
+            if (!res.ok) throw new Error(data.message);
+
+            const history = data.editHistory || [];
+            if (history.length === 0) {
+                Swal.fire({
+                    icon: 'info',
+                    title: 'ประวัติการแก้ไข',
+                    text: 'รายการนี้ยังไม่มีประวัติการแก้ไข',
+                    confirmButtonText: 'ตกลง',
+                    confirmButtonColor: '#0ea5e9'
+                }).then(() => {
+                    if (returnToDetails) {
+                        showWarrantyDetails(id);
+                    }
+                });
+                return;
+            }
+
+            // Generate HTML table for history
+            const tableRows = history.map((h, index) => {
+                const date = new Date(h.editedAt).toLocaleString('th-TH', {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+                // Format change detail so it is wrapped and nicely separated
+                const changesHtml = h.changes.split(' | ').map(c => `<div>• ${c}</div>`).join('');
+                return `
+                    <tr>
+                        <td style="padding: 10px; border-bottom: 1px solid #f1f5f9; font-weight: 500; font-size: 0.85rem;">${index + 1}</td>
+                        <td style="padding: 10px; border-bottom: 1px solid #f1f5f9; font-size: 0.85rem; color: #1e293b;">${h.editedBy}</td>
+                        <td style="padding: 10px; border-bottom: 1px solid #f1f5f9; font-size: 0.85rem; color: #64748b;">${date}</td>
+                        <td style="padding: 10px; border-bottom: 1px solid #f1f5f9; text-align: left; font-size: 0.8rem; color: #334155; max-width: 300px; word-wrap: break-word;">${changesHtml}</td>
+                    </tr>
+                `;
+            }).join('');
+
+            const tableHtml = `
+                <div style="max-height: 400px; overflow-y: auto; margin-top: 10px; border: 1px solid #e2e8f0; border-radius: 8px;">
+                    <table style="width: 100%; border-collapse: collapse; text-align: center;">
+                        <thead>
+                            <tr style="background-color: #f8fafc; border-bottom: 1px solid #e2e8f0;">
+                                <th style="padding: 10px; font-size: 0.85rem; font-weight: 600; color: #475569;">#</th>
+                                <th style="padding: 10px; font-size: 0.85rem; font-weight: 600; color: #475569;">ผู้แก้ไข</th>
+                                <th style="padding: 10px; font-size: 0.85rem; font-weight: 600; color: #475569;">วันที่/เวลา</th>
+                                <th style="padding: 10px; font-size: 0.85rem; font-weight: 600; color: #475569; text-align: left;">รายละเอียดการแก้ไข</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${tableRows}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+
+            Swal.fire({
+                title: `<div style="font-size: 1.25rem; font-weight: 600; color: #0f172a;">ประวัติการแก้ไขกรมธรรม์: ${data.policyNumber}</div>`,
+                html: tableHtml,
+                width: '650px',
+                confirmButtonText: 'ปิด',
+                confirmButtonColor: '#64748b',
+                allowOutsideClick: true
+            }).then(() => {
+                if (returnToDetails) {
+                    showWarrantyDetails(id);
+                }
+            });
+
+        } catch (err) {
+            hideLoader();
+            console.error('Fetch history error:', err);
+            showAlert('error', 'ไม่สามารถโหลดประวัติการแก้ไขได้: ' + err.message);
+        }
+    }
+
+    window.printInstallmentReceipt = function(id, installmentNo, amount, paidDate) {
+        const record = allRecords.find(r => r._id === id) || currentEditData;
+        if (!record) return;
+        openReceipt({
+            policyNumber: record.policyNumber,
+            receiptNo: 'RC-' + record.policyNumber + '-' + installmentNo,
+            paidDate: new Date(paidDate).toLocaleString('th-TH'),
+            shopName: record.shopName,
+            staffName: currentUser ? currentUser.staffName : (record.staffName || '-'),
+            customerName: `${record.customer.firstName} ${record.customer.lastName}`,
+            customerPhone: record.customer.phone,
+            memberId: record.customer.id || record.memberId || '-',
+            customerAddress: record.customer.address,
+            amount: parseInt(amount),
+            description: `ชำระค่าเบี้ยประกัน งวดที่ ${installmentNo}`
+        });
+    };
+
+    window.printFullReceipt = function(id) {
+        const record = allRecords.find(r => r._id === id) || currentEditData;
+        if (!record) return;
+        openReceipt({
+            policyNumber: record.policyNumber,
+            receiptNo: 'RC-' + record.policyNumber + '-F',
+            paidDate: record.payment?.paidDate ? new Date(record.payment.paidDate).toLocaleString('th-TH') : new Date().toLocaleString('th-TH'),
+            shopName: record.shopName,
+            staffName: currentUser ? currentUser.staffName : (record.staffName || '-'),
+            customerName: `${record.customer.firstName} ${record.customer.lastName}`,
+            customerPhone: record.customer.phone,
+            memberId: record.customer.id || record.memberId || '-',
+            customerAddress: record.customer.address,
+            amount: parseInt(record.package?.price || 0),
+            cashReceived: record.payment?.paidCash || 0,
+            transferAmount: record.payment?.paidTransfer || 0,
+            change: 0,
+            refId: record.payment?.refId || '',
+            description: `ชำระค่าเบี้ยประกันเต็มจำนวน แพ็กเกจ ${record.package?.plan}`
+        });
+    };
+
+    async function showWarrantyDetails(id) {
+        showLoader('กำลังโหลดรายละเอียด...');
+        try {
+            const res = await fetch(`/api/warranties/${id}`);
+            const data = await res.json();
+            hideLoader();
+            if (!res.ok) throw new Error(data.message);
+
+            // Set currentEditData so that payment checkout functions correctly
+            currentEditData = data;
+
+            // Format dates
+            const startDate = data.warrantyDates?.start ? new Date(data.warrantyDates.start).toLocaleDateString('th-TH') : '-';
+            const endDate = data.warrantyDates?.end ? new Date(data.warrantyDates.end).toLocaleDateString('th-TH') : '-';
+            const dob = data.customer?.dob ? new Date(data.customer.dob).toLocaleDateString('th-TH') : '-';
+            
+            // Format status badges
+            const statusLabels = {
+                'pending': '<span class="status-badge status-pending">รออนุมัติ</span>',
+                'approved': '<span class="status-badge status-active">อนุมัติแล้ว</span>',
+                'Approved_Unpaid': '<span class="status-badge status-active">อนุมัติแล้ว (รอชำระเงิน)</span>',
+                'Approved_Paid': '<span class="status-badge status-active">อนุมัติแล้ว (ชำระเงินแล้ว)</span>',
+                'rejected': '<span class="status-badge status-expired">ไม่อนุมัติ</span>',
+                'needs_correction': '<span class="status-badge status-expired" style="background-color: #f59e0b; color: white;">รอแก้ไขข้อมูล</span>'
+            };
+            const statusBadge = statusLabels[data.approvalStatus] || `<span class="status-badge">${data.approvalStatus}</span>`;
+
+            // Payment status badge
+            const payStatusLabels = {
+                'Paid': '<span class="status-badge status-active">ชำระครบแล้ว</span>',
+                'Pending': '<span class="status-badge status-pending">ค้างชำระ</span>',
+                'Partial': '<span class="status-badge status-pending" style="background-color: #f59e0b; color: white;">จ่ายบางส่วน</span>',
+                'Overdue': '<span class="status-badge status-expired">เกินกำหนดชำระ</span>'
+            };
+            const paymentBadge = payStatusLabels[data.payment?.status] || `<span class="status-badge">${data.payment?.status || '-'}</span>`;
+
+            // Images HTML
+            const images = data.device?.images || [];
+            const imagesHtml = images.length > 0 ? `
+                <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 5px;">
+                    ${images.map((img, idx) => `
+                        <img src="${img}" alt="Device Image ${idx + 1}" style="width: 70px; height: 70px; object-fit: cover; border-radius: 6px; border: 1px solid #cbd5e1; cursor: pointer; transition: transform 0.2s;" onclick="window.open('${img}', '_blank')" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+                    `).join('')}
+                </div>
+            ` : '<span style="color: #94a3b8; font-size: 0.85rem;">ไม่มีรูปภาพ</span>';
+
+            // Section 3: Payment/Installments details
+            let paymentSectionHtml = '';
+            const isInstallment = data.payment?.method === 'Installment';
+            
+            if (isInstallment && data.payment?.schedule) {
+                // Render Installment Table
+                paymentSectionHtml = `
+                    <div style="grid-column: 1 / -1; margin-top: 5px;">
+                        <strong style="font-size: 0.85rem; color: #475569; display: block; margin-bottom: 5px;">ตารางแบ่งชำระค่างวด (${paymentBadge})</strong>
+                        <div style="border: 1px solid #cbd5e1; border-radius: 6px; overflow: hidden; font-size: 0.8rem;">
+                            <table style="width: 100%; border-collapse: collapse; text-align: center; background: #ffffff;">
+                                <thead>
+                                    <tr style="background-color: #f1f5f9; border-bottom: 1px solid #cbd5e1;">
+                                        <th style="padding: 6px; font-weight: 600; color: #475569;">งวดที่</th>
+                                        <th style="padding: 6px; font-weight: 600; color: #475569;">ยอดชำระ</th>
+                                        <th style="padding: 6px; font-weight: 600; color: #475569;">กำหนดชำระ</th>
+                                        <th style="padding: 6px; font-weight: 600; color: #475569;">สถานะ</th>
+                                        <th style="padding: 6px; font-weight: 600; color: #475569;">จัดการ</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${data.payment.schedule.map(s => {
+                                        const isPaid = s.status === 'Paid';
+                                        const isOverdue = !isPaid && new Date() > new Date(s.graceDate || s.dueDate);
+                                        const statusText = isPaid ? '<span style="color: #10b981; font-weight: 600;">ชำระแล้ว</span>' : (isOverdue ? '<span style="color: #ef4444; font-weight: 600;">เกินกำหนด</span>' : '<span style="color: #f59e0b; font-weight: 600;">ค้างชำระ</span>');
+                                        
+                                        let actionHtml = '-';
+                                        if (!isPaid) {
+                                            actionHtml = `<button type="button" class="submit-btn" style="background-color: #10b981; margin: 0; padding: 4px 8px; font-size: 0.7rem; border-radius: 4px;" onclick="receivePayment('${data._id}', ${s.installmentNo}, ${s.amount})">ชำระเงิน</button>`;
+                                        } else {
+                                            actionHtml = `<button type="button" class="submit-btn" style="background-color: #0ea5e9; margin: 0; padding: 4px 8px; font-size: 0.7rem; border-radius: 4px;" onclick="printInstallmentReceipt('${data._id}', ${s.installmentNo}, ${s.amount}, '${s.paidDate}')">พิมพ์บิล</button>`;
+                                        }
+                                        return `
+                                            <tr style="border-bottom: 1px solid #f1f5f9;">
+                                                <td style="padding: 6px; color: #1e293b; font-weight: 600;">งวดที่ ${s.installmentNo}</td>
+                                                <td style="padding: 6px; color: #1e293b;">${s.amount.toLocaleString()} บาท</td>
+                                                <td style="padding: 6px; color: #64748b;">${new Date(s.dueDate).toLocaleDateString('th-TH')}</td>
+                                                <td style="padding: 6px;">${statusText}</td>
+                                                <td style="padding: 6px;">${actionHtml}</td>
+                                            </tr>
+                                        `;
+                                    }).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                `;
+            } else {
+                // Render Full Payment or Finance Payment
+                const isPaid = data.payment?.status === 'Paid';
+                
+                let paymentButton = '';
+                if (!isPaid) {
+                    paymentButton = `<button type="button" class="submit-btn" style="background-color: #10b981; margin: 0; padding: 4px 10px; font-size: 0.75rem; border-radius: 4px;" onclick="receivePayment('${data._id}', null, ${data.package?.price})">ชำระเงิน</button>`;
+                } else {
+                    paymentButton = `<button type="button" class="submit-btn" style="background-color: #0ea5e9; margin: 0; padding: 4px 10px; font-size: 0.75rem; border-radius: 4px;" onclick="printFullReceipt('${data._id}')">พิมพ์ใบเสร็จ</button>`;
+                }
+
+                paymentSectionHtml = `
+                    <div><strong>การชำระเงิน:</strong> ${data.payment?.method || '-'} (${paymentBadge})</div>
+                    <div style="display: flex; align-items: center; gap: 8px;"><strong>สถานะชำระเงิน:</strong> ${paymentButton}</div>
+                `;
+            }
+
+            const detailsHtml = `
+                <div style="text-align: left; font-family: 'Inter', 'Sarabun', sans-serif; color: #1e293b; max-height: 550px; overflow-y: auto; padding-right: 5px;">
+                    
+                    <!-- Header Info -->
+                    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1.5px solid #e2e8f0; padding-bottom: 12px; margin-bottom: 15px;">
+                        <div>
+                            <div style="font-size: 1.2rem; font-weight: 700; color: #0f172a;">กรมธรรม์เลขที่: ${data.policyNumber}</div>
+                            <div style="font-size: 0.8rem; color: #64748b; margin-top: 2px;">วันที่ลงทะเบียน: ${new Date(data.createdAt).toLocaleString('th-TH')}</div>
+                        </div>
+                        <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 4px;">
+                            ${statusBadge}
+                            <span style="font-size: 0.75rem; color: #64748b;">ผู้บันทึก: ${data.staffName || '-'}</span>
+                        </div>
+                    </div>
+
+                    <!-- Grid for Sections -->
+                    <div style="display: grid; grid-template-columns: 1fr; gap: 15px;">
+                        
+                        <!-- Section 1: ลูกค้า -->
+                        <div style="background: #f8fafc; border-radius: 8px; padding: 12px; border: 1px solid #e2e8f0;">
+                            <h4 style="margin: 0 0 10px 0; color: #0f172a; font-weight: 600; border-bottom: 1px solid #cbd5e1; padding-bottom: 4px; display: flex; align-items: center; gap: 6px; font-size: 0.9rem;">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                                ข้อมูลลูกค้า
+                            </h4>
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; font-size: 0.85rem;">
+                                <div><strong>ชื่อลูกค้า:</strong> ${data.customer?.firstName} ${data.customer?.lastName}</div>
+                                <div><strong>เบอร์โทรศัพท์:</strong> ${data.customer?.phone || '-'}</div>
+                                <div><strong>รหัสสมาชิก:</strong> ${data.memberId || '-'}</div>
+                                <div><strong>อายุ / วันเกิด:</strong> ${data.customer?.age || '-'} ปี / ${dob}</div>
+                                <div><strong>สาขาร้านค้า:</strong> ${data.shopName || '-'}</div>
+                                <div style="grid-column: 1 / -1;"><strong>ที่อยู่จัดส่ง:</strong> ${data.customer?.address || '-'}</div>
+                            </div>
+                        </div>
+
+                        <!-- Section 2: อุปกรณ์ -->
+                        <div style="background: #f8fafc; border-radius: 8px; padding: 12px; border: 1px solid #e2e8f0;">
+                            <h4 style="margin: 0 0 10px 0; color: #0f172a; font-weight: 600; border-bottom: 1px solid #cbd5e1; padding-bottom: 4px; display: flex; align-items: center; gap: 6px; font-size: 0.9rem;">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect><line x1="12" y1="18" x2="12.01" y2="18"></line></svg>
+                                ข้อมูลอุปกรณ์
+                            </h4>
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; font-size: 0.85rem;">
+                                <div><strong>อุปกรณ์:</strong> ${data.device?.type || '-'} (${data.device?.deviceCondition === 'New' ? 'มือ 1' : 'มือ 2'})</div>
+                                <div><strong>รุ่น / สี:</strong> ${data.device?.model || '-'} / ${data.device?.color || '-'}</div>
+                                <div><strong>ความจุ:</strong> ${data.device?.capacity || '-'}</div>
+                                <div><strong>เลข Serial Number:</strong> <span style="font-family: monospace; font-size: 0.85rem;">${data.device?.serial || '-'}</span></div>
+                                <div style="grid-column: 1 / -1;"><strong>เลข IMEI:</strong> <span style="font-family: monospace; font-size: 0.85rem;">${data.device?.imei || '-'}</span></div>
+                                <div><strong>ราคาเครื่องเต็ม:</strong> ${(data.devicePrice || 0).toLocaleString()} บาท</div>
+                                <div><strong>ราคา 70% (มูลค่าเครื่อง):</strong> ${(data.device?.deviceValue || 0).toLocaleString()} บาท</div>
+                                <div style="grid-column: 1 / -1; display: flex; flex-direction: column; gap: 4px; margin-top: 4px;">
+                                    <strong>รูปภาพเครื่อง:</strong>
+                                    ${imagesHtml}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Section 3: สิทธิประโยชน์ความคุ้มครอง & การชำระเงิน -->
+                        <div style="background: #f8fafc; border-radius: 8px; padding: 12px; border: 1px solid #e2e8f0;">
+                            <h4 style="margin: 0 0 10px 0; color: #0f172a; font-weight: 600; border-bottom: 1px solid #cbd5e1; padding-bottom: 4px; display: flex; align-items: center; gap: 6px; font-size: 0.9rem;">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+                                ความคุ้มครองและการเงิน
+                            </h4>
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; font-size: 0.85rem;">
+                                <div><strong>ความคุ้มครอง:</strong> ${data.protectionType || '-'}</div>
+                                <div><strong>แพ็กเกจ (Package):</strong> ${data.package?.plan || '-'}</div>
+                                <div><strong>ค่าเบี้ยประกัน:</strong> ${(data.package?.price || 0).toLocaleString()} บาท</div>
+                                
+                                ${paymentSectionHtml}
+
+                                <div><strong>วันเริ่มต้นคุ้มครอง:</strong> ${startDate}</div>
+                                <div><strong>วันสิ้นสุดคุ้มครอง:</strong> ${endDate}</div>
+                                
+                                <div style="grid-column: 1 / -1; border-top: 1px dashed #cbd5e1; padding-top: 8px; margin-top: 4px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                                    <div><strong>วงเงินคุ้มครองสูงสุด:</strong> <span style="color: #0ea5e9; font-weight: 600;">${(data.maxLimit || 0).toLocaleString()} บาท</span></div>
+                                    <div><strong>สิทธิ์คงเหลือปัจจุบัน:</strong> <span style="color: #10b981; font-weight: 600;">${(data.remainingLimit || 0).toLocaleString()} บาท</span></div>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            `;
+
+            const showPrintContract = data.approvalStatus !== 'pending' && data.approvalStatus !== 'needs_correction' && data.approvalStatus !== 'rejected';
+
+            Swal.fire({
+                html: detailsHtml,
+                width: '680px',
+                showConfirmButton: false, 
+                showCloseButton: true,
+                focusConfirm: false,
+                footer: `
+                    <div style="display: flex; gap: 12px; width: 100%; justify-content: flex-end; padding: 10px 0 0 0; border-top: 1px solid #e2e8f0; flex-wrap: wrap;">
+                        ${showPrintContract ? `
+                            <button id="modalPrintContractBtn" class="submit-btn" style="background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%) !important; border: none !important; margin: 0; padding: 8px 16px; font-size: 0.85rem; display: flex; align-items: center; gap: 6px; box-shadow: 0 4px 12px rgba(13, 148, 136, 0.2);">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+                                พิมพ์ใบสัญญา
+                            </button>
+                        ` : ''}
+                        <button id="modalHistoryBtn" class="submit-btn" style="background: linear-gradient(135deg, #64748b 0%, #475569 100%) !important; border: none !important; margin: 0; padding: 8px 16px; font-size: 0.85rem; display: flex; align-items: center; gap: 6px; box-shadow: 0 4px 12px rgba(100, 116, 139, 0.2);">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                            ประวัติการแก้ไข
+                        </button>
+                        <button id="modalEditBtn" class="submit-btn" style="background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%) !important; border: none !important; margin: 0; padding: 8px 16px; font-size: 0.85rem; display: flex; align-items: center; gap: 6px; box-shadow: 0 4px 12px rgba(14, 165, 233, 0.2);">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                            แก้ไขข้อมูล
+                        </button>
+                        <button id="modalCloseBtn" class="submit-btn" style="background: linear-gradient(135deg, #f87171 0%, #ef4444 100%) !important; border: none !important; margin: 0; padding: 8px 16px; font-size: 0.85rem; display: flex; align-items: center; gap: 6px; box-shadow: 0 4px 12px rgba(239, 68, 68, 0.25); transition: var(--transition);">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                            ปิด
+                        </button>
+                    </div>
+                `,
+                didOpen: () => {
+                    const printContractBtn = document.getElementById('modalPrintContractBtn');
+                    if (printContractBtn) {
+                        printContractBtn.addEventListener('click', () => {
+                            window.open(`document.html?id=${id}`, '_blank');
+                        });
+                    }
+                    document.getElementById('modalEditBtn').addEventListener('click', () => {
+                        Swal.close();
+                        editWarranty(id);
+                    });
+                    document.getElementById('modalHistoryBtn').addEventListener('click', () => {
+                        Swal.close();
+                        showWarrantyHistory(id, true);
+                    });
+                    document.getElementById('modalCloseBtn').addEventListener('click', () => {
+                        Swal.close();
+                    });
+                }
+            });
+
+        } catch (err) {
+            hideLoader();
+            console.error('Fetch details error:', err);
+            showAlert('error', 'ไม่สามารถโหลดรายละเอียดได้: ' + err.message);
         }
     }
 
@@ -4602,7 +5054,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function updatePaymentUI() {
         const plan = document.getElementById('package').value;
-        const method = document.querySelector('input[name="paymentMethod"]:checked').value;
+        const checkedRadio = document.querySelector('input[name="paymentMethod"]:checked');
+        const method = checkedRadio ? checkedRadio.value : '';
         const price = PACKAGE_PRICES[plan] || 0;
 
         let depositVal = 0;
@@ -4814,6 +5267,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     window.receivePayment = async function (id, installmentNo, amount) {
+        Swal.close();
         if (currentEditData && (currentEditData.approvalStatus === 'pending' || currentEditData.approvalStatus === 'needs_correction')) {
             const result = await waitForApprovalIfPending(currentEditData._id);
             if (result !== 'approved') return;
@@ -4830,6 +5284,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     window.receiveAllRemainingPayments = async function (id, totalAmount) {
+        Swal.close();
         if (currentEditData && (currentEditData.approvalStatus === 'pending' || currentEditData.approvalStatus === 'needs_correction')) {
             const result = await waitForApprovalIfPending(currentEditData._id);
             if (result !== 'approved') return;
@@ -5098,7 +5553,12 @@ document.addEventListener('DOMContentLoaded', () => {
         e.preventDefault();
 
         const plan = document.getElementById('package').value;
-        const method = document.querySelector('input[name="paymentMethod"]:checked').value;
+        const checkedRadio = document.querySelector('input[name="paymentMethod"]:checked');
+        if (!checkedRadio) {
+            showAlert('warning', 'กรุณาเลือกวิธีการชำระเงิน');
+            return;
+        }
+        const method = checkedRadio.value;
         let price = PACKAGE_PRICES[plan];
 
         let depositVal = 0;
@@ -5313,7 +5773,8 @@ document.addEventListener('DOMContentLoaded', () => {
             memberId: document.getElementById('memberId').value,
             shopName: document.getElementById('shopName').value,
             protectionType: document.getElementById('protectionType').value,
-            staffName: currentUser.staffName,
+            staffName: isEditMode ? (currentEditData.staffName || currentUser.staffName) : currentUser.staffName,
+            editorName: currentUser.staffName,
             devicePrice: parseFloat(document.getElementById('fullDevicePrice')?.value) || parseFloat(document.getElementById('deviceValue').value) || 0,
             customer: {
                 firstName: document.getElementById('firstName').value,
@@ -5768,13 +6229,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     description: checkoutData.description
                 };
 
-                // Refresh UI if in edit mode
+                // Refresh UI
+                fetchWarranties();
                 if (isEditMode) {
                     const updatedRes = await fetch(`/api/warranties/${checkoutData.record._id}`);
                     const updatedData = await updatedRes.json();
                     currentEditData = updatedData;
                     renderPaymentManagement(updatedData);
-                    fetchWarranties();
+                } else {
+                    showWarrantyDetails(checkoutData.record._id);
                 }
 
                 openReceipt(receiptData);
@@ -10363,13 +10826,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    const btnExportLogsExcel = document.getElementById('btnExportLogsExcel');
-    if (btnExportLogsExcel) {
-        if (!isExportAdmin) btnExportLogsExcel.style.display = 'none';
-        btnExportLogsExcel.addEventListener('click', () => {
-            handleExportExcel('/api/logs/export/excel', 'AuditLogs.xlsx', null);
-        });
-    }
 
     const btnExportDepositsExcel = document.getElementById('btnExportDepositsExcel');
     if (btnExportDepositsExcel) {

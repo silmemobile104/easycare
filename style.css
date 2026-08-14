@@ -871,7 +871,7 @@ h6 {
 
 .login-input-wrapper input {
     width: 100%;
-    padding: 0.875rem 1rem 0.875rem 2.75rem;
+    padding: 0.875rem 2.75rem 0.875rem 2.75rem;
     border: 2px solid #e2e8f0;
     border-radius: 12px;
     font-family: var(--thai-font-body);
@@ -1055,8 +1055,7 @@ h6 {
 @media (max-width: 768px) {
     .auth-page-v2 {
         padding: 1rem;
-        align-items: flex-start;
-        padding-top: 2rem;
+        align-items: center;
     }
 
     .login-split-container {
@@ -1130,7 +1129,7 @@ h6 {
 @media (max-width: 480px) {
     .auth-page-v2 {
         padding: 0.5rem;
-        padding-top: 1rem;
+        align-items: center;
     }
 
     .login-split-container {
@@ -1370,6 +1369,14 @@ textarea:focus {
     margin-bottom: 1.25rem;
     margin-left: 0.5rem;
     object-fit: contain;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.sidebar .logo:hover {
+    opacity: 0.95;
+    transform: scale(1.05);
+    filter: drop-shadow(0 4px 12px rgba(8, 145, 178, 0.35));
 }
 
 .sidebar nav {
@@ -1865,6 +1872,7 @@ tbody tr:last-child td {
 ═══════════════════════════════════════════════════════════════════ */
 
 .edit-btn,
+.view-btn,
 .print-btn {
     width: 28px;
     height: 28px;
@@ -1885,6 +1893,14 @@ tbody tr:last-child td {
     background: linear-gradient(135deg, #f0fdfa 0%, #ccfbf1 100%);
     transform: translateY(-2px);
     box-shadow: 0 4px 12px rgba(13, 148, 136, 0.2);
+}
+
+.view-btn:hover {
+    border-color: var(--info);
+    color: var(--info);
+    background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
 }
 
 .print-btn:hover {
@@ -2171,6 +2187,13 @@ section:hover {
     font-weight: 700;
     font-size: 1.25rem;
     color: var(--text-main);
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.mobile-logo-text:hover {
+    transform: scale(1.05);
+    text-shadow: 0 0 12px rgba(8, 145, 178, 0.35);
 }
 
 .mobile-logo-text span {
@@ -4411,4 +4434,18 @@ tr.new-row-highlight {
 }
 .exec-table-scroll-container::-webkit-scrollbar {
     display: none; /* Chrome, Safari, Edge */
+}
+
+/* Details Modal Footer Close Button Styling */
+#modalCloseBtn:hover {
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%) !important;
+    border: none !important;
+    transform: translateY(-2px) !important;
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.35) !important;
+}
+
+/* Password Toggle Button Hover Feedback */
+#togglePasswordBtn:hover {
+    color: var(--primary) !important;
+    transform: translateY(-50%) scale(1.1) !important;
 }

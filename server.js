@@ -243,7 +243,12 @@ const WarrantySchema = new mongoose.Schema({
     rejectDate: Date,
     claimStatus: { type: String, default: 'normal', enum: ['normal', 'pending', 'completed'] },
     reChecked: { type: Boolean, default: false },
-    reCheckedAt: Date
+    reCheckedAt: Date,
+    editHistory: [{
+        editedBy: String,
+        editedAt: { type: Date, default: Date.now },
+        changes: String
+    }]
 }, { timestamps: true });
 
 WarrantySchema.virtual('maxLimit').get(function () {
@@ -1949,15 +1954,15 @@ app.get('/api/logs', checkAdminRole, async (req, res) => {
 
 app.get('/api/dashboard/stats', checkAdminRole, async (req, res) => {
     try {
-        const { startDate, endDate, staff } = req.query || {};
+        const { startDate, endDate, shop } = req.query || {};
 
         const warrantyMatch = { approvalStatus: { $ne: 'rejected' } };
         const claimMatch = {};
         const memberMatch = {};
 
-        if (staff) {
-            warrantyMatch.staffName = String(staff);
-            claimMatch.staffName = String(staff);
+        if (shop) {
+            warrantyMatch.shopName = String(shop);
+            claimMatch.claimShopName = String(shop);
         }
 
         if (startDate) {
@@ -1973,10 +1978,16 @@ app.get('/api/dashboard/stats', checkAdminRole, async (req, res) => {
         }
 
         const now = new Date();
+        const activeExposureMatch = {
+            ...warrantyMatch,
+            approvalStatus: { $in: ['approved', 'Approved_Paid', 'Approved_Unpaid'] },
+            'warrantyDates.end': { $gte: now }
+        };
 
         const [
             revenueAgg, claimCostAgg, activeAgg, overdueAgg, packagesAgg,
-            claimStatusAgg, warrantyTrendAgg, claimTrendAgg, memberCountAgg, shopsSummaryAgg, staffSummaryAgg, productsSummaryAgg
+            claimStatusAgg, warrantyTrendAgg, claimTrendAgg, memberCountAgg, shopsSummaryAgg, staffSummaryAgg, productsSummaryAgg,
+            activeExposureAgg
         ] = await Promise.all([
             Warranty.aggregate([
                 { $match: warrantyMatch },
@@ -2140,6 +2151,26 @@ app.get('/api/dashboard/stats', checkAdminRole, async (req, res) => {
                 },
                 { $project: { _id: 0, deviceModel: '$_id', contracts: 1, revenue: 1 } },
                 { $sort: { revenue: -1 } }
+            ]),
+            Warranty.aggregate([
+                { $match: activeExposureMatch },
+                {
+                    $project: {
+                        maxLimit: { $floor: { $multiply: [{ $ifNull: ['$devicePrice', 0] }, 0.70] } },
+                        usedCoverage: { $ifNull: ['$usedCoverage', 0] }
+                    }
+                },
+                {
+                    $project: {
+                        remainingLimit: { $max: [0, { $subtract: ['$maxLimit', '$usedCoverage'] }] }
+                    }
+                },
+                {
+                    $group: {
+                        _id: null,
+                        totalActiveExposure: { $sum: '$remainingLimit' }
+                    }
+                }
             ])
         ]);
 
@@ -2163,6 +2194,7 @@ app.get('/api/dashboard/stats', checkAdminRole, async (req, res) => {
         }
         const activeWarranties = Number(activeAgg?.[0]?.activeWarranties || 0);
         const overdueClaims = Number(overdueAgg?.[0]?.overdueClaims || 0);
+        const totalActiveExposure = Number(activeExposureAgg?.[0]?.totalActiveExposure || 0);
 
         const trendMap = new Map();
         (Array.isArray(warrantyTrendAgg) ? warrantyTrendAgg : []).forEach(r => {
@@ -2181,7 +2213,7 @@ app.get('/api/dashboard/stats', checkAdminRole, async (req, res) => {
 
         return res.json({
             success: true,
-            kpi: { totalRevenue, totalClaimCost, activeWarranties, overdueClaims, totalMembers },
+            kpi: { totalRevenue, totalClaimCost, activeWarranties, overdueClaims, totalMembers, totalActiveExposure },
             charts: {
                 trend,
                 packages: Array.isArray(packagesAgg) ? packagesAgg : [],
@@ -2197,19 +2229,606 @@ app.get('/api/dashboard/stats', checkAdminRole, async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════════════════
+// GET /api/dashboard/export/excel (Admin Only)
+// ═══════════════════════════════════════════════════════════════════
+app.get('/api/dashboard/export/excel', checkAdminRole, async (req, res) => {
+    try {
+        const { startDate, endDate, shop } = req.query || {};
+
+        const warrantyMatch = { approvalStatus: { $ne: 'rejected' } };
+        const claimMatch = {};
+        const memberMatch = {};
+
+        if (shop) {
+            warrantyMatch.shopName = String(shop);
+            claimMatch.claimShopName = String(shop);
+        }
+
+        if (startDate) {
+            warrantyMatch.createdAt = { ...(warrantyMatch.createdAt || {}), $gte: new Date(startDate) };
+            claimMatch.claimDate = { ...(claimMatch.claimDate || {}), $gte: new Date(startDate) };
+            memberMatch.createdAt = { ...(memberMatch.createdAt || {}), $gte: new Date(startDate) };
+        }
+        if (endDate) {
+            const end = new Date(endDate + 'T23:59:59.999Z');
+            warrantyMatch.createdAt = { ...(warrantyMatch.createdAt || {}), $lte: end };
+            claimMatch.claimDate = { ...(claimMatch.claimDate || {}), $lte: end };
+            memberMatch.createdAt = { ...(memberMatch.createdAt || {}), $lte: end };
+        }
+
+        const now = new Date();
+        const activeExposureMatch = {
+            ...warrantyMatch,
+            approvalStatus: { $in: ['approved', 'Approved_Paid', 'Approved_Unpaid'] },
+            'warrantyDates.end': { $gte: now }
+        };
+        const expiredMatch = {
+            ...warrantyMatch,
+            approvalStatus: { $in: ['approved', 'Approved_Paid', 'Approved_Unpaid'] },
+            'warrantyDates.end': { $lt: now }
+        };
+        const rejectedMatch = { approvalStatus: 'rejected' };
+        if (shop) rejectedMatch.shopName = String(shop);
+        if (startDate) rejectedMatch.createdAt = { ...(rejectedMatch.createdAt || {}), $gte: new Date(startDate) };
+        if (endDate) {
+            const end = new Date(endDate + 'T23:59:59.999Z');
+            rejectedMatch.createdAt = { ...(rejectedMatch.createdAt || {}), $lte: end };
+        }
+
+        const [
+            revenueAgg, claimCostAgg, activeAgg, overdueAgg, packagesAgg,
+            claimStatusAgg, warrantyTrendAgg, claimTrendAgg, memberCountAgg, shopsSummaryAgg, staffSummaryAgg, productsSummaryAgg,
+            activeExposureAgg, expiredCount, rejectedCount
+        ] = await Promise.all([
+            Warranty.aggregate([
+                { $match: warrantyMatch },
+                {
+                    $group: {
+                        _id: null,
+                        totalRevenue: { $sum: { $ifNull: ['$package.price', 0] } }
+                    }
+                },
+                { $project: { _id: 0, totalRevenue: 1 } }
+            ]),
+            Claim.aggregate([
+                { $match: claimMatch },
+                { $unwind: { path: '$updates', preserveNullAndEmptyArrays: false } },
+                { $match: { 'updates.cost': { $gt: 0 } } },
+                { $match: { 'updates.title': { $ne: 'ลูกค้าตกลงรับเครื่องคืนและชำระเงินส่วนต่าง' } } },
+                { $match: { $or: [{ 'updates.title': { $not: /\(เกินวงเงิน\)/ } }, { status: { $ne: 'ลูกค้าสละสิทธิ์เครื่อง' } }] } },
+                {
+                    $group: {
+                        _id: null,
+                        totalClaimCost: { $sum: '$updates.cost' }
+                    }
+                },
+                { $project: { _id: 0, totalClaimCost: 1 } }
+            ]),
+            Warranty.aggregate([
+                {
+                    $match: {
+                        ...warrantyMatch,
+                        'warrantyDates.end': { $gte: now }
+                    }
+                },
+                { $count: 'activeWarranties' }
+            ]),
+            Claim.aggregate([
+                {
+                    $match: {
+                        ...claimMatch,
+                        status: 'รอเคลม'
+                    }
+                },
+                {
+                    $addFields: {
+                        lastUpdateDate: {
+                            $let: {
+                                vars: { lastUpdate: { $arrayElemAt: ['$updates', -1] } },
+                                in: {
+                                    $ifNull: ['$$lastUpdate.date', { $ifNull: ['$claimDate', '$createdAt'] }]
+                                }
+                            }
+                        }
+                    }
+                },
+                {
+                    $addFields: {
+                        daysSinceUpdate: {
+                            $floor: {
+                                $divide: [{ $subtract: ['$$NOW', '$lastUpdateDate'] }, 86400000]
+                            }
+                        }
+                    }
+                },
+                { $match: { daysSinceUpdate: { $gte: 5 } } },
+                { $count: 'overdueClaims' }
+            ]),
+            Warranty.aggregate([
+                { $match: warrantyMatch },
+                {
+                    $group: {
+                        _id: {
+                            plan: { $ifNull: ['$package.plan', 'ไม่ระบุแพ็กเกจ'] },
+                            price: { $ifNull: ['$package.price', 0] }
+                        },
+                        count: { $sum: 1 },
+                        revenue: { $sum: { $ifNull: ['$package.price', 0] } }
+                    }
+                },
+                {
+                    $project: {
+                        _id: 0,
+                        plan: '$_id.plan',
+                        price: '$_id.price',
+                        count: 1,
+                        revenue: 1
+                    }
+                },
+                { $sort: { count: -1, revenue: -1 } }
+            ]),
+            Claim.aggregate([
+                { $match: claimMatch },
+                { $group: { _id: { $ifNull: ['$status', 'ไม่ระบุสถานะ'] }, count: { $sum: 1 } } },
+                { $project: { _id: 0, status: '$_id', count: 1 } },
+                { $sort: { count: -1, status: 1 } }
+            ]),
+            Warranty.aggregate([
+                { $match: warrantyMatch },
+                {
+                    $group: {
+                        _id: {
+                            year: { $year: '$createdAt' },
+                            month: { $month: '$createdAt' }
+                        },
+                        revenue: { $sum: { $ifNull: ['$package.price', 0] } }
+                    }
+                },
+                {
+                    $project: {
+                        _id: 0,
+                        year: '$_id.year',
+                        month: '$_id.month',
+                        revenue: 1
+                    }
+                },
+                { $sort: { year: 1, month: 1 } }
+            ]),
+            Claim.aggregate([
+                { $match: claimMatch },
+                {
+                    $group: {
+                        _id: {
+                            year: { $year: '$claimDate' },
+                            month: { $month: '$claimDate' }
+                        },
+                        claimCost: { $sum: { $ifNull: ['$totalCost', 0] } }
+                    }
+                },
+                {
+                    $project: {
+                        _id: 0,
+                        year: '$_id.year',
+                        month: '$_id.month',
+                        claimCost: 1
+                    }
+                },
+                { $sort: { year: 1, month: 1 } }
+            ]),
+            Member.aggregate([
+                { $match: memberMatch },
+                { $count: 'count' }
+            ]),
+            Warranty.aggregate([
+                { $match: warrantyMatch },
+                {
+                    $group: {
+                        _id: { $ifNull: ['$shopName', 'ไม่ระบุร้านค้า'] },
+                        contracts: { $sum: 1 },
+                        revenue: { $sum: { $ifNull: ['$package.price', 0] } }
+                    }
+                },
+                { $project: { _id: 0, shopName: '$_id', contracts: 1, revenue: 1 } },
+                { $sort: { revenue: -1 } }
+            ]),
+            Warranty.aggregate([
+                { $match: warrantyMatch },
+                {
+                    $group: {
+                        _id: { $ifNull: ['$staffName', 'ไม่ระบุพนักงาน'] },
+                        contracts: { $sum: 1 },
+                        revenue: { $sum: { $ifNull: ['$package.price', 0] } }
+                    }
+                },
+                { $project: { _id: 0, staffName: '$_id', contracts: 1, revenue: 1 } },
+                { $sort: { revenue: -1 } }
+            ]),
+            Warranty.aggregate([
+                { $match: warrantyMatch },
+                {
+                    $group: {
+                        _id: { $ifNull: ['$device.model', 'ไม่ระบุรุ่น'] },
+                        contracts: { $sum: 1 },
+                        revenue: { $sum: { $ifNull: ['$package.price', 0] } }
+                    }
+                },
+                { $project: { _id: 0, deviceModel: '$_id', contracts: 1, revenue: 1 } },
+                { $sort: { revenue: -1 } }
+            ]),
+            Warranty.aggregate([
+                { $match: activeExposureMatch },
+                {
+                    $project: {
+                        maxLimit: { $floor: { $multiply: [{ $ifNull: ['$devicePrice', 0] }, 0.70] } },
+                        usedCoverage: { $ifNull: ['$usedCoverage', 0] }
+                    }
+                },
+                {
+                    $project: {
+                        remainingLimit: { $max: [0, { $subtract: ['$maxLimit', '$usedCoverage'] }] }
+                    }
+                },
+                {
+                    $group: {
+                        _id: null,
+                        totalActiveExposure: { $sum: '$remainingLimit' }
+                    }
+                }
+            ]),
+            Warranty.countDocuments(expiredMatch),
+            Warranty.countDocuments(rejectedMatch)
+        ]);
+
+        const totalRevenue = Number(revenueAgg?.[0]?.totalRevenue || 0);
+        let totalClaimCost = Number(claimCostAgg?.[0]?.totalClaimCost || 0);
+
+        // Include refunds in total claim cost
+        const refundMatch = { actionType: 'คืนเงินชดเชยสละสิทธิ์เครื่อง' };
+        if (startDate) {
+            refundMatch.transactionDate = { ...(refundMatch.transactionDate || {}), $gte: new Date(startDate) };
+        }
+        if (endDate) {
+            refundMatch.transactionDate = { ...(refundMatch.transactionDate || {}), $lte: new Date(endDate + 'T23:59:59.999Z') };
+        }
+        const refundTx = await FinanceTransaction.aggregate([
+            { $match: refundMatch },
+            { $group: { _id: null, totalRefund: { $sum: '$netTotal' } } }
+        ]);
+        if (refundTx && refundTx.length > 0) {
+            totalClaimCost += Math.abs(refundTx[0].totalRefund);
+        }
+        const activeWarranties = Number(activeAgg?.[0]?.activeWarranties || 0);
+        const overdueClaims = Number(overdueAgg?.[0]?.overdueClaims || 0);
+        const totalActiveExposure = Number(activeExposureAgg?.[0]?.totalActiveExposure || 0);
+        const totalMembers = Number(memberCountAgg?.[0]?.count || 0);
+
+        // Calculate Finance details in-memory
+        const warranties = await Warranty.find(warrantyMatch).lean();
+
+        let totalPaid = 0;
+        let totalUnpaid = 0;
+
+        let fullCount = 0;
+        let fullAmount = 0;
+        let totalPaidForFull = 0;
+        let totalUnpaidForFull = 0;
+
+        let instCount = 0;
+        let instPaid = 0;
+        let instUnpaid = 0;
+
+        let financeCount = 0;
+        let financeTotal = 0;
+        let totalPaidForFinance = 0;
+        let totalUnpaidForFinance = 0;
+        const financeMap = new Map();
+
+        (warranties || []).forEach(w => {
+            const method = String(w.payment?.method || '').toLowerCase();
+            const packagePrice = Number(w.package?.price || 0);
+
+            if (method === 'full payment') {
+                fullCount++;
+                fullAmount += packagePrice;
+                const isPaid = String(w.payment?.status || '').toLowerCase() === 'paid';
+                if (isPaid) {
+                    totalPaidForFull += packagePrice;
+                    totalPaid += packagePrice;
+                } else {
+                    totalUnpaidForFull += packagePrice;
+                    totalUnpaid += packagePrice;
+                }
+            } else if (method === 'installment') {
+                instCount++;
+                let wPaid = 0;
+                let wUnpaid = 0;
+                (w.payment?.schedule || []).forEach(s => {
+                    const amt = Number(s.amount || 0);
+                    if (s.status === 'Paid') {
+                        wPaid += amt;
+                    } else {
+                        wUnpaid += amt;
+                    }
+                });
+                instPaid += wPaid;
+                instUnpaid += wUnpaid;
+                totalPaid += wPaid;
+                totalUnpaid += wUnpaid;
+            } else if (method === 'finance') {
+                financeCount++;
+                financeTotal += packagePrice;
+                const provider = String(w.financeDetails?.provider || 'ไม่ระบุไฟแนนซ์');
+                const existing = financeMap.get(provider) || { count: 0, amount: 0 };
+                existing.count++;
+                existing.amount += packagePrice;
+                financeMap.set(provider, existing);
+
+                const isPaid = String(w.payment?.status || '').toLowerCase() === 'paid';
+                if (isPaid) {
+                    totalPaidForFinance += packagePrice;
+                    totalPaid += packagePrice;
+                } else {
+                    totalUnpaidForFinance += packagePrice;
+                    totalUnpaid += packagePrice;
+                }
+            }
+        });
+
+        // Build ExcelJS Workbook
+        const workbook = new ExcelJS.Workbook();
+
+        // Sheet 1: สรุปภาพรวม (Summary)
+        const wsSummary = workbook.addWorksheet('สรุปภาพรวม');
+        wsSummary.columns = [
+            { header: 'ตัวชี้วัด (KPI)', key: 'kpi', width: 35 },
+            { header: 'จำนวน / มูลค่า', key: 'value', width: 22 }
+        ];
+
+        wsSummary.addRow({ kpi: 'ยอดขายรวม (บาท)', value: totalRevenue });
+        wsSummary.addRow({ kpi: 'ต้นทุนเคลมรวม (บาท)', value: totalClaimCost });
+        wsSummary.addRow({ kpi: 'กรมธรรม์ใช้งานอยู่ (สัญญา)', value: activeWarranties });
+        wsSummary.addRow({ kpi: 'งานซ่อมล่าช้า (งาน)', value: overdueClaims });
+        wsSummary.addRow({ kpi: 'จำนวนสมาชิกรวม (ราย)', value: totalMembers });
+        wsSummary.addRow({ kpi: 'มูลค่าที่คุ้มครองอยู่ทั้งหมด (บาท)', value: totalActiveExposure });
+        wsSummary.addRow({ kpi: 'แพ็กเกจที่หมดอายุ (สัญญา)', value: Number(expiredCount || 0) });
+        wsSummary.addRow({ kpi: 'แพ็กเกจที่ไม่อนุมัติ (สัญญา)', value: Number(rejectedCount || 0) });
+
+        // Apply number format to values in Summary sheet
+        wsSummary.eachRow((row, rowNumber) => {
+            if (rowNumber > 1) {
+                const cell = row.getCell(2);
+                cell.numFmt = '#,##0';
+            }
+        });
+
+        // Sheet 2: ยอดขายรายร้านค้า (Sales by Shop)
+        const wsShops = workbook.addWorksheet('ยอดขายรายร้านค้า');
+        wsShops.columns = [
+            { header: 'ชื่อร้านค้า / สาขา', key: 'shopName', width: 35 },
+            { header: 'จำนวนสัญญาที่เปิด', key: 'contracts', width: 22 },
+            { header: 'ยอดขายรวม (บาท)', key: 'revenue', width: 22 }
+        ];
+        (shopsSummaryAgg || []).forEach(item => {
+            wsShops.addRow({
+                shopName: item.shopName,
+                contracts: Number(item.contracts || 0),
+                revenue: Number(item.revenue || 0)
+            });
+        });
+        wsShops.eachRow((row, rowNumber) => {
+            if (rowNumber > 1) {
+                row.getCell(2).numFmt = '#,##0';
+                row.getCell(3).numFmt = '#,##0';
+            }
+        });
+
+        // Sheet 3: ยอดขายรายพนักงาน (Sales by Staff)
+        const wsStaff = workbook.addWorksheet('ยอดขายรายพนักงาน');
+        wsStaff.columns = [
+            { header: 'ชื่อพนักงาน', key: 'staffName', width: 35 },
+            { header: 'จำนวนสัญญาที่เปิด', key: 'contracts', width: 22 },
+            { header: 'ยอดขายรวม (บาท)', key: 'revenue', width: 22 }
+        ];
+        (staffSummaryAgg || []).forEach(item => {
+            wsStaff.addRow({
+                staffName: item.staffName,
+                contracts: Number(item.contracts || 0),
+                revenue: Number(item.revenue || 0)
+            });
+        });
+        wsStaff.eachRow((row, rowNumber) => {
+            if (rowNumber > 1) {
+                row.getCell(2).numFmt = '#,##0';
+                row.getCell(3).numFmt = '#,##0';
+            }
+        });
+
+        // Sheet 4: ยอดขายรายรุ่นสินค้า (Sales by Product)
+        const wsProducts = workbook.addWorksheet('ยอดขายรายรุ่นสินค้า');
+        wsProducts.columns = [
+            { header: 'รุ่นสินค้า / อุปกรณ์', key: 'deviceModel', width: 35 },
+            { header: 'จำนวนสัญญาที่เปิด', key: 'contracts', width: 22 },
+            { header: 'ยอดขายรวม (บาท)', key: 'revenue', width: 22 }
+        ];
+        (productsSummaryAgg || []).forEach(item => {
+            wsProducts.addRow({
+                deviceModel: item.deviceModel,
+                contracts: Number(item.contracts || 0),
+                revenue: Number(item.revenue || 0)
+            });
+        });
+        wsProducts.eachRow((row, rowNumber) => {
+            if (rowNumber > 1) {
+                row.getCell(2).numFmt = '#,##0';
+                row.getCell(3).numFmt = '#,##0';
+            }
+        });
+
+        // Sheet 5: แพ็คเกจขายดี (Best Selling Packages)
+        const wsPackages = workbook.addWorksheet('แพ็คเกจขายดี');
+        wsPackages.columns = [
+            { header: 'ชื่อแพ็กเกจ', key: 'plan', width: 35 },
+            { header: 'ราคาแพ็กเกจ (บาท)', key: 'price', width: 22 },
+            { header: 'จำนวนสัญญาที่เปิด', key: 'contracts', width: 22 },
+            { header: 'ยอดขายรวม (บาท)', key: 'revenue', width: 22 }
+        ];
+        (packagesAgg || []).forEach(item => {
+            wsPackages.addRow({
+                plan: item.plan,
+                price: Number(item.price || 0),
+                contracts: Number(item.count || 0),
+                revenue: Number(item.revenue || 0)
+            });
+        });
+        wsPackages.eachRow((row, rowNumber) => {
+            if (rowNumber > 1) {
+                row.getCell(2).numFmt = '#,##0';
+                row.getCell(3).numFmt = '#,##0';
+                row.getCell(4).numFmt = '#,##0';
+            }
+        });
+
+        // Sheet 6: การเงิน (Finance)
+        const wsFinance = workbook.addWorksheet('การเงิน');
+        
+        wsFinance.addRow([' easy.care - รายงานสรุปรายละเอียดการเงิน']);
+        wsFinance.addRow([`ช่วงเวลา: ${startDate || 'ทั้งหมด'} ถึง ${endDate || 'ทั้งหมด'} | ร้านค้า: ${shop || 'ทั้งหมด'}`]);
+        wsFinance.addRow([]);
+
+        wsFinance.addRow(['สรุปภาพรวมการเงิน (Financial Overview)']);
+        wsFinance.addRow(['ยอดเงินที่ลูกค้าจ่ายแล้วทั้งหมด (บาท)', totalPaid]);
+        wsFinance.addRow(['ยอดเงินคงค้างที่ลูกค้ายังไม่จ่าย (บาท)', totalUnpaid]);
+        wsFinance.addRow([]);
+
+        wsFinance.addRow(['รายละเอียดจำแนกตามวิธีการชำระเงิน (Payment Breakdown)']);
+        
+        const breakdownHeaderRow = wsFinance.addRow([
+            'วิธีการชำระเงิน',
+            'จำนวนสัญญา (รายการ)',
+            'ได้รับเงินจริงแล้ว (บาท)',
+            'ยอดคงค้าง (บาท)',
+            'ยอดรวมสุทธิ (บาท)'
+        ]);
+
+        wsFinance.addRow([
+            'ชำระเต็มจำนวน (Full Payment)',
+            fullCount,
+            totalPaidForFull,
+            totalUnpaidForFull,
+            fullAmount
+        ]);
+
+        wsFinance.addRow([
+            'ชำระด้วยการแบ่งจ่าย (Installment)',
+            instCount,
+            instPaid,
+            instUnpaid,
+            instPaid + instUnpaid
+        ]);
+
+        wsFinance.addRow([
+            'ชำระแบบจัดไฟแนนซ์ (Finance)',
+            financeCount,
+            totalPaidForFinance,
+            totalUnpaidForFinance,
+            financeTotal
+        ]);
+
+        wsFinance.addRow([]);
+
+        wsFinance.addRow(['รายละเอียดการจัดไฟแนนซ์แยกตามสถาบัน (Finance Providers)']);
+        const financeHeaderRow = wsFinance.addRow([
+            'สถาบันการเงิน / ไฟแนนซ์',
+            'จำนวนสัญญา (รายการ)',
+            'ยอดเงินจัดไฟแนนซ์รวม (บาท)'
+        ]);
+
+        financeMap.forEach((val, key) => {
+            wsFinance.addRow([
+                key,
+                val.count,
+                val.amount
+            ]);
+        });
+
+        wsFinance.mergeCells('A1:E1');
+        wsFinance.mergeCells('A2:E2');
+
+        wsFinance.getCell('A1').font = { bold: true, size: 14, color: { argb: 'FF0D9488' } };
+        wsFinance.getCell('A2').font = { italic: true, size: 10, color: { argb: 'FF64748B' } };
+        
+        wsFinance.getCell('A4').font = { bold: true, size: 11 };
+        wsFinance.getCell('A8').font = { bold: true, size: 11 };
+        wsFinance.getCell('A14').font = { bold: true, size: 11 };
+
+        [breakdownHeaderRow, financeHeaderRow].forEach(row => {
+            row.eachCell(cell => {
+                cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+                cell.fill = {
+                    type: 'pattern',
+                    pattern: 'solid',
+                    fgColor: { argb: 'FF0D9488' }
+                };
+            });
+        });
+
+        wsFinance.getColumn(1).width = 38;
+        wsFinance.getColumn(2).width = 25;
+        wsFinance.getColumn(3).width = 25;
+        wsFinance.getColumn(4).width = 25;
+        wsFinance.getColumn(5).width = 25;
+
+        wsFinance.eachRow((row, rowNumber) => {
+            if (rowNumber === 5 || rowNumber === 6) {
+                row.getCell(2).numFmt = '#,##0';
+                row.getCell(2).font = { bold: true };
+            }
+            if (rowNumber >= 10 && rowNumber <= 12) {
+                row.getCell(2).numFmt = '#,##0';
+                row.getCell(3).numFmt = '#,##0';
+                row.getCell(4).numFmt = '#,##0';
+                row.getCell(5).numFmt = '#,##0';
+            }
+            if (rowNumber >= 16 && rowNumber <= 15 + financeMap.size) {
+                row.getCell(2).numFmt = '#,##0';
+                row.getCell(3).numFmt = '#,##0';
+            }
+        });
+
+        // Header Styling for all sheets
+        [wsSummary, wsShops, wsStaff, wsProducts, wsPackages].forEach(ws => {
+            ws.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+            ws.getRow(1).fill = {
+                type: 'pattern',
+                pattern: 'solid',
+                fgColor: { argb: 'FF0D9488' } // Teal background
+            };
+        });
+
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', `attachment; filename=ExecutiveDashboardSummary_${Date.now()}.xlsx`);
+        await workbook.xlsx.write(res);
+        res.end();
+    } catch (err) {
+        console.error('Export Executive Dashboard Excel error:', err);
+        return res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// ═══════════════════════════════════════════════════════════════════
 // EXECUTIVE REPORT MODAL API (Admin Only)
 // ═══════════════════════════════════════════════════════════════════
 
 app.get('/api/dashboard/executive/report', checkAdminRole, async (req, res) => {
     try {
-        const { type, startDate, endDate, staff } = req.query || {};
+        const { type, startDate, endDate, shop } = req.query || {};
 
         const warrantyMatch = {};
         const claimMatch = {};
 
-        if (staff) {
-            warrantyMatch.staffName = String(staff);
-            claimMatch.staffName = String(staff);
+        if (shop) {
+            warrantyMatch.shopName = String(shop);
+            claimMatch.claimShopName = String(shop);
         }
 
         if (startDate) {
@@ -3187,11 +3806,66 @@ app.get('/api/warranties/:id', async (req, res) => {
     }
 });
 
+function getWarrantyChanges(oldData, newData) {
+    const changes = [];
+    
+    const checkField = (oldVal, newVal, label) => {
+        const o = (oldVal !== undefined && oldVal !== null) ? String(oldVal).trim() : '';
+        const n = (newVal !== undefined && newVal !== null) ? String(newVal).trim() : '';
+        if (o !== n && newVal !== undefined) {
+            changes.push(`${label} (เปลี่ยนจาก "${o || '-'}" เป็น "${n || '-'}");`);
+        }
+    };
+    
+    const checkNumber = (oldVal, newVal, label) => {
+        if (newVal === undefined) return;
+        const o = (oldVal !== undefined && oldVal !== null) ? Number(oldVal) : 0;
+        const n = (newVal !== undefined && newVal !== null) ? Number(newVal) : 0;
+        if (o !== n) {
+            changes.push(`${label} (เปลี่ยนจาก "${o.toLocaleString()}" เป็น "${n.toLocaleString()}");`);
+        }
+    };
+
+    checkField(oldData.shopName, newData.shopName, 'สาขาร้านค้า');
+    checkField(oldData.protectionType, newData.protectionType, 'ประเภทคุ้มครอง');
+    checkNumber(oldData.devicePrice, newData.devicePrice, 'ราคาเครื่องเต็ม');
+
+    if (newData.customer) {
+        checkField(oldData.customer?.firstName, newData.customer.firstName, 'ชื่อจริง');
+        checkField(oldData.customer?.lastName, newData.customer.lastName, 'นามสกุล');
+        checkField(oldData.customer?.phone, newData.customer.phone, 'เบอร์โทร');
+        checkField(oldData.customer?.address, newData.customer.address, 'ที่อยู่');
+    }
+    
+    if (newData.device) {
+        checkField(oldData.device?.type, newData.device.type, 'ประเภทอุปกรณ์');
+        checkField(oldData.device?.model, newData.device.model, 'รุ่น');
+        checkField(oldData.device?.color, newData.device.color, 'สี');
+        checkField(oldData.device?.capacity, newData.device.capacity, 'ความจุ');
+        checkField(oldData.device?.serial, newData.device.serial, 'เลข Serial');
+        checkField(oldData.device?.imei, newData.device.imei, 'เลข IMEI');
+        checkNumber(oldData.device?.deviceValue, newData.device.deviceValue, 'ราคา 70%');
+        checkField(oldData.device?.deviceCondition, newData.device.deviceCondition, 'สภาพเครื่อง');
+    }
+    
+    if (newData.package) {
+        checkField(oldData.package?.plan, newData.package.plan, 'แพ็กเกจ');
+        checkNumber(oldData.package?.price, newData.package.price, 'ราคาแพ็กเกจ');
+    }
+    
+    if (newData.payment) {
+        checkField(oldData.payment?.method, newData.payment.method, 'วิธีการชำระเงิน');
+    }
+    
+    return changes.join(' | ');
+}
+
 // Update warranty
 app.put('/api/warranties/:id', async (req, res) => {
     try {
         const { memberId, ...updateData } = req.body;
         // memberId is immutable as per requirement
+        delete updateData.staffName; // staffName (creator) is immutable
 
         if (updateData.device) {
             if (updateData.device.serial) {
@@ -3204,9 +3878,23 @@ app.put('/api/warranties/:id', async (req, res) => {
             }
         }
 
-        // If the warranty currently has approvalStatus 'needs_correction', reset it to 'pending' upon update
         const currentWarranty = await Warranty.findById(req.params.id);
-        if (currentWarranty && currentWarranty.approvalStatus === 'needs_correction') {
+        if (!currentWarranty) return res.status(404).json({ message: 'Record not found' });
+
+        // Calculate changes and save history
+        const changeString = getWarrantyChanges(currentWarranty, req.body);
+        if (changeString) {
+            const editorName = req.body.editorName || req.body.staffName || 'System';
+            const historyEntry = {
+                editedBy: editorName,
+                editedAt: new Date(),
+                changes: changeString
+            };
+            updateData.editHistory = [...(currentWarranty.editHistory || []), historyEntry];
+        }
+
+        // If the warranty currently has approvalStatus 'needs_correction', reset it to 'pending' upon update
+        if (currentWarranty.approvalStatus === 'needs_correction') {
             updateData.approvalStatus = 'pending';
         }
 
