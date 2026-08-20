@@ -4370,7 +4370,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             const detailsHtml = `
-                <div style="text-align: left; font-family: 'Inter', 'Sarabun', sans-serif; color: #1e293b; max-height: 550px; overflow-y: auto; padding-right: 5px;">
+                <div style="text-align: left; font-family: inherit; color: #1e293b; max-height: 550px; overflow-y: auto; padding-right: 5px;">
                     
                     <!-- Header Info -->
                     <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1.5px solid #e2e8f0; padding-bottom: 12px; margin-bottom: 15px;">
@@ -9908,7 +9908,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const { value: formValues } = await SwalTheme.fire({
             title: '✏️ แก้ไขข้อมูล (ก่อนอนุมัติ)',
             html: `
-                <div style="text-align: left; max-height: 60vh; overflow-y: auto; padding: 0 10px; font-family: 'Prompt', 'Kanit', sans-serif;">
+                <div style="text-align: left; max-height: 60vh; overflow-y: auto; padding: 0 10px; font-family: inherit;">
                     <h3 style="margin-bottom: 15px; color: #1e293b; border-bottom: 2px solid #e2e8f0; padding-bottom: 5px;">ข้อมูลลูกค้า</h3>
                     
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;">
