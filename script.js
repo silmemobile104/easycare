@@ -1122,6 +1122,152 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    const financeTabHqSettlement = document.getElementById('financeTabHqSettlement');
+    if (financeTabHqSettlement) {
+        financeTabHqSettlement.addEventListener('click', (e) => {
+            e.preventDefault();
+            setFinanceTab('hqSettlement');
+        });
+    }
+
+    const btnAddHqSettlement = document.getElementById('btnAddHqSettlement');
+    if (btnAddHqSettlement) {
+        btnAddHqSettlement.addEventListener('click', (e) => {
+            e.preventDefault();
+            showAddHqSettlementModal();
+        });
+    }
+
+    const btnExportHqSettlementExcel = document.getElementById('btnExportHqSettlementExcel');
+    if (btnExportHqSettlementExcel) {
+        btnExportHqSettlementExcel.addEventListener('click', (e) => {
+            e.preventDefault();
+            exportHqSettlementExcel();
+        });
+    }
+
+    let hqSearchDebounceTimer = null;
+    const hqSettlementSearchInput = document.getElementById('hqSettlementSearchInput');
+    if (hqSettlementSearchInput) {
+        // Auto-update on typing with debounce
+        hqSettlementSearchInput.addEventListener('input', () => {
+            clearTimeout(hqSearchDebounceTimer);
+            hqSearchDebounceTimer = setTimeout(() => {
+                fetchHqSettlementData(true);
+            }, 250);
+        });
+        hqSettlementSearchInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                clearTimeout(hqSearchDebounceTimer);
+                fetchHqSettlementData(true);
+            }
+        });
+    }
+
+    // Auto-update on date picker change
+    const hqSettlementStartDate = document.getElementById('hqSettlementStartDate');
+    if (hqSettlementStartDate) {
+        hqSettlementStartDate.addEventListener('change', () => {
+            document.querySelectorAll('.hq-date-preset-btn').forEach(b => {
+                b.classList.remove('active');
+                b.style.background = '#fff';
+                b.style.color = '#475569';
+                b.style.borderColor = '#cbd5e1';
+            });
+            fetchHqSettlementData(true);
+        });
+    }
+
+    const hqSettlementEndDate = document.getElementById('hqSettlementEndDate');
+    if (hqSettlementEndDate) {
+        hqSettlementEndDate.addEventListener('change', () => {
+            document.querySelectorAll('.hq-date-preset-btn').forEach(b => {
+                b.classList.remove('active');
+                b.style.background = '#fff';
+                b.style.color = '#475569';
+                b.style.borderColor = '#cbd5e1';
+            });
+            fetchHqSettlementData(true);
+        });
+    }
+
+    // Quick Date Presets for HQ Settlement (Click again to toggle off / cancel)
+    document.querySelectorAll('.hq-date-preset-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.preventDefault();
+            const sDate = document.getElementById('hqSettlementStartDate');
+            const eDate = document.getElementById('hqSettlementEndDate');
+            if (!sDate || !eDate) return;
+
+            const isAlreadyActive = btn.classList.contains('active');
+
+            // Reset all preset buttons state
+            document.querySelectorAll('.hq-date-preset-btn').forEach(b => {
+                b.classList.remove('active');
+                b.style.background = '#fff';
+                b.style.color = '#475569';
+                b.style.borderColor = '#cbd5e1';
+            });
+
+            // If clicked again on the active button, toggle it off (cancel filter)
+            if (isAlreadyActive) {
+                sDate.value = '';
+                eDate.value = '';
+                fetchHqSettlementData(true);
+                return;
+            }
+
+            // Otherwise activate this button
+            btn.classList.add('active');
+            btn.style.background = '#0d9488';
+            btn.style.color = '#fff';
+            btn.style.borderColor = '#0d9488';
+
+            const preset = btn.getAttribute('data-preset');
+            const now = new Date();
+
+            if (preset === 'thisMonth') {
+                const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+                sDate.value = firstDay.toISOString().split('T')[0];
+                eDate.value = now.toISOString().split('T')[0];
+            } else if (preset === 'lastMonth') {
+                const firstDay = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+                const lastDay = new Date(now.getFullYear(), now.getMonth(), 0);
+                sDate.value = firstDay.toISOString().split('T')[0];
+                eDate.value = lastDay.toISOString().split('T')[0];
+            } else if (preset === 'thisYear') {
+                const firstDay = new Date(now.getFullYear(), 0, 1);
+                sDate.value = firstDay.toISOString().split('T')[0];
+                eDate.value = now.toISOString().split('T')[0];
+            }
+
+            fetchHqSettlementData(true);
+        });
+    });
+
+    const hqSettlementResetBtn = document.getElementById('hqSettlementResetBtn');
+    if (hqSettlementResetBtn) {
+        hqSettlementResetBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            const sInput = document.getElementById('hqSettlementSearchInput');
+            const sDate = document.getElementById('hqSettlementStartDate');
+            const eDate = document.getElementById('hqSettlementEndDate');
+            if (sInput) sInput.value = '';
+            if (sDate) sDate.value = '';
+            if (eDate) eDate.value = '';
+
+            document.querySelectorAll('.hq-date-preset-btn').forEach(b => {
+                b.classList.remove('active');
+                b.style.background = '#fff';
+                b.style.color = '#475569';
+                b.style.borderColor = '#cbd5e1';
+            });
+
+            fetchHqSettlementData(true);
+        });
+    }
+
     const financeExpenseFilterBtn = document.getElementById('financeExpenseFilterBtn');
     if (financeExpenseFilterBtn) {
         financeExpenseFilterBtn.addEventListener('click', (e) => {
@@ -1563,22 +1709,27 @@ document.addEventListener('DOMContentLoaded', () => {
         const expenseTab = document.getElementById('financeTabExpense');
         const adminExpenseTab = document.getElementById('financeTabAdminExpense');
         const profitStatementTabBtn = document.getElementById('financeTabProfitStatement');
+        const hqSettlementTabBtn = document.getElementById('financeTabHqSettlement');
+
         const incomeSection = document.getElementById('financeIncomeSection');
         const expenseSection = document.getElementById('financeExpenseSection');
         const adminExpenseSection = document.getElementById('financeAdminExpenseSection');
         const profitStatementSection = document.getElementById('profitStatementTab');
+        const hqSettlementSection = document.getElementById('financeHqSettlementSection');
 
         // Remove active from all tabs
         if (incomeTab) incomeTab.classList.remove('active');
         if (expenseTab) expenseTab.classList.remove('active');
         if (adminExpenseTab) adminExpenseTab.classList.remove('active');
         if (profitStatementTabBtn) profitStatementTabBtn.classList.remove('active');
+        if (hqSettlementTabBtn) hqSettlementTabBtn.classList.remove('active');
 
         // Hide all sections
         if (incomeSection) incomeSection.style.display = 'none';
         if (expenseSection) expenseSection.style.display = 'none';
         if (adminExpenseSection) adminExpenseSection.style.display = 'none';
         if (profitStatementSection) profitStatementSection.style.display = 'none';
+        if (hqSettlementSection) hqSettlementSection.style.display = 'none';
 
         if (tabName === 'expense') {
             if (expenseTab) expenseTab.classList.add('active');
@@ -1593,6 +1744,10 @@ document.addEventListener('DOMContentLoaded', () => {
             if (profitStatementSection) profitStatementSection.style.display = 'block';
             initProfitStatementDefaults();
             fetchAndRenderProfitStatement();
+        } else if (tabName === 'hqSettlement') {
+            if (hqSettlementTabBtn) hqSettlementTabBtn.classList.add('active');
+            if (hqSettlementSection) hqSettlementSection.style.display = 'block';
+            fetchHqSettlementData();
         } else {
             // income (default)
             if (incomeTab) incomeTab.classList.add('active');
@@ -2291,6 +2446,556 @@ document.addEventListener('DOMContentLoaded', () => {
             `;
             topPackagesBody.appendChild(tr);
         });
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // HEAD OFFICE (SILMINMOBILE) SETTLEMENT FUNCTIONS
+    // ═══════════════════════════════════════════════════════════════════
+
+    async function fetchHqSettlementData(silent = false) {
+        if (!silent) showLoader('กำลังโหลดข้อมูลรับเงินจากสำนักงานใหญ่...');
+        try {
+            const start = (document.getElementById('hqSettlementStartDate') || {}).value || '';
+            const end = (document.getElementById('hqSettlementEndDate') || {}).value || '';
+            const search = (document.getElementById('hqSettlementSearchInput') || {}).value || '';
+
+            const params = new URLSearchParams();
+            if (start) params.set('startDate', start);
+            if (end) params.set('endDate', end);
+            if (search) params.set('search', search);
+
+            const qs = params.toString() ? `?${params.toString()}` : '';
+
+            const [resSum, resList] = await Promise.all([
+                fetch(`/api/finance/hq-settlement/summary${qs}`),
+                fetch(`/api/finance/hq-settlement${qs}`)
+            ]);
+
+            const sumData = await resSum.json();
+            const listData = await resList.json();
+
+            if (sumData.success) {
+                const totalProfit = sumData.totalNetProfit || 0;
+                const totalReceived = sumData.totalReceived || 0;
+                const remaining = sumData.remainingBalance || 0;
+                const txCount = sumData.count || 0;
+
+                const totalProfitEl = document.getElementById('hqTotalNetProfitDisplay');
+                const totalRecEl = document.getElementById('hqTotalReceivedDisplay');
+                const remBalEl = document.getElementById('hqRemainingBalanceDisplay');
+                const ratioEl = document.getElementById('hqSettlementRatioDisplay');
+                const pBarEl = document.getElementById('hqSettlementProgressBar');
+                const txCountEl = document.getElementById('hqSettlementTxCount');
+                const ratioDetailEl = document.getElementById('hqSettlementRatioDetail');
+                const statusBadgeEl = document.getElementById('hqSettlementStatusBadge');
+                const cashflowStatusEl = document.getElementById('hqCashflowStatusText');
+
+                if (totalProfitEl) totalProfitEl.textContent = formatNumber(totalProfit) + ' ฿';
+                if (totalRecEl) totalRecEl.textContent = formatNumber(totalReceived) + ' ฿';
+                if (remBalEl) remBalEl.textContent = formatNumber(remaining) + ' ฿';
+
+                // Settlement Ratio calculation
+                const ratio = (totalProfit > 0) ? Math.min(100, Math.max(0, (totalReceived / totalProfit) * 100)) : (totalReceived > 0 ? 100 : 0);
+                if (ratioEl) ratioEl.textContent = ratio.toFixed(1) + '%';
+                if (pBarEl) pBarEl.style.width = ratio.toFixed(1) + '%';
+                if (txCountEl) txCountEl.textContent = txCount;
+                if (ratioDetailEl) ratioDetailEl.textContent = `${formatNumber(totalReceived)} / ${formatNumber(totalProfit)} ฿`;
+
+                // Badge & Cashflow status text
+                if (statusBadgeEl) {
+                    if (totalProfit > 0 && remaining <= 0) {
+                        statusBadgeEl.textContent = 'จัดสรรครบ 100%';
+                        statusBadgeEl.style.background = '#dcfce7';
+                        statusBadgeEl.style.color = '#15803d';
+                    } else if (totalReceived > 0) {
+                        statusBadgeEl.textContent = 'จัดสรรบางส่วน';
+                        statusBadgeEl.style.background = '#e0f2fe';
+                        statusBadgeEl.style.color = '#0284c7';
+                    } else {
+                        statusBadgeEl.textContent = 'รอจัดสรร';
+                        statusBadgeEl.style.background = '#f1f5f9';
+                        statusBadgeEl.style.color = '#64748b';
+                    }
+                }
+
+                if (cashflowStatusEl) {
+                    if (totalProfit > 0 && remaining <= 0) {
+                        cashflowStatusEl.textContent = 'จัดสรรครบถ้วนแล้ว';
+                        cashflowStatusEl.style.color = '#15803d';
+                    } else if (totalReceived > 0) {
+                        cashflowStatusEl.textContent = `โอนแล้ว ${formatNumber(totalReceived)} ฿ (ค้าง ${formatNumber(remaining)} ฿)`;
+                        cashflowStatusEl.style.color = '#0d9488';
+                    } else {
+                        cashflowStatusEl.textContent = `รอการจัดสรรเงินรอบแรก (${formatNumber(totalProfit)} ฿)`;
+                        cashflowStatusEl.style.color = '#f59e0b';
+                    }
+                }
+            }
+
+            if (listData.success) {
+                renderHqSettlementTable(listData.data || []);
+            }
+        } catch (err) {
+            console.error('fetchHqSettlementData error:', err);
+            showAlert('error', 'ไม่สามารถโหลดข้อมูลรับเงินจากสำนักงานใหญ่ได้');
+        } finally {
+            if (!silent) hideLoader();
+        }
+    }
+
+    function renderHqSettlementTable(items) {
+        const tbody = document.getElementById('hqSettlementBody');
+        const tfoot = document.getElementById('hqSettlementFoot');
+        const emptyState = document.getElementById('hqSettlementEmptyState');
+        const countEl = document.getElementById('hqSettlementCount');
+        const filteredTotalEl = document.getElementById('hqSettlementFilteredTotal');
+        const footTotalEl = document.getElementById('hqSettlementFootTotal');
+
+        if (countEl) countEl.textContent = items.length;
+        if (!tbody) return;
+        tbody.innerHTML = '';
+
+        if (!items || items.length === 0) {
+            if (emptyState) emptyState.style.display = 'block';
+            if (tfoot) tfoot.style.display = 'none';
+            if (filteredTotalEl) filteredTotalEl.textContent = '0 ฿';
+            return;
+        }
+        if (emptyState) emptyState.style.display = 'none';
+        if (tfoot) tfoot.style.display = 'table-footer-group';
+
+        const displayedTotal = items.reduce((acc, it) => acc + (it.amount || 0), 0);
+        if (filteredTotalEl) filteredTotalEl.textContent = formatNumber(displayedTotal) + ' ฿';
+        if (footTotalEl) footTotalEl.textContent = formatNumber(displayedTotal) + ' ฿';
+
+        items.forEach((item, idx) => {
+            const tr = document.createElement('tr');
+            tr.className = 'hq-table-row';
+            const dateStr = item.transferDate ? new Date(item.transferDate).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' }) : '-';
+            const amountStr = formatNumber(item.amount || 0) + ' ฿';
+            
+            const urls = (item.evidenceUrls && item.evidenceUrls.length > 0) ? item.evidenceUrls : (item.evidenceUrl ? [item.evidenceUrl] : []);
+            let slipHtml = '<span style="color: #cbd5e1; font-size: 0.85rem;">-</span>';
+            if (urls.length > 0) {
+                slipHtml = `<button type="button" class="btn btn-sm" style="display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; font-size: 0.78rem; font-weight: 600; background: #e0f2fe; color: #0284c7; border: 1px solid #bae6fd; border-radius: 6px; cursor: pointer; transition: all 0.15s ease;" onmouseover="this.style.background='#bae6fd'" onmouseout="this.style.background='#e0f2fe'" onclick="window.previewHqSlip('${urls[0]}')">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+                    สลิป
+                </button>`;
+            }
+
+            // Channel badge styling
+            let channelBadge = `<span style="display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 6px; font-size: 0.76rem; font-weight: 600; background: #f1f5f9; color: #475569;">${escapeHtml(item.channel || 'โอนเงิน')}</span>`;
+            if (item.channel === 'โอนเงินเข้าบัญชี') {
+                channelBadge = `<span style="display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 6px; font-size: 0.76rem; font-weight: 600; background: #e0f2fe; color: #0284c7;"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"></polyline><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M21 13v2a4 4 0 0 1-4 4H3"></path></svg> โอนเงินเข้าบัญชี</span>`;
+            } else if (item.channel === 'เงินสด') {
+                channelBadge = `<span style="display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 6px; font-size: 0.76rem; font-weight: 600; background: #dcfce7; color: #15803d;"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"></rect><circle cx="12" cy="12" r="2"></circle></svg> เงินสด</span>`;
+            } else if (item.channel === 'เช็คธนาคาร') {
+                channelBadge = `<span style="display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 6px; font-size: 0.76rem; font-weight: 600; background: #fef3c7; color: #b45309;">เช็คธนาคาร</span>`;
+            }
+
+            // Bank Account styling
+            const bankHtml = (item.bankAccount && item.bankAccount !== '-') 
+                ? `<span style="display: inline-flex; align-items: center; gap: 5px; font-size: 0.82rem; font-weight: 600; color: #334155; background: #f8fafc; border: 1px solid #e2e8f0; padding: 3px 9px; border-radius: 6px;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#0d9488" stroke-width="2"><line x1="3" y1="21" x2="21" y2="21"></line><line x1="3" y1="10" x2="21" y2="10"></line><polyline points="5 6 12 3 19 6"></polyline></svg>${escapeHtml(item.bankAccount)}</span>`
+                : `<span style="color: #94a3b8; font-size: 0.85rem;">-</span>`;
+
+            tr.innerHTML = `
+                <td style="text-align: center; color: #94a3b8; font-weight: 500;">${idx + 1}</td>
+                <td style="text-align: center;"><span style="font-weight: 600; color: #1e293b;">${dateStr}</span></td>
+                <td style="text-align: right;"><span style="font-weight: 700; color: #0d9488; font-size: 0.98rem; font-family: monospace, var(--font-family);">+ ${amountStr}</span></td>
+                <td style="text-align: center;">${channelBadge}</td>
+                <td style="text-align: center;">${bankHtml}</td>
+                <td style="text-align: left;"><span style="color: #334155; font-size: 0.85rem;">${escapeHtml(item.remark || '-')}</span></td>
+                <td style="text-align: center;">${slipHtml}</td>
+                <td style="text-align: center;"><span style="display: inline-flex; align-items: center; gap: 4px; font-size: 0.78rem; color: #475569; background: #f8fafc; border: 1px solid #e2e8f0; padding: 2px 7px; border-radius: 6px;"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>${escapeHtml(item.recordedBy || '-')}</span></td>
+                <td style="text-align: center;">
+                    <button type="button" class="btn-delete-item" style="background: none; border: none; color: #ef4444; cursor: pointer; padding: 5px; border-radius: 6px; display: inline-flex; align-items: center; transition: all 0.15s ease;" onmouseover="this.style.background='#fee2e2'" onmouseout="this.style.background='none'" onclick="window.deleteHqSettlement('${item._id}')" title="ลบรายการนี้">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    window.previewHqSlip = function(url) {
+        if (!url) return;
+        Swal.fire({
+            html: `
+                <div style="display: flex; align-items: center; justify-content: space-between; padding-bottom: 12px; border-bottom: 1px solid #f1f5f9; margin-bottom: 14px;">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <div style="width: 36px; height: 36px; border-radius: 10px; background: #e0f2fe; color: #0284c7; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                <polyline points="14 2 14 8 20 8"></polyline>
+                                <line x1="16" y1="13" x2="8" y2="13"></line>
+                                <line x1="16" y1="17" x2="8" y2="17"></line>
+                                <polyline points="10 9 9 9 8 9"></polyline>
+                            </svg>
+                        </div>
+                        <div style="text-align: left;">
+                            <div style="font-size: 1.05rem; font-weight: 700; color: #1e293b;">หลักฐานสลิปการโอนเงิน</div>
+                            <div style="font-size: 0.75rem; color: #64748b;">สลิปโอนส่วนแบ่งกำไรจาก สนง.ใหญ่</div>
+                        </div>
+                    </div>
+                </div>
+                <div style="padding: 8px; background: #f8fafc; border-radius: 12px; border: 1px solid #e2e8f0;">
+                    <img src="${url}" alt="สลิปการโอนเงิน" style="max-width: 100%; max-height: 65vh; border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.06); display: block; margin: 0 auto; object-fit: contain;">
+                </div>
+                <div style="margin-top: 14px; text-align: center;">
+                    <a href="${url}" target="_blank" style="display: inline-flex; align-items: center; gap: 6px; padding: 8px 18px; background: linear-gradient(135deg, #0d9488 0%, #0891b2 100%); color: #ffffff; text-decoration: none; border-radius: 8px; font-size: 0.85rem; font-weight: 600; box-shadow: 0 2px 8px rgba(13, 148, 136, 0.25);">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+                        เปิดดูรูปภาพขนาดเต็ม
+                    </a>
+                </div>
+            `,
+            showCloseButton: true,
+            showConfirmButton: false,
+            width: 520,
+            background: '#ffffff',
+            customClass: {
+                popup: 'swal-hq-popup-custom',
+                htmlContainer: 'swal-hq-html-container'
+            }
+        });
+    };
+
+    window.deleteHqSettlement = async function(id) {
+        const result = await Swal.fire({
+            title: 'ยืนยันการลบรายการ?',
+            text: 'คุณแน่ใจหรือไม่ว่าต้องการลบรายการรับเงินโอนนี้ การกระทำนี้ไม่สามารถยกเลิกได้',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#ef4444',
+            cancelButtonColor: '#64748b',
+            confirmButtonText: 'ใช่, ลบรายการ',
+            cancelButtonText: 'ยกเลิก'
+        });
+
+        if (!result.isConfirmed) return;
+
+        try {
+            showLoader('กำลังลบรายการ...');
+            const staffName = (typeof currentUser !== 'undefined' && currentUser) ? currentUser.staffName : 'Admin';
+            const res = await fetch(`/api/finance/hq-settlement/${id}`, {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ staffName })
+            });
+            const data = await res.json();
+            if (data.success) {
+                showAlert('success', 'ลบรายการรับเงินโอนสำเร็จ');
+                fetchHqSettlementData();
+            } else {
+                showAlert('error', data.message || 'เกิดข้อผิดพลาดในการลบรายการ');
+            }
+        } catch (err) {
+            console.error('deleteHqSettlement error:', err);
+            showAlert('error', 'เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์');
+        } finally {
+            hideLoader();
+        }
+    };
+
+    async function showAddHqSettlementModal() {
+        const today = new Date().toISOString().split('T')[0];
+        const currentOutstanding = document.getElementById('hqRemainingBalanceDisplay')?.textContent || '0 ฿';
+
+        const { value: formValues } = await Swal.fire({
+            width: 520,
+            background: '#ffffff',
+            showCloseButton: false,
+            html: `
+                <div style="text-align: left; font-family: var(--font-family, sans-serif);">
+                    <!-- Modal Header -->
+                    <div style="display: flex; align-items: center; justify-content: space-between; padding-bottom: 14px; border-bottom: 1px solid #f1f5f9; margin-bottom: 14px;">
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <div style="width: 42px; height: 42px; border-radius: 12px; background: linear-gradient(135deg, #0d9488 0%, #0891b2 100%); color: #ffffff; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(13, 148, 136, 0.22); flex-shrink: 0;">
+                                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <rect x="4" y="2" width="16" height="20" rx="2" ry="2"></rect>
+                                    <line x1="9" y1="22" x2="9" y2="18"></line>
+                                    <line x1="15" y1="22" x2="15" y2="18"></line>
+                                    <line x1="9" y1="6" x2="9.01" y2="6"></line>
+                                    <line x1="15" y1="6" x2="15.01" y2="6"></line>
+                                    <line x1="9" y1="10" x2="9.01" y2="10"></line>
+                                    <line x1="15" y1="10" x2="15.01" y2="10"></line>
+                                    <line x1="9" y1="14" x2="9.01" y2="14"></line>
+                                    <line x1="15" y1="14" x2="15.01" y2="14"></line>
+                                </svg>
+                            </div>
+                            <div>
+                                <div style="font-size: 1.15rem; font-weight: 700; color: #0f172a; line-height: 1.25;">บันทึกรับเงิน</div>
+                                <div style="font-size: 0.78rem; color: #64748b; margin-top: 2px;">ลูกหนี้ → Easy.Care</div>
+                            </div>
+                        </div>
+                        <span style="font-size: 0.72rem; font-weight: 600; color: #0d9488; background: #ccfbf1; padding: 4px 10px; border-radius: 20px; letter-spacing: 0.2px;">EASY.CARE</span>
+                    </div>
+
+                    <!-- Outstanding Ribbon -->
+                    <div style="background: linear-gradient(135deg, rgba(13, 148, 136, 0.06) 0%, rgba(8, 145, 178, 0.04) 100%); border: 1px solid rgba(13, 148, 136, 0.16); border-radius: 10px; padding: 9px 14px; margin-bottom: 14px; display: flex; justify-content: space-between; align-items: center;">
+                        <div style="display: flex; align-items: center; gap: 7px;">
+                            <span style="width: 8px; height: 8px; border-radius: 50%; background: #f59e0b; display: inline-block;"></span>
+                            <span style="font-size: 0.82rem; color: #475569; font-weight: 500;">ยอดกำไรค้างรับปัจจุบัน:</span>
+                        </div>
+                        <div style="font-size: 1rem; font-weight: 700; color: #e11d48; font-family: monospace, var(--font-family);">${currentOutstanding}</div>
+                    </div>
+
+                    <!-- Row 1: Date & Amount -->
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 10px;">
+                        <div>
+                            <label style="display: flex; align-items: center; gap: 6px; font-size: 0.82rem; font-weight: 600; color: #334155; margin-bottom: 5px;">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#0d9488" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+                                วันที่โอนเงิน <span style="color: #ef4444;">*</span>
+                            </label>
+                            <input type="date" id="swalHqDate" value="${today}" style="width: 100%; height: 38px; padding: 0 10px; border: 1.5px solid #cbd5e1; border-radius: 8px; font-size: 0.86rem; color: #1e293b; outline: none; transition: all 0.2s ease; box-sizing: border-box; background: #ffffff;" onfocus="this.style.borderColor='#0d9488'; this.style.boxShadow='0 0 0 3px rgba(13, 148, 136, 0.12)';" onblur="this.style.borderColor='#cbd5e1'; this.style.boxShadow='none';">
+                        </div>
+
+                        <div>
+                            <label style="display: flex; align-items: center; gap: 6px; font-size: 0.82rem; font-weight: 600; color: #334155; margin-bottom: 5px;">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#0d9488" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
+                                ยอดเงินที่โอน (บาท) <span style="color: #ef4444;">*</span>
+                            </label>
+                            <div style="position: relative;">
+                                <input type="number" id="swalHqAmount" placeholder="0.00" min="1" step="0.01" style="width: 100%; height: 38px; padding: 0 30px 0 10px; border: 1.5px solid #cbd5e1; border-radius: 8px; font-size: 0.92rem; font-weight: 700; color: #0d9488; outline: none; transition: all 0.2s ease; box-sizing: border-box; background: #ffffff;" onfocus="this.style.borderColor='#0d9488'; this.style.boxShadow='0 0 0 3px rgba(13, 148, 136, 0.12)';" onblur="this.style.borderColor='#cbd5e1'; this.style.boxShadow='none';">
+                                <span style="position: absolute; right: 10px; top: 9px; font-size: 0.85rem; font-weight: 600; color: #94a3b8;">฿</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Live Amount Formatted Text -->
+                    <div id="swalHqAmountPreviewText" style="text-align: right; font-size: 0.8rem; color: #0d9488; font-weight: 600; min-height: 16px; margin-top: -6px; margin-bottom: 10px;"></div>
+
+                    <!-- Row 2: Channel & Destination Account -->
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 10px;">
+                        <div>
+                            <label style="display: flex; align-items: center; gap: 6px; font-size: 0.82rem; font-weight: 600; color: #334155; margin-bottom: 5px;">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#0284c7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"></polyline><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M21 13v2a4 4 0 0 1-4 4H3"></path></svg>
+                                ช่องทางการโอน
+                            </label>
+                            <select id="swalHqChannel" style="width: 100%; height: 38px; padding: 0 10px; border: 1.5px solid #cbd5e1; border-radius: 8px; font-size: 0.86rem; color: #1e293b; outline: none; transition: all 0.2s ease; box-sizing: border-box; background: #ffffff; cursor: pointer;" onfocus="this.style.borderColor='#0d9488'; this.style.boxShadow='0 0 0 3px rgba(13, 148, 136, 0.12)';" onblur="this.style.borderColor='#cbd5e1'; this.style.boxShadow='none';">
+                                <option value="โอนเงินเข้าบัญชี">โอนเงินเข้าบัญชี (Bank Transfer)</option>
+                                <option value="เงินสด">เงินสด (Cash)</option>
+                                <option value="เช็คธนาคาร">เช็คธนาคาร (Cheque)</option>
+                                <option value="อื่นๆ">อื่นๆ (Other)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label style="display: flex; align-items: center; gap: 6px; font-size: 0.82rem; font-weight: 600; color: #334155; margin-bottom: 5px;">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="21" x2="21" y2="21"></line><line x1="3" y1="10" x2="21" y2="10"></line><polyline points="5 6 12 3 19 6"></polyline><line x1="4" y1="10" x2="4" y2="21"></line><line x1="20" y1="10" x2="20" y2="21"></line><line x1="8" y1="14" x2="8" y2="17"></line><line x1="12" y1="14" x2="12" y2="17"></line><line x1="16" y1="14" x2="16" y2="17"></line></svg>
+                                บัญชี / ธนาคารที่รับเงิน
+                            </label>
+                            <input type="text" id="swalHqBank" list="hqBankOptions" placeholder="เช่น กสิกรไทย 123-4-56789-0" style="width: 100%; height: 38px; padding: 0 10px; border: 1.5px solid #cbd5e1; border-radius: 8px; font-size: 0.86rem; color: #1e293b; outline: none; transition: all 0.2s ease; box-sizing: border-box; background: #ffffff;" onfocus="this.style.borderColor='#0d9488'; this.style.boxShadow='0 0 0 3px rgba(13, 148, 136, 0.12)';" onblur="this.style.borderColor='#cbd5e1'; this.style.boxShadow='none';">
+                            <datalist id="hqBankOptions">
+                                <option value="กสิกรไทย">
+                                <option value="ไทยพาณิชย์">
+                                <option value="กรุงเทพ">
+                                <option value="กรุงไทย">
+                                <option value="กรุงศรีอยุธยา">
+                                <option value="ทหารไทยธนชาต (ttb)">
+                            </datalist>
+                        </div>
+                    </div>
+
+                    <!-- Row 3: Remark -->
+                    <div style="margin-bottom: 12px;">
+                        <label style="display: flex; align-items: center; gap: 6px; font-size: 0.82rem; font-weight: 600; color: #334155; margin-bottom: 5px;">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                            หมายเหตุ / งวดการโอน
+                        </label>
+                        <input type="text" id="swalHqRemark" placeholder="เช่น โอนแบ่งจ่ายกำไรเดือนสิงหาคม งวดที่ 1, เงินจัดสรรรอบครึ่งปี" style="width: 100%; height: 38px; padding: 0 10px; border: 1.5px solid #cbd5e1; border-radius: 8px; font-size: 0.86rem; color: #1e293b; outline: none; transition: all 0.2s ease; box-sizing: border-box; background: #ffffff;" onfocus="this.style.borderColor='#0d9488'; this.style.boxShadow='0 0 0 3px rgba(13, 148, 136, 0.12)';" onblur="this.style.borderColor='#cbd5e1'; this.style.boxShadow='none';">
+                    </div>
+
+                    <!-- Row 4: Elegant Compact Slip Upload Box -->
+                    <div style="margin-bottom: 4px;">
+                        <label style="display: flex; align-items: center; gap: 6px; font-size: 0.82rem; font-weight: 600; color: #334155; margin-bottom: 5px;">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#0d9488" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                            สลิปหลักฐานการโอนเงิน <span style="font-weight: 400; color: #94a3b8; font-size: 0.75rem;">(ถ้ามี)</span>
+                        </label>
+                        <div id="swalHqUploadBox" style="border: 1.5px dashed #cbd5e1; border-radius: 10px; padding: 10px 14px; background: #f8fafc; cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center; justify-content: space-between;" onclick="document.getElementById('swalHqSlipFile').click();" onmouseover="this.style.borderColor='#0d9488'; this.style.background='#f0fdfa';" onmouseout="this.style.borderColor='#cbd5e1'; this.style.background='#f8fafc';">
+                            <input type="file" id="swalHqSlipFile" accept="image/*" style="display: none;">
+                            
+                            <div id="swalHqUploadPlaceholder" style="display: flex; align-items: center; gap: 10px; width: 100%;">
+                                <div style="width: 36px; height: 36px; border-radius: 8px; background: #e0f2fe; color: #0284c7; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                                </div>
+                                <div style="text-align: left; flex-grow: 1;">
+                                    <div style="font-size: 0.82rem; font-weight: 600; color: #334155;">คลิกเพื่ออัปโหลดไฟล์สลิป</div>
+                                    <div style="font-size: 0.72rem; color: #94a3b8;">รองรับรูปภาพ JPG, PNG, WEBP จากแอปธนาคาร</div>
+                                </div>
+                                <span style="font-size: 0.75rem; font-weight: 600; color: #475569; background: #e2e8f0; padding: 4px 10px; border-radius: 6px; flex-shrink: 0;">เลือกไฟล์</span>
+                            </div>
+
+                            <div id="swalHqUploadPreview" style="display: none; align-items: center; gap: 12px; width: 100%;">
+                                <img id="swalHqThumbnail" src="" style="height: 38px; width: 38px; border-radius: 6px; border: 1px solid #cbd5e1; object-fit: cover; box-shadow: 0 1px 3px rgba(0,0,0,0.08); flex-shrink: 0;">
+                                <div style="text-align: left; flex-grow: 1; min-width: 0;">
+                                    <div id="swalHqFileName" style="font-size: 0.82rem; font-weight: 600; color: #0f172a; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">-</div>
+                                    <div style="font-size: 0.72rem; color: #0d9488; display: flex; align-items: center; gap: 4px;">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                                        แนบไฟล์เรียบร้อย (คลิกเพื่อเปลี่ยนรูป)
+                                    </div>
+                                </div>
+                                <button type="button" onclick="event.stopPropagation(); document.getElementById('swalHqSlipFile').value = ''; document.getElementById('swalHqUploadPlaceholder').style.display='flex'; document.getElementById('swalHqUploadPreview').style.display='none';" style="background: none; border: none; color: #94a3b8; cursor: pointer; padding: 4px; font-size: 0.9rem;" title="ลบรูปภาพ">✕</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `,
+            showCancelButton: true,
+            confirmButtonText: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: -2px; margin-right: 6px;"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg> บันทึกรับเงินโอน',
+            cancelButtonText: 'ยกเลิก',
+            focusConfirm: false,
+            buttonsStyling: false,
+            customClass: {
+                popup: 'swal-hq-popup-custom',
+                htmlContainer: 'swal-hq-html-container',
+                confirmButton: 'swal-hq-confirm-btn',
+                cancelButton: 'swal-hq-cancel-btn'
+            },
+            didOpen: () => {
+                const amountInput = document.getElementById('swalHqAmount');
+                const previewText = document.getElementById('swalHqAmountPreviewText');
+                if (amountInput && previewText) {
+                    amountInput.addEventListener('input', () => {
+                        const val = parseFloat(amountInput.value);
+                        if (!isNaN(val) && val > 0) {
+                            previewText.textContent = `ยอดโอน: ${val.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท`;
+                        } else {
+                            previewText.textContent = '';
+                        }
+                    });
+                }
+
+                const fileInput = document.getElementById('swalHqSlipFile');
+                const placeholder = document.getElementById('swalHqUploadPlaceholder');
+                const previewContainer = document.getElementById('swalHqUploadPreview');
+                const thumbnail = document.getElementById('swalHqThumbnail');
+                const fileNameEl = document.getElementById('swalHqFileName');
+
+                if (fileInput) {
+                    fileInput.addEventListener('change', (e) => {
+                        const file = e.target.files && e.target.files[0];
+                        if (file) {
+                            fileNameEl.textContent = file.name;
+                            const reader = new FileReader();
+                            reader.onload = (re) => {
+                                thumbnail.src = re.target.result;
+                                placeholder.style.display = 'none';
+                                previewContainer.style.display = 'flex';
+                            };
+                            reader.readAsDataURL(file);
+                        } else {
+                            placeholder.style.display = 'flex';
+                            previewContainer.style.display = 'none';
+                        }
+                    });
+                }
+            },
+            preConfirm: () => {
+                const transferDate = document.getElementById('swalHqDate').value;
+                const amount = parseFloat(document.getElementById('swalHqAmount').value);
+                const channel = document.getElementById('swalHqChannel').value;
+                const bankAccount = document.getElementById('swalHqBank').value.trim();
+                const remark = document.getElementById('swalHqRemark').value.trim();
+                const fileInput = document.getElementById('swalHqSlipFile');
+                const file = fileInput && fileInput.files && fileInput.files[0] ? fileInput.files[0] : null;
+
+                if (!transferDate) {
+                    Swal.showValidationMessage('กรุณาระบุวันที่โอนเงิน');
+                    return false;
+                }
+                if (!amount || amount <= 0) {
+                    Swal.showValidationMessage('กรุณาระบุจำนวนเงินที่ถูกต้อง (มากกว่า 0 บาท)');
+                    return false;
+                }
+
+                return { transferDate, amount, channel, bankAccount, remark, file };
+            }
+        });
+
+        if (!formValues) return;
+
+        try {
+            showLoader('กำลังบันทึกข้อมูล...');
+            let evidenceUrl = '';
+
+            // If a slip file was chosen, upload it first
+            if (formValues.file) {
+                const formData = new FormData();
+                formData.append('file', formValues.file);
+                const uploadRes = await fetch('/api/upload/single', {
+                    method: 'POST',
+                    body: formData
+                });
+                if (uploadRes.ok) {
+                    const uploadData = await uploadRes.json();
+                    evidenceUrl = uploadData.url || '';
+                }
+            }
+
+            const staffName = (typeof currentUser !== 'undefined' && currentUser) ? currentUser.staffName : 'Admin';
+            const payload = {
+                transferDate: formValues.transferDate,
+                amount: formValues.amount,
+                channel: formValues.channel,
+                bankAccount: formValues.bankAccount,
+                remark: formValues.remark,
+                evidenceUrl,
+                evidenceUrls: evidenceUrl ? [evidenceUrl] : [],
+                staffName
+            };
+
+            const res = await fetch('/api/finance/hq-settlement', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            const data = await res.json();
+            if (data.success) {
+                showAlert('success', 'บันทึกรับเงินโอนจากสำนักงานใหญ่สำเร็จ');
+                fetchHqSettlementData();
+            } else {
+                showAlert('error', data.message || 'บันทึกไม่สำเร็จ');
+            }
+        } catch (err) {
+            console.error('showAddHqSettlementModal error:', err);
+            showAlert('error', 'เกิดข้อผิดพลาดในการบันทึกข้อมูล');
+        } finally {
+            hideLoader();
+        }
+    }
+
+    async function exportHqSettlementExcel() {
+        try {
+            const start = (document.getElementById('hqSettlementStartDate') || {}).value || '';
+            const end = (document.getElementById('hqSettlementEndDate') || {}).value || '';
+            const search = (document.getElementById('hqSettlementSearchInput') || {}).value || '';
+
+            const params = new URLSearchParams();
+            if (start) params.set('startDate', start);
+            if (end) params.set('endDate', end);
+            if (search) params.set('search', search);
+
+            const qs = params.toString() ? `?${params.toString()}` : '';
+
+            showLoader('กำลังสร้างไฟล์ Excel...');
+            const res = await fetch(`/api/finance/hq-settlement/export/excel${qs}`);
+            if (!res.ok) throw new Error('Export Excel ไม่สำเร็จ');
+
+            const blob = await res.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `hq_settlement_${start || 'all'}_${end || 'all'}.xlsx`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            window.URL.revokeObjectURL(url);
+        } catch (err) {
+            console.error('exportHqSettlementExcel error:', err);
+            showAlert('error', 'ไม่สามารถส่งออก Excel ได้');
+        } finally {
+            hideLoader();
+        }
     }
 
     function buildFinanceExpenseQueryString() {

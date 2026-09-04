@@ -531,6 +531,20 @@ const InstallmentPlanSchema = new mongoose.Schema({
 }, { collection: 'installmentPlans' });
 const InstallmentPlan = mongoose.model('InstallmentPlan', InstallmentPlanSchema);
 
+// HqSettlement Schema (บันทึกรับเงินโอนจากสำนักงานใหญ่ SilminMobile)
+const HqSettlementSchema = new mongoose.Schema({
+    transferDate: { type: Date, required: true, default: Date.now },
+    amount: { type: Number, required: true },
+    channel: { type: String, default: 'โอนเงินเข้าบัญชี' },
+    bankAccount: { type: String },
+    refNumber: { type: String },
+    remark: { type: String },
+    evidenceUrls: [String],
+    evidenceUrl: { type: String },
+    recordedBy: { type: String, required: true }
+}, { timestamps: true });
+const HqSettlement = mongoose.model('HqSettlement', HqSettlementSchema);
+
 // ═══════════════════════════════════════════════════════════════════
 // FILTER HELPER FUNCTIONS
 // ═══════════════════════════════════════════════════════════════════
@@ -5117,6 +5131,232 @@ app.get('/api/finance/export/excel', async (req, res) => {
         res.end();
     } catch (err) {
         res.status(500).json({ message: err.message });
+    }
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// HEAD OFFICE SETTLEMENT APIS (รับเงินโอนจากสำนักงานใหญ่ SilminMobile)
+// ═══════════════════════════════════════════════════════════════════
+
+// 1. สรุปยอดเงิน: กำไรสะสม, ยอดที่โอนมาแล้ว, และยอดคงค้าง
+app.get('/api/finance/hq-settlement/summary', async (req, res) => {
+    try {
+        const { startDate, endDate } = req.query;
+
+        // คำนวณกำไรสุทธิสะสมจากระบบ P&L
+        const profitData = await buildProfitStatementData({ startDate, endDate });
+        const totalNetProfit = Number(profitData?.kpis?.netProfit || 0);
+        const totalIncome = Number(profitData?.kpis?.totalIncome || 0);
+        const totalExpense = Number(profitData?.kpis?.totalExpense || 0);
+
+        // รวมยอดที่ สนง.ใหญ่ โอนมาแล้ว
+        const matchHq = {};
+        if (startDate) {
+            matchHq.transferDate = { ...(matchHq.transferDate || {}), $gte: new Date(String(startDate)) };
+        }
+        if (endDate) {
+            matchHq.transferDate = { ...(matchHq.transferDate || {}), $lte: new Date(String(endDate) + 'T23:59:59.999Z') };
+        }
+
+        const hqAgg = await HqSettlement.aggregate([
+            ...(Object.keys(matchHq).length > 0 ? [{ $match: matchHq }] : []),
+            {
+                $group: {
+                    _id: null,
+                    totalReceived: { $sum: '$amount' },
+                    count: { $sum: 1 }
+                }
+            }
+        ]);
+
+        const totalReceived = Number(hqAgg?.[0]?.totalReceived || 0);
+        const count = Number(hqAgg?.[0]?.count || 0);
+        const remainingBalance = totalNetProfit - totalReceived;
+
+        res.json({
+            success: true,
+            totalNetProfit,
+            totalIncome,
+            totalExpense,
+            totalReceived,
+            remainingBalance,
+            count
+        });
+    } catch (err) {
+        console.error('GET /api/finance/hq-settlement/summary error:', err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// 2. ดึงรายการประวัติการรับเงินโอนจาก สนง.ใหญ่
+app.get('/api/finance/hq-settlement', async (req, res) => {
+    try {
+        const { startDate, endDate, search } = req.query;
+        const match = {};
+        if (startDate) {
+            match.transferDate = { ...(match.transferDate || {}), $gte: new Date(String(startDate)) };
+        }
+        if (endDate) {
+            match.transferDate = { ...(match.transferDate || {}), $lte: new Date(String(endDate) + 'T23:59:59.999Z') };
+        }
+        if (search) {
+            const regex = new RegExp(String(search).trim(), 'i');
+            match.$or = [
+                { remark: regex },
+                { channel: regex },
+                { bankAccount: regex },
+                { refNumber: regex },
+                { recordedBy: regex }
+            ];
+        }
+
+        const settlements = await HqSettlement.find(match).sort({ transferDate: -1, createdAt: -1 }).lean();
+        res.json({ success: true, data: settlements });
+    } catch (err) {
+        console.error('GET /api/finance/hq-settlement error:', err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// 3. บันทึกรายการรับเงินโอนใหม่จาก สนง.ใหญ่
+app.post('/api/finance/hq-settlement', async (req, res) => {
+    try {
+        const { transferDate, amount, channel, bankAccount, refNumber, remark, evidenceUrls, evidenceUrl, staffName } = req.body;
+        if (!amount || Number(amount) <= 0) {
+            return res.status(400).json({ success: false, message: 'กรุณาระบุจำนวนเงินที่ถูกต้อง' });
+        }
+
+        const urls = Array.isArray(evidenceUrls) ? evidenceUrls : (evidenceUrl ? [evidenceUrl] : []);
+
+        const settlement = await HqSettlement.create({
+            transferDate: transferDate ? new Date(transferDate) : new Date(),
+            amount: Number(amount),
+            channel: channel || 'โอนเงินเข้าบัญชี',
+            bankAccount: bankAccount || '-',
+            refNumber: refNumber || '-',
+            remark: remark || '',
+            evidenceUrls: urls,
+            evidenceUrl: urls.length > 0 ? urls[0] : null,
+            recordedBy: staffName || 'System'
+        });
+
+        await logAction('HQ Settlement', `บันทึกรับเงินโอนจากสำนักงานใหญ่ (SilminMobile) จำนวน ${Number(amount).toLocaleString('th-TH')} บาท`, staffName || 'System');
+
+        res.status(201).json({ success: true, data: settlement });
+    } catch (err) {
+        console.error('POST /api/finance/hq-settlement error:', err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// 4. ลบรายการรับเงินโอน
+app.delete('/api/finance/hq-settlement/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { staffName } = req.body || {};
+        const item = await HqSettlement.findByIdAndDelete(id);
+        if (!item) return res.status(404).json({ success: false, message: 'ไม่พบรายการดังกล่าว' });
+
+        await logAction('Delete HQ Settlement', `ลบรายการรับเงินโอนจากสำนักงานใหญ่ จำนวน ${Number(item.amount).toLocaleString('th-TH')} บาท`, staffName || 'System');
+
+        res.json({ success: true, message: 'ลบรายการสำเร็จ' });
+    } catch (err) {
+        console.error('DELETE /api/finance/hq-settlement/:id error:', err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// 5. ส่งออกประวัติรับเงินโอนเป็น Excel
+app.get('/api/finance/hq-settlement/export/excel', async (req, res) => {
+    try {
+        const { startDate, endDate, search } = req.query;
+        const match = {};
+        if (startDate) {
+            match.transferDate = { ...(match.transferDate || {}), $gte: new Date(String(startDate)) };
+        }
+        if (endDate) {
+            match.transferDate = { ...(match.transferDate || {}), $lte: new Date(String(endDate) + 'T23:59:59.999Z') };
+        }
+        if (search) {
+            const regex = new RegExp(String(search).trim(), 'i');
+            match.$or = [
+                { remark: regex },
+                { channel: regex },
+                { bankAccount: regex },
+                { refNumber: regex },
+                { recordedBy: regex }
+            ];
+        }
+
+        const settlements = await HqSettlement.find(match).sort({ transferDate: -1 }).lean();
+        const profitData = await buildProfitStatementData({ startDate, endDate });
+        const totalNetProfit = Number(profitData?.kpis?.netProfit || 0);
+        const totalReceived = settlements.reduce((sum, s) => sum + Number(s.amount || 0), 0);
+        const remainingBalance = totalNetProfit - totalReceived;
+
+        const workbook = new ExcelJS.Workbook();
+        workbook.creator = 'EasyCare';
+        workbook.created = new Date();
+
+        // Sheet 1: รายการโอนเงินจาก สนง.ใหญ่
+        const ws = workbook.addWorksheet('รับเงินจาก สนง.ใหญ่');
+        ws.columns = [
+            { header: 'ลำดับ', key: 'no', width: 8 },
+            { header: 'วันที่โอน', key: 'transferDate', width: 16 },
+            { header: 'ยอดเงินโอน (บาท)', key: 'amount', width: 20 },
+            { header: 'ช่องทางการโอน', key: 'channel', width: 20 },
+            { header: 'บัญชี / ธนาคารที่รับเงิน', key: 'bankAccount', width: 25 },
+            { header: 'เลขที่อ้างอิง', key: 'refNumber', width: 18 },
+            { header: 'หมายเหตุ', key: 'remark', width: 35 },
+            { header: 'ผู้บันทึก', key: 'recordedBy', width: 18 },
+            { header: 'ลิงก์สลิปหลักฐาน', key: 'evidenceUrl', width: 35 }
+        ];
+        ws.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+        ws.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0D9488' } };
+
+        settlements.forEach((s, idx) => {
+            ws.addRow({
+                no: idx + 1,
+                transferDate: s.transferDate ? new Date(s.transferDate) : null,
+                amount: Number(s.amount || 0),
+                channel: s.channel || '-',
+                bankAccount: s.bankAccount || '-',
+                refNumber: s.refNumber || '-',
+                remark: s.remark || '-',
+                recordedBy: s.recordedBy || '-',
+                evidenceUrl: (s.evidenceUrls && s.evidenceUrls.length > 0) ? s.evidenceUrls.join(', ') : (s.evidenceUrl || '-')
+            });
+        });
+
+        ws.getColumn('amount').numFmt = '#,##0.00';
+        ws.getColumn('transferDate').numFmt = 'dd/mm/yyyy';
+
+        // Sheet 2: สรุปภาพรวม
+        const wsSummary = workbook.addWorksheet('สรุปยอดการจัดสรร');
+        wsSummary.columns = [
+            { header: 'รายการสรุป', key: 'label', width: 35 },
+            { header: 'จำนวนเงิน (บาท)', key: 'value', width: 22 }
+        ];
+        wsSummary.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+        wsSummary.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0D9488' } };
+
+        wsSummary.addRow({ label: 'กำไรสุทธิตามบัญชี EasyCare', value: totalNetProfit });
+        wsSummary.addRow({ label: 'ยอดเงินที่ สนง.ใหญ่ (SilminMobile) โอนมาแล้ว', value: totalReceived });
+        wsSummary.addRow({ label: 'ยอดคงค้างที่รอรับจาก สนง.ใหญ่', value: remainingBalance });
+        wsSummary.addRow({ label: 'จำนวนครั้งที่โอน (รายการ)', value: settlements.length });
+        wsSummary.getColumn('value').numFmt = '#,##0.00';
+
+        const safeStart = startDate ? String(startDate) : '';
+        const safeEnd = endDate ? String(endDate) : '';
+        const fileName = `hq_settlement_${safeStart || 'all'}_${safeEnd || 'all'}.xlsx`;
+
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+        await workbook.xlsx.write(res);
+        res.end();
+    } catch (err) {
+        console.error('Export hq settlement excel error:', err);
+        res.status(500).json({ success: false, message: err.message });
     }
 });
 

@@ -190,6 +190,65 @@
     font-family: var(--thai-font-body);
 }
 
+/* SweetAlert2 HQ Settlement Modal Custom Styling */
+.swal-hq-popup-custom {
+    border-radius: 18px !important;
+    box-shadow: 0 25px 60px -15px rgba(15, 23, 42, 0.22) !important;
+    border: 1px solid rgba(226, 232, 240, 0.9) !important;
+    padding: 24px 26px !important;
+    font-family: var(--font-family, 'Sarabun', 'Prompt', sans-serif) !important;
+}
+
+.swal-hq-html-container {
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    text-align: left !important;
+}
+
+.swal-hq-confirm-btn {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 8px !important;
+    padding: 10px 22px !important;
+    border-radius: 10px !important;
+    font-weight: 600 !important;
+    font-size: 0.9rem !important;
+    background: linear-gradient(135deg, #0d9488 0%, #0891b2 100%) !important;
+    color: #ffffff !important;
+    border: none !important;
+    box-shadow: 0 4px 14px rgba(13, 148, 136, 0.28) !important;
+    cursor: pointer !important;
+    transition: all 0.2s ease !important;
+}
+
+.swal-hq-confirm-btn:hover {
+    transform: translateY(-1px) !important;
+    box-shadow: 0 6px 20px rgba(13, 148, 136, 0.38) !important;
+}
+
+.swal-hq-cancel-btn {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 6px !important;
+    padding: 10px 20px !important;
+    border-radius: 10px !important;
+    font-weight: 600 !important;
+    font-size: 0.9rem !important;
+    background: #f1f5f9 !important;
+    color: #475569 !important;
+    border: 1px solid #cbd5e1 !important;
+    cursor: pointer !important;
+    transition: all 0.2s ease !important;
+}
+
+.swal-hq-cancel-btn:hover {
+    background: #e2e8f0 !important;
+    color: #1e293b !important;
+}
+
 /* ═══════════════════════════════════════════════════════════════════
    GLOBAL LOADER - Full Screen Loading Overlay
 ═══════════════════════════════════════════════════════════════════ */
@@ -4142,6 +4201,25 @@ tr.new-row-highlight {
     color: var(--text-muted);
 }
 
+/* Custom Table for HQ Settlement */
+#hqSettlementTable th {
+    background: #f8fafc;
+    color: #64748b;
+    font-weight: 600;
+    font-size: 0.82rem;
+    letter-spacing: 0.01em;
+    padding: 10px 12px;
+    border-bottom: 2px solid #e2e8f0;
+    vertical-align: middle;
+}
+
+#hqSettlementTable td {
+    padding: 10px 12px;
+    border-bottom: 1px solid #f1f5f9;
+    font-size: 0.84rem;
+    vertical-align: middle;
+}
+
 .text-info {
     color: #3b82f6 !important;
 }
@@ -4449,4 +4527,26 @@ tr.new-row-highlight {
 #togglePasswordBtn:hover {
     color: var(--primary) !important;
     transform: translateY(-50%) scale(1.1) !important;
+}
+
+/* HQ Settlement Section Enhancements */
+.hq-date-preset-btn:hover {
+    background: #f1f5f9 !important;
+    border-color: #94a3b8 !important;
+    color: #0f172a !important;
+}
+
+.hq-date-preset-btn.active {
+    background: #0d9488 !important;
+    color: #ffffff !important;
+    border-color: #0d9488 !important;
+    box-shadow: 0 2px 6px rgba(13, 148, 136, 0.28) !important;
+}
+
+.hq-table-row {
+    transition: background-color 0.15s ease;
+}
+
+.hq-table-row:hover {
+    background-color: rgba(13, 148, 136, 0.035) !important;
 }
