@@ -6941,6 +6941,72 @@ app.get('/api/admin-expenses', async (req, res) => {
     }
 });
 
+// ═══════════════════════════════════════════════════════════════════
+// LINE MESSAGING API & WEBHOOK
+// ═══════════════════════════════════════════════════════════════════
+const { sendLineMessage } = require('./send_line_message');
+
+// Endpoint สำหรับให้ LINE Webhook ยิงเข้ามาจับ Group ID และตอบกลับอัตโนมัติ
+app.post('/api/line/webhook', async (req, res) => {
+    try {
+        const events = req.body?.events || [];
+        for (const event of events) {
+            const source = event.source || {};
+            const groupId = source.groupId;
+            const replyToken = event.replyToken;
+
+            if (groupId) {
+                console.log(`\n🔔 [LINE Webhook] ตรวจพบ Group ID: ${groupId}`);
+                console.log(`👉 นำค่านี้ไปใส่ใน .env: LINE_GROUP_ID="${groupId}"\n`);
+
+                // ถ้ามีการพิมพ์ข้อความ หรือ บอทเพิ่งถูกเชิญเข้ากลุ่ม (join)
+                if (event.type === 'join' || (event.type === 'message' && event.message?.type === 'text')) {
+                    const text = event.message?.text || '';
+                    if (event.type === 'join' || text.includes('สวัสดี') || text.toLowerCase().includes('groupid') || text.toLowerCase().includes('id')) {
+                        const token = process.env.LINE_CHANNEL_ACCESS_TOKEN;
+                        if (token && replyToken) {
+                            try {
+                                await fetch('https://api.line.me/v2/bot/message/reply', {
+                                    method: 'POST',
+                                    headers: {
+                                        'Content-Type': 'application/json',
+                                        'Authorization': `Bearer ${token}`
+                                    },
+                                    body: JSON.stringify({
+                                        replyToken,
+                                        messages: [{
+                                            type: 'text',
+                                            text: `สวัสดีฉันคือบอทแจ้งเตือนอัตโนมัติ\n(Group ID: ${groupId})`
+                                        }]
+                                    })
+                                });
+                            } catch (replyErr) {
+                                console.error('LINE Reply error:', replyErr);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        res.status(200).send('OK');
+    } catch (err) {
+        console.error('LINE Webhook Error:', err);
+        res.status(500).send('Error');
+    }
+});
+
+// Endpoint สำหรับทดสอบส่งข้อความเข้ากลุ่ม LINE
+app.post('/api/line/test-send', async (req, res) => {
+    try {
+        const { message, groupId } = req.body || {};
+        const textToSend = message || 'สวัสดีฉันคือบอทแจ้งเตือนอัตโนมัติ';
+        const result = await sendLineMessage(textToSend, groupId);
+        res.json({ success: true, message: 'ส่งข้อความสำเร็จ', result });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
 // Serve frontend SPA (Fallback)
 app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));

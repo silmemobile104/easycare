@@ -5259,22 +5259,34 @@ document.addEventListener('DOMContentLoaded', () => {
     window.printFullReceipt = function(id) {
         const record = allRecords.find(r => r._id === id) || currentEditData;
         if (!record) return;
+        const isFinance = record.payment?.method === 'finance';
+        const receiptAmount = isFinance ? 0 : parseInt(record.package?.price || 0);
+        const receiptDesc = isFinance
+            ? `ชำระเงินดาวน์งวดแรก แพ็กเกจ ${record.package?.plan || ''}`
+            : `ชำระค่าเบี้ยประกันเต็มจำนวน แพ็กเกจ ${record.package?.plan || ''}`;
+        const cashReceived = record.payment?.paidCash || 0;
+        const transferAmount = record.payment?.paidTransfer || 0;
+        const change = record.payment?.changeAmount !== undefined
+            ? record.payment.changeAmount
+            : Math.max(0, (cashReceived + transferAmount) - receiptAmount);
+
         openReceipt({
             policyNumber: record.policyNumber,
             receiptNo: 'RC-' + record.policyNumber + '-F',
             paidDate: record.payment?.paidDate ? new Date(record.payment.paidDate).toLocaleString('th-TH') : new Date().toLocaleString('th-TH'),
             shopName: record.shopName,
             staffName: currentUser ? currentUser.staffName : (record.staffName || '-'),
-            customerName: `${record.customer.firstName} ${record.customer.lastName}`,
-            customerPhone: record.customer.phone,
-            memberId: record.customer.id || record.memberId || '-',
-            customerAddress: record.customer.address,
-            amount: parseInt(record.package?.price || 0),
-            cashReceived: record.payment?.paidCash || 0,
-            transferAmount: record.payment?.paidTransfer || 0,
-            change: 0,
+            customerName: `${record.customer?.firstName || ''} ${record.customer?.lastName || ''}`.trim(),
+            customerPhone: record.customer?.phone || '-',
+            memberId: record.customer?.id || record.memberId || '-',
+            customerAddress: record.customer?.address || '-',
+            amount: receiptAmount,
+            cashReceived: cashReceived,
+            transferAmount: transferAmount,
+            change: change,
             refId: record.payment?.refId || '',
-            description: `ชำระค่าเบี้ยประกันเต็มจำนวน แพ็กเกจ ${record.package?.plan}`
+            description: receiptDesc,
+            paymentMethod: record.payment?.method || ''
         });
     };
 
@@ -5377,7 +5389,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 let paymentButton = '';
                 if (!isPaid) {
-                    paymentButton = `<button type="button" class="submit-btn" style="background-color: #10b981; margin: 0; padding: 4px 10px; font-size: 0.75rem; border-radius: 4px;" onclick="receivePayment('${data._id}', null, ${data.package?.price})">ชำระเงิน</button>`;
+                    const dueAmount = data.payment?.method === 'finance' ? 0 : (data.package?.price || 0);
+                    paymentButton = `<button type="button" class="submit-btn" style="background-color: #10b981; margin: 0; padding: 4px 10px; font-size: 0.75rem; border-radius: 4px;" onclick="receivePayment('${data._id}', null, ${dueAmount})">ชำระเงิน</button>`;
                 } else {
                     paymentButton = `<button type="button" class="submit-btn" style="background-color: #0ea5e9; margin: 0; padding: 4px 10px; font-size: 0.75rem; border-radius: 4px;" onclick="printFullReceipt('${data._id}')">พิมพ์ใบเสร็จ</button>`;
                 }
@@ -6142,19 +6155,34 @@ document.addEventListener('DOMContentLoaded', () => {
                 printBtn.style.background = 'var(--secondary)';
                 printBtn.style.marginTop = '0.5rem';
                 printBtn.textContent = 'พิมพ์ใบเสร็จ';
-                printBtn.onclick = () => openReceipt({
-                    policyNumber: data.policyNumber,
-                    receiptNo: 'RC-' + data.policyNumber + '-F',
-                    paidDate: new Date(data.payment.paidDate).toLocaleString('th-TH'),
-                    shopName: data.shopName,
-                    staffName: currentUser ? currentUser.staffName : (data.staffName || '-'),
-                    customerName: `${data.customer.firstName} ${data.customer.lastName}`,
-                    customerPhone: data.customer.phone,
-                    memberId: data.customer.id || data.memberId || '-',
-                    customerAddress: data.customer.address,
-                    amount: data.payment.method === 'finance' ? 0 : data.package.price,
-                    description: data.payment.method === 'finance' ? `ชำระเงินดาวน์งวดแรก แพ็กเกจ ${data.package.plan}` : `ชำระเต็มจำนวน แพ็กเกจ ${data.package.plan}`
-                });
+                printBtn.onclick = () => {
+                    const isFinance = data.payment?.method === 'finance';
+                    const targetAmount = isFinance ? 0 : (data.package?.price || 0);
+                    const cashReceived = data.payment?.paidCash || 0;
+                    const transferAmount = data.payment?.paidTransfer || 0;
+                    const change = data.payment?.changeAmount !== undefined
+                        ? data.payment.changeAmount
+                        : Math.max(0, (cashReceived + transferAmount) - targetAmount);
+
+                    openReceipt({
+                        policyNumber: data.policyNumber,
+                        receiptNo: 'RC-' + data.policyNumber + '-F',
+                        paidDate: new Date(data.payment.paidDate).toLocaleString('th-TH'),
+                        shopName: data.shopName,
+                        staffName: currentUser ? currentUser.staffName : (data.staffName || '-'),
+                        customerName: `${data.customer?.firstName || ''} ${data.customer?.lastName || ''}`.trim(),
+                        customerPhone: data.customer?.phone || '-',
+                        memberId: data.customer?.id || data.memberId || '-',
+                        customerAddress: data.customer?.address || '-',
+                        amount: targetAmount,
+                        cashReceived: cashReceived,
+                        transferAmount: transferAmount,
+                        change: change,
+                        refId: data.payment?.refId || '',
+                        description: isFinance ? `ชำระเงินดาวน์งวดแรก แพ็กเกจ ${data.package?.plan || ''}` : `ชำระเต็มจำนวน แพ็กเกจ ${data.package?.plan || ''}`,
+                        paymentMethod: data.payment?.method || ''
+                    });
+                };
                 statusText.appendChild(document.createElement('br'));
                 statusText.appendChild(printBtn);
             } else {
@@ -6295,10 +6323,13 @@ document.addEventListener('DOMContentLoaded', () => {
             currentEditData = await res.json();
             renderPaymentManagement(currentEditData);
         }
+        const isFinance = currentEditData?.payment?.method === 'finance';
         startCheckout(currentEditData, null, {
-            amountDue: amount,
+            amountDue: isFinance ? 0 : amount,
             installmentNo,
-            description: `ชำระค่าเบี้ยประกัน งวดที่ ${installmentNo}`
+            description: installmentNo
+                ? `ชำระค่าเบี้ยประกัน งวดที่ ${installmentNo}`
+                : (isFinance ? `ชำระเงินดาวน์งวดแรก แพ็กเกจ ${currentEditData?.package?.plan || ''}` : `ชำระเต็มจำนวน แพ็กเกจ ${currentEditData?.package?.plan || ''}`)
         });
     };
 
@@ -6969,9 +7000,37 @@ document.addEventListener('DOMContentLoaded', () => {
         const reprintBtn = document.getElementById('reprintReceiptBtn');
 
         const onPrint = () => {
-            const isInstallment = (payload && payload.payment.method === 'Installment') ||
-                (recordData && recordData.payment.method === 'Installment');
-            const amount = extraData.amount || (payload ? (isInstallment ? payload.payment.schedule[0].amount : payload.package.price) : recordData.package.price);
+            const isInstallment = (payload && payload.payment?.method === 'Installment') ||
+                (recordData && recordData.payment?.method === 'Installment');
+            const isFinance = (payload && payload.payment?.method === 'finance') ||
+                (recordData && recordData.payment?.method === 'finance');
+
+            let targetAmount;
+            if (isFinance) {
+                targetAmount = 0;
+            } else if (checkoutData.amountDue !== undefined && checkoutData.amountDue !== null) {
+                targetAmount = checkoutData.amountDue;
+            } else if (extraData.amount !== undefined && extraData.amount !== null) {
+                targetAmount = extraData.amount;
+            } else {
+                targetAmount = payload ? (isInstallment ? (payload.payment?.schedule?.[0]?.amount || 0) : payload.package?.price) : (recordData?.package?.price || 0);
+            }
+
+            let targetDesc;
+            if (checkoutData.description) {
+                targetDesc = checkoutData.description;
+            } else if (isFinance) {
+                targetDesc = `ชำระเงินดาวน์งวดแรก แพ็กเกจ ${payload?.package?.plan || recordData?.package?.plan || ''}`;
+            } else if (isInstallment) {
+                targetDesc = `ชำระค่าเบี้ยประกัน งวดที่ 1`;
+            } else {
+                targetDesc = `ชำระเต็มจำนวน แพ็กเกจ ${payload?.package?.plan || recordData?.package?.plan || ''}`;
+            }
+
+            const cashReceived = extraData.paidCash || 0;
+            const transferAmount = extraData.paidTransfer || 0;
+            const totalPaid = cashReceived + transferAmount;
+            const change = Math.max(0, totalPaid - targetAmount);
 
             const receiptData = {
                 policyNumber: recordData.policyNumber,
@@ -6979,16 +7038,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 paidDate: new Date().toLocaleString('th-TH'),
                 shopName: recordData.shopName,
                 staffName: currentUser ? currentUser.staffName : (payload ? payload.staffName : (recordData.staffName || '-')),
-                customerName: `${recordData.customer.firstName} ${recordData.customer.lastName}`,
-                customerPhone: recordData.customer.phone,
-                memberId: recordData.customer.id || recordData.memberId || '-',
-                customerAddress: recordData.customer.address,
-                amount: checkoutData.amountDue || amount,
-                cashReceived: extraData.paidCash || 0,
-                transferAmount: extraData.paidTransfer || 0,
-                change: (extraData.paidCash || 0) + (extraData.paidTransfer || 0) - (checkoutData.amountDue || amount),
+                customerName: `${recordData.customer?.firstName || ''} ${recordData.customer?.lastName || ''}`.trim(),
+                customerPhone: recordData.customer?.phone || '-',
+                memberId: recordData.customer?.id || recordData.memberId || '-',
+                customerAddress: recordData.customer?.address || '-',
+                amount: targetAmount,
+                cashReceived: cashReceived,
+                transferAmount: transferAmount,
+                change: change,
                 refId: extraData.refId || '',
-                description: checkoutData.description || (isInstallment ? `ชำระค่าเบี้ยประกัน งวดที่ 1` : `ชำระเต็มจำนวน แพ็กเกจ ${payload.package.plan}`)
+                description: targetDesc,
+                paymentMethod: isFinance ? 'finance' : (isInstallment ? 'Installment' : 'Full Payment')
             };
             openReceipt(receiptData);
         };

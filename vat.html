@@ -380,7 +380,7 @@
 
             const total = receiptData.amount;
             const desc = receiptData.description || '';
-            const isFinance = desc.includes('ไฟแนนซ์') || desc.includes('ดาวน์');
+            const isFinance = receiptData.paymentMethod === 'finance' || receiptData.isFinance || desc.includes('ไฟแนนซ์') || desc.includes('ดาวน์');
 
             if (isFinance) {
                 displayDocTitle.textContent = 'ใบยืนยันความคุ้มครอง';
