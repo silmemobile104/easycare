@@ -192,10 +192,10 @@
 
 /* SweetAlert2 HQ Settlement Modal Custom Styling */
 .swal-hq-popup-custom {
-    border-radius: 18px !important;
+    border-radius: 20px !important;
     box-shadow: 0 25px 60px -15px rgba(15, 23, 42, 0.22) !important;
     border: 1px solid rgba(226, 232, 240, 0.9) !important;
-    padding: 24px 26px !important;
+    padding: 24px 26px 20px !important;
     font-family: var(--font-family, 'Sarabun', 'Prompt', sans-serif) !important;
 }
 
@@ -206,47 +206,104 @@
     text-align: left !important;
 }
 
+/* Modal Actions Footer Bar with Divider & Generous Spacing */
+.swal-hq-popup-custom .swal2-actions,
+.swal-hq-actions {
+    display: flex !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    margin: 20px 0 0 0 !important;
+    padding: 16px 0 0 0 !important;
+    border-top: 1px solid #f1f5f9 !important;
+    gap: 14px !important;
+    justify-content: stretch !important;
+    align-items: center !important;
+}
+
 .swal-hq-confirm-btn {
+    flex: 1.25 !important;
+    height: 44px !important;
     display: inline-flex !important;
     align-items: center !important;
     justify-content: center !important;
     gap: 8px !important;
-    padding: 10px 22px !important;
+    padding: 0 20px !important;
     border-radius: 10px !important;
     font-weight: 600 !important;
-    font-size: 0.9rem !important;
+    font-size: 0.92rem !important;
     background: linear-gradient(135deg, #0d9488 0%, #0891b2 100%) !important;
     color: #ffffff !important;
     border: none !important;
     box-shadow: 0 4px 14px rgba(13, 148, 136, 0.28) !important;
     cursor: pointer !important;
     transition: all 0.2s ease !important;
+    margin: 0 !important;
+    box-sizing: border-box !important;
 }
 
 .swal-hq-confirm-btn:hover {
     transform: translateY(-1px) !important;
     box-shadow: 0 6px 20px rgba(13, 148, 136, 0.38) !important;
+    background: linear-gradient(135deg, #0f766e 0%, #0e7490 100%) !important;
+}
+
+.swal-hq-confirm-btn:active {
+    transform: translateY(0) !important;
+}
+
+.swal-hq-edit-confirm-btn {
+    background: linear-gradient(135deg, #0284c7 0%, #0d9488 100%) !important;
+    box-shadow: 0 4px 14px rgba(2, 132, 199, 0.28) !important;
+}
+
+.swal-hq-edit-confirm-btn:hover {
+    background: linear-gradient(135deg, #0369a1 0%, #0f766e 100%) !important;
+    box-shadow: 0 6px 20px rgba(2, 132, 199, 0.38) !important;
 }
 
 .swal-hq-cancel-btn {
+    flex: 1 !important;
+    height: 44px !important;
     display: inline-flex !important;
     align-items: center !important;
     justify-content: center !important;
-    gap: 6px !important;
-    padding: 10px 20px !important;
+    gap: 8px !important;
+    padding: 0 18px !important;
     border-radius: 10px !important;
     font-weight: 600 !important;
-    font-size: 0.9rem !important;
-    background: #f1f5f9 !important;
+    font-size: 0.92rem !important;
+    background: #f8fafc !important;
     color: #475569 !important;
-    border: 1px solid #cbd5e1 !important;
+    border: 1.5px solid #cbd5e1 !important;
     cursor: pointer !important;
     transition: all 0.2s ease !important;
+    margin: 0 !important;
+    box-sizing: border-box !important;
 }
 
 .swal-hq-cancel-btn:hover {
-    background: #e2e8f0 !important;
-    color: #1e293b !important;
+    background: #f1f5f9 !important;
+    color: #0f172a !important;
+    border-color: #94a3b8 !important;
+    transform: translateY(-1px) !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05) !important;
+}
+
+.swal-hq-cancel-btn:active {
+    transform: translateY(0) !important;
+}
+
+@media (max-width: 480px) {
+    .swal-hq-popup-custom .swal2-actions,
+    .swal-hq-actions {
+        flex-direction: column !important;
+        gap: 10px !important;
+    }
+    .swal-hq-confirm-btn,
+    .swal-hq-cancel-btn {
+        width: 100% !important;
+        flex: none !important;
+    }
 }
 
 /* ═══════════════════════════════════════════════════════════════════
