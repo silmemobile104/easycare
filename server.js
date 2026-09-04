@@ -5315,6 +5315,58 @@ app.post('/api/finance/hq-settlement', async (req, res) => {
     }
 });
 
+// ดึงข้อมูลรายการรับเงินโอนเดี่ยวตาม ID
+app.get('/api/finance/hq-settlement/:id', async (req, res) => {
+    try {
+        const item = await HqSettlement.findById(req.params.id).lean();
+        if (!item) return res.status(404).json({ success: false, message: 'ไม่พบรายการดังกล่าว' });
+        res.json({ success: true, data: item });
+    } catch (err) {
+        console.error('GET /api/finance/hq-settlement/:id error:', err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// แก้ไขรายการรับเงินโอน
+app.put('/api/finance/hq-settlement/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { transferDate, amount, channel, bankAccount, refNumber, remark, evidenceUrls, evidenceUrl, staffName } = req.body;
+        if (!amount || Number(amount) <= 0) {
+            return res.status(400).json({ success: false, message: 'กรุณาระบุจำนวนเงินที่ถูกต้อง' });
+        }
+
+        const oldItem = await HqSettlement.findById(id);
+        if (!oldItem) return res.status(404).json({ success: false, message: 'ไม่พบรายการดังกล่าว' });
+
+        const urls = Array.isArray(evidenceUrls) ? evidenceUrls : (evidenceUrl ? [evidenceUrl] : []);
+
+        const updateData = {
+            transferDate: transferDate ? new Date(transferDate) : oldItem.transferDate,
+            amount: Number(amount),
+            channel: channel || oldItem.channel || 'โอนเงินเข้าบัญชี',
+            bankAccount: bankAccount !== undefined ? bankAccount : oldItem.bankAccount,
+            refNumber: refNumber !== undefined ? refNumber : oldItem.refNumber,
+            remark: remark !== undefined ? remark : oldItem.remark,
+            evidenceUrls: urls,
+            evidenceUrl: urls.length > 0 ? urls[0] : null
+        };
+
+        const updated = await HqSettlement.findByIdAndUpdate(id, updateData, { new: true });
+
+        await logAction(
+            'Update HQ Settlement',
+            `แก้ไขรายการรับเงินโอนจาก สนง.ใหญ่: ยอดเงินเดิม ${Number(oldItem.amount).toLocaleString('th-TH')} บาท -> ยอดใหม่ ${Number(amount).toLocaleString('th-TH')} บาท`,
+            staffName || 'System'
+        );
+
+        res.json({ success: true, data: updated });
+    } catch (err) {
+        console.error('PUT /api/finance/hq-settlement/:id error:', err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
 // 4. ลบรายการรับเงินโอน
 app.delete('/api/finance/hq-settlement/:id', async (req, res) => {
     try {

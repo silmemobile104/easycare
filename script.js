@@ -2452,6 +2452,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // HEAD OFFICE (SILMINMOBILE) SETTLEMENT FUNCTIONS
     // ═══════════════════════════════════════════════════════════════════
 
+    let currentHqSettlements = [];
+
     async function fetchHqSettlementData(silent = false) {
         if (!silent) showLoader('กำลังโหลดข้อมูลรับเงินจากสำนักงานใหญ่...');
         try {
@@ -2559,6 +2561,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderHqSettlementTable(items) {
+        currentHqSettlements = items || [];
         const tbody = document.getElementById('hqSettlementBody');
         const tfoot = document.getElementById('hqSettlementFoot');
         const emptyState = document.getElementById('hqSettlementEmptyState');
@@ -2623,9 +2626,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td style="text-align: center;">${slipHtml}</td>
                 <td style="text-align: center;"><span style="display: inline-flex; align-items: center; gap: 4px; font-size: 0.78rem; color: #475569; background: #f8fafc; border: 1px solid #e2e8f0; padding: 2px 7px; border-radius: 6px;"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>${escapeHtml(item.recordedBy || '-')}</span></td>
                 <td style="text-align: center;">
-                    <button type="button" class="btn-delete-item" style="background: none; border: none; color: #ef4444; cursor: pointer; padding: 5px; border-radius: 6px; display: inline-flex; align-items: center; transition: all 0.15s ease;" onmouseover="this.style.background='#fee2e2'" onmouseout="this.style.background='none'" onclick="window.deleteHqSettlement('${item._id}')" title="ลบรายการนี้">
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
-                    </button>
+                    <div style="display: inline-flex; align-items: center; justify-content: center; gap: 4px;">
+                        <button type="button" class="btn-edit-item" style="background: none; border: none; color: #0284c7; cursor: pointer; padding: 5px; border-radius: 6px; display: inline-flex; align-items: center; transition: all 0.15s ease;" onmouseover="this.style.background='#e0f2fe'" onmouseout="this.style.background='none'" onclick="window.editHqSettlement('${item._id}')" title="แก้ไขรายการนี้">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                        </button>
+                        <button type="button" class="btn-delete-item" style="background: none; border: none; color: #ef4444; cursor: pointer; padding: 5px; border-radius: 6px; display: inline-flex; align-items: center; transition: all 0.15s ease;" onmouseover="this.style.background='#fee2e2'" onmouseout="this.style.background='none'" onclick="window.deleteHqSettlement('${item._id}')" title="ลบรายการนี้">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                        </button>
+                    </div>
                 </td>
             `;
             tbody.appendChild(tr);
@@ -2672,6 +2680,295 @@ document.addEventListener('DOMContentLoaded', () => {
                 htmlContainer: 'swal-hq-html-container'
             }
         });
+    };
+
+    window.editHqSettlement = async function(id) {
+        let item = (Array.isArray(currentHqSettlements) ? currentHqSettlements : []).find(it => it._id === id);
+        if (!item) {
+            try {
+                showLoader('กำลังโหลดข้อมูลรายการ...');
+                const res = await fetch(`/api/finance/hq-settlement/${id}`);
+                const data = await res.json();
+                if (data.success && data.data) {
+                    item = data.data;
+                }
+            } catch (e) {
+                console.error('Fetch settlement item error:', e);
+            } finally {
+                hideLoader();
+            }
+        }
+
+        if (!item) {
+            showAlert('error', 'ไม่พบข้อมูลรายการที่ต้องการแก้ไข');
+            return;
+        }
+
+        const itemDate = item.transferDate ? new Date(item.transferDate).toISOString().split('T')[0] : '';
+        const itemAmount = item.amount || 0;
+        const itemChannel = item.channel || 'โอนเงินเข้าบัญชี';
+        const itemBank = (item.bankAccount && item.bankAccount !== '-') ? item.bankAccount : '';
+        const itemRemark = item.remark || '';
+        const urls = (item.evidenceUrls && item.evidenceUrls.length > 0) ? item.evidenceUrls : (item.evidenceUrl ? [item.evidenceUrl] : []);
+        const existingSlipUrl = urls.length > 0 ? urls[0] : '';
+        let slipAction = 'keep';
+
+        const { value: formValues } = await Swal.fire({
+            width: 520,
+            background: '#ffffff',
+            showCloseButton: false,
+            html: `
+                <div style="text-align: left; font-family: var(--font-family, sans-serif);">
+                    <!-- Modal Header -->
+                    <div style="display: flex; align-items: center; justify-content: space-between; padding-bottom: 14px; border-bottom: 1px solid #f1f5f9; margin-bottom: 14px;">
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <div style="width: 42px; height: 42px; border-radius: 12px; background: linear-gradient(135deg, #0284c7 0%, #0d9488 100%); color: #ffffff; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(2, 132, 199, 0.22); flex-shrink: 0;">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                                </svg>
+                            </div>
+                            <div>
+                                <div style="font-size: 1.15rem; font-weight: 700; color: #0f172a; line-height: 1.25;">แก้ไขรายการรับเงินโอน</div>
+                                <div style="font-size: 0.78rem; color: #64748b; margin-top: 2px;">ลูกหนี้ → Easy.Care</div>
+                            </div>
+                        </div>
+                        <span style="font-size: 0.72rem; font-weight: 600; color: #0284c7; background: #e0f2fe; padding: 4px 10px; border-radius: 20px; letter-spacing: 0.2px;">แก้ไขข้อมูล</span>
+                    </div>
+
+                    <!-- Row 1: Date & Amount -->
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 10px;">
+                        <div>
+                            <label style="display: flex; align-items: center; gap: 6px; font-size: 0.82rem; font-weight: 600; color: #334155; margin-bottom: 5px;">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#0d9488" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+                                วันที่โอนเงิน <span style="color: #ef4444;">*</span>
+                            </label>
+                            <input type="date" id="swalEditHqDate" value="${itemDate}" style="width: 100%; height: 38px; padding: 0 10px; border: 1.5px solid #cbd5e1; border-radius: 8px; font-size: 0.86rem; color: #1e293b; outline: none; transition: all 0.2s ease; box-sizing: border-box; background: #ffffff;" onfocus="this.style.borderColor='#0284c7'; this.style.boxShadow='0 0 0 3px rgba(2, 132, 199, 0.12)';" onblur="this.style.borderColor='#cbd5e1'; this.style.boxShadow='none';">
+                        </div>
+
+                        <div>
+                            <label style="display: flex; align-items: center; gap: 6px; font-size: 0.82rem; font-weight: 600; color: #334155; margin-bottom: 5px;">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#0d9488" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
+                                ยอดเงินที่โอน (บาท) <span style="color: #ef4444;">*</span>
+                            </label>
+                            <div style="position: relative;">
+                                <input type="number" id="swalEditHqAmount" value="${itemAmount}" placeholder="0.00" min="1" step="0.01" style="width: 100%; height: 38px; padding: 0 30px 0 10px; border: 1.5px solid #cbd5e1; border-radius: 8px; font-size: 0.92rem; font-weight: 700; color: #0d9488; outline: none; transition: all 0.2s ease; box-sizing: border-box; background: #ffffff;" onfocus="this.style.borderColor='#0284c7'; this.style.boxShadow='0 0 0 3px rgba(2, 132, 199, 0.12)';" onblur="this.style.borderColor='#cbd5e1'; this.style.boxShadow='none';">
+                                <span style="position: absolute; right: 10px; top: 9px; font-size: 0.85rem; font-weight: 600; color: #94a3b8;">฿</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Live Amount Formatted Text -->
+                    <div id="swalEditHqAmountPreviewText" style="text-align: right; font-size: 0.8rem; color: #0d9488; font-weight: 600; min-height: 16px; margin-top: -6px; margin-bottom: 10px;">
+                        ยอดโอน: ${Number(itemAmount).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท
+                    </div>
+
+                    <!-- Row 2: Channel & Destination Account -->
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 10px;">
+                        <div>
+                            <label style="display: flex; align-items: center; gap: 6px; font-size: 0.82rem; font-weight: 600; color: #334155; margin-bottom: 5px;">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#0284c7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"></polyline><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M21 13v2a4 4 0 0 1-4 4H3"></path></svg>
+                                ช่องทางการโอน
+                            </label>
+                            <select id="swalEditHqChannel" style="width: 100%; height: 38px; padding: 0 10px; border: 1.5px solid #cbd5e1; border-radius: 8px; font-size: 0.86rem; color: #1e293b; outline: none; transition: all 0.2s ease; box-sizing: border-box; background: #ffffff; cursor: pointer;" onfocus="this.style.borderColor='#0284c7'; this.style.boxShadow='0 0 0 3px rgba(2, 132, 199, 0.12)';" onblur="this.style.borderColor='#cbd5e1'; this.style.boxShadow='none';">
+                                <option value="โอนเงินเข้าบัญชี" ${itemChannel === 'โอนเงินเข้าบัญชี' ? 'selected' : ''}>โอนเงินเข้าบัญชี (Bank Transfer)</option>
+                                <option value="เงินสด" ${itemChannel === 'เงินสด' ? 'selected' : ''}>เงินสด (Cash)</option>
+                                <option value="เช็คธนาคาร" ${itemChannel === 'เช็คธนาคาร' ? 'selected' : ''}>เช็คธนาคาร (Cheque)</option>
+                                <option value="อื่นๆ" ${itemChannel === 'อื่นๆ' ? 'selected' : ''}>อื่นๆ (Other)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label style="display: flex; align-items: center; gap: 6px; font-size: 0.82rem; font-weight: 600; color: #334155; margin-bottom: 5px;">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="21" x2="21" y2="21"></line><line x1="3" y1="10" x2="21" y2="10"></line><polyline points="5 6 12 3 19 6"></polyline><line x1="4" y1="10" x2="4" y2="21"></line><line x1="20" y1="10" x2="20" y2="21"></line><line x1="8" y1="14" x2="8" y2="17"></line><line x1="12" y1="14" x2="12" y2="17"></line><line x1="16" y1="14" x2="16" y2="17"></line></svg>
+                                บัญชี / ธนาคารที่รับเงิน
+                            </label>
+                            <input type="text" id="swalEditHqBank" list="hqBankOptions" value="${escapeHtml(itemBank)}" placeholder="เช่น กสิกรไทย 123-4-56789-0" style="width: 100%; height: 38px; padding: 0 10px; border: 1.5px solid #cbd5e1; border-radius: 8px; font-size: 0.86rem; color: #1e293b; outline: none; transition: all 0.2s ease; box-sizing: border-box; background: #ffffff;" onfocus="this.style.borderColor='#0284c7'; this.style.boxShadow='0 0 0 3px rgba(2, 132, 199, 0.12)';" onblur="this.style.borderColor='#cbd5e1'; this.style.boxShadow='none';">
+                        </div>
+                    </div>
+
+                    <!-- Row 3: Remark -->
+                    <div style="margin-bottom: 12px;">
+                        <label style="display: flex; align-items: center; gap: 6px; font-size: 0.82rem; font-weight: 600; color: #334155; margin-bottom: 5px;">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                            หมายเหตุ / งวดการโอน
+                        </label>
+                        <input type="text" id="swalEditHqRemark" value="${escapeHtml(itemRemark)}" placeholder="เช่น โอนแบ่งจ่ายกำไรเดือนสิงหาคม งวดที่ 1" style="width: 100%; height: 38px; padding: 0 10px; border: 1.5px solid #cbd5e1; border-radius: 8px; font-size: 0.86rem; color: #1e293b; outline: none; transition: all 0.2s ease; box-sizing: border-box; background: #ffffff;" onfocus="this.style.borderColor='#0284c7'; this.style.boxShadow='0 0 0 3px rgba(2, 132, 199, 0.12)';" onblur="this.style.borderColor='#cbd5e1'; this.style.boxShadow='none';">
+                    </div>
+
+                    <!-- Row 4: Slip Upload Box with Current Image support -->
+                    <div style="margin-bottom: 4px;">
+                        <label style="display: flex; align-items: center; gap: 6px; font-size: 0.82rem; font-weight: 600; color: #334155; margin-bottom: 5px;">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#0d9488" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                            สลิปหลักฐานการโอนเงิน <span style="font-weight: 400; color: #94a3b8; font-size: 0.75rem;">(ถ้ามี)</span>
+                        </label>
+                        <div id="swalEditHqUploadBox" style="border: 1.5px dashed #cbd5e1; border-radius: 10px; padding: 10px 14px; background: #f8fafc; cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center; justify-content: space-between;" onclick="document.getElementById('swalEditHqSlipFile').click();" onmouseover="this.style.borderColor='#0284c7'; this.style.background='#f0f9ff';" onmouseout="this.style.borderColor='#cbd5e1'; this.style.background='#f8fafc';">
+                            <input type="file" id="swalEditHqSlipFile" accept="image/*" style="display: none;">
+                            
+                            <!-- Placeholder when no slip -->
+                            <div id="swalEditHqUploadPlaceholder" style="display: ${existingSlipUrl ? 'none' : 'flex'}; align-items: center; gap: 10px; width: 100%;">
+                                <div style="width: 36px; height: 36px; border-radius: 8px; background: #e0f2fe; color: #0284c7; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                                </div>
+                                <div style="text-align: left; flex-grow: 1;">
+                                    <div style="font-size: 0.82rem; font-weight: 600; color: #334155;">คลิกเพื่ออัปโหลดไฟล์สลิป</div>
+                                    <div style="font-size: 0.72rem; color: #94a3b8;">รองรับรูปภาพ JPG, PNG, WEBP จากแอปธนาคาร</div>
+                                </div>
+                                <span style="font-size: 0.75rem; font-weight: 600; color: #475569; background: #e2e8f0; padding: 4px 10px; border-radius: 6px; flex-shrink: 0;">เลือกไฟล์</span>
+                            </div>
+
+                            <!-- Preview container when slip exists or selected -->
+                            <div id="swalEditHqUploadPreview" style="display: ${existingSlipUrl ? 'flex' : 'none'}; align-items: center; gap: 12px; width: 100%;">
+                                <img id="swalEditHqThumbnail" src="${existingSlipUrl || ''}" style="height: 38px; width: 38px; border-radius: 6px; border: 1px solid #cbd5e1; object-fit: cover; box-shadow: 0 1px 3px rgba(0,0,0,0.08); flex-shrink: 0;">
+                                <div style="text-align: left; flex-grow: 1; min-width: 0;">
+                                    <div id="swalEditHqFileName" style="font-size: 0.82rem; font-weight: 600; color: #0f172a; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                                        ${existingSlipUrl ? 'สลิปปัจจุบัน' : '-'}
+                                    </div>
+                                    <div id="swalEditHqFileStatus" style="font-size: 0.72rem; color: #0284c7; display: flex; align-items: center; gap: 4px;">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                                        <span>คลิกที่นี่เพื่อเปลี่ยนรูปภาพ</span>
+                                    </div>
+                                </div>
+                                <button type="button" id="swalEditHqRemoveSlipBtn" style="background: none; border: none; color: #ef4444; cursor: pointer; padding: 6px; font-size: 0.85rem; border-radius: 6px; display: inline-flex; align-items: center;" title="ลบรูปสลิปนี้ออก">
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `,
+            showCancelButton: true,
+            confirmButtonText: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: -2px; margin-right: 6px;"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg> บันทึกการแก้ไข',
+            cancelButtonText: 'ยกเลิก',
+            focusConfirm: false,
+            buttonsStyling: false,
+            customClass: {
+                popup: 'swal-hq-popup-custom',
+                htmlContainer: 'swal-hq-html-container',
+                confirmButton: 'swal-hq-confirm-btn',
+                cancelButton: 'swal-hq-cancel-btn'
+            },
+            didOpen: () => {
+                const amountInput = document.getElementById('swalEditHqAmount');
+                const previewText = document.getElementById('swalEditHqAmountPreviewText');
+                if (amountInput && previewText) {
+                    amountInput.addEventListener('input', () => {
+                        const val = parseFloat(amountInput.value);
+                        if (!isNaN(val) && val > 0) {
+                            previewText.textContent = `ยอดโอน: ${val.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท`;
+                        } else {
+                            previewText.textContent = '';
+                        }
+                    });
+                }
+
+                const fileInput = document.getElementById('swalEditHqSlipFile');
+                const placeholder = document.getElementById('swalEditHqUploadPlaceholder');
+                const previewContainer = document.getElementById('swalEditHqUploadPreview');
+                const thumbnail = document.getElementById('swalEditHqThumbnail');
+                const fileNameEl = document.getElementById('swalEditHqFileName');
+                const removeBtn = document.getElementById('swalEditHqRemoveSlipBtn');
+
+                if (removeBtn) {
+                    removeBtn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        slipAction = 'remove';
+                        if (fileInput) fileInput.value = '';
+                        if (placeholder) placeholder.style.display = 'flex';
+                        if (previewContainer) previewContainer.style.display = 'none';
+                    });
+                }
+
+                if (fileInput) {
+                    fileInput.addEventListener('change', (e) => {
+                        const file = e.target.files && e.target.files[0];
+                        if (file) {
+                            slipAction = 'replace';
+                            if (fileNameEl) fileNameEl.textContent = file.name;
+                            const reader = new FileReader();
+                            reader.onload = (re) => {
+                                if (thumbnail) thumbnail.src = re.target.result;
+                                if (placeholder) placeholder.style.display = 'none';
+                                if (previewContainer) previewContainer.style.display = 'flex';
+                            };
+                            reader.readAsDataURL(file);
+                        }
+                    });
+                }
+            },
+            preConfirm: () => {
+                const transferDate = document.getElementById('swalEditHqDate').value;
+                const amount = parseFloat(document.getElementById('swalEditHqAmount').value);
+                const channel = document.getElementById('swalEditHqChannel').value;
+                const bankAccount = document.getElementById('swalEditHqBank').value.trim();
+                const remark = document.getElementById('swalEditHqRemark').value.trim();
+                const fileInput = document.getElementById('swalEditHqSlipFile');
+                const file = fileInput && fileInput.files && fileInput.files[0] ? fileInput.files[0] : null;
+
+                if (!transferDate) {
+                    Swal.showValidationMessage('กรุณาระบุวันที่โอนเงิน');
+                    return false;
+                }
+                if (!amount || amount <= 0) {
+                    Swal.showValidationMessage('กรุณาระบุจำนวนเงินที่ถูกต้อง (มากกว่า 0 บาท)');
+                    return false;
+                }
+
+                return { transferDate, amount, channel, bankAccount, remark, file, slipAction };
+            }
+        });
+
+        if (!formValues) return;
+
+        try {
+            showLoader('กำลังบันทึกการแก้ไข...');
+            let finalEvidenceUrl = existingSlipUrl;
+
+            if (formValues.slipAction === 'remove') {
+                finalEvidenceUrl = '';
+            } else if (formValues.file) {
+                const formData = new FormData();
+                formData.append('file', formValues.file);
+                const uploadRes = await fetch('/api/upload/single', {
+                    method: 'POST',
+                    body: formData
+                });
+                if (uploadRes.ok) {
+                    const uploadData = await uploadRes.json();
+                    finalEvidenceUrl = uploadData.url || '';
+                }
+            }
+
+            const staffName = (typeof currentUser !== 'undefined' && currentUser) ? currentUser.staffName : 'Admin';
+            const payload = {
+                transferDate: formValues.transferDate,
+                amount: formValues.amount,
+                channel: formValues.channel,
+                bankAccount: formValues.bankAccount,
+                remark: formValues.remark,
+                evidenceUrl: finalEvidenceUrl,
+                evidenceUrls: finalEvidenceUrl ? [finalEvidenceUrl] : [],
+                staffName
+            };
+
+            const res = await fetch(`/api/finance/hq-settlement/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            const data = await res.json();
+            if (data.success) {
+                showAlert('success', 'แก้ไขรายการรับเงินโอนสำเร็จ');
+                fetchHqSettlementData();
+            } else {
+                showAlert('error', data.message || 'เกิดข้อผิดพลาดในการบันทึกการแก้ไข');
+            }
+        } catch (err) {
+            console.error('editHqSettlement error:', err);
+            showAlert('error', 'เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์');
+        } finally {
+            hideLoader();
+        }
     };
 
     window.deleteHqSettlement = async function(id) {
