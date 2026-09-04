@@ -2481,6 +2481,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const txCount = sumData.count || 0;
 
                 const totalProfitEl = document.getElementById('hqTotalNetProfitDisplay');
+                const totalProfitSubEl = document.getElementById('hqTotalNetProfitSubtitle');
                 const totalRecEl = document.getElementById('hqTotalReceivedDisplay');
                 const remBalEl = document.getElementById('hqRemainingBalanceDisplay');
                 const ratioEl = document.getElementById('hqSettlementRatioDisplay');
@@ -2490,7 +2491,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 const statusBadgeEl = document.getElementById('hqSettlementStatusBadge');
                 const cashflowStatusEl = document.getElementById('hqCashflowStatusText');
 
+                const unpaidFin = sumData.unpaidFinance || 0;
+                const changeAmt = sumData.totalChange || 0;
+
                 if (totalProfitEl) totalProfitEl.textContent = formatNumber(totalProfit) + ' ฿';
+                if (totalProfitSubEl) {
+                    const parts = [];
+                    if (unpaidFin > 0) parts.push(`รอไฟแนนซ์ ${formatNumber(unpaidFin)} ฿`);
+                    if (changeAmt > 0) parts.push(`เงินทอน ${formatNumber(changeAmt)} ฿`);
+
+                    if (parts.length > 0) {
+                        totalProfitSubEl.textContent = `รวมรายจ่าย (หัก ${parts.join(', ')})`;
+                    } else {
+                        totalProfitSubEl.textContent = 'รวมรายจ่ายแล้ว (ไม่หักรายจ่ายออก)';
+                    }
+                }
                 if (totalRecEl) totalRecEl.textContent = formatNumber(totalReceived) + ' ฿';
                 if (remBalEl) remBalEl.textContent = formatNumber(remaining) + ' ฿';
 
@@ -2734,7 +2749,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div style="background: linear-gradient(135deg, rgba(13, 148, 136, 0.06) 0%, rgba(8, 145, 178, 0.04) 100%); border: 1px solid rgba(13, 148, 136, 0.16); border-radius: 10px; padding: 9px 14px; margin-bottom: 14px; display: flex; justify-content: space-between; align-items: center;">
                         <div style="display: flex; align-items: center; gap: 7px;">
                             <span style="width: 8px; height: 8px; border-radius: 50%; background: #f59e0b; display: inline-block;"></span>
-                            <span style="font-size: 0.82rem; color: #475569; font-weight: 500;">ยอดกำไรค้างรับปัจจุบัน:</span>
+                            <span style="font-size: 0.82rem; color: #475569; font-weight: 500;">ยอดหนี้ค้างรับปัจจุบัน:</span>
                         </div>
                         <div style="font-size: 1rem; font-weight: 700; color: #e11d48; font-family: monospace, var(--font-family);">${currentOutstanding}</div>
                     </div>
