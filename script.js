@@ -1303,6 +1303,154 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // ── Loan Tab & Filter Event Listeners ──
+    const financeTabLoan = document.getElementById('financeTabLoan');
+    if (financeTabLoan) {
+        financeTabLoan.addEventListener('click', (e) => {
+            e.preventDefault();
+            setFinanceTab('loan');
+        });
+    }
+
+    const btnAddLoan = document.getElementById('btnAddLoan');
+    if (btnAddLoan) {
+        btnAddLoan.addEventListener('click', (e) => {
+            e.preventDefault();
+            showAddLoanModal();
+        });
+    }
+
+    const btnExportLoanExcel = document.getElementById('btnExportLoanExcel');
+    if (btnExportLoanExcel) {
+        btnExportLoanExcel.addEventListener('click', (e) => {
+            e.preventDefault();
+            exportLoanExcel();
+        });
+    }
+
+    let loanSearchDebounceTimer = null;
+    const loanSearchInput = document.getElementById('loanSearchInput');
+    if (loanSearchInput) {
+        loanSearchInput.addEventListener('input', () => {
+            clearTimeout(loanSearchDebounceTimer);
+            loanSearchDebounceTimer = setTimeout(() => {
+                fetchLoanData(true);
+            }, 250);
+        });
+        loanSearchInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                clearTimeout(loanSearchDebounceTimer);
+                fetchLoanData(true);
+            }
+        });
+    }
+
+    const loanStatusFilter = document.getElementById('loanStatusFilter');
+    if (loanStatusFilter) {
+        loanStatusFilter.addEventListener('change', () => fetchLoanData(true));
+    }
+
+    const loanStartDate = document.getElementById('loanStartDate');
+    if (loanStartDate) {
+        loanStartDate.addEventListener('change', () => {
+            document.querySelectorAll('.loan-date-preset-btn').forEach(b => {
+                b.classList.remove('active');
+                b.style.background = '#fff';
+                b.style.color = '#475569';
+                b.style.borderColor = '#cbd5e1';
+            });
+            fetchLoanData(true);
+        });
+    }
+
+    const loanEndDate = document.getElementById('loanEndDate');
+    if (loanEndDate) {
+        loanEndDate.addEventListener('change', () => {
+            document.querySelectorAll('.loan-date-preset-btn').forEach(b => {
+                b.classList.remove('active');
+                b.style.background = '#fff';
+                b.style.color = '#475569';
+                b.style.borderColor = '#cbd5e1';
+            });
+            fetchLoanData(true);
+        });
+    }
+
+    document.querySelectorAll('.loan-date-preset-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.preventDefault();
+            const sDate = document.getElementById('loanStartDate');
+            const eDate = document.getElementById('loanEndDate');
+            if (!sDate || !eDate) return;
+
+            const isAlreadyActive = btn.classList.contains('active');
+
+            document.querySelectorAll('.loan-date-preset-btn').forEach(b => {
+                b.classList.remove('active');
+                b.style.background = '#fff';
+                b.style.color = '#475569';
+                b.style.borderColor = '#cbd5e1';
+            });
+
+            if (isAlreadyActive) {
+                sDate.value = '';
+                eDate.value = '';
+                fetchLoanData(true);
+                return;
+            }
+
+            btn.classList.add('active');
+            btn.style.background = '#6366f1';
+            btn.style.color = '#fff';
+            btn.style.borderColor = '#6366f1';
+
+            const preset = btn.getAttribute('data-preset');
+            const now = new Date();
+
+            if (preset === 'thisMonth') {
+                const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+                sDate.value = firstDay.toISOString().split('T')[0];
+                eDate.value = now.toISOString().split('T')[0];
+            } else if (preset === 'lastMonth') {
+                const firstDay = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+                const lastDay = new Date(now.getFullYear(), now.getMonth(), 0);
+                sDate.value = firstDay.toISOString().split('T')[0];
+                eDate.value = lastDay.toISOString().split('T')[0];
+            } else if (preset === 'thisYear') {
+                const firstDay = new Date(now.getFullYear(), 0, 1);
+                sDate.value = firstDay.toISOString().split('T')[0];
+                eDate.value = now.toISOString().split('T')[0];
+            }
+
+            fetchLoanData(true);
+        });
+    });
+
+    const loanResetBtn = document.getElementById('loanResetBtn');
+    if (loanResetBtn) {
+        loanResetBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            const sInput = document.getElementById('loanSearchInput');
+            const sStatus = document.getElementById('loanStatusFilter');
+            const sDate = document.getElementById('loanStartDate');
+            const eDate = document.getElementById('loanEndDate');
+            if (sInput) sInput.value = '';
+            if (sStatus) sStatus.value = 'all';
+            if (sDate) sDate.value = '';
+            if (eDate) eDate.value = '';
+
+            document.querySelectorAll('.loan-date-preset-btn').forEach(b => {
+                b.classList.remove('active');
+                b.style.background = '#fff';
+                b.style.color = '#475569';
+                b.style.borderColor = '#cbd5e1';
+            });
+
+            fetchLoanData(true);
+        });
+    }
+
     const financeExpenseFilterBtn = document.getElementById('financeExpenseFilterBtn');
     if (financeExpenseFilterBtn) {
         financeExpenseFilterBtn.addEventListener('click', (e) => {
@@ -1745,12 +1893,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const adminExpenseTab = document.getElementById('financeTabAdminExpense');
         const profitStatementTabBtn = document.getElementById('financeTabProfitStatement');
         const hqSettlementTabBtn = document.getElementById('financeTabHqSettlement');
+        const loanTabBtn = document.getElementById('financeTabLoan');
 
         const incomeSection = document.getElementById('financeIncomeSection');
         const expenseSection = document.getElementById('financeExpenseSection');
         const adminExpenseSection = document.getElementById('financeAdminExpenseSection');
         const profitStatementSection = document.getElementById('profitStatementTab');
         const hqSettlementSection = document.getElementById('financeHqSettlementSection');
+        const loanSection = document.getElementById('financeLoanSection');
 
         // Remove active from all tabs
         if (incomeTab) incomeTab.classList.remove('active');
@@ -1758,6 +1908,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (adminExpenseTab) adminExpenseTab.classList.remove('active');
         if (profitStatementTabBtn) profitStatementTabBtn.classList.remove('active');
         if (hqSettlementTabBtn) hqSettlementTabBtn.classList.remove('active');
+        if (loanTabBtn) loanTabBtn.classList.remove('active');
 
         // Hide all sections
         if (incomeSection) incomeSection.style.display = 'none';
@@ -1765,6 +1916,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (adminExpenseSection) adminExpenseSection.style.display = 'none';
         if (profitStatementSection) profitStatementSection.style.display = 'none';
         if (hqSettlementSection) hqSettlementSection.style.display = 'none';
+        if (loanSection) loanSection.style.display = 'none';
 
         if (tabName === 'expense') {
             if (expenseTab) expenseTab.classList.add('active');
@@ -1783,6 +1935,10 @@ document.addEventListener('DOMContentLoaded', () => {
             if (hqSettlementTabBtn) hqSettlementTabBtn.classList.add('active');
             if (hqSettlementSection) hqSettlementSection.style.display = 'block';
             fetchHqSettlementData();
+        } else if (tabName === 'loan') {
+            if (loanTabBtn) loanTabBtn.classList.add('active');
+            if (loanSection) loanSection.style.display = 'block';
+            fetchLoanData();
         } else {
             // income (default)
             if (incomeTab) incomeTab.classList.add('active');
@@ -3341,6 +3497,1458 @@ document.addEventListener('DOMContentLoaded', () => {
             window.URL.revokeObjectURL(url);
         } catch (err) {
             console.error('exportHqSettlementExcel error:', err);
+            showAlert('error', 'ไม่สามารถส่งออก Excel ได้');
+        } finally {
+            hideLoader();
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // LOANS & CASH ADVANCES FUNCTIONS (บันทึกให้ยืมจากยอดรายรับ)
+    // ═══════════════════════════════════════════════════════════════════
+
+    let currentLoans = [];
+    let easyCareCashBalance = 0;
+    let easyCareTotalReceived = 0;
+    let easyCareAvailableFunds = 0;
+
+    async function fetchLoanData(silent = false) {
+        if (!silent) showLoader('กำลังโหลดข้อมูลบันทึกให้ยืม...');
+        try {
+            const search = (document.getElementById('loanSearchInput') || {}).value || '';
+            const status = (document.getElementById('loanStatusFilter') || {}).value || 'all';
+            const startDate = (document.getElementById('loanStartDate') || {}).value || '';
+            const endDate = (document.getElementById('loanEndDate') || {}).value || '';
+
+            const params = new URLSearchParams();
+            if (search) params.set('search', search);
+            if (status && status !== 'all') params.set('status', status);
+            if (startDate) params.set('startDate', startDate);
+            if (endDate) params.set('endDate', endDate);
+
+            const qs = params.toString() ? `?${params.toString()}` : '';
+
+            const [resSum, resList] = await Promise.all([
+                fetch(`/api/finance/loans/summary${qs}`),
+                fetch(`/api/finance/loans${qs}`)
+            ]);
+
+            const sumData = await resSum.json();
+            const listData = await resList.json();
+
+            if (sumData.success && sumData.summary) {
+                const sum = sumData.summary;
+                const totalLoan = sum.totalLoanAmount || 0;
+                const totalRepaid = sum.totalRepaidAmount || 0;
+                const totalRem = sum.totalRemainingAmount || 0;
+                const activeCount = sum.activeCount || 0;
+                const repaidCount = sum.repaidCount || 0;
+                const overdueCount = sum.overdueCount || 0;
+                const totalReceived = Number(sum.totalReceived ?? sum.availableCash ?? 0);
+                const availableFunds = Number(sum.availableFunds !== undefined ? sum.availableFunds : (totalReceived - totalRem));
+                easyCareTotalReceived = totalReceived;
+                easyCareAvailableFunds = availableFunds;
+                easyCareCashBalance = totalReceived;
+
+                const easyCareCashEl = document.getElementById('loanEasyCareCashDisplay');
+                const availableFundsEl = document.getElementById('loanAvailableFundsDisplay');
+                const loanReceivedSubtitleEl = document.getElementById('loanReceivedSubtitle');
+                const totalLoanEl = document.getElementById('loanTotalAmountDisplay');
+                const remEl = document.getElementById('loanRemainingAmountDisplay');
+                const repaidEl = document.getElementById('loanRepaidAmountDisplay');
+                const activeEl = document.getElementById('loanActiveCountDisplay');
+                const overdueBadgeEl = document.getElementById('loanOverdueBadgeText');
+                const repaidTextEl = document.getElementById('loanRepaidCountText');
+
+                if (easyCareCashEl) easyCareCashEl.textContent = formatNumber(totalReceived) + ' ฿';
+                if (availableFundsEl) {
+                    availableFundsEl.textContent = formatNumber(availableFunds) + ' ฿';
+                    if (availableFunds < 0) {
+                        availableFundsEl.style.color = '#e11d48';
+                    } else {
+                        availableFundsEl.style.color = '#059669';
+                    }
+                }
+                if (loanReceivedSubtitleEl) {
+                    if (totalRem > 0) {
+                        loanReceivedSubtitleEl.textContent = `โอนเข้าบัญชีสำเร็จ (ให้ยืมอยู่ ${formatNumber(totalRem)} ฿)`;
+                    } else {
+                        loanReceivedSubtitleEl.textContent = 'โอนเข้าบัญชีสำเร็จ (พร้อมให้ยืม)';
+                    }
+                }
+                if (totalLoanEl) totalLoanEl.textContent = formatNumber(totalLoan) + ' ฿';
+                if (remEl) remEl.textContent = formatNumber(totalRem) + ' ฿';
+                if (repaidEl) repaidEl.textContent = formatNumber(totalRepaid) + ' ฿';
+                if (activeEl) activeEl.textContent = activeCount;
+
+                if (overdueBadgeEl) {
+                    if (overdueCount > 0) {
+                        overdueBadgeEl.textContent = `⚠️ เกินกำหนด ${overdueCount} รายการ`;
+                        overdueBadgeEl.style.color = '#ef4444';
+                    } else {
+                        overdueBadgeEl.textContent = 'ค้างชำระ';
+                        overdueBadgeEl.style.color = '#e11d48';
+                    }
+                }
+
+                if (repaidTextEl) {
+                    repaidTextEl.textContent = `(ปิดยอดแล้ว ${repaidCount} รายการ)`;
+                }
+            }
+
+            if (listData.success) {
+                renderLoanTable(listData.data || []);
+            }
+        } catch (err) {
+            console.error('fetchLoanData error:', err);
+            showAlert('error', 'ไม่สามารถโหลดข้อมูลรายการเงินยืมได้');
+        } finally {
+            if (!silent) hideLoader();
+        }
+    }
+
+    function renderLoanTable(items) {
+        currentLoans = items || [];
+        const tbody = document.getElementById('loanBody');
+        const tfoot = document.getElementById('loanFoot');
+        const emptyState = document.getElementById('loanEmptyState');
+        const countEl = document.getElementById('loanCount');
+        const filteredRemTotalEl = document.getElementById('loanFilteredRemainingTotal');
+        const footTotalLoanEl = document.getElementById('loanFootTotalLoan');
+        const footTotalRepaidEl = document.getElementById('loanFootTotalRepaid');
+        const footTotalRemEl = document.getElementById('loanFootTotalRemaining');
+
+        if (countEl) countEl.textContent = items.length;
+        if (!tbody) return;
+        tbody.innerHTML = '';
+
+        const searchDatalist = document.getElementById('loanSearchBorrowerOptions');
+        if (searchDatalist && Array.isArray(items)) {
+            const uniqueNames = [...new Set(items.map(it => it.borrowerName).filter(Boolean))].sort();
+            searchDatalist.innerHTML = uniqueNames.map(name => `<option value="${escapeHtml(name)}"></option>`).join('');
+        }
+
+        if (!items || items.length === 0) {
+            if (emptyState) emptyState.style.display = 'block';
+            if (tfoot) tfoot.style.display = 'none';
+            if (filteredRemTotalEl) filteredRemTotalEl.textContent = '0 ฿';
+            return;
+        }
+        if (emptyState) emptyState.style.display = 'none';
+        if (tfoot) tfoot.style.display = 'table-footer-group';
+
+        const sumLoan = items.reduce((acc, it) => acc + (it.loanAmount || 0), 0);
+        const sumRepaid = items.reduce((acc, it) => acc + (it.repaidAmount || 0), 0);
+        const sumRemaining = items.reduce((acc, it) => acc + (it.remainingAmount || 0), 0);
+
+        if (filteredRemTotalEl) filteredRemTotalEl.textContent = formatNumber(sumRemaining) + ' ฿';
+        if (footTotalLoanEl) footTotalLoanEl.textContent = formatNumber(sumLoan) + ' ฿';
+        if (footTotalRepaidEl) footTotalRepaidEl.textContent = formatNumber(sumRepaid) + ' ฿';
+        if (footTotalRemEl) footTotalRemEl.textContent = formatNumber(sumRemaining) + ' ฿';
+
+        items.forEach((item, idx) => {
+            const tr = document.createElement('tr');
+            tr.className = 'loan-table-row';
+
+            const dateStr = item.loanDate ? new Date(item.loanDate).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' }) : '-';
+            const dueDateStr = item.dueDate ? new Date(item.dueDate).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' }) : '<span style="color: #94a3b8;">ไม่ระบุ</span>';
+
+            // Status Badge
+            let statusBadge = '';
+            if (item.status === 'repaid' || item.remainingAmount <= 0) {
+                statusBadge = '<span style="display: inline-flex; align-items: center; gap: 3px; padding: 3px 8px; border-radius: 12px; font-size: 0.74rem; font-weight: 600; background: #dcfce7; color: #15803d;"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg> คืนครบแล้ว</span>';
+            } else if (item.isOverdue) {
+                statusBadge = '<span style="display: inline-flex; align-items: center; gap: 3px; padding: 3px 8px; border-radius: 12px; font-size: 0.74rem; font-weight: 600; background: #fee2e2; color: #b91c1c;"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg> เกินกำหนด</span>';
+            } else if (item.status === 'partial' || item.repaidAmount > 0) {
+                statusBadge = '<span style="display: inline-flex; align-items: center; gap: 3px; padding: 3px 8px; border-radius: 12px; font-size: 0.74rem; font-weight: 600; background: #e0f2fe; color: #0284c7;">คืนบางส่วน</span>';
+            } else {
+                statusBadge = '<span style="display: inline-flex; align-items: center; gap: 3px; padding: 3px 8px; border-radius: 12px; font-size: 0.74rem; font-weight: 600; background: #fef3c7; color: #b45309;">กำลังยืม</span>';
+            }
+
+            // Slip Button
+            const urls = (item.evidenceUrls && item.evidenceUrls.length > 0) ? item.evidenceUrls : (item.evidenceUrl ? [item.evidenceUrl] : []);
+            let slipHtml = '<span style="color: #cbd5e1; font-size: 0.85rem;">-</span>';
+            if (urls.length > 0) {
+                slipHtml = `<button type="button" class="btn btn-sm" style="display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; font-size: 0.76rem; font-weight: 600; background: #eef2ff; color: #4f46e5; border: 1px solid #c7d2fe; border-radius: 6px; cursor: pointer; transition: all 0.15s ease;" onmouseover="this.style.background='#c7d2fe'" onmouseout="this.style.background='#eef2ff'" onclick="window.previewLoanSlip('${urls[0]}')">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+                    สลิป
+                </button>`;
+            }
+
+            // Repay Button
+            const canRepay = item.status !== 'repaid' && item.remainingAmount > 0;
+            const repayBtn = canRepay
+                ? `<button type="button" class="btn btn-sm" style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 9px; font-size: 0.76rem; font-weight: 600; background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: #ffffff; border: none; border-radius: 6px; cursor: pointer; box-shadow: 0 1px 3px rgba(16, 185, 129, 0.28); transition: all 0.15s ease;" onclick="window.showRepayLoanModal('${item._id}')" title="บันทึกรับคืนเงินยืม">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                    คืนเงิน
+                </button>`
+                : `<button type="button" class="btn btn-sm" style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; font-size: 0.74rem; font-weight: 500; background: #f1f5f9; color: #94a3b8; border: 1px solid #e2e8f0; border-radius: 6px; cursor: not-allowed;" disabled>
+                    ครบแล้ว
+                </button>`;
+
+            // Remaining Display
+            const remainingColor = (item.remainingAmount > 0) ? '#e11d48' : '#10b981';
+
+            tr.innerHTML = `
+                <td style="text-align: center; color: #94a3b8; font-weight: 500;">${idx + 1}</td>
+                <td style="text-align: center;"><span style="font-weight: 600; color: #1e293b; font-size: 0.84rem;">${dateStr}</span></td>
+                <td style="text-align: center;">
+                    <span style="display: inline-block; font-family: monospace, var(--font-family); font-weight: 700; font-size: 0.82rem; color: #4338ca; background: #eef2ff; border: 1px solid #c7d2fe; padding: 2px 7px; border-radius: 6px;">
+                        ${escapeHtml(item.loanNumber || '-')}
+                    </span>
+                </td>
+                <td style="text-align: left;">
+                    <div style="font-weight: 700; color: #0f172a; font-size: 0.88rem; margin-bottom: 2px;">${escapeHtml(item.borrowerName || '-')}</div>
+                    ${(item.borrowerPhone && item.borrowerPhone !== '-') ? `<div style="font-size: 0.74rem; color: #64748b; margin-bottom: 2px;">📞 ${escapeHtml(item.borrowerPhone)}</div>` : ''}
+                    ${item.reason ? `<div style="font-size: 0.72rem; color: #94a3b8; margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 220px;" title="${escapeHtml(item.reason)}">เหตุผล: ${escapeHtml(item.reason)}</div>` : ''}
+                </td>
+                <td style="text-align: right;"><span style="font-weight: 700; color: #4f46e5; font-size: 0.95rem; font-family: monospace, var(--font-family);">${formatNumber(item.loanAmount || 0)} ฿</span></td>
+                <td style="text-align: right;"><span style="font-weight: 600; color: #059669; font-size: 0.92rem; font-family: monospace, var(--font-family);">${formatNumber(item.repaidAmount || 0)} ฿</span></td>
+                <td style="text-align: right;"><span style="font-weight: 700; color: ${remainingColor}; font-size: 0.95rem; font-family: monospace, var(--font-family);">${formatNumber(item.remainingAmount || 0)} ฿</span></td>
+                <td style="text-align: center;">
+                    <span style="font-size: 0.82rem; color: #334155; font-weight: 500;">${dueDateStr}</span>
+                    ${item.isOverdue ? '<div style="font-size: 0.7rem; color: #ef4444; font-weight: 600;">⚠️ เกินกำหนด</div>' : ''}
+                </td>
+                <td style="text-align: center;">${statusBadge}</td>
+                <td style="text-align: center;">${slipHtml}</td>
+                <td style="text-align: center;">
+                    <div style="display: inline-flex; align-items: center; justify-content: center; gap: 5px;">
+                        ${repayBtn}
+                        <button type="button" class="btn-action-icon" style="background: none; border: none; color: #6366f1; cursor: pointer; padding: 4px; border-radius: 6px; display: inline-flex; align-items: center; transition: all 0.15s ease;" onmouseover="this.style.background='#eef2ff'" onmouseout="this.style.background='none'" onclick="window.showLoanHistoryModal('${item._id}')" title="ประวัติการชำระคืน">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                        </button>
+                        <button type="button" class="btn-action-icon" style="background: none; border: none; color: #0284c7; cursor: pointer; padding: 4px; border-radius: 6px; display: inline-flex; align-items: center; transition: all 0.15s ease;" onmouseover="this.style.background='#e0f2fe'" onmouseout="this.style.background='none'" onclick="window.editLoan('${item._id}')" title="แก้ไขข้อมูลสัญญา">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                        </button>
+                        <button type="button" class="btn-action-icon" style="background: none; border: none; color: #ef4444; cursor: pointer; padding: 4px; border-radius: 6px; display: inline-flex; align-items: center; transition: all 0.15s ease;" onmouseover="this.style.background='#fee2e2'" onmouseout="this.style.background='none'" onclick="window.deleteLoan('${item._id}')" title="ลบสัญญาเงินยืม">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                        </button>
+                    </div>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    window.previewLoanSlip = function(url) {
+        if (!url) return;
+        Swal.fire({
+            html: `
+                <div style="display: flex; align-items: center; justify-content: space-between; padding-bottom: 12px; border-bottom: 1px solid #f1f5f9; margin-bottom: 14px;">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <div style="width: 36px; height: 36px; border-radius: 10px; background: #eef2ff; color: #6366f1; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                                <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                                <polyline points="21 15 16 10 5 21"></polyline>
+                            </svg>
+                        </div>
+                        <div style="text-align: left;">
+                            <div style="font-size: 1.05rem; font-weight: 700; color: #1e293b;">หลักฐานสลิปเงินยืม</div>
+                            <div style="font-size: 0.75rem; color: #64748b;">สลิปโอนหรือหลักฐานการจ่ายเงิน</div>
+                        </div>
+                    </div>
+                </div>
+                <div style="padding: 8px; background: #f8fafc; border-radius: 12px; border: 1px solid #e2e8f0;">
+                    <img src="${url}" alt="สลิปหลักฐาน" style="max-width: 100%; max-height: 65vh; border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.06); display: block; margin: 0 auto; object-fit: contain;">
+                </div>
+                <div style="margin-top: 14px; text-align: center;">
+                    <a href="${url}" target="_blank" style="display: inline-flex; align-items: center; gap: 6px; padding: 8px 18px; background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); color: #ffffff; text-decoration: none; border-radius: 8px; font-size: 0.85rem; font-weight: 600; box-shadow: 0 2px 8px rgba(99, 102, 241, 0.25);">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+                        เปิดดูรูปภาพขนาดเต็ม
+                    </a>
+                </div>
+            `,
+            showCloseButton: true,
+            showConfirmButton: false,
+            width: 520,
+            background: '#ffffff',
+            customClass: {
+                popup: 'swal-hq-popup-custom',
+                htmlContainer: 'swal-hq-html-container'
+            }
+        });
+    };
+
+    async function getExistingBorrowers() {
+        let borrowers = [];
+        try {
+            const res = await fetch('/api/finance/loans/borrowers');
+            const data = await res.json();
+            if (data.success && Array.isArray(data.data)) {
+                borrowers = data.data;
+            }
+        } catch (e) {
+            console.error('Error fetching borrowers:', e);
+        }
+
+        if (Array.isArray(currentLoans)) {
+            const map = new Map();
+            borrowers.forEach(b => {
+                if (b && b.name) map.set(b.name, b.phone || '');
+            });
+            currentLoans.forEach(l => {
+                if (l.borrowerName && !map.has(l.borrowerName)) {
+                    map.set(l.borrowerName, (l.borrowerPhone && l.borrowerPhone !== '-') ? l.borrowerPhone : '');
+                }
+            });
+            borrowers = Array.from(map.entries()).map(([name, phone]) => ({ name, phone }));
+        }
+        return borrowers;
+    }
+
+    async function showAddLoanModal() {
+        const today = new Date().toISOString().split('T')[0];
+        const borrowers = await getExistingBorrowers();
+        const borrowerDatalistOptions = borrowers.map(b => `<option value="${escapeHtml(b.name)}">${b.phone ? `เบอร์: ${escapeHtml(b.phone)}` : ''}</option>`).join('');
+
+        const { value: formValues } = await Swal.fire({
+            width: 520,
+            background: '#ffffff',
+            showCloseButton: false,
+            html: `
+                <div style="text-align: left; font-family: var(--font-family, sans-serif);">
+                    <!-- Header -->
+                    <div style="display: flex; align-items: center; justify-content: space-between; padding-bottom: 14px; border-bottom: 1px solid #f1f5f9; margin-bottom: 14px;">
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <div style="width: 42px; height: 42px; border-radius: 12px; background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); color: #ffffff; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(99, 102, 241, 0.28); flex-shrink: 0;">
+                                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                                    <circle cx="8.5" cy="7" r="4"></circle>
+                                    <line x1="20" y1="8" x2="20" y2="14"></line>
+                                    <line x1="23" y1="11" x2="17" y2="11"></line>
+                                </svg>
+                            </div>
+                            <div>
+                                <div style="font-size: 1.15rem; font-weight: 700; color: #0f172a; line-height: 1.25;">บันทึกการให้ยืมเงิน / เงินทดรอง</div>
+                                <div style="font-size: 0.78rem; color: #64748b; margin-top: 2px;">บันทึกรายการเงินยืมออกจากระบบ</div>
+                            </div>
+                        </div>
+                        <span style="font-size: 0.72rem; font-weight: 600; color: #6366f1; background: #eef2ff; padding: 4px 10px; border-radius: 20px; border: 1px solid #c7d2fe;">EASY CARE</span>
+                    </div>
+
+                    <!-- EASY.CARE Received Funds Banner -->
+                    <div style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.09) 0%, rgba(5, 150, 105, 0.04) 100%); border: 1.5px solid rgba(16, 185, 129, 0.25); border-radius: 10px; padding: 10px 14px; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between;">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <div style="width: 34px; height: 34px; border-radius: 8px; background: #dcfce7; color: #15803d; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <rect x="2" y="6" width="20" height="12" rx="2"></rect>
+                                    <circle cx="12" cy="12" r="2"></circle>
+                                    <path d="M6 12h.01M18 12h.01"></path>
+                                </svg>
+                            </div>
+                            <div>
+                                <div style="font-size: 0.76rem; color: #64748b; font-weight: 500;">ยอดเงินสดที่มีทั้งหมด: ${formatNumber(easyCareTotalReceived)} ฿</div>
+                                <div style="font-size: 0.82rem; font-weight: 700; color: ${easyCareAvailableFunds < 0 ? '#e11d48' : '#15803d'};">คงเหลือหลังหักเงินยืม</div>
+                            </div>
+                        </div>
+                        <div style="text-align: right;">
+                            <div style="font-size: 1.15rem; font-weight: 800; color: ${easyCareAvailableFunds < 0 ? '#e11d48' : '#059669'}; font-family: monospace, var(--font-family);">${formatNumber(easyCareAvailableFunds)} ฿</div>
+                        </div>
+                    </div>
+
+                    <!-- Row 1: Borrower Name & Phone -->
+                    <div style="display: grid; grid-template-columns: 3fr 2fr; gap: 12px; margin-bottom: 10px;">
+                        <div>
+                            <label style="display: flex; align-items: center; justify-content: space-between; font-size: 0.82rem; font-weight: 600; color: #334155; margin-bottom: 5px;">
+                                <span style="display: flex; align-items: center; gap: 6px;">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                                    ชื่อผู้ขอยืม <span style="color: #ef4444;">*</span>
+                                </span>
+                                ${borrowers.length > 0 ? '<span style="font-size: 0.7rem; color: #6366f1; font-weight: normal;">(เลือกชื่อเดิม หรือพิมพ์ใหม่)</span>' : ''}
+                            </label>
+                            <input type="text" id="swalLoanBorrower" list="loanBorrowerOptions" autocomplete="off" placeholder="พิมพ์ชื่อ หรือคลิกเพื่อเลือกจากรายการเดิม" style="width: 100%; height: 38px; padding: 0 10px; border: 1.5px solid #cbd5e1; border-radius: 8px; font-size: 0.86rem; color: #1e293b; outline: none; box-sizing: border-box;" onfocus="this.style.borderColor='#6366f1';" onblur="this.style.borderColor='#cbd5e1';">
+                            <datalist id="loanBorrowerOptions">
+                                ${borrowerDatalistOptions}
+                            </datalist>
+                        </div>
+                        <div>
+                            <label style="display: flex; align-items: center; gap: 6px; font-size: 0.82rem; font-weight: 600; color: #334155; margin-bottom: 5px;">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
+                                เบอร์โทรศัพท์
+                            </label>
+                            <input type="tel" id="swalLoanPhone" placeholder="08x-xxx-xxxx" style="width: 100%; height: 38px; padding: 0 10px; border: 1.5px solid #cbd5e1; border-radius: 8px; font-size: 0.86rem; color: #1e293b; outline: none; box-sizing: border-box;" onfocus="this.style.borderColor='#6366f1';" onblur="this.style.borderColor='#cbd5e1';">
+                        </div>
+                    </div>
+
+                    <!-- Row 2: Loan Amount -->
+                    <div style="margin-bottom: 6px;">
+                        <label style="display: flex; align-items: center; gap: 6px; font-size: 0.82rem; font-weight: 600; color: #334155; margin-bottom: 5px;">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
+                            ยอดเงินที่ให้ยืม (บาท) <span style="color: #ef4444;">*</span>
+                        </label>
+                        <div style="position: relative;">
+                            <input type="number" id="swalLoanAmount" placeholder="0.00" min="1" step="0.01" style="width: 100%; height: 38px; padding: 0 30px 0 10px; border: 1.5px solid #cbd5e1; border-radius: 8px; font-size: 0.95rem; font-weight: 700; color: #4338ca; outline: none; box-sizing: border-box;" onfocus="this.style.borderColor='#6366f1';" onblur="this.style.borderColor='#cbd5e1';">
+                            <span style="position: absolute; right: 10px; top: 9px; font-size: 0.85rem; font-weight: 600; color: #94a3b8;">฿</span>
+                        </div>
+                    </div>
+
+                    <!-- Live Amount Formatted Text -->
+                    <div id="swalLoanAmountPreviewText" style="text-align: right; font-size: 0.8rem; color: #6366f1; font-weight: 600; min-height: 16px; margin-bottom: 10px;"></div>
+
+                    <!-- Row 3: Date & Due Date -->
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 10px;">
+                        <div>
+                            <label style="display: flex; align-items: center; gap: 6px; font-size: 0.82rem; font-weight: 600; color: #334155; margin-bottom: 5px;">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+                                วันที่ให้ยืม <span style="color: #ef4444;">*</span>
+                            </label>
+                            <input type="date" id="swalLoanDate" value="${today}" style="width: 100%; height: 38px; padding: 0 10px; border: 1.5px solid #cbd5e1; border-radius: 8px; font-size: 0.86rem; color: #1e293b; outline: none; box-sizing: border-box;">
+                        </div>
+                        <div>
+                            <label style="display: flex; align-items: center; gap: 6px; font-size: 0.82rem; font-weight: 600; color: #334155; margin-bottom: 5px;">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#e11d48" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                                กำหนดวันคืนเงิน <span style="font-weight: 400; color: #94a3b8; font-size: 0.72rem;">(ถ้ามี)</span>
+                            </label>
+                            <input type="date" id="swalLoanDueDate" style="width: 100%; height: 38px; padding: 0 10px; border: 1.5px solid #cbd5e1; border-radius: 8px; font-size: 0.86rem; color: #1e293b; outline: none; box-sizing: border-box;">
+                        </div>
+                    </div>
+
+                    <!-- Row 4: Reason -->
+                    <div style="margin-bottom: 10px;">
+                        <label style="display: flex; align-items: center; gap: 6px; font-size: 0.82rem; font-weight: 600; color: #334155; margin-bottom: 5px;">
+                            เหตุผล / วัตถุประสงค์ในการยืม <span style="color: #ef4444;">*</span>
+                        </label>
+                        <input type="text" id="swalLoanReason" placeholder="เช่น ยืมเงินสำรองจ่ายค่าอุปกรณ์, ทดรองจ่ายค่าขนส่ง" style="width: 100%; height: 38px; padding: 0 10px; border: 1.5px solid #cbd5e1; border-radius: 8px; font-size: 0.86rem; color: #1e293b; outline: none; box-sizing: border-box;">
+                    </div>
+
+                    <!-- Row 5: Slip Upload Box -->
+                    <div style="margin-bottom: 4px;">
+                        <label style="display: flex; align-items: center; gap: 6px; font-size: 0.82rem; font-weight: 600; color: #334155; margin-bottom: 5px;">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                            สลิป / เอกสารหลักฐานการจ่ายเงิน <span style="font-weight: 400; color: #94a3b8; font-size: 0.72rem;">(ถ้ามี)</span>
+                        </label>
+                        <div id="swalLoanUploadBox" style="border: 1.5px dashed #cbd5e1; border-radius: 10px; padding: 10px 14px; background: #f8fafc; cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center; justify-content: space-between;" onclick="document.getElementById('swalLoanSlipFile').click();" onmouseover="this.style.borderColor='#6366f1'; this.style.background='#eef2ff';" onmouseout="this.style.borderColor='#cbd5e1'; this.style.background='#f8fafc';">
+                            <input type="file" id="swalLoanSlipFile" accept="image/*" style="display: none;">
+                            
+                            <div id="swalLoanUploadPlaceholder" style="display: flex; align-items: center; gap: 10px; width: 100%;">
+                                <div style="width: 36px; height: 36px; border-radius: 8px; background: #eef2ff; color: #6366f1; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                                </div>
+                                <div style="text-align: left; flex-grow: 1;">
+                                    <div style="font-size: 0.82rem; font-weight: 600; color: #334155;">คลิกเพื่อแนบสลิปการจ่ายเงิน</div>
+                                    <div style="font-size: 0.72rem; color: #94a3b8;">รองรับรูปถ่ายสลิปโอนเงิน หรือใบรับเงิน</div>
+                                </div>
+                                <span style="font-size: 0.75rem; font-weight: 600; color: #475569; background: #e2e8f0; padding: 4px 10px; border-radius: 6px; flex-shrink: 0;">เลือกไฟล์</span>
+                            </div>
+
+                            <div id="swalLoanUploadPreview" style="display: none; align-items: center; gap: 12px; width: 100%;">
+                                <img id="swalLoanThumbnail" src="" style="height: 38px; width: 38px; border-radius: 6px; border: 1px solid #cbd5e1; object-fit: cover; box-shadow: 0 1px 3px rgba(0,0,0,0.08); flex-shrink: 0;">
+                                <div style="text-align: left; flex-grow: 1; min-width: 0;">
+                                    <div id="swalLoanFileName" style="font-size: 0.82rem; font-weight: 600; color: #0f172a; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">-</div>
+                                    <div style="font-size: 0.72rem; color: #6366f1; display: flex; align-items: center; gap: 4px;">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                                        แนบไฟล์เรียบร้อย (คลิกเพื่อเปลี่ยนรูป)
+                                    </div>
+                                </div>
+                                <button type="button" onclick="event.stopPropagation(); document.getElementById('swalLoanSlipFile').value = ''; document.getElementById('swalLoanUploadPlaceholder').style.display='flex'; document.getElementById('swalLoanUploadPreview').style.display='none';" style="background: none; border: none; color: #94a3b8; cursor: pointer; padding: 4px; font-size: 0.9rem;" title="ลบรูปภาพ">✕</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `,
+            showCancelButton: true,
+            confirmButtonText: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: -2px; margin-right: 6px;"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg> บันทึกการให้ยืมเงิน',
+            cancelButtonText: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: -2px; margin-right: 6px;"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg> ยกเลิก',
+            focusConfirm: false,
+            buttonsStyling: false,
+            customClass: {
+                popup: 'swal-hq-popup-custom',
+                htmlContainer: 'swal-hq-html-container',
+                actions: 'swal-hq-actions',
+                confirmButton: 'swal-hq-confirm-btn',
+                cancelButton: 'swal-hq-cancel-btn'
+            },
+            didOpen: () => {
+                const borrowerInput = document.getElementById('swalLoanBorrower');
+                const phoneInput = document.getElementById('swalLoanPhone');
+                if (borrowerInput) {
+                    borrowerInput.addEventListener('click', () => {
+                        try { if (typeof borrowerInput.showPicker === 'function') borrowerInput.showPicker(); } catch (e) {}
+                    });
+                    borrowerInput.addEventListener('input', () => {
+                        const val = borrowerInput.value.trim();
+                        const found = borrowers.find(b => b.name.toLowerCase() === val.toLowerCase());
+                        if (found && found.phone && phoneInput && (!phoneInput.value || phoneInput.value === '-')) {
+                            phoneInput.value = found.phone;
+                        }
+                    });
+                }
+
+                const amountInput = document.getElementById('swalLoanAmount');
+                const previewText = document.getElementById('swalLoanAmountPreviewText');
+                if (amountInput && previewText) {
+                    amountInput.addEventListener('input', () => {
+                        const val = parseFloat(amountInput.value);
+                        if (!isNaN(val) && val > 0) {
+                            const formatted = val.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                            const fundLimit = easyCareAvailableFunds;
+                            if (val > fundLimit) {
+                                previewText.innerHTML = `ยอดเงินให้ยืม: ${formatted} บาท <span style="color: #ef4444; font-weight: 700; display: block; margin-top: 3px;">⚠️ คำเตือน: ยอดที่ขอยืมมากกว่ายอดคงเหลือหลังหักเงินยืม (${formatNumber(fundLimit)} ฿)</span>`;
+                            } else {
+                                previewText.textContent = `ยอดเงินให้ยืม: ${formatted} บาท`;
+                                previewText.style.color = '#6366f1';
+                            }
+                        } else {
+                            previewText.textContent = '';
+                        }
+                    });
+                }
+
+                const fileInput = document.getElementById('swalLoanSlipFile');
+                const placeholder = document.getElementById('swalLoanUploadPlaceholder');
+                const previewContainer = document.getElementById('swalLoanUploadPreview');
+                const thumbnail = document.getElementById('swalLoanThumbnail');
+                const fileNameEl = document.getElementById('swalLoanFileName');
+
+                if (fileInput) {
+                    fileInput.addEventListener('change', (e) => {
+                        const file = e.target.files && e.target.files[0];
+                        if (file) {
+                            fileNameEl.textContent = file.name;
+                            const reader = new FileReader();
+                            reader.onload = (re) => {
+                                thumbnail.src = re.target.result;
+                                placeholder.style.display = 'none';
+                                previewContainer.style.display = 'flex';
+                            };
+                            reader.readAsDataURL(file);
+                        } else {
+                            placeholder.style.display = 'flex';
+                            previewContainer.style.display = 'none';
+                        }
+                    });
+                }
+            },
+            preConfirm: () => {
+                const borrowerName = (document.getElementById('swalLoanBorrower') || {}).value?.trim();
+                const borrowerPhone = (document.getElementById('swalLoanPhone') || {}).value?.trim();
+                const loanAmount = parseFloat((document.getElementById('swalLoanAmount') || {}).value);
+                const loanDate = (document.getElementById('swalLoanDate') || {}).value;
+                const dueDate = (document.getElementById('swalLoanDueDate') || {}).value;
+                const reason = (document.getElementById('swalLoanReason') || {}).value?.trim();
+                const fileInput = document.getElementById('swalLoanSlipFile');
+                const file = fileInput && fileInput.files && fileInput.files[0] ? fileInput.files[0] : null;
+
+                if (!borrowerName) {
+                    Swal.showValidationMessage('กรุณาระบุชื่อผู้ขอยืม');
+                    return false;
+                }
+                if (!loanAmount || loanAmount <= 0) {
+                    Swal.showValidationMessage('กรุณาระบุจำนวนเงินที่ถูกต้อง (มากกว่า 0 บาท)');
+                    return false;
+                }
+                if (!loanDate) {
+                    Swal.showValidationMessage('กรุณาระบุวันที่ให้ยืม');
+                    return false;
+                }
+                if (!reason) {
+                    Swal.showValidationMessage('กรุณาระบุเหตุผลหรือวัตถุประสงค์ในการยืม');
+                    return false;
+                }
+
+                return {
+                    borrowerName, borrowerPhone, loanAmount,
+                    loanDate, dueDate, reason, file
+                };
+            }
+        });
+
+        if (!formValues) return;
+
+        try {
+            showLoader('กำลังบันทึกข้อมูลเงินยืม...');
+            let evidenceUrl = '';
+
+            if (formValues.file) {
+                const formData = new FormData();
+                formData.append('file', formValues.file);
+                const uploadRes = await fetch('/api/upload/single', {
+                    method: 'POST',
+                    body: formData
+                });
+                if (uploadRes.ok) {
+                    const uploadData = await uploadRes.json();
+                    evidenceUrl = uploadData.url || '';
+                }
+            }
+
+            const staffName = (typeof currentUser !== 'undefined' && currentUser) ? currentUser.staffName : 'Admin';
+            const payload = {
+                borrowerName: formValues.borrowerName,
+                borrowerPhone: formValues.borrowerPhone,
+                loanAmount: formValues.loanAmount,
+                loanDate: formValues.loanDate,
+                dueDate: formValues.dueDate || null,
+                reason: formValues.reason,
+                evidenceUrl,
+                evidenceUrls: evidenceUrl ? [evidenceUrl] : [],
+                staffName
+            };
+
+            const res = await fetch('/api/finance/loans', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            const data = await res.json();
+            if (data.success) {
+                showAlert('success', `บันทึกให้ยืมเงินสัญญา ${data.data?.loanNumber || ''} สำเร็จ`);
+                fetchLoanData();
+            } else {
+                showAlert('error', data.message || 'บันทึกไม่สำเร็จ');
+            }
+        } catch (err) {
+            console.error('showAddLoanModal error:', err);
+            showAlert('error', 'เกิดข้อผิดพลาดในการบันทึกข้อมูล');
+        } finally {
+            hideLoader();
+        }
+    }
+
+    window.showRepayLoanModal = async function(id) {
+        let loan = (Array.isArray(currentLoans) ? currentLoans : []).find(it => it._id === id);
+        if (!loan) {
+            try {
+                showLoader('กำลังโหลดข้อมูลสัญญา...');
+                const res = await fetch(`/api/finance/loans/${id}`);
+                const data = await res.json();
+                if (data.success && data.data) loan = data.data;
+            } catch (e) {
+                console.error('Fetch loan error:', e);
+            } finally {
+                hideLoader();
+            }
+        }
+
+        if (!loan) {
+            showAlert('error', 'ไม่พบข้อมูลสัญญาเงินยืม');
+            return;
+        }
+
+        if (loan.remainingAmount <= 0) {
+            showAlert('info', 'สัญญานี้ได้ชำระเงินคืนครบถ้วนแล้ว');
+            return;
+        }
+
+        const today = new Date().toISOString().split('T')[0];
+        const nextRepayNo = (loan.repayments ? loan.repayments.length : 0) + 1;
+
+        const { value: formValues } = await Swal.fire({
+            width: 520,
+            background: '#ffffff',
+            showCloseButton: false,
+            html: `
+                <div style="text-align: left; font-family: var(--font-family, sans-serif);">
+                    <!-- Header -->
+                    <div style="display: flex; align-items: center; justify-content: space-between; padding-bottom: 14px; border-bottom: 1px solid #f1f5f9; margin-bottom: 14px;">
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <div style="width: 42px; height: 42px; border-radius: 12px; background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: #ffffff; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.28); flex-shrink: 0;">
+                                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                    <polyline points="20 6 9 17 4 12"></polyline>
+                                </svg>
+                            </div>
+                            <div>
+                                <div style="font-size: 1.15rem; font-weight: 700; color: #0f172a; line-height: 1.25;">บันทึกรับชำระคืนเงินยืม</div>
+                                <div style="font-size: 0.78rem; color: #64748b; margin-top: 2px;">สัญญา ${escapeHtml(loan.loanNumber)} • ${escapeHtml(loan.borrowerName)}</div>
+                            </div>
+                        </div>
+                        <span style="font-size: 0.72rem; font-weight: 600; color: #059669; background: #dcfce7; padding: 4px 10px; border-radius: 20px; border: 1px solid #bbf7d0;">งวดที่ ${nextRepayNo}</span>
+                    </div>
+
+                    <!-- Outstanding Balance Ribbon -->
+                    <div style="background: linear-gradient(135deg, rgba(225, 29, 72, 0.06) 0%, rgba(244, 63, 94, 0.04) 100%); border: 1px solid rgba(225, 29, 72, 0.2); border-radius: 10px; padding: 10px 14px; margin-bottom: 14px; display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <div style="font-size: 0.76rem; color: #64748b; font-weight: 500;">ยอดเงินที่ยืม: <b>${formatNumber(loan.loanAmount)} ฿</b> | คืนแล้ว: <b>${formatNumber(loan.repaidAmount)} ฿</b></div>
+                            <div style="font-size: 0.84rem; color: #e11d48; font-weight: 700; margin-top: 2px;">ยอดหนี้คงเหลือที่ต้องชำระ:</div>
+                        </div>
+                        <div style="font-size: 1.15rem; font-weight: 800; color: #e11d48; font-family: monospace, var(--font-family);">${formatNumber(loan.remainingAmount)} ฿</div>
+                    </div>
+
+                    <!-- Row 1: Amount & Date -->
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 6px;">
+                        <div>
+                            <label style="display: flex; align-items: center; gap: 6px; font-size: 0.82rem; font-weight: 600; color: #334155; margin-bottom: 5px;">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
+                                ยอดเงินที่ชำระคืน (บาท) <span style="color: #ef4444;">*</span>
+                            </label>
+                            <div style="position: relative;">
+                                <input type="number" id="swalRepayAmount" value="${loan.remainingAmount}" min="1" max="${loan.remainingAmount}" step="0.01" style="width: 100%; height: 38px; padding: 0 30px 0 10px; border: 1.5px solid #cbd5e1; border-radius: 8px; font-size: 0.95rem; font-weight: 700; color: #059669; outline: none; box-sizing: border-box;" onfocus="this.style.borderColor='#10b981';" onblur="this.style.borderColor='#cbd5e1';">
+                                <span style="position: absolute; right: 10px; top: 9px; font-size: 0.85rem; font-weight: 600; color: #94a3b8;">฿</span>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label style="display: flex; align-items: center; gap: 6px; font-size: 0.82rem; font-weight: 600; color: #334155; margin-bottom: 5px;">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+                                วันที่รับคืน <span style="color: #ef4444;">*</span>
+                            </label>
+                            <input type="date" id="swalRepayDate" value="${today}" style="width: 100%; height: 38px; padding: 0 10px; border: 1.5px solid #cbd5e1; border-radius: 8px; font-size: 0.86rem; color: #1e293b; outline: none; box-sizing: border-box;">
+                        </div>
+                    </div>
+
+                    <!-- Repayment Live Status Badge -->
+                    <div id="swalRepayStatusBanner" style="text-align: right; font-size: 0.78rem; font-weight: 600; color: #10b981; min-height: 16px; margin-bottom: 10px;">
+                        ✓ ชำระครบ 100% ปิดยอดสัญญา
+                    </div>
+
+                    <!-- Row 2: Remark -->
+                    <div style="margin-bottom: 10px;">
+                        <label style="display: flex; align-items: center; gap: 6px; font-size: 0.82rem; font-weight: 600; color: #334155; margin-bottom: 5px;">
+                            หมายเหตุ
+                        </label>
+                        <input type="text" id="swalRepayRemark" value="ชำระคืนเงินยืมงวดที่ ${nextRepayNo}" placeholder="ระบุหมายเหตุ (ถ้ามี)" style="width: 100%; height: 38px; padding: 0 10px; border: 1.5px solid #cbd5e1; border-radius: 8px; font-size: 0.86rem; color: #1e293b; outline: none; box-sizing: border-box;">
+                    </div>
+
+                    <!-- Row 3: Slip Upload Box -->
+                    <div style="margin-bottom: 4px;">
+                        <label style="display: flex; align-items: center; gap: 6px; font-size: 0.82rem; font-weight: 600; color: #334155; margin-bottom: 5px;">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                            สลิปหลักฐานการรับเงิน <span style="font-weight: 400; color: #94a3b8; font-size: 0.72rem;">(ถ้ามี)</span>
+                        </label>
+                        <div id="swalRepayUploadBox" style="border: 1.5px dashed #cbd5e1; border-radius: 10px; padding: 10px 14px; background: #f8fafc; cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center; justify-content: space-between;" onclick="document.getElementById('swalRepaySlipFile').click();" onmouseover="this.style.borderColor='#10b981'; this.style.background='#f0fdf4';" onmouseout="this.style.borderColor='#cbd5e1'; this.style.background='#f8fafc';">
+                            <input type="file" id="swalRepaySlipFile" accept="image/*" style="display: none;">
+                            
+                            <div id="swalRepayUploadPlaceholder" style="display: flex; align-items: center; gap: 10px; width: 100%;">
+                                <div style="width: 36px; height: 36px; border-radius: 8px; background: #dcfce7; color: #15803d; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                                </div>
+                                <div style="text-align: left; flex-grow: 1;">
+                                    <div style="font-size: 0.82rem; font-weight: 600; color: #334155;">คลิกเพื่ออัปโหลดสลิปการคืนเงิน</div>
+                                    <div style="font-size: 0.72rem; color: #94a3b8;">สลิปโอนเงิน หรือรูปถ่ายใบรับเงิน</div>
+                                </div>
+                                <span style="font-size: 0.75rem; font-weight: 600; color: #475569; background: #e2e8f0; padding: 4px 10px; border-radius: 6px; flex-shrink: 0;">เลือกไฟล์</span>
+                            </div>
+
+                            <div id="swalRepayUploadPreview" style="display: none; align-items: center; gap: 12px; width: 100%;">
+                                <img id="swalRepayThumbnail" src="" style="height: 38px; width: 38px; border-radius: 6px; border: 1px solid #cbd5e1; object-fit: cover; box-shadow: 0 1px 3px rgba(0,0,0,0.08); flex-shrink: 0;">
+                                <div style="text-align: left; flex-grow: 1; min-width: 0;">
+                                    <div id="swalRepayFileName" style="font-size: 0.82rem; font-weight: 600; color: #0f172a; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">-</div>
+                                    <div style="font-size: 0.72rem; color: #10b981; display: flex; align-items: center; gap: 4px;">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                                        แนบไฟล์เรียบร้อย (คลิกเพื่อเปลี่ยนรูป)
+                                    </div>
+                                </div>
+                                <button type="button" onclick="event.stopPropagation(); document.getElementById('swalRepaySlipFile').value = ''; document.getElementById('swalRepayUploadPlaceholder').style.display='flex'; document.getElementById('swalRepayUploadPreview').style.display='none';" style="background: none; border: none; color: #94a3b8; cursor: pointer; padding: 4px; font-size: 0.9rem;" title="ลบรูปภาพ">✕</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `,
+            showCancelButton: true,
+            confirmButtonText: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: -2px; margin-right: 6px;"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg> บันทึกการรับชำระคืน',
+            cancelButtonText: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: -2px; margin-right: 6px;"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg> ยกเลิก',
+            focusConfirm: false,
+            buttonsStyling: false,
+            customClass: {
+                popup: 'swal-hq-popup-custom',
+                htmlContainer: 'swal-hq-html-container',
+                actions: 'swal-hq-actions',
+                confirmButton: 'swal-hq-confirm-btn',
+                cancelButton: 'swal-hq-cancel-btn'
+            },
+            didOpen: () => {
+                const amountInput = document.getElementById('swalRepayAmount');
+                const statusBanner = document.getElementById('swalRepayStatusBanner');
+                if (amountInput && statusBanner) {
+                    amountInput.addEventListener('input', () => {
+                        const val = parseFloat(amountInput.value) || 0;
+                        const remAfter = Math.max(0, loan.remainingAmount - val);
+                        if (val <= 0) {
+                            statusBanner.textContent = 'กรุณาระบุจำนวนเงินที่ถูกต้อง';
+                            statusBanner.style.color = '#ef4444';
+                        } else if (val >= loan.remainingAmount) {
+                            statusBanner.textContent = '✓ ชำระครบ 100% ปิดยอดสัญญา';
+                            statusBanner.style.color = '#10b981';
+                        } else {
+                            statusBanner.textContent = `ชำระบางส่วน (คงเหลืออีก ${formatNumber(remAfter)} ฿)`;
+                            statusBanner.style.color = '#f59e0b';
+                        }
+                    });
+                }
+
+                const fileInput = document.getElementById('swalRepaySlipFile');
+                const placeholder = document.getElementById('swalRepayUploadPlaceholder');
+                const previewContainer = document.getElementById('swalRepayUploadPreview');
+                const thumbnail = document.getElementById('swalRepayThumbnail');
+                const fileNameEl = document.getElementById('swalRepayFileName');
+
+                if (fileInput) {
+                    fileInput.addEventListener('change', () => {
+                        const file = fileInput.files[0];
+                        if (file) {
+                            fileNameEl.textContent = file.name;
+                            const reader = new FileReader();
+                            reader.onload = (e) => {
+                                thumbnail.src = e.target.result;
+                                placeholder.style.display = 'none';
+                                previewContainer.style.display = 'flex';
+                            };
+                            reader.readAsDataURL(file);
+                        } else {
+                            placeholder.style.display = 'flex';
+                            previewContainer.style.display = 'none';
+                        }
+                    });
+                }
+            },
+            preConfirm: () => {
+                const amount = parseFloat((document.getElementById('swalRepayAmount') || {}).value);
+                const repaymentDate = (document.getElementById('swalRepayDate') || {}).value;
+                const remark = (document.getElementById('swalRepayRemark') || {}).value?.trim();
+                const fileInput = document.getElementById('swalRepaySlipFile');
+                const file = fileInput && fileInput.files && fileInput.files[0] ? fileInput.files[0] : null;
+
+                if (!amount || amount <= 0) {
+                    Swal.showValidationMessage('กรุณาระบุจำนวนเงินที่ถูกต้อง');
+                    return false;
+                }
+                if (amount > loan.remainingAmount) {
+                    Swal.showValidationMessage(`ยอดเงินคืน (${formatNumber(amount)} ฿) เกินยอดคงเหลือ (${formatNumber(loan.remainingAmount)} ฿)`);
+                    return false;
+                }
+                if (!repaymentDate) {
+                    Swal.showValidationMessage('กรุณาระบุวันที่รับคืน');
+                    return false;
+                }
+
+                return { amount, repaymentDate, remark, file };
+            }
+        });
+
+        if (!formValues) return;
+
+        try {
+            showLoader('กำลังบันทึกรับเงินคืน...');
+            let evidenceUrl = '';
+
+            if (formValues.file) {
+                const formData = new FormData();
+                formData.append('file', formValues.file);
+                const uploadRes = await fetch('/api/upload/single', {
+                    method: 'POST',
+                    body: formData
+                });
+                if (uploadRes.ok) {
+                    const uploadData = await uploadRes.json();
+                    evidenceUrl = uploadData.url || '';
+                }
+            }
+
+            const staffName = (typeof currentUser !== 'undefined' && currentUser) ? currentUser.staffName : 'Admin';
+            const payload = {
+                amount: formValues.amount,
+                repaymentDate: formValues.repaymentDate,
+                fundDestination: '-',
+                remark: formValues.remark,
+                evidenceUrl,
+                evidenceUrls: evidenceUrl ? [evidenceUrl] : [],
+                staffName
+            };
+
+            const res = await fetch(`/api/finance/loans/${id}/repay`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            const data = await res.json();
+            if (data.success) {
+                const updatedLoan = data.data;
+                const msg = (updatedLoan.remainingAmount <= 0)
+                    ? `รับคืนเงินครบถ้วนแล้ว สัญญา ${updatedLoan.loanNumber} ปิดยอดเรียบร้อย`
+                    : `บันทึกรับคืน ${formatNumber(formValues.amount)} ฿ สำเร็จ (คงเหลือ ${formatNumber(updatedLoan.remainingAmount)} ฿)`;
+                showAlert('success', msg);
+                fetchLoanData();
+            } else {
+                showAlert('error', data.message || 'บันทึกไม่สำเร็จ');
+            }
+        } catch (err) {
+            console.error('showRepayLoanModal error:', err);
+            showAlert('error', 'เกิดข้อผิดพลาดในการบันทึกข้อมูล');
+        } finally {
+            hideLoader();
+        }
+    };
+
+    window.showLoanHistoryModal = async function(id) {
+        let loan = (Array.isArray(currentLoans) ? currentLoans : []).find(it => it._id === id);
+        if (!loan) {
+            try {
+                showLoader('กำลังโหลดประวัติสัญญา...');
+                const res = await fetch(`/api/finance/loans/${id}`);
+                const data = await res.json();
+                if (data.success && data.data) loan = data.data;
+            } catch (e) {
+                console.error('Fetch loan history error:', e);
+            } finally {
+                hideLoader();
+            }
+        }
+
+        if (!loan) {
+            showAlert('error', 'ไม่พบข้อมูลสัญญาเงินยืม');
+            return;
+        }
+
+        const repayments = loan.repayments || [];
+        const loanDateStr = loan.loanDate ? new Date(loan.loanDate).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' }) : '-';
+        const dueDateStr = loan.dueDate ? new Date(loan.dueDate).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' }) : 'ไม่ระบุ';
+        const percentRepaid = loan.loanAmount > 0 ? Math.min(100, Math.round((loan.repaidAmount / loan.loanAmount) * 100)) : 0;
+
+        let repaymentsRowsHtml = '';
+        if (repayments.length === 0) {
+            repaymentsRowsHtml = `
+                <tr>
+                    <td colspan="5" style="text-align: center; padding: 24px 10px; color: #94a3b8; font-size: 0.85rem;">
+                        ยังไม่มีประวัติการชำระคืนเงินยืม
+                    </td>
+                </tr>
+            `;
+        } else {
+            repaymentsRowsHtml = repayments.map((r, idx) => {
+                const rDateStr = r.repaymentDate ? new Date(r.repaymentDate).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-';
+                const rUrls = (r.evidenceUrls && r.evidenceUrls.length > 0) ? r.evidenceUrls : (r.evidenceUrl ? [r.evidenceUrl] : []);
+                const rSlipHtml = (rUrls.length > 0)
+                    ? `<button type="button" onclick="window.previewLoanSlip('${rUrls[0]}')" style="background: #eef2ff; color: #4f46e5; border: 1px solid #c7d2fe; border-radius: 4px; padding: 2px 7px; font-size: 0.72rem; font-weight: 600; cursor: pointer;">สลิป</button>`
+                    : '<span style="color: #cbd5e1;">-</span>';
+
+                return `
+                    <tr style="border-bottom: 1px solid #f1f5f9;">
+                        <td style="text-align: center; font-weight: 600; color: #64748b; font-size: 0.82rem; padding: 8px 6px;">#${r.repaymentNo || (idx + 1)}</td>
+                        <td style="text-align: center; font-size: 0.82rem; color: #1e293b; padding: 8px 6px;">${rDateStr}</td>
+                        <td style="text-align: right; font-weight: 700; color: #059669; font-size: 0.88rem; font-family: monospace, var(--font-family); padding: 8px 6px;">+ ${formatNumber(r.amount || 0)} ฿</td>
+                        <td style="text-align: left; font-size: 0.78rem; color: #64748b; padding: 8px 6px;">${escapeHtml(r.remark || '-')}</td>
+                        <td style="text-align: center; padding: 8px 6px;">${rSlipHtml}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        const canRepayNow = loan.remainingAmount > 0;
+
+        Swal.fire({
+            width: 650,
+            background: '#ffffff',
+            showCloseButton: true,
+            showConfirmButton: canRepayNow,
+            confirmButtonText: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: -2px; margin-right: 5px;"><polyline points="20 6 9 17 4 12"></polyline></svg> ชำระเงินคืนตอนนี้',
+            showCancelButton: !canRepayNow,
+            cancelButtonText: 'ปิดหน้าต่าง',
+            buttonsStyling: false,
+            customClass: {
+                popup: 'swal-hq-popup-custom',
+                htmlContainer: 'swal-hq-html-container',
+                actions: 'swal-hq-actions',
+                confirmButton: 'swal-hq-confirm-btn',
+                cancelButton: 'swal-hq-cancel-btn'
+            },
+            html: `
+                <div style="text-align: left; font-family: var(--font-family, sans-serif);">
+                    <!-- Header -->
+                    <div style="display: flex; align-items: center; justify-content: space-between; padding-bottom: 12px; border-bottom: 1px solid #f1f5f9; margin-bottom: 12px;">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <div style="width: 38px; height: 38px; border-radius: 10px; background: #eef2ff; color: #6366f1; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <circle cx="12" cy="12" r="10"></circle>
+                                    <polyline points="12 6 12 12 16 14"></polyline>
+                                </svg>
+                            </div>
+                            <div>
+                                <div style="font-size: 1.1rem; font-weight: 700; color: #0f172a;">ประวัติสัญญาเงินยืม: ${escapeHtml(loan.loanNumber)}</div>
+                                <div style="font-size: 0.76rem; color: #64748b;">ผู้ยืม: <b>${escapeHtml(loan.borrowerName)}</b></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Summary Stats Box -->
+                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 14px; margin-bottom: 14px;">
+                        <div>
+                            <div style="font-size: 0.74rem; color: #64748b;">ยอดเงินที่ยืม</div>
+                            <div style="font-size: 1.05rem; font-weight: 700; color: #4338ca; font-family: monospace, var(--font-family);">${formatNumber(loan.loanAmount)} ฿</div>
+                        </div>
+                        <div>
+                            <div style="font-size: 0.74rem; color: #64748b;">คืนแล้ว (${percentRepaid}%)</div>
+                            <div style="font-size: 1.05rem; font-weight: 700; color: #059669; font-family: monospace, var(--font-family);">${formatNumber(loan.repaidAmount)} ฿</div>
+                        </div>
+                        <div>
+                            <div style="font-size: 0.74rem; color: #64748b;">คงเหลือรอชำระ</div>
+                            <div style="font-size: 1.05rem; font-weight: 700; color: ${loan.remainingAmount > 0 ? '#e11d48' : '#10b981'}; font-family: monospace, var(--font-family);">${formatNumber(loan.remainingAmount)} ฿</div>
+                        </div>
+                    </div>
+
+                    <!-- Progress Bar -->
+                    <div style="margin-bottom: 14px;">
+                        <div style="display: flex; justify-content: space-between; font-size: 0.74rem; color: #64748b; margin-bottom: 4px;">
+                            <span>ความคืบหน้าการชำระคืน</span>
+                            <span style="font-weight: 700; color: #4f46e5;">${percentRepaid}%</span>
+                        </div>
+                        <div style="width: 100%; height: 7px; background: #e2e8f0; border-radius: 999px; overflow: hidden;">
+                            <div style="width: ${percentRepaid}%; height: 100%; background: linear-gradient(90deg, #6366f1 0%, #10b981 100%); border-radius: 999px; transition: width 0.4s ease;"></div>
+                        </div>
+                    </div>
+
+                    <!-- Repayments List Table -->
+                    <div style="font-size: 0.82rem; font-weight: 700; color: #334155; margin-bottom: 6px;">ประวัติการชำระคืน (${repayments.length} รายการ):</div>
+                    <div style="max-height: 220px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 8px; background: #ffffff;">
+                        <table style="width: 100%; border-collapse: collapse; font-size: 0.8rem;">
+                            <thead>
+                                <tr style="background: #f8fafc; border-bottom: 1px solid #e2e8f0;">
+                                    <th style="width: 8%; text-align: center; padding: 7px 6px; font-weight: 600; color: #475569;">งวด</th>
+                                    <th style="width: 26%; text-align: center; padding: 7px 6px; font-weight: 600; color: #475569;">วันที่</th>
+                                    <th style="width: 22%; text-align: right; padding: 7px 6px; font-weight: 600; color: #475569;">ยอดคืน</th>
+                                    <th style="width: 32%; text-align: left; padding: 7px 6px; font-weight: 600; color: #475569;">หมายเหตุ</th>
+                                    <th style="width: 12%; text-align: center; padding: 7px 6px; font-weight: 600; color: #475569;">สลิป</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${repaymentsRowsHtml}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            `
+        }).then((result) => {
+            if (result.isConfirmed && canRepayNow) {
+                window.showRepayLoanModal(id);
+            }
+        });
+    };
+
+    window.editLoan = async function(id) {
+        let loan = (Array.isArray(currentLoans) ? currentLoans : []).find(it => it._id === id);
+        if (!loan) {
+            try {
+                showLoader('กำลังโหลดข้อมูล...');
+                const res = await fetch(`/api/finance/loans/${id}`);
+                const data = await res.json();
+                if (data.success && data.data) loan = data.data;
+            } catch (e) {
+                console.error('Fetch loan error:', e);
+            } finally {
+                hideLoader();
+            }
+        }
+
+        if (!loan) {
+            showAlert('error', 'ไม่พบข้อมูลสัญญาเงินยืม');
+            return;
+        }
+
+        const formatDateForInput = (d) => {
+            if (!d) return '';
+            const dt = new Date(d);
+            if (isNaN(dt.getTime())) return '';
+            const y = dt.getFullYear();
+            const m = String(dt.getMonth() + 1).padStart(2, '0');
+            const day = String(dt.getDate()).padStart(2, '0');
+            return `${y}-${m}-${day}`;
+        };
+
+        const loanDateVal = formatDateForInput(loan.loanDate);
+        const dueDateVal = formatDateForInput(loan.dueDate);
+        const existingSlipUrl = (loan.evidenceUrls && loan.evidenceUrls.length > 0) ? loan.evidenceUrls[0] : (loan.evidenceUrl || '');
+        let slipAction = existingSlipUrl ? 'keep' : 'none';
+
+        const borrowers = await getExistingBorrowers();
+        const borrowerDatalistOptions = borrowers.map(b => `<option value="${escapeHtml(b.name)}">${b.phone ? `เบอร์: ${escapeHtml(b.phone)}` : ''}</option>`).join('');
+
+        const { value: formValues } = await Swal.fire({
+            width: 540,
+            background: '#ffffff',
+            showCloseButton: false,
+            html: `
+                <div style="text-align: left; font-family: var(--font-family, sans-serif);">
+                    <!-- Header -->
+                    <div style="display: flex; align-items: center; gap: 12px; padding-bottom: 12px; border-bottom: 1px solid #f1f5f9; margin-bottom: 14px;">
+                        <div style="width: 42px; height: 42px; border-radius: 12px; background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); color: #ffffff; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(2, 132, 199, 0.28); flex-shrink: 0;">
+                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                            </svg>
+                        </div>
+                        <div style="flex-grow: 1;">
+                            <div style="font-size: 1.15rem; font-weight: 700; color: #0f172a; line-height: 1.25;">แก้ไขข้อมูลสัญญาเงินยืม</div>
+                            <div style="font-size: 0.78rem; color: #64748b; margin-top: 2px;">สัญญาเลขที่: <b style="color: #0284c7;">${escapeHtml(loan.loanNumber)}</b></div>
+                        </div>
+                    </div>
+
+                    ${(loan.repaidAmount && loan.repaidAmount > 0) ? `
+                    <!-- Repaid Notice -->
+                    <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 14px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <div style="font-size: 0.75rem; color: #64748b; font-weight: 500;">ชำระคืนแล้วสะสม:</div>
+                            <div style="font-size: 0.95rem; font-weight: 700; color: #059669; font-family: monospace, var(--font-family);">${formatNumber(loan.repaidAmount)} ฿</div>
+                        </div>
+                        <div style="text-align: right;">
+                            <div style="font-size: 0.75rem; color: #64748b; font-weight: 500;">ยอดหนี้คงเหลือเดิม:</div>
+                            <div style="font-size: 0.95rem; font-weight: 700; color: #e11d48; font-family: monospace, var(--font-family);">${formatNumber(loan.remainingAmount)} ฿</div>
+                        </div>
+                    </div>
+                    ` : ''}
+
+                    <!-- Row 1: Borrower Name & Phone -->
+                    <div style="display: grid; grid-template-columns: 3fr 2fr; gap: 12px; margin-bottom: 10px;">
+                        <div>
+                            <label style="display: flex; align-items: center; justify-content: space-between; font-size: 0.82rem; font-weight: 600; color: #334155; margin-bottom: 5px;">
+                                <span style="display: flex; align-items: center; gap: 6px;">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0284c7" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                                    ชื่อผู้ขอยืม <span style="color: #ef4444;">*</span>
+                                </span>
+                                ${borrowers.length > 0 ? '<span style="font-size: 0.7rem; color: #0284c7; font-weight: normal;">(เลือกชื่อเดิม หรือพิมพ์ใหม่)</span>' : ''}
+                            </label>
+                            <input type="text" id="swalEditLoanBorrower" list="editLoanBorrowerOptions" autocomplete="off" value="${escapeHtml(loan.borrowerName || '')}" placeholder="พิมพ์ชื่อ หรือคลิกเพื่อเลือกจากรายการเดิม" style="width: 100%; height: 38px; padding: 0 10px; border: 1.5px solid #cbd5e1; border-radius: 8px; font-size: 0.86rem; color: #1e293b; outline: none; box-sizing: border-box;" onfocus="this.style.borderColor='#0284c7';" onblur="this.style.borderColor='#cbd5e1';">
+                            <datalist id="editLoanBorrowerOptions">
+                                ${borrowerDatalistOptions}
+                            </datalist>
+                        </div>
+                        <div>
+                            <label style="display: flex; align-items: center; gap: 6px; font-size: 0.82rem; font-weight: 600; color: #334155; margin-bottom: 5px;">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
+                                เบอร์โทรศัพท์
+                            </label>
+                            <input type="tel" id="swalEditLoanPhone" value="${escapeHtml(loan.borrowerPhone && loan.borrowerPhone !== '-' ? loan.borrowerPhone : '')}" placeholder="08x-xxx-xxxx" style="width: 100%; height: 38px; padding: 0 10px; border: 1.5px solid #cbd5e1; border-radius: 8px; font-size: 0.86rem; color: #1e293b; outline: none; box-sizing: border-box;" onfocus="this.style.borderColor='#0284c7';" onblur="this.style.borderColor='#cbd5e1';">
+                        </div>
+                    </div>
+
+                    <!-- Row 2: Loan Amount -->
+                    <div style="margin-bottom: 6px;">
+                        <label style="display: flex; align-items: center; gap: 6px; font-size: 0.82rem; font-weight: 600; color: #334155; margin-bottom: 5px;">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0284c7" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
+                            ยอดเงินที่ให้ยืม (บาท) <span style="color: #ef4444;">*</span>
+                        </label>
+                        <div style="position: relative;">
+                            <input type="number" id="swalEditLoanAmount" value="${loan.loanAmount || 0}" placeholder="0.00" min="1" step="0.01" style="width: 100%; height: 38px; padding: 0 30px 0 10px; border: 1.5px solid #cbd5e1; border-radius: 8px; font-size: 0.95rem; font-weight: 700; color: #0284c7; outline: none; box-sizing: border-box;" onfocus="this.style.borderColor='#0284c7';" onblur="this.style.borderColor='#cbd5e1';">
+                            <span style="position: absolute; right: 10px; top: 9px; font-size: 0.85rem; font-weight: 600; color: #94a3b8;">฿</span>
+                        </div>
+                    </div>
+
+                    <!-- Live Amount Formatted Text -->
+                    <div id="swalEditLoanAmountPreviewText" style="text-align: right; font-size: 0.8rem; color: #0284c7; font-weight: 600; min-height: 16px; margin-bottom: 10px;"></div>
+
+                    <!-- Row 3: Date & Due Date -->
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 10px;">
+                        <div>
+                            <label style="display: flex; align-items: center; gap: 6px; font-size: 0.82rem; font-weight: 600; color: #334155; margin-bottom: 5px;">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+                                วันที่ให้ยืม <span style="color: #ef4444;">*</span>
+                            </label>
+                            <input type="date" id="swalEditLoanDate" value="${loanDateVal}" style="width: 100%; height: 38px; padding: 0 10px; border: 1.5px solid #cbd5e1; border-radius: 8px; font-size: 0.86rem; color: #1e293b; outline: none; box-sizing: border-box;">
+                        </div>
+                        <div>
+                            <label style="display: flex; align-items: center; gap: 6px; font-size: 0.82rem; font-weight: 600; color: #334155; margin-bottom: 5px;">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#e11d48" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                                กำหนดวันคืนเงิน <span style="font-weight: 400; color: #94a3b8; font-size: 0.72rem;">(ถ้ามี)</span>
+                            </label>
+                            <input type="date" id="swalEditLoanDueDate" value="${dueDateVal}" style="width: 100%; height: 38px; padding: 0 10px; border: 1.5px solid #cbd5e1; border-radius: 8px; font-size: 0.86rem; color: #1e293b; outline: none; box-sizing: border-box;">
+                        </div>
+                    </div>
+
+                    <!-- Row 4: Reason -->
+                    <div style="margin-bottom: 10px;">
+                        <label style="display: flex; align-items: center; gap: 6px; font-size: 0.82rem; font-weight: 600; color: #334155; margin-bottom: 5px;">
+                            เหตุผล / วัตถุประสงค์ในการยืม <span style="color: #ef4444;">*</span>
+                        </label>
+                        <input type="text" id="swalEditLoanReason" value="${escapeHtml(loan.reason || '')}" placeholder="เช่น ยืมเงินสำรองจ่ายค่าอุปกรณ์, ทดรองจ่ายค่าขนส่ง" style="width: 100%; height: 38px; padding: 0 10px; border: 1.5px solid #cbd5e1; border-radius: 8px; font-size: 0.86rem; color: #1e293b; outline: none; box-sizing: border-box;" onfocus="this.style.borderColor='#0284c7';" onblur="this.style.borderColor='#cbd5e1';">
+                    </div>
+
+                    <!-- Row 5: Slip Upload Box -->
+                    <div style="margin-bottom: 4px;">
+                        <label style="display: flex; align-items: center; gap: 6px; font-size: 0.82rem; font-weight: 600; color: #334155; margin-bottom: 5px;">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0284c7" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                            สลิป / เอกสารหลักฐานการจ่ายเงิน <span style="font-weight: 400; color: #94a3b8; font-size: 0.72rem;">(ถ้ามี)</span>
+                        </label>
+                        <div id="swalEditLoanUploadBox" style="border: 1.5px dashed #cbd5e1; border-radius: 10px; padding: 10px 14px; background: #f8fafc; cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center; justify-content: space-between;" onclick="document.getElementById('swalEditLoanSlipFile').click();" onmouseover="this.style.borderColor='#0284c7'; this.style.background='#f0f9ff';" onmouseout="this.style.borderColor='#cbd5e1'; this.style.background='#f8fafc';">
+                            <input type="file" id="swalEditLoanSlipFile" accept="image/*" style="display: none;">
+                            
+                            <div id="swalEditLoanUploadPlaceholder" style="display: ${existingSlipUrl ? 'none' : 'flex'}; align-items: center; gap: 10px; width: 100%;">
+                                <div style="width: 36px; height: 36px; border-radius: 8px; background: #e0f2fe; color: #0284c7; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                                </div>
+                                <div style="text-align: left; flex-grow: 1;">
+                                    <div style="font-size: 0.82rem; font-weight: 600; color: #334155;">คลิกเพื่อแนบสลิปการจ่ายเงิน</div>
+                                    <div style="font-size: 0.72rem; color: #94a3b8;">รองรับรูปถ่ายสลิปโอนเงิน หรือใบรับเงิน</div>
+                                </div>
+                                <span style="font-size: 0.75rem; font-weight: 600; color: #475569; background: #e2e8f0; padding: 4px 10px; border-radius: 6px; flex-shrink: 0;">เลือกไฟล์</span>
+                            </div>
+
+                            <div id="swalEditLoanUploadPreview" style="display: ${existingSlipUrl ? 'flex' : 'none'}; align-items: center; gap: 12px; width: 100%;">
+                                <img id="swalEditLoanThumbnail" src="${existingSlipUrl || ''}" style="height: 38px; width: 38px; border-radius: 6px; border: 1px solid #cbd5e1; object-fit: cover; box-shadow: 0 1px 3px rgba(0,0,0,0.08); flex-shrink: 0;">
+                                <div style="text-align: left; flex-grow: 1; min-width: 0;">
+                                    <div id="swalEditLoanFileName" style="font-size: 0.82rem; font-weight: 600; color: #0f172a; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                                        ${existingSlipUrl ? 'สลิปปัจจุบัน' : '-'}
+                                    </div>
+                                    <div id="swalEditLoanFileStatus" style="font-size: 0.72rem; color: #0284c7; display: flex; align-items: center; gap: 4px;">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                                        <span>แนบไฟล์เรียบร้อย (คลิกเพื่อเปลี่ยนรูป)</span>
+                                    </div>
+                                </div>
+                                <button type="button" id="swalEditLoanRemoveSlipBtn" style="background: none; border: none; color: #ef4444; cursor: pointer; padding: 6px; font-size: 0.9rem; border-radius: 6px; display: inline-flex; align-items: center;" title="ลบรูปสลิปนี้ออก">
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `,
+            showCancelButton: true,
+            confirmButtonText: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: -2px; margin-right: 6px;"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg> บันทึกการแก้ไข',
+            cancelButtonText: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: -2px; margin-right: 6px;"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg> ยกเลิก',
+            focusConfirm: false,
+            buttonsStyling: false,
+            customClass: {
+                popup: 'swal-hq-popup-custom',
+                htmlContainer: 'swal-hq-html-container',
+                actions: 'swal-hq-actions',
+                confirmButton: 'swal-hq-confirm-btn swal-hq-edit-confirm-btn',
+                cancelButton: 'swal-hq-cancel-btn'
+            },
+            didOpen: () => {
+                const borrowerInput = document.getElementById('swalEditLoanBorrower');
+                const phoneInput = document.getElementById('swalEditLoanPhone');
+                if (borrowerInput) {
+                    borrowerInput.addEventListener('click', () => {
+                        try { if (typeof borrowerInput.showPicker === 'function') borrowerInput.showPicker(); } catch (e) {}
+                    });
+                    borrowerInput.addEventListener('input', () => {
+                        const val = borrowerInput.value.trim();
+                        const found = borrowers.find(b => b.name.toLowerCase() === val.toLowerCase());
+                        if (found && found.phone && phoneInput && (!phoneInput.value || phoneInput.value === '-')) {
+                            phoneInput.value = found.phone;
+                        }
+                    });
+                }
+
+                const amountInput = document.getElementById('swalEditLoanAmount');
+                const previewText = document.getElementById('swalEditLoanAmountPreviewText');
+                if (amountInput && previewText) {
+                    const updateAmountPreview = () => {
+                        const val = parseFloat(amountInput.value);
+                        if (!isNaN(val) && val > 0) {
+                            const formatted = val.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                            const repaid = Number(loan.repaidAmount || 0);
+                            if (val < repaid) {
+                                previewText.innerHTML = `ยอดเงินให้ยืม: ${formatted} บาท <span style="color: #ef4444; font-weight: 700; display: block; margin-top: 3px;">⚠️ ยอดเงินให้ยืมต้องไม่ต่ำกว่ายอดที่คืนแล้ว (${formatNumber(repaid)} ฿)</span>`;
+                            } else {
+                                const rem = val - repaid;
+                                if (repaid > 0) {
+                                    previewText.innerHTML = `ยอดเงินให้ยืม: ${formatted} บาท <span style="color: #64748b; font-weight: 500;">(คืนแล้ว ${formatNumber(repaid)} ฿ → คงเหลือ ${formatNumber(rem)} ฿)</span>`;
+                                } else {
+                                    previewText.textContent = `ยอดเงินให้ยืม: ${formatted} บาท`;
+                                }
+                            }
+                        } else {
+                            previewText.textContent = '';
+                        }
+                    };
+                    amountInput.addEventListener('input', updateAmountPreview);
+                    updateAmountPreview();
+                }
+
+                const fileInput = document.getElementById('swalEditLoanSlipFile');
+                const placeholder = document.getElementById('swalEditLoanUploadPlaceholder');
+                const previewContainer = document.getElementById('swalEditLoanUploadPreview');
+                const thumbnail = document.getElementById('swalEditLoanThumbnail');
+                const fileNameEl = document.getElementById('swalEditLoanFileName');
+                const fileStatusEl = document.getElementById('swalEditLoanFileStatus');
+                const removeBtn = document.getElementById('swalEditLoanRemoveSlipBtn');
+
+                if (removeBtn) {
+                    removeBtn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        slipAction = 'remove';
+                        if (fileInput) fileInput.value = '';
+                        if (placeholder) placeholder.style.display = 'flex';
+                        if (previewContainer) previewContainer.style.display = 'none';
+                    });
+                }
+
+                if (fileInput) {
+                    fileInput.addEventListener('change', (e) => {
+                        const file = e.target.files && e.target.files[0];
+                        if (file) {
+                            slipAction = 'replace';
+                            if (fileNameEl) fileNameEl.textContent = file.name;
+                            const reader = new FileReader();
+                            reader.onload = (re) => {
+                                if (thumbnail) thumbnail.src = re.target.result;
+                                if (placeholder) placeholder.style.display = 'none';
+                                if (previewContainer) previewContainer.style.display = 'flex';
+                                if (fileStatusEl) {
+                                    fileStatusEl.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg> <span>แนบไฟล์ใหม่เรียบร้อย (คลิกเพื่อเปลี่ยนรูป)</span>`;
+                                }
+                            };
+                            reader.readAsDataURL(file);
+                        }
+                    });
+                }
+            },
+            preConfirm: () => {
+                const borrowerName = (document.getElementById('swalEditLoanBorrower') || {}).value?.trim();
+                const borrowerPhone = (document.getElementById('swalEditLoanPhone') || {}).value?.trim();
+                const loanAmount = parseFloat((document.getElementById('swalEditLoanAmount') || {}).value);
+                const loanDate = (document.getElementById('swalEditLoanDate') || {}).value;
+                const dueDate = (document.getElementById('swalEditLoanDueDate') || {}).value;
+                const reason = (document.getElementById('swalEditLoanReason') || {}).value?.trim();
+                const fileInput = document.getElementById('swalEditLoanSlipFile');
+                const file = fileInput && fileInput.files && fileInput.files[0] ? fileInput.files[0] : null;
+
+                if (!borrowerName) {
+                    Swal.showValidationMessage('กรุณาระบุชื่อผู้ขอยืม');
+                    return false;
+                }
+                if (!loanAmount || loanAmount <= 0) {
+                    Swal.showValidationMessage('กรุณาระบุจำนวนเงินที่ถูกต้อง (มากกว่า 0 บาท)');
+                    return false;
+                }
+                const repaid = Number(loan.repaidAmount || 0);
+                if (loanAmount < repaid) {
+                    Swal.showValidationMessage(`ยอดเงินให้ยืม (${formatNumber(loanAmount)} ฿) ต้องไม่น้อยกว่ายอดที่รับคืนแล้ว (${formatNumber(repaid)} ฿)`);
+                    return false;
+                }
+                if (!loanDate) {
+                    Swal.showValidationMessage('กรุณาระบุวันที่ให้ยืม');
+                    return false;
+                }
+                if (!reason) {
+                    Swal.showValidationMessage('กรุณาระบุเหตุผลหรือวัตถุประสงค์ในการยืม');
+                    return false;
+                }
+
+                return {
+                    borrowerName,
+                    borrowerPhone,
+                    loanAmount,
+                    loanDate,
+                    dueDate,
+                    reason,
+                    file,
+                    slipAction
+                };
+            }
+        });
+
+        if (!formValues) return;
+
+        try {
+            showLoader('กำลังบันทึกการแก้ไข...');
+            let finalEvidenceUrl = existingSlipUrl;
+
+            if (formValues.slipAction === 'remove') {
+                finalEvidenceUrl = '';
+            } else if (formValues.slipAction === 'replace' && formValues.file) {
+                const formData = new FormData();
+                formData.append('file', formValues.file);
+                const uploadRes = await fetch('/api/upload/single', {
+                    method: 'POST',
+                    body: formData
+                });
+                if (uploadRes.ok) {
+                    const uploadData = await uploadRes.json();
+                    finalEvidenceUrl = uploadData.url || '';
+                }
+            }
+
+            const staffName = (typeof currentUser !== 'undefined' && currentUser) ? currentUser.staffName : 'Admin';
+            const payload = {
+                borrowerName: formValues.borrowerName,
+                borrowerPhone: formValues.borrowerPhone,
+                loanAmount: formValues.loanAmount,
+                loanDate: formValues.loanDate,
+                dueDate: formValues.dueDate || null,
+                reason: formValues.reason,
+                evidenceUrl: finalEvidenceUrl || null,
+                evidenceUrls: finalEvidenceUrl ? [finalEvidenceUrl] : [],
+                staffName
+            };
+
+            const res = await fetch(`/api/finance/loans/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            const data = await res.json();
+            if (data.success) {
+                showAlert('success', `แก้ไขข้อมูลสัญญา ${data.data?.loanNumber || ''} เรียบร้อย`);
+                fetchLoanData(true);
+            } else {
+                showAlert('error', data.message || 'แก้ไขไม่สำเร็จ');
+            }
+        } catch (err) {
+            console.error('editLoan error:', err);
+            showAlert('error', 'เกิดข้อผิดพลาดในการแก้ไขข้อมูล');
+        } finally {
+            hideLoader();
+        }
+    };
+
+    window.deleteLoan = async function(id) {
+        const loan = (Array.isArray(currentLoans) ? currentLoans : []).find(it => it._id === id);
+        const name = loan ? `${loan.loanNumber} (${loan.borrowerName})` : '';
+
+        const result = await Swal.fire({
+            title: 'ยืนยันการลบสัญญาเงินยืม?',
+            text: `คุณต้องการลบสัญญา ${name} ใช่หรือไม่? รายการตัดเงินสด/เงินโอนในระบบการเงินจะถูกลบออกด้วย`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#ef4444',
+            cancelButtonColor: '#64748b',
+            confirmButtonText: 'ใช่, ลบรายการนี้',
+            cancelButtonText: 'ยกเลิก'
+        });
+
+        if (!result.isConfirmed) return;
+
+        try {
+            showLoader('กำลังลบรายการ...');
+            const res = await fetch(`/api/finance/loans/${id}`, { method: 'DELETE' });
+            const data = await res.json();
+            if (data.success) {
+                showAlert('success', 'ลบสัญญาเงินยืมเรียบร้อยแล้ว');
+                fetchLoanData();
+            } else {
+                showAlert('error', data.message || 'ลบไม่สำเร็จ');
+            }
+        } catch (err) {
+            console.error('deleteLoan error:', err);
+            showAlert('error', 'เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์');
+        } finally {
+            hideLoader();
+        }
+    };
+
+    async function exportLoanExcel() {
+        try {
+            const search = (document.getElementById('loanSearchInput') || {}).value || '';
+            const status = (document.getElementById('loanStatusFilter') || {}).value || 'all';
+            const startDate = (document.getElementById('loanStartDate') || {}).value || '';
+            const endDate = (document.getElementById('loanEndDate') || {}).value || '';
+
+            const params = new URLSearchParams();
+            if (search) params.set('search', search);
+            if (status && status !== 'all') params.set('status', status);
+            if (startDate) params.set('startDate', startDate);
+            if (endDate) params.set('endDate', endDate);
+
+            const qs = params.toString() ? `?${params.toString()}` : '';
+
+            showLoader('กำลังสร้างไฟล์ Excel...');
+            const res = await fetch(`/api/finance/loans/export/excel${qs}`);
+            if (!res.ok) throw new Error('Export Excel ไม่สำเร็จ');
+
+            const blob = await res.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `loans_${startDate || 'all'}_${endDate || 'all'}.xlsx`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            window.URL.revokeObjectURL(url);
+        } catch (err) {
+            console.error('exportLoanExcel error:', err);
             showAlert('error', 'ไม่สามารถส่งออก Excel ได้');
         } finally {
             hideLoader();

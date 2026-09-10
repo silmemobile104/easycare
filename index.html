@@ -1093,6 +1093,13 @@
                                 <line x1="15" y1="6" x2="15.01" y2="6"></line>
                             </svg>รับชำระหนี้
                         </button>
+                        <button class="finance-tab" id="financeTabLoan">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 5px; vertical-align: -2px;">
+                                <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                                <circle cx="8.5" cy="7" r="4"></circle>
+                                <polyline points="17 11 19 13 23 9"></polyline>
+                            </svg>บันทึกให้ยืม
+                        </button>
                     </div>
 
                     <!-- ── Income Section ── -->
@@ -1945,6 +1952,240 @@
                                 <button type="button" onclick="document.getElementById('btnAddHqSettlement').click()" style="height: 38px; padding: 0 20px; background: linear-gradient(135deg, #0d9488, #0891b2); color: white; border: none; border-radius: 8px; font-size: 0.85rem; font-weight: 600; cursor: pointer; box-shadow: 0 2px 8px rgba(13, 148, 136, 0.25); display: inline-flex; align-items: center; gap: 6px;">
                                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
                                     บันทึกรับเงินโอนรายการแรก
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ── 6. Loans & Cash Advances Section (บันทึกให้ยืมจากยอดรายรับ) ── -->
+                    <div id="financeLoanSection" style="display: none;">
+                        <!-- 5 Overview KPI Cards -->
+                        <div class="stats-overview" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px; margin-bottom: 18px;">
+                            <!-- Card 0: EASY.CARE Cash & Available Funds (ยอดเงินสดที่มีทั้งหมด / คงเหลือหลังหักเงินยืม / ข้อความอธิบาย) -->
+                            <div class="stat-card" style="border-top: 4px solid #10b981; border-radius: 14px; background: linear-gradient(180deg, #ffffff 0%, #f0fdf4 100%);">
+                                <div class="stat-icon" style="background: rgba(16, 185, 129, 0.15); color: #10b981; align-self: flex-start; margin-top: 2px;">
+                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <rect x="2" y="6" width="20" height="12" rx="2"></rect>
+                                        <circle cx="12" cy="12" r="2"></circle>
+                                        <path d="M6 12h.01M18 12h.01"></path>
+                                    </svg>
+                                </div>
+                                <div class="stat-content" style="flex: 1; min-width: 0;">
+                                    <!-- บรรทัดแรก: ยอดเงินสดที่มีทั้งหมด -->
+                                    <div style="display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 4px;">
+                                        <span style="font-size: 0.74rem; font-weight: 600; color: #64748b;">ยอดเงินสดที่มีทั้งหมด</span>
+                                        <span id="loanEasyCareCashDisplay" style="font-weight: 800; color: #0f172a; font-size: 1.05rem; font-family: monospace, var(--font-family);">0 ฿</span>
+                                    </div>
+
+                                    <!-- บรรทัดที่สอง: ยอดเงินคงเหลือหลังจากที่หักจำนวนเงินที่ให้ยืมแล้ว -->
+                                    <div style="display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 4px; margin-top: 4px;">
+                                        <span style="font-size: 0.74rem; font-weight: 700; color: #059669;">คงเหลือหลังหักเงินยืม</span>
+                                        <span id="loanAvailableFundsDisplay" style="font-weight: 800; color: #059669; font-size: 1.15rem; font-family: monospace, var(--font-family);">0 ฿</span>
+                                    </div>
+
+                                    <!-- บรรทัดที่สาม: ข้อความอธิบาย -->
+                                    <div style="margin-top: 4px; padding-top: 3px; border-top: 1px dashed rgba(16, 185, 129, 0.25);">
+                                        <span id="loanReceivedSubtitle" style="font-size: 0.72rem; color: #0d9488; font-weight: 600; display: block;">โอนเข้าบัญชีสำเร็จ (พร้อมให้ยืม)</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Card 1: Total Loan Amount -->
+                            <div class="stat-card" style="border-top: 4px solid #6366f1; border-radius: 14px;">
+                                <div class="stat-icon purple" style="background: rgba(99, 102, 241, 0.12); color: #6366f1;">
+                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                                        <circle cx="8.5" cy="7" r="4"></circle>
+                                        <line x1="20" y1="8" x2="20" y2="14"></line>
+                                        <line x1="23" y1="11" x2="17" y2="11"></line>
+                                    </svg>
+                                </div>
+                                <div class="stat-content">
+                                    <h3 id="loanTotalAmountDisplay" style="font-weight: 700; color: #0f172a; font-size: 1.35rem;">0 ฿</h3>
+                                    <p style="font-weight: 600; color: #475569; margin: 2px 0 0 0;">ยอดเงินให้ยืมสะสม</p>
+                                    <span style="font-size: 0.72rem; color: #6366f1; font-weight: 500;">ยอดให้ยืมทั้งหมด</span>
+                                </div>
+                            </div>
+
+                            <!-- Card 2: Total Remaining / Outstanding (เด่นชัด) -->
+                            <div class="stat-card" style="border-top: 4px solid #e11d48; border-radius: 14px; background: linear-gradient(180deg, #fff 0%, #fff1f2 100%);">
+                                <div class="stat-icon" style="background: rgba(225, 29, 72, 0.15); color: #e11d48;">
+                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <circle cx="12" cy="12" r="10"></circle>
+                                        <polyline points="12 6 12 12 16 14"></polyline>
+                                    </svg>
+                                </div>
+                                <div class="stat-content">
+                                    <h3 id="loanRemainingAmountDisplay" style="font-weight: 700; color: #e11d48; font-size: 1.35rem;">0 ฿</h3>
+                                    <p style="font-weight: 600; color: #475569; margin: 2px 0 0 0;">ยอดหนี้คงค้างรอคืน</p>
+                                    <span id="loanOverdueBadgeText" style="font-size: 0.72rem; color: #e11d48; font-weight: 600;">ค้างชำระ</span>
+                                </div>
+                            </div>
+
+                            <!-- Card 3: Total Repaid -->
+                            <div class="stat-card" style="border-top: 4px solid #0d9488; border-radius: 14px;">
+                                <div class="stat-icon green" style="background: rgba(13, 148, 136, 0.12); color: #0d9488;">
+                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                                        <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                                    </svg>
+                                </div>
+                                <div class="stat-content">
+                                    <h3 id="loanRepaidAmountDisplay" style="font-weight: 700; color: #0d9488; font-size: 1.35rem;">0 ฿</h3>
+                                    <p style="font-weight: 600; color: #475569; margin: 2px 0 0 0;">ยอดรับคืนแล้ว</p>
+                                    <span style="font-size: 0.72rem; color: #0d9488; font-weight: 500;">ชำระเงินคืนเข้าบัญชีแล้ว</span>
+                                </div>
+                            </div>
+
+                            <!-- Card 4: Active Borrowers Count -->
+                            <div class="stat-card" style="border-top: 4px solid #f59e0b; border-radius: 14px;">
+                                <div class="stat-icon" style="background: rgba(245, 158, 11, 0.15); color: #f59e0b;">
+                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                                        <circle cx="9" cy="7" r="4"></circle>
+                                        <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                                        <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                                    </svg>
+                                </div>
+                                <div class="stat-content">
+                                    <h3 id="loanActiveCountDisplay" style="font-weight: 700; color: #0f172a; font-size: 1.35rem;">0</h3>
+                                    <p style="font-weight: 600; color: #475569; margin: 2px 0 0 0;">รายการที่ยังค้างอยู่</p>
+                                    <span id="loanRepaidCountText" style="font-size: 0.72rem; color: #64748b;">(ปิดยอดแล้ว 0 รายการ)</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Action & Filter Bar -->
+                        <div class="advanced-filter-bar" style="margin-bottom: 16px; padding: 16px 20px; border-radius: 14px; background: #ffffff; border: 1px solid #e2e8f0; box-shadow: 0 2px 8px rgba(0,0,0,0.03);">
+                            <div style="display: flex; flex-wrap: wrap; gap: 12px; justify-content: space-between; align-items: center;">
+                                <!-- Left: Search & Filter Inputs -->
+                                <div style="display: flex; flex-wrap: wrap; gap: 10px; align-items: center; flex: 1; min-width: 300px;">
+                                    <!-- Search Input -->
+                                    <div class="search-container" style="width: 240px; min-width: 180px; margin: 0; position: relative;">
+                                        <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #94a3b8; pointer-events: none;">
+                                            <circle cx="11" cy="11" r="8"></circle>
+                                            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                                        </svg>
+                                        <input type="text" id="loanSearchInput" list="loanSearchBorrowerOptions" style="width: 100%; border: 1.5px solid #cbd5e1; border-radius: 8px; height: 38px; padding: 0 12px 0 36px; font-size: 0.84rem; outline: none; transition: all 0.2s ease; background: #f8fafc;" placeholder="ค้นหาชื่อผู้ยืม, เลขที่สัญญา..." onfocus="this.style.borderColor='#6366f1'; this.style.background='#fff'; this.style.boxShadow='0 0 0 3px rgba(99, 102, 241, 0.1)';" onblur="this.style.borderColor='#cbd5e1'; this.style.background='#f8fafc'; this.style.boxShadow='none';">
+                                        <datalist id="loanSearchBorrowerOptions"></datalist>
+                                    </div>
+
+                                    <!-- Status Filter -->
+                                    <select id="loanStatusFilter" class="filter-select" style="height: 38px; border-radius: 8px; font-size: 0.84rem; min-width: 140px;">
+                                        <option value="all">สถานะทั้งหมด</option>
+                                        <option value="active">ยังไม่คืน / คืนบางส่วน</option>
+                                        <option value="repaid">คืนครบแล้ว</option>
+                                        <option value="overdue">เกินกำหนดคืน</option>
+                                    </select>
+
+                                    <!-- Date Range Inputs -->
+                                    <div style="display: flex; align-items: center; gap: 6px;">
+                                        <div style="display: flex; align-items: center; gap: 4px; background: #f8fafc; border: 1.5px solid #cbd5e1; border-radius: 8px; padding: 0 8px; height: 38px;">
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+                                            <input type="date" id="loanStartDate" style="border: none; background: transparent; font-size: 0.82rem; color: #1e293b; outline: none;">
+                                        </div>
+                                        <span style="color: #94a3b8; font-size: 0.85rem;">-</span>
+                                        <div style="display: flex; align-items: center; gap: 4px; background: #f8fafc; border: 1.5px solid #cbd5e1; border-radius: 8px; padding: 0 8px; height: 38px;">
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+                                            <input type="date" id="loanEndDate" style="border: none; background: transparent; font-size: 0.82rem; color: #1e293b; outline: none;">
+                                        </div>
+                                    </div>
+
+                                    <!-- Quick Preset Date Buttons -->
+                                    <div style="display: flex; gap: 4px;">
+                                        <button type="button" class="loan-date-preset-btn" data-preset="thisMonth" style="height: 34px; padding: 0 10px; font-size: 0.75rem; font-weight: 600; border: 1px solid #cbd5e1; border-radius: 6px; background: #fff; color: #475569; cursor: pointer; transition: all 0.15s ease;">เดือนนี้</button>
+                                        <button type="button" class="loan-date-preset-btn" data-preset="lastMonth" style="height: 34px; padding: 0 10px; font-size: 0.75rem; font-weight: 600; border: 1px solid #cbd5e1; border-radius: 6px; background: #fff; color: #475569; cursor: pointer; transition: all 0.15s ease;">เดือนก่อน</button>
+                                        <button type="button" class="loan-date-preset-btn" data-preset="thisYear" style="height: 34px; padding: 0 10px; font-size: 0.75rem; font-weight: 600; border: 1px solid #cbd5e1; border-radius: 6px; background: #fff; color: #475569; cursor: pointer; transition: all 0.15s ease;">ปีนี้</button>
+                                    </div>
+
+                                    <!-- Reset Button -->
+                                    <button type="button" id="loanResetBtn" style="height: 38px; padding: 0 12px; border: 1px solid #cbd5e1; background: #f8fafc; color: #64748b; border-radius: 8px; cursor: pointer; font-size: 0.84rem; font-weight: 500; display: inline-flex; align-items: center; gap: 4px; transition: all 0.2s ease;">
+                                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>
+                                        ล้างค่า
+                                    </button>
+                                </div>
+
+                                <!-- Right: Export & Add Buttons -->
+                                <div style="display: flex; gap: 10px; align-items: center;">
+                                    <button type="button" id="btnExportLoanExcel" style="white-space: nowrap; height: 38px; padding: 0 16px; display: inline-flex; align-items: center; gap: 6px; background: #059669; color: white; border: none; border-radius: 8px; font-size: 0.85rem; font-weight: 600; cursor: pointer; box-shadow: 0 2px 8px rgba(5, 150, 105, 0.25); transition: all 0.2s ease;">
+                                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="8" y1="13" x2="16" y2="13"></line><line x1="8" y1="17" x2="16" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                                        Export Excel
+                                    </button>
+                                    <button type="button" id="btnAddLoan" style="white-space: nowrap; height: 38px; padding: 0 18px; display: inline-flex; align-items: center; gap: 6px; background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); color: white; border: none; border-radius: 8px; font-size: 0.88rem; font-weight: 600; cursor: pointer; box-shadow: 0 4px 12px rgba(99, 102, 241, 0.28); transition: all 0.2s ease;">
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                                        บันทึกการให้ยืมเงิน
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Table Container -->
+                        <div class="table-container" style="margin-top: 0; border-radius: 14px; box-shadow: 0 4px 16px rgba(0,0,0,0.03); border: 1px solid #e2e8f0; background: #fff; overflow: hidden;">
+                            <!-- Count Banner -->
+                            <div class="finance-count-banner" style="display: flex; justify-content: space-between; align-items: center; padding: 14px 18px; background: #fafafa; border-bottom: 1px solid #f1f5f9;">
+                                <div class="finance-count-main" style="display: flex; align-items: center; gap: 10px;">
+                                    <div class="finance-count-icon" style="width: 32px; height: 32px; border-radius: 8px; background: linear-gradient(135deg, #6366f1, #4f46e5); color: white; display: flex; align-items: center; justify-content: center;">
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                                            <circle cx="8.5" cy="7" r="4"></circle>
+                                            <polyline points="17 11 19 13 23 9"></polyline>
+                                        </svg>
+                                    </div>
+                                    <span class="finance-count-label" style="font-size: 0.88rem; font-weight: 600; color: #334155;">
+                                        รายการเงินยืมทั้งหมด <span id="loanCount" class="finance-count-value" style="color: #6366f1; font-size: 1rem; font-weight: 700;">0</span> <span class="finance-count-suffix">รายการ</span>
+                                    </span>
+                                </div>
+                                <div style="font-size: 0.84rem; color: #64748b; display: flex; align-items: center; gap: 8px;">
+                                    <span>รวมยอดหนี้คงเหลือที่แสดง:</span>
+                                    <span id="loanFilteredRemainingTotal" style="color: #e11d48; font-weight: 700; font-size: 0.95rem; font-family: monospace, var(--font-family);">0 ฿</span>
+                                </div>
+                            </div>
+
+                            <!-- Table Responsive -->
+                            <div class="table-responsive">
+                                <table class="custom-table" id="loanTable" style="margin: 0; width: 100%;">
+                                    <thead>
+                                        <tr style="background: #f8fafc;">
+                                            <th style="width: 3%; text-align: center;">#</th>
+                                            <th style="width: 10%; text-align: center;">วันที่ยืม</th>
+                                            <th style="width: 12%; text-align: center;">เลขที่สัญญา</th>
+                                            <th style="width: 18%; text-align: left;">ผู้ขอยืม</th>
+                                            <th style="width: 11%; text-align: right;">ยอดที่ยืม</th>
+                                            <th style="width: 10%; text-align: right;">คืนแล้ว</th>
+                                            <th style="width: 11%; text-align: right;">คงเหลือ</th>
+                                            <th style="width: 10%; text-align: center;">กำหนดคืน</th>
+                                            <th style="width: 9%; text-align: center;">สถานะ</th>
+                                            <th style="width: 5%; text-align: center;">สลิป</th>
+                                            <th style="width: 6%; text-align: center;">จัดการ</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="loanBody"></tbody>
+                                    <tfoot id="loanFoot" style="display: none; background: #f8fafc; font-weight: 700; border-top: 2px solid #e2e8f0;">
+                                        <tr>
+                                            <td colspan="4" style="text-align: right; color: #475569; font-size: 0.88rem; padding: 12px 14px;">รวมยอดตามตัวกรอง:</td>
+                                            <td id="loanFootTotalLoan" style="text-align: right; color: #6366f1; font-size: 0.95rem; font-weight: 700; padding: 12px 8px;">0 ฿</td>
+                                            <td id="loanFootTotalRepaid" style="text-align: right; color: #0d9488; font-size: 0.95rem; font-weight: 700; padding: 12px 8px;">0 ฿</td>
+                                            <td id="loanFootTotalRemaining" style="text-align: right; color: #e11d48; font-size: 0.95rem; font-weight: 700; padding: 12px 8px;">0 ฿</td>
+                                            <td colspan="4"></td>
+                                        </tr>
+                                    </tfoot>
+                                </table>
+                            </div>
+
+                            <!-- Empty State -->
+                            <div id="loanEmptyState" class="empty-state" style="display: none; padding: 48px 20px; text-align: center;">
+                                <div style="width: 64px; height: 64px; border-radius: 50%; background: #eef2ff; color: #6366f1; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 14px; box-shadow: 0 4px 12px rgba(99, 102, 241, 0.12);">
+                                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                                        <circle cx="8.5" cy="7" r="4"></circle>
+                                        <polyline points="17 11 19 13 23 9"></polyline>
+                                    </svg>
+                                </div>
+                                <h4 style="margin: 0 0 6px 0; font-size: 1.05rem; font-weight: 700; color: #1e293b;">ไม่พบรายการบันทึกให้ยืม</h4>
+                                <p style="margin: 0 0 16px 0; font-size: 0.84rem; color: #94a3b8; max-width: 400px; margin-left: auto; margin-right: auto;">ยังไม่มีการบันทึกรายการให้ยืมเงิน หรือไม่มีข้อมูลที่ตรงกับตัวกรอง</p>
+                                <button type="button" onclick="document.getElementById('btnAddLoan').click()" style="height: 38px; padding: 0 20px; background: linear-gradient(135deg, #6366f1, #4f46e5); color: white; border: none; border-radius: 8px; font-size: 0.85rem; font-weight: 600; cursor: pointer; box-shadow: 0 2px 8px rgba(99, 102, 241, 0.25); display: inline-flex; align-items: center; gap: 6px;">
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                                    บันทึกรายการเงินยืมแรก
                                 </button>
                             </div>
                         </div>

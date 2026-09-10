@@ -546,6 +546,39 @@ const HqSettlementSchema = new mongoose.Schema({
 }, { timestamps: true });
 const HqSettlement = mongoose.model('HqSettlement', HqSettlementSchema);
 
+// Loan Schema (รายการบันทึกให้ยืมจากยอดรายรับ)
+const LoanSchema = new mongoose.Schema({
+    loanNumber: { type: String, unique: true, index: true },
+    borrowerName: { type: String, required: true },
+    borrowerType: { type: String, default: '-' },
+    borrowerPhone: { type: String, default: '-' },
+    loanDate: { type: Date, default: Date.now },
+    dueDate: { type: Date },
+    loanAmount: { type: Number, required: true },
+    repaidAmount: { type: Number, default: 0 },
+    remainingAmount: { type: Number, required: true },
+    fundSource: { type: String, default: '-' },
+    branch: { type: String, default: '-' },
+    reason: { type: String, required: true },
+    evidenceUrls: [String],
+    evidenceUrl: { type: String },
+    approvedBy: { type: String, default: '-' },
+    recordedBy: { type: String, required: true },
+    status: { type: String, enum: ['active', 'partial', 'repaid', 'overdue'], default: 'active' },
+    repayments: [{
+        repaymentNo: Number,
+        repaymentDate: { type: Date, default: Date.now },
+        amount: Number,
+        fundDestination: { type: String, default: '-' },
+        evidenceUrls: [String],
+        evidenceUrl: String,
+        remark: String,
+        recordedBy: String
+    }],
+    notes: { type: String, default: '' }
+}, { timestamps: true });
+const Loan = mongoose.model('Loan', LoanSchema);
+
 // ═══════════════════════════════════════════════════════════════════
 // FILTER HELPER FUNCTIONS
 // ═══════════════════════════════════════════════════════════════════
@@ -4323,7 +4356,7 @@ app.get('/api/finance/expenses/summary', async (req, res) => {
 app.get('/api/finance/transactions', async (req, res) => {
     try {
         const transactions = await FinanceTransaction.aggregate([
-            { $match: { actionType: { $ne: 'คืนเงินชดเชยสละสิทธิ์เครื่อง' } } },
+            { $match: { actionType: { $ne: 'คืนเงินชดเชยสละสิทธิ์เครื่อง' }, policyNumber: { $not: /^LN-/ } } },
             { $sort: { transactionDate: -1 } },
             {
                 $lookup: {
@@ -4368,7 +4401,7 @@ app.put('/api/finance/transactions/:id/receive', async (req, res) => {
 app.get('/api/finance/summary', async (req, res) => {
     try {
         const aggr = await FinanceTransaction.aggregate([
-            { $match: { actionType: { $ne: 'คืนเงินชดเชยสละสิทธิ์เครื่อง' } } },
+            { $match: { actionType: { $ne: 'คืนเงินชดเชยสละสิทธิ์เครื่อง' }, policyNumber: { $not: /^LN-/ } } },
             {
                 $group: {
                     _id: null,
@@ -4607,7 +4640,7 @@ async function buildProfitStatementData({ startDate, endDate, includeCompare = f
     }
 
     const refundMatch = { ...rangeMatchTx, actionType: 'คืนเงินชดเชยสละสิทธิ์เครื่อง' };
-    const incomeMatch = { ...rangeMatchTx, actionType: { $ne: 'คืนเงินชดเชยสละสิทธิ์เครื่อง' } };
+    const incomeMatch = { ...rangeMatchTx, actionType: { $ne: 'คืนเงินชดเชยสละสิทธิ์เครื่อง' }, policyNumber: { $not: /^LN-/ } };
 
     const [incomeAgg, refundAgg, claimCostAgg, adminAgg, manualAgg, incomeTrend, refundTrend, claimTrend, adminTrend, manualTrend, marketingAnalytics, totalApprovedWarranties] = await Promise.all([
             FinanceTransaction.aggregate([
@@ -5019,7 +5052,7 @@ app.get('/api/finance/export/excel', async (req, res) => {
     try {
         const { startDate, endDate, fields, includeSummary, paymentMethod, financeProvider } = req.query || {};
 
-        const match = { actionType: { $ne: 'คืนเงินชดเชยสละสิทธิ์เครื่อง' } };
+        const match = { actionType: { $ne: 'คืนเงินชดเชยสละสิทธิ์เครื่อง' }, policyNumber: { $not: /^LN-/ } };
         if (startDate) {
             match.transactionDate = { ...(match.transactionDate || {}), $gte: new Date(String(startDate)) };
         }
@@ -5163,7 +5196,7 @@ async function getFinanceDeductions(startDate, endDate) {
     if (endDate) {
         rangeMatchTx.transactionDate = { ...(rangeMatchTx.transactionDate || {}), $lte: new Date(String(endDate) + 'T23:59:59.999Z') };
     }
-    const incomeMatch = { ...rangeMatchTx, actionType: { $ne: 'คืนเงินชดเชยสละสิทธิ์เครื่อง' } };
+    const incomeMatch = { ...rangeMatchTx, actionType: { $ne: 'คืนเงินชดเชยสละสิทธิ์เครื่อง' }, policyNumber: { $not: /^LN-/ } };
 
     const aggr = await FinanceTransaction.aggregate([
         { $match: incomeMatch },
@@ -5496,6 +5529,518 @@ app.get('/api/finance/hq-settlement/export/excel', async (req, res) => {
         res.end();
     } catch (err) {
         console.error('Export hq settlement excel error:', err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// LOANS & CASH ADVANCES API (ระบบบันทึกให้ยืมจากยอดรายรับ)
+// ═══════════════════════════════════════════════════════════════════
+
+async function generateLoanNumber() {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const prefix = `LN-${y}${m}-`;
+    const count = await Loan.countDocuments({ loanNumber: new RegExp(`^${prefix}`) });
+    return `${prefix}${String(count + 1).padStart(4, '0')}`;
+}
+
+// 1. สรุปภาพรวมยอดเงินยืม
+app.get('/api/finance/loans/summary', async (req, res) => {
+    try {
+        const { startDate, endDate } = req.query;
+        const match = {};
+        if (startDate) {
+            match.loanDate = { ...(match.loanDate || {}), $gte: new Date(String(startDate)) };
+        }
+        if (endDate) {
+            match.loanDate = { ...(match.loanDate || {}), $lte: new Date(String(endDate) + 'T23:59:59.999Z') };
+        }
+
+        const agg = await Loan.aggregate([
+            ...(Object.keys(match).length > 0 ? [{ $match: match }] : []),
+            {
+                $group: {
+                    _id: null,
+                    totalLoanAmount: { $sum: '$loanAmount' },
+                    totalRepaidAmount: { $sum: '$repaidAmount' },
+                    totalRemainingAmount: { $sum: '$remainingAmount' },
+                    totalCount: { $sum: 1 },
+                    activeCount: {
+                        $sum: { $cond: [{ $in: ['$status', ['active', 'partial', 'overdue']] }, 1, 0] }
+                    },
+                    repaidCount: {
+                        $sum: { $cond: [{ $eq: ['$status', 'repaid'] }, 1, 0] }
+                    }
+                }
+            }
+        ]);
+
+        const summary = agg[0] || {
+            totalLoanAmount: 0,
+            totalRepaidAmount: 0,
+            totalRemainingAmount: 0,
+            totalCount: 0,
+            activeCount: 0,
+            repaidCount: 0
+        };
+
+        // นับรายการที่เกินกำหนด (overdue)
+        const now = new Date();
+        const overdueCount = await Loan.countDocuments({
+            ...match,
+            status: { $in: ['active', 'partial', 'overdue'] },
+            dueDate: { $lt: now }
+        });
+
+        // คำนวณยอดเงินที่ได้รับแล้ว (โอนเข้าบัญชีสำเร็จ จาก HqSettlement)
+        const hqAgg = await HqSettlement.aggregate([
+            {
+                $group: {
+                    _id: null,
+                    totalReceived: { $sum: '$amount' }
+                }
+            }
+        ]);
+        const totalReceived = Number(hqAgg?.[0]?.totalReceived || 0);
+        // ยอดเงินคงเหลือพร้อมให้ยืม = ยอดที่ได้รับแล้ว ลบด้วย ยอดหนี้คงค้างรอคืน (ติดลบได้หากให้ยืมเกินยอดเงินสดที่มี)
+        const availableFunds = totalReceived - (summary.totalRemainingAmount || 0);
+
+        res.json({
+            success: true,
+            summary: {
+                ...summary,
+                overdueCount,
+                totalReceived,
+                availableFunds,
+                availableCash: totalReceived
+            }
+        });
+    } catch (err) {
+        console.error('GET /api/finance/loans/summary error:', err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// 2. ดึงรายการเงินยืมทั้งหมด (รองรับตัวกรอง)
+app.get('/api/finance/loans', async (req, res) => {
+    try {
+        const { search, status, startDate, endDate } = req.query;
+        const match = {};
+
+        if (startDate) {
+            match.loanDate = { ...(match.loanDate || {}), $gte: new Date(String(startDate)) };
+        }
+        if (endDate) {
+            match.loanDate = { ...(match.loanDate || {}), $lte: new Date(String(endDate) + 'T23:59:59.999Z') };
+        }
+        if (status && status !== 'all') {
+            if (status === 'active') {
+                match.status = { $in: ['active', 'partial'] };
+            } else {
+                match.status = status;
+            }
+        }
+
+        if (search) {
+            const regex = new RegExp(String(search).trim(), 'i');
+            match.$or = [
+                { loanNumber: regex },
+                { borrowerName: regex },
+                { borrowerPhone: regex },
+                { reason: regex },
+                { recordedBy: regex }
+            ];
+        }
+
+        const loans = await Loan.find(match).sort({ loanDate: -1, createdAt: -1 }).lean();
+
+        // คำนวณสถานะ overdue ให้แบบ dynamic
+        const now = new Date();
+        const updatedLoans = loans.map(l => {
+            const isOverdue = l.status !== 'repaid' && l.dueDate && new Date(l.dueDate) < now;
+            return {
+                ...l,
+                isOverdue
+            };
+        });
+
+        res.json({ success: true, data: updatedLoans });
+    } catch (err) {
+        console.error('GET /api/finance/loans error:', err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// 2.5 ดึงรายชื่อผู้ขอยืมเงินทั้งหมดที่เคยมีในระบบ (สำหรับทำ Autocomplete / Datalist)
+app.get('/api/finance/loans/borrowers', async (req, res) => {
+    try {
+        const borrowers = await Loan.aggregate([
+            { $match: { borrowerName: { $exists: true, $ne: '' } } },
+            {
+                $group: {
+                    _id: '$borrowerName',
+                    borrowerName: { $first: '$borrowerName' },
+                    borrowerPhone: { $first: '$borrowerPhone' }
+                }
+            },
+            { $sort: { borrowerName: 1 } }
+        ]);
+
+        const data = borrowers.map(b => ({
+            name: b.borrowerName,
+            phone: (b.borrowerPhone && b.borrowerPhone !== '-') ? b.borrowerPhone : ''
+        }));
+
+        res.json({ success: true, data });
+    } catch (err) {
+        console.error('GET /api/finance/loans/borrowers error:', err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// 3. ดึงรายละเอียดเงินยืมเดี่ยวตาม ID
+app.get('/api/finance/loans/:id', async (req, res) => {
+    try {
+        const loan = await Loan.findById(req.params.id).lean();
+        if (!loan) return res.status(404).json({ success: false, message: 'ไม่พบข้อมูลรายการเงินยืม' });
+        res.json({ success: true, data: loan });
+    } catch (err) {
+        console.error('GET /api/finance/loans/:id error:', err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// 4. บันทึกการให้ยืมเงินใหม่
+app.post('/api/finance/loans', async (req, res) => {
+    try {
+        const {
+            borrowerName, borrowerPhone, loanDate, dueDate,
+            loanAmount, reason, evidenceUrls, evidenceUrl,
+            staffName, notes
+        } = req.body;
+
+        const amount = Number(loanAmount);
+        if (!amount || amount <= 0) {
+            return res.status(400).json({ success: false, message: 'กรุณาระบุจำนวนเงินที่ถูกต้อง' });
+        }
+        if (!borrowerName || !borrowerName.trim()) {
+            return res.status(400).json({ success: false, message: 'กรุณาระบุชื่อผู้ยืม' });
+        }
+
+        const loanNumber = await generateLoanNumber();
+        const urls = Array.isArray(evidenceUrls) ? evidenceUrls : (evidenceUrl ? [evidenceUrl] : []);
+
+        const newLoan = await Loan.create({
+            loanNumber,
+            borrowerName: borrowerName.trim(),
+            borrowerType: '-',
+            borrowerPhone: borrowerPhone || '-',
+            loanDate: loanDate ? new Date(loanDate) : new Date(),
+            dueDate: dueDate ? new Date(dueDate) : null,
+            loanAmount: amount,
+            repaidAmount: 0,
+            remainingAmount: amount,
+            fundSource: 'เงินสด',
+            branch: '-',
+            reason: reason ? reason.trim() : 'ยืมเงินทดรองจ่าย',
+            evidenceUrls: urls,
+            evidenceUrl: urls[0] || null,
+            approvedBy: '-',
+            recordedBy: staffName || 'System',
+            status: 'active',
+            repayments: [],
+            notes: notes || ''
+        });
+
+        await logAction('Create Loan', `บันทึกให้ยืมเงินสัญญา: ${newLoan.loanNumber} ให้แก่ ${newLoan.borrowerName} จำนวน ${amount.toLocaleString('th-TH')} บาท`, staffName || 'System');
+
+        res.status(201).json({ success: true, data: newLoan });
+    } catch (err) {
+        console.error('POST /api/finance/loans error:', err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// 5. บันทึกรับชำระคืนเงินยืม (Repayment)
+app.post('/api/finance/loans/:id/repay', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { amount, repaymentDate, fundDestination, evidenceUrls, evidenceUrl, remark, staffName } = req.body;
+
+        const repayAmt = Number(amount);
+        if (!repayAmt || repayAmt <= 0) {
+            return res.status(400).json({ success: false, message: 'กรุณาระบุจำนวนเงินคืนที่ถูกต้อง' });
+        }
+
+        const loan = await Loan.findById(id);
+        if (!loan) return res.status(404).json({ success: false, message: 'ไม่พบรายการเงินยืม' });
+
+        if (loan.status === 'repaid' || loan.remainingAmount <= 0) {
+            return res.status(400).json({ success: false, message: 'สัญญานี้ได้ชำระคืนครบถ้วนแล้ว' });
+        }
+
+        if (repayAmt > loan.remainingAmount) {
+            return res.status(400).json({
+                success: false,
+                message: `จำนวนเงินคืน (${repayAmt.toLocaleString()} บาท) เกินยอดหนี้คงเหลือ (${loan.remainingAmount.toLocaleString()} บาท)`
+            });
+        }
+
+        const urls = Array.isArray(evidenceUrls) ? evidenceUrls : (evidenceUrl ? [evidenceUrl] : []);
+        const repaymentNo = (loan.repayments ? loan.repayments.length : 0) + 1;
+
+        loan.repaidAmount = Number((loan.repaidAmount + repayAmt).toFixed(2));
+        loan.remainingAmount = Number((loan.remainingAmount - repayAmt).toFixed(2));
+
+        if (loan.remainingAmount <= 0) {
+            loan.remainingAmount = 0;
+            loan.status = 'repaid';
+        } else {
+            loan.status = 'partial';
+        }
+
+        loan.repayments.push({
+            repaymentNo,
+            repaymentDate: repaymentDate ? new Date(repaymentDate) : new Date(),
+            amount: repayAmt,
+            fundDestination: fundDestination || '-',
+            evidenceUrls: urls,
+            evidenceUrl: urls[0] || null,
+            remark: remark || '',
+            recordedBy: staffName || 'System'
+        });
+
+        await loan.save();
+
+        await logAction('Repay Loan', `บันทึกรับคืนเงินยืมสัญญา: ${loan.loanNumber} งวดที่ ${repaymentNo} จำนวน ${repayAmt.toLocaleString('th-TH')} บาท`, staffName || 'System');
+
+        res.json({ success: true, data: loan });
+    } catch (err) {
+        console.error('POST /api/finance/loans/:id/repay error:', err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// 6. แก้ไขข้อมูลสัญญาเงินยืม
+app.put('/api/finance/loans/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const {
+            borrowerName,
+            borrowerPhone,
+            loanAmount,
+            loanDate,
+            dueDate,
+            reason,
+            evidenceUrls,
+            evidenceUrl,
+            notes,
+            staffName
+        } = req.body;
+
+        const loan = await Loan.findById(id);
+        if (!loan) return res.status(404).json({ success: false, message: 'ไม่พบรายการเงินยืม' });
+
+        if (borrowerName !== undefined) {
+            if (!borrowerName.trim()) {
+                return res.status(400).json({ success: false, message: 'กรุณาระบุชื่อผู้ยืม' });
+            }
+            loan.borrowerName = borrowerName.trim();
+        }
+
+        if (borrowerPhone !== undefined) {
+            loan.borrowerPhone = borrowerPhone.trim() || '-';
+        }
+
+        if (loanAmount !== undefined) {
+            const amount = Number(loanAmount);
+            if (isNaN(amount) || amount <= 0) {
+                return res.status(400).json({ success: false, message: 'กรุณาระบุจำนวนเงินที่ถูกต้อง (มากกว่า 0 บาท)' });
+            }
+            const currentRepaid = Number(loan.repaidAmount || 0);
+            if (amount < currentRepaid) {
+                return res.status(400).json({
+                    success: false,
+                    message: `ยอดเงินให้ยืมใหม่ (${amount.toLocaleString('th-TH')} ฿) ต้องไม่น้อยกว่ายอดที่รับชำระคืนแล้ว (${currentRepaid.toLocaleString('th-TH')} ฿)`
+                });
+            }
+            loan.loanAmount = amount;
+            loan.remainingAmount = Number((amount - currentRepaid).toFixed(2));
+            if (loan.remainingAmount <= 0) {
+                loan.remainingAmount = 0;
+                loan.status = 'repaid';
+            } else if (currentRepaid > 0) {
+                loan.status = 'partial';
+            } else {
+                loan.status = 'active';
+            }
+        }
+
+        if (loanDate !== undefined) {
+            loan.loanDate = loanDate ? new Date(loanDate) : new Date();
+        }
+
+        if (dueDate !== undefined) {
+            loan.dueDate = dueDate ? new Date(dueDate) : null;
+        }
+
+        if (reason !== undefined) {
+            if (!reason.trim()) {
+                return res.status(400).json({ success: false, message: 'กรุณาระบุเหตุผลหรือวัตถุประสงค์ในการยืม' });
+            }
+            loan.reason = reason.trim();
+        }
+
+        if (evidenceUrls !== undefined || evidenceUrl !== undefined) {
+            const urls = Array.isArray(evidenceUrls) ? evidenceUrls : (evidenceUrl ? [evidenceUrl] : []);
+            loan.evidenceUrls = urls;
+            loan.evidenceUrl = urls[0] || null;
+        }
+
+        if (notes !== undefined) {
+            loan.notes = notes;
+        }
+
+        await loan.save();
+        await logAction('Update Loan', `แก้ไขข้อมูลสัญญาเงินยืม: ${loan.loanNumber} (ผู้ยืม: ${loan.borrowerName}, ยอดเงิน: ${loan.loanAmount.toLocaleString('th-TH')} ฿)`, staffName || 'System');
+
+        res.json({ success: true, data: loan });
+    } catch (err) {
+        console.error('PUT /api/finance/loans/:id error:', err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// 7. ลบสัญญาเงินยืม
+app.delete('/api/finance/loans/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { staffName } = req.body || {};
+
+        const loan = await Loan.findById(id);
+        if (!loan) return res.status(404).json({ success: false, message: 'ไม่พบรายการเงินยืม' });
+
+        // ลบ FinanceTransaction ที่เกี่ยวข้อง
+        await FinanceTransaction.deleteMany({ policyNumber: loan.loanNumber });
+        await Loan.findByIdAndDelete(id);
+
+        await logAction('Delete Loan', `ลบสัญญาเงินยืมเลขที่: ${loan.loanNumber} ของ ${loan.borrowerName}`, staffName || 'System');
+
+        res.json({ success: true, message: 'ลบรายการเงินยืมเรียบร้อยแล้ว' });
+    } catch (err) {
+        console.error('DELETE /api/finance/loans/:id error:', err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// 8. Export Excel รายการเงินยืม
+app.get('/api/finance/loans/export/excel', async (req, res) => {
+    try {
+        const { search, status, startDate, endDate } = req.query;
+        const match = {};
+
+        if (startDate) match.loanDate = { ...(match.loanDate || {}), $gte: new Date(String(startDate)) };
+        if (endDate) match.loanDate = { ...(match.loanDate || {}), $lte: new Date(String(endDate) + 'T23:59:59.999Z') };
+        if (status && status !== 'all') {
+            if (status === 'active') match.status = { $in: ['active', 'partial'] };
+            else match.status = status;
+        }
+
+        if (search) {
+            const regex = new RegExp(String(search).trim(), 'i');
+            match.$or = [
+                { loanNumber: regex },
+                { borrowerName: regex },
+                { borrowerPhone: regex },
+                { reason: regex }
+            ];
+        }
+
+        const loans = await Loan.find(match).sort({ loanDate: -1 }).lean();
+
+        const workbook = new ExcelJS.Workbook();
+        workbook.creator = 'EasyCare';
+        workbook.created = new Date();
+
+        const ws = workbook.addWorksheet('รายการเงินยืม');
+        ws.columns = [
+            { header: 'ลำดับ', key: 'no', width: 8 },
+            { header: 'วันที่ยืม', key: 'loanDate', width: 15 },
+            { header: 'เลขที่สัญญา', key: 'loanNumber', width: 18 },
+            { header: 'ผู้ขอยืม', key: 'borrowerName', width: 22 },
+            { header: 'เบอร์ติดต่อ', key: 'borrowerPhone', width: 15 },
+            { header: 'ยอดเงินที่ยืม (บาท)', key: 'loanAmount', width: 20 },
+            { header: 'ยอดคืนแล้ว (บาท)', key: 'repaidAmount', width: 20 },
+            { header: 'ยอดคงค้าง (บาท)', key: 'remainingAmount', width: 20 },
+            { header: 'กำหนดคืน', key: 'dueDate', width: 15 },
+            { header: 'สถานะ', key: 'status', width: 16 },
+            { header: 'วัตถุประสงค์', key: 'reason', width: 30 },
+            { header: 'ผู้บันทึก', key: 'recordedBy', width: 18 }
+        ];
+
+        ws.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+        ws.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0D9488' } };
+
+        const statusMap = {
+            'active': 'กำลังยืม',
+            'partial': 'คืนบางส่วน',
+            'repaid': 'คืนครบแล้ว',
+            'overdue': 'เกินกำหนด'
+        };
+
+        loans.forEach((l, idx) => {
+            const isOver = l.status !== 'repaid' && l.dueDate && new Date(l.dueDate) < new Date();
+            const stText = isOver ? 'เกินกำหนด' : (statusMap[l.status] || l.status);
+
+            ws.addRow({
+                no: idx + 1,
+                loanDate: l.loanDate ? new Date(l.loanDate).toLocaleDateString('th-TH') : '-',
+                loanNumber: l.loanNumber || '-',
+                borrowerName: l.borrowerName || '-',
+                borrowerPhone: l.borrowerPhone || '-',
+                loanAmount: Number(l.loanAmount || 0),
+                repaidAmount: Number(l.repaidAmount || 0),
+                remainingAmount: Number(l.remainingAmount || 0),
+                dueDate: l.dueDate ? new Date(l.dueDate).toLocaleDateString('th-TH') : '-',
+                status: stText,
+                reason: l.reason || '-',
+                recordedBy: l.recordedBy || '-'
+            });
+        });
+
+        // Summary row
+        const totalLoan = loans.reduce((s, l) => s + Number(l.loanAmount || 0), 0);
+        const totalRepaid = loans.reduce((s, l) => s + Number(l.repaidAmount || 0), 0);
+        const totalRem = loans.reduce((s, l) => s + Number(l.remainingAmount || 0), 0);
+
+        const summaryRow = ws.addRow({
+            no: '',
+            loanDate: '',
+            loanNumber: '',
+            borrowerName: 'รวมทั้งหมด',
+            borrowerPhone: '',
+            loanAmount: totalLoan,
+            repaidAmount: totalRepaid,
+            remainingAmount: totalRem,
+            dueDate: '',
+            status: '',
+            reason: '',
+            recordedBy: ''
+        });
+        summaryRow.font = { bold: true };
+
+        const safeStart = startDate ? String(startDate) : '';
+        const safeEnd = endDate ? String(endDate) : '';
+        const fileName = `loans_${safeStart || 'all'}_${safeEnd || 'all'}.xlsx`;
+
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+        await workbook.xlsx.write(res);
+        res.end();
+    } catch (err) {
+        console.error('Export loans excel error:', err);
         res.status(500).json({ success: false, message: err.message });
     }
 });
