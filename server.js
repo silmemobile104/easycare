@@ -10,6 +10,7 @@ const multer = require('multer');
 const http = require('http');
 const { Server } = require('socket.io');
 const ExcelJS = require('exceljs');
+const { sendLineMessage, notifyWarrantyPending } = require('./send_line_message');
 
 const app = express();
 const PORT = process.env.PORT || 3005;
@@ -3235,14 +3236,21 @@ app.post('/api/warranties', async (req, res) => {
         }
         await newWarranty.save();
 
-        if (io && newWarranty.approvalStatus === 'pending') {
-            const firstName = (newWarranty.customer && newWarranty.customer.firstName) ? newWarranty.customer.firstName : '';
-            const lastName = (newWarranty.customer && newWarranty.customer.lastName) ? newWarranty.customer.lastName : '';
-            const customerName = `${firstName} ${lastName}`.trim() || '-';
-            io.emit('urgent_approval_needed', {
-                warrantyId: newWarranty._id.toString(),
-                policyNumber: newWarranty.policyNumber,
-                customerName
+        if (newWarranty.approvalStatus === 'pending') {
+            if (io) {
+                const firstName = (newWarranty.customer && newWarranty.customer.firstName) ? newWarranty.customer.firstName : '';
+                const lastName = (newWarranty.customer && newWarranty.customer.lastName) ? newWarranty.customer.lastName : '';
+                const customerName = `${firstName} ${lastName}`.trim() || '-';
+                io.emit('urgent_approval_needed', {
+                    warrantyId: newWarranty._id.toString(),
+                    policyNumber: newWarranty.policyNumber,
+                    customerName
+                });
+            }
+
+            // แจ้งเตือนสัญญารอการอนุมัติผ่าน LINE
+            notifyWarrantyPending(newWarranty).catch(err => {
+                console.error('⚠️ [LINE Notify] Error sending pending warranty alert:', err.message);
             });
         }
 
@@ -3908,7 +3916,8 @@ app.put('/api/warranties/:id', async (req, res) => {
         }
 
         // If the warranty currently has approvalStatus 'needs_correction', reset it to 'pending' upon update
-        if (currentWarranty.approvalStatus === 'needs_correction') {
+        const wasCorrection = currentWarranty.approvalStatus === 'needs_correction';
+        if (wasCorrection) {
             updateData.approvalStatus = 'pending';
         }
 
@@ -3930,6 +3939,13 @@ app.put('/api/warranties/:id', async (req, res) => {
                     warrantyId: updated._id.toString(),
                     policyNumber: updated.policyNumber,
                     customerName
+                });
+            }
+
+            // แจ้งเตือนสัญญาแก้ไขส่งมารออนุมัติซ้ำผ่าน LINE
+            if (wasCorrection) {
+                notifyWarrantyPending(updated, { isResubmit: true }).catch(err => {
+                    console.error('⚠️ [LINE Notify] Error sending resubmitted warranty alert:', err.message);
                 });
             }
         }
@@ -6944,7 +6960,6 @@ app.get('/api/admin-expenses', async (req, res) => {
 // ═══════════════════════════════════════════════════════════════════
 // LINE MESSAGING API & WEBHOOK
 // ═══════════════════════════════════════════════════════════════════
-const { sendLineMessage } = require('./send_line_message');
 
 // Endpoint สำหรับให้ LINE Webhook ยิงเข้ามาจับ Group ID และตอบกลับอัตโนมัติ
 app.post('/api/line/webhook', async (req, res) => {
@@ -7002,6 +7017,25 @@ app.post('/api/line/test-send', async (req, res) => {
         const textToSend = message || 'สวัสดีฉันคือบอทแจ้งเตือนอัตโนมัติ';
         const result = await sendLineMessage(textToSend, groupId);
         res.json({ success: true, message: 'ส่งข้อความสำเร็จ', result });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// Endpoint สำหรับทดสอบส่งการแจ้งเตือนสัญญารออนุมัติเข้ากลุ่ม LINE
+app.post('/api/line/test-warranty-notify', async (req, res) => {
+    try {
+        const { warrantyId, isResubmit } = req.body || {};
+        let warranty;
+        if (warrantyId) {
+            warranty = await Warranty.findById(warrantyId);
+        } else {
+            warranty = await Warranty.findOne({ approvalStatus: 'pending' }) || await Warranty.findOne();
+        }
+        if (!warranty) return res.status(404).json({ success: false, message: 'ไม่พบข้อมูลสัญญาสำหรับทดสอบ' });
+
+        const result = await notifyWarrantyPending(warranty, { isResubmit: !!isResubmit });
+        res.json({ success: true, message: 'ส่งการแจ้งเตือนสัญญารออนุมัติสำเร็จ', result, policyNumber: warranty.policyNumber });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }
