@@ -18,6 +18,41 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // ตารางเรทสำหรับผ่อนไฟแนนซ์
+    const defaultFinanceRatesList = [
+        { tierName: "Package 1", minDeviceValue: 0, maxDeviceValue: 5000, packagePrice: 699, installmentPlans: [{ months: 6, monthlyAmount: 160 }, { months: 10, monthlyAmount: 100 }, { months: 12, monthlyAmount: 60 }, { months: 15, monthlyAmount: 60 }, { months: 18, monthlyAmount: 60 }] },
+        { tierName: "Package 2", minDeviceValue: 5001, maxDeviceValue: 10000, packagePrice: 899, installmentPlans: [{ months: 6, monthlyAmount: 180 }, { months: 10, monthlyAmount: 120 }, { months: 12, monthlyAmount: 80 }, { months: 15, monthlyAmount: 80 }, { months: 18, monthlyAmount: 80 }] },
+        { tierName: "Package 3", minDeviceValue: 10001, maxDeviceValue: 15000, packagePrice: 1099, installmentPlans: [{ months: 6, monthlyAmount: 200 }, { months: 10, monthlyAmount: 140 }, { months: 12, monthlyAmount: 100 }, { months: 15, monthlyAmount: 100 }, { months: 18, monthlyAmount: 100 }] },
+        { tierName: "Package 4", minDeviceValue: 15001, maxDeviceValue: 20000, packagePrice: 1299, installmentPlans: [{ months: 6, monthlyAmount: 240 }, { months: 10, monthlyAmount: 160 }, { months: 12, monthlyAmount: 120 }, { months: 15, monthlyAmount: 120 }, { months: 18, monthlyAmount: 120 }] },
+        { tierName: "Package 5", minDeviceValue: 20001, maxDeviceValue: 25000, packagePrice: 1499, installmentPlans: [{ months: 6, monthlyAmount: 270 }, { months: 10, monthlyAmount: 180 }, { months: 12, monthlyAmount: 150 }, { months: 15, monthlyAmount: 150 }, { months: 18, monthlyAmount: 150 }] },
+        { tierName: "Package 6", minDeviceValue: 25001, maxDeviceValue: 30000, packagePrice: 1699, installmentPlans: [{ months: 6, monthlyAmount: 320 }, { months: 10, monthlyAmount: 190 }, { months: 12, monthlyAmount: 180 }, { months: 15, monthlyAmount: 180 }, { months: 18, monthlyAmount: 180 }] },
+        { tierName: "Package 7", minDeviceValue: 30001, maxDeviceValue: 35000, packagePrice: 1899, installmentPlans: [{ months: 6, monthlyAmount: 350 }, { months: 10, monthlyAmount: 210 }, { months: 12, monthlyAmount: 190 }, { months: 15, monthlyAmount: 190 }, { months: 18, monthlyAmount: 190 }] },
+        { tierName: "Package 8", minDeviceValue: 35001, maxDeviceValue: 40000, packagePrice: 2099, installmentPlans: [{ months: 6, monthlyAmount: 390 }, { months: 10, monthlyAmount: 230 }, { months: 12, monthlyAmount: 200 }, { months: 15, monthlyAmount: 200 }, { months: 18, monthlyAmount: 200 }] },
+        { tierName: "Package 9", minDeviceValue: 40001, maxDeviceValue: 45000, packagePrice: 2299, installmentPlans: [{ months: 6, monthlyAmount: 420 }, { months: 10, monthlyAmount: 270 }, { months: 12, monthlyAmount: 250 }, { months: 15, monthlyAmount: 250 }, { months: 18, monthlyAmount: 250 }] },
+        { tierName: "Package 10", minDeviceValue: 45001, maxDeviceValue: 50000, packagePrice: 2499, installmentPlans: [{ months: 6, monthlyAmount: 490 }, { months: 10, monthlyAmount: 300 }, { months: 12, monthlyAmount: 270 }, { months: 15, monthlyAmount: 270 }, { months: 18, monthlyAmount: 270 }] }
+    ];
+
+    function getFinanceMonthlyAmount(w) {
+        if (!w || !w.financeDetails) return null;
+        const months = Number(w.financeDetails.financeMonths || 0);
+        if (!months) return null;
+
+        const planName = (w.package?.plan || '').trim().toLowerCase();
+        const pkgPrice = Number(w.package?.price || 0);
+        const devVal = Number(w.device?.deviceValue ?? w.devicePrice ?? 0);
+
+        let tier = defaultFinanceRatesList.find(t => t.tierName.toLowerCase() === planName);
+        if (!tier && pkgPrice > 0) tier = defaultFinanceRatesList.find(t => t.packagePrice === pkgPrice);
+        if (!tier && devVal > 0) tier = defaultFinanceRatesList.find(t => devVal >= t.minDeviceValue && devVal <= t.maxDeviceValue);
+
+        if (tier && Array.isArray(tier.installmentPlans)) {
+            const plan = tier.installmentPlans.find(p => p.months === months);
+            if (plan && plan.monthlyAmount) return plan.monthlyAmount;
+        }
+
+        return pkgPrice > 0 && months > 0 ? Math.round(pkgPrice / months) : null;
+    }
+
     // ═══════════════════════════════════════════════════════════════════
     // SWEETALERT2 HELPER FUNCTIONS - SmileCare Theme
     // ═══════════════════════════════════════════════════════════════════
@@ -5395,8 +5430,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     paymentButton = `<button type="button" class="submit-btn" style="background-color: #0ea5e9; margin: 0; padding: 4px 10px; font-size: 0.75rem; border-radius: 4px;" onclick="printFullReceipt('${data._id}')">พิมพ์ใบเสร็จ</button>`;
                 }
 
+                let financeExtra = '';
+                if (data.payment?.method === 'finance' && data.financeDetails) {
+                    const finMonthly = getFinanceMonthlyAmount(data);
+                    const finMonthlyStr = finMonthly ? `${finMonthly.toLocaleString()} บาท/งวด` : '-';
+                    financeExtra = `<div><strong>ผ่อนชำระไฟแนนซ์:</strong> ${data.financeDetails.provider || '-'} (${data.financeDetails.financeMonths || '-'} เดือน / ค่างวด ${finMonthlyStr})</div>`;
+                }
+
                 paymentSectionHtml = `
-                    <div><strong>การชำระเงิน:</strong> ${data.payment?.method || '-'} (${paymentBadge})</div>
+                    <div><strong>การชำระเงิน:</strong> ${data.payment?.method === 'finance' ? 'ผ่อนไฟแนนซ์' : (data.payment?.method || '-')} (${paymentBadge})</div>
+                    ${financeExtra}
                     <div style="display: flex; align-items: center; gap: 8px;"><strong>สถานะชำระเงิน:</strong> ${paymentButton}</div>
                 `;
             }
@@ -10806,6 +10849,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         <div class="approval-detail-item">
                             <label>ระยะเวลาผ่อน</label>
                             <span>${w.financeDetails.financeMonths || '-'} เดือน</span>
+                        </div>
+                        <div class="approval-detail-item">
+                            <label>ยอดต่องวด</label>
+                            <span style="color: #0d9488; font-weight: 700;">${(() => {
+                                const amt = getFinanceMonthlyAmount(w);
+                                return amt ? `${amt.toLocaleString()} บาท/งวด` : '-';
+                            })()}</span>
                         </div>
                         ` : ''}
                         <div class="approval-detail-item">

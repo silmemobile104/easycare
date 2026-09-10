@@ -54,6 +54,55 @@ async function sendLineMessage(message, targetId) {
     });
 }
 
+const defaultFinanceRates = [
+    { tierName: "Package 1", minDeviceValue: 0, maxDeviceValue: 5000, packagePrice: 699, downPayment: 60, financedAmount: 640, installmentPlans: [{ months: 6, monthlyAmount: 160 }, { months: 10, monthlyAmount: 100 }, { months: 12, monthlyAmount: 60 }, { months: 15, monthlyAmount: 60 }, { months: 18, monthlyAmount: 60 }] },
+    { tierName: "Package 2", minDeviceValue: 5001, maxDeviceValue: 10000, packagePrice: 899, downPayment: 80, financedAmount: 820, installmentPlans: [{ months: 6, monthlyAmount: 180 }, { months: 10, monthlyAmount: 120 }, { months: 12, monthlyAmount: 80 }, { months: 15, monthlyAmount: 80 }, { months: 18, monthlyAmount: 80 }] },
+    { tierName: "Package 3", minDeviceValue: 10001, maxDeviceValue: 15000, packagePrice: 1099, downPayment: 100, financedAmount: 1000, installmentPlans: [{ months: 6, monthlyAmount: 200 }, { months: 10, monthlyAmount: 140 }, { months: 12, monthlyAmount: 100 }, { months: 15, monthlyAmount: 100 }, { months: 18, monthlyAmount: 100 }] },
+    { tierName: "Package 4", minDeviceValue: 15001, maxDeviceValue: 20000, packagePrice: 1299, downPayment: 120, financedAmount: 1180, installmentPlans: [{ months: 6, monthlyAmount: 240 }, { months: 10, monthlyAmount: 160 }, { months: 12, monthlyAmount: 120 }, { months: 15, monthlyAmount: 120 }, { months: 18, monthlyAmount: 120 }] },
+    { tierName: "Package 5", minDeviceValue: 20001, maxDeviceValue: 25000, packagePrice: 1499, downPayment: 150, financedAmount: 1350, installmentPlans: [{ months: 6, monthlyAmount: 270 }, { months: 10, monthlyAmount: 180 }, { months: 12, monthlyAmount: 150 }, { months: 15, monthlyAmount: 150 }, { months: 18, monthlyAmount: 150 }] },
+    { tierName: "Package 6", minDeviceValue: 25001, maxDeviceValue: 30000, packagePrice: 1699, downPayment: 180, financedAmount: 1520, installmentPlans: [{ months: 6, monthlyAmount: 320 }, { months: 10, monthlyAmount: 190 }, { months: 12, monthlyAmount: 180 }, { months: 15, monthlyAmount: 180 }, { months: 18, monthlyAmount: 180 }] },
+    { tierName: "Package 7", minDeviceValue: 30001, maxDeviceValue: 35000, packagePrice: 1899, downPayment: 190, financedAmount: 1710, installmentPlans: [{ months: 6, monthlyAmount: 350 }, { months: 10, monthlyAmount: 210 }, { months: 12, monthlyAmount: 190 }, { months: 15, monthlyAmount: 190 }, { months: 18, monthlyAmount: 190 }] },
+    { tierName: "Package 8", minDeviceValue: 35001, maxDeviceValue: 40000, packagePrice: 2099, downPayment: 200, financedAmount: 1900, installmentPlans: [{ months: 6, monthlyAmount: 390 }, { months: 10, monthlyAmount: 230 }, { months: 12, monthlyAmount: 200 }, { months: 15, monthlyAmount: 200 }, { months: 18, monthlyAmount: 200 }] },
+    { tierName: "Package 9", minDeviceValue: 40001, maxDeviceValue: 45000, packagePrice: 2299, downPayment: 250, financedAmount: 2050, installmentPlans: [{ months: 6, monthlyAmount: 420 }, { months: 10, monthlyAmount: 270 }, { months: 12, monthlyAmount: 250 }, { months: 15, monthlyAmount: 250 }, { months: 18, monthlyAmount: 250 }] },
+    { tierName: "Package 10", minDeviceValue: 45001, maxDeviceValue: 50000, packagePrice: 2499, downPayment: 270, financedAmount: 2230, installmentPlans: [{ months: 6, monthlyAmount: 490 }, { months: 10, monthlyAmount: 300 }, { months: 12, monthlyAmount: 270 }, { months: 15, monthlyAmount: 270 }, { months: 18, monthlyAmount: 270 }] }
+];
+
+/**
+ * คำนวณค่างวดต่อเดือนสำหรับสัญญาผ่อนด้วยไฟแนนซ์ตามตารางเรท InstallmentPlan
+ * @param {object} w - Warranty record
+ * @returns {number|null} ค่างวดต่อเดือน (บาท)
+ */
+function getFinanceMonthlyAmount(w) {
+    if (!w || !w.financeDetails) return null;
+    const months = Number(w.financeDetails.financeMonths || 0);
+    if (!months) return null;
+
+    const planName = (w.package?.plan || '').trim();
+    const pkgPrice = Number(w.package?.price || 0);
+    const devVal = Number(w.device?.deviceValue ?? w.devicePrice ?? 0);
+
+    // 1. ค้นหาจากชื่อแพ็กเกจ (เช่น "Package 2")
+    let tier = defaultFinanceRates.find(t => t.tierName.toLowerCase() === planName.toLowerCase());
+    // 2. ค้นหาจากราคาแพ็กเกจ (เช่น 899)
+    if (!tier && pkgPrice > 0) {
+        tier = defaultFinanceRates.find(t => t.packagePrice === pkgPrice);
+    }
+    // 3. ค้นหาจากช่วงราคาประเมินตัวเครื่อง (minDeviceValue - maxDeviceValue)
+    if (!tier && devVal > 0) {
+        tier = defaultFinanceRates.find(t => devVal >= t.minDeviceValue && devVal <= t.maxDeviceValue);
+    }
+
+    if (tier && Array.isArray(tier.installmentPlans)) {
+        const plan = tier.installmentPlans.find(p => p.months === months);
+        if (plan && plan.monthlyAmount) {
+            return plan.monthlyAmount;
+        }
+    }
+
+    // กรณีไม่พบในตารางเรท ให้คำนวณจากราคาแพ็กเกจหารจำนวนเดือน
+    return pkgPrice > 0 && months > 0 ? Math.round(pkgPrice / months) : null;
+}
+
 /**
  * Format warranty details into a structured LINE notification message
  * @param {object} w - Warranty record
@@ -165,8 +214,11 @@ function formatWarrantyPendingMessage(w, options = {}) {
         const finProvider = w.financeDetails?.provider || '-';
         const finMonths = w.financeDetails?.financeMonths || '-';
         const finDueDay = w.financeDetails?.financeDueDay ? `ทุกวันที่ ${w.financeDetails.financeDueDay} ของเดือน` : '-';
+        const finMonthly = getFinanceMonthlyAmount(w);
+        const finMonthlyStr = finMonthly ? `${finMonthly.toLocaleString()} บาท/งวด` : '-';
         payDetailText = [
             `• รูปแบบ: ผ่อนด้วยไฟแนนซ์ (${finProvider})`,
+            `• ยอดต่องวด: ${finMonthlyStr}`,
             `• ระยะเวลาผ่อน: ${finMonths} เดือน (${finDueDay})`,
             `• เงินดาวน์: 0 บาท (ผ่อนชำระกับไฟแนนซ์)`
         ].join('\n');
@@ -264,5 +316,7 @@ if (require.main === module) {
 module.exports = {
     sendLineMessage,
     formatWarrantyPendingMessage,
-    notifyWarrantyPending
+    notifyWarrantyPending,
+    getFinanceMonthlyAmount,
+    defaultFinanceRates
 };
