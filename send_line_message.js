@@ -1,9 +1,28 @@
 require('dotenv').config();
 const https = require('https');
 
-async function sendLineMessage(message, targetId) {
-    const token = process.env.LINE_CHANNEL_ACCESS_TOKEN;
-    const groupId = targetId || process.env.LINE_GROUP_ID;
+let isLineNotificationsEnabled = true;
+
+function setLineNotificationsEnabled(enabled) {
+    isLineNotificationsEnabled = !!enabled;
+    console.log(`⚙️ [LINE Notify] สถานะการแจ้งเตือน LINE: ${isLineNotificationsEnabled ? 'เปิด (ENABLED)' : 'ปิด (PAUSED)'}`);
+}
+
+function getLineNotificationsEnabled() {
+    return isLineNotificationsEnabled;
+}
+
+async function sendLineMessage(message, targetId, options = {}) {
+    if (!isLineNotificationsEnabled && !options.force) {
+        console.log(`⏸️ [LINE Notify] ข้ามการส่งข้อความ LINE เนื่องจากปิดการแจ้งเตือน LINE ชั่วคราว`);
+        return { success: false, skipped: true, message: 'LINE notifications disabled' };
+    }
+
+    const rawToken = process.env.LINE_CHANNEL_ACCESS_TOKEN;
+    const token = rawToken ? String(rawToken).trim().replace(/^["']+|["']+$/g, '').trim() : '';
+
+    const rawGroupId = targetId || process.env.LINE_GROUP_ID;
+    const groupId = rawGroupId ? String(rawGroupId).trim().replace(/^["'(\[]+|["')\]]+$/g, '').trim() : '';
 
     if (!token) {
         throw new Error('ไม่พบ LINE_CHANNEL_ACCESS_TOKEN ในไฟล์ .env');
@@ -19,7 +38,7 @@ async function sendLineMessage(message, targetId) {
         messages = message;
     } else if (typeof message === 'object' && message !== null) {
         messages = [message];
-    }
+    } 
 
     const postData = JSON.stringify({
         to: groupId,
@@ -280,9 +299,14 @@ function formatWarrantyPendingMessage(w, options = {}) {
 /**
  * Send pending approval notification to LINE group
  * @param {object} warranty - Warranty record
- * @param {object} [options] - Options (e.g. isResubmit: true)
+ * @param {object} [options] - Options (e.g. isResubmit: true, force: true)
  */
 async function notifyWarrantyPending(warranty, options = {}) {
+    if (!isLineNotificationsEnabled && !options.force) {
+        console.log(`⏸️ [LINE Notify] ข้ามการแจ้งเตือนสัญญา (${warranty?.policyNumber}) เนื่องจากปิดการแจ้งเตือน LINE ชั่วคราว`);
+        return { success: false, skipped: true, message: 'LINE notifications disabled' };
+    }
+
     try {
         const messageText = formatWarrantyPendingMessage(warranty, options);
         console.log(`\n🔔 [LINE Notify] Sending pending warranty notification (Policy: ${warranty.policyNumber})...`);
@@ -318,5 +342,7 @@ module.exports = {
     formatWarrantyPendingMessage,
     notifyWarrantyPending,
     getFinanceMonthlyAmount,
-    defaultFinanceRates
+    defaultFinanceRates,
+    setLineNotificationsEnabled,
+    getLineNotificationsEnabled
 };

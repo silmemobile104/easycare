@@ -11,7 +11,8 @@ const menuPermissions = {
     'nav-finance-companies': ['admin'],
     'nav-executive': ['admin'],
     'nav-finance': ['approver', 'admin', 'finance'],
-    'nav-deposit': ['sales', 'admin', 'finance']
+    'nav-deposit': ['sales', 'admin', 'finance'],
+    'nav-products': ['admin']
 };
 
 /**

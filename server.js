@@ -10,7 +10,7 @@ const multer = require('multer');
 const http = require('http');
 const { Server } = require('socket.io');
 const ExcelJS = require('exceljs');
-const { sendLineMessage, notifyWarrantyPending } = require('./send_line_message');
+const { sendLineMessage, notifyWarrantyPending, setLineNotificationsEnabled, getLineNotificationsEnabled } = require('./send_line_message');
 
 const app = express();
 const PORT = process.env.PORT || 3005;
@@ -463,7 +463,7 @@ const DepositSchema = new mongoose.Schema({
     customerFirstName: { type: String, required: true },
     customerLastName: { type: String, required: true },
     customerPhone: { type: String, required: true },
-    deviceType: { type: String, enum: ['iPhone', 'iPad'], required: true },
+    deviceType: { type: String, required: true },
     deviceModel: { type: String, required: true },
     deviceDate: { type: Date, required: true },
     depositAmount: { type: Number, required: true },
@@ -578,6 +578,112 @@ const LoanSchema = new mongoose.Schema({
     notes: { type: String, default: '' }
 }, { timestamps: true });
 const Loan = mongoose.model('Loan', LoanSchema);
+
+// ProductCatalog Schema (ประเภทสินค้า, รุ่นสินค้า, สีสินค้า, ความจุสินค้า)
+const ProductCatalogSchema = new mongoose.Schema({
+    category: {
+        type: String,
+        required: true,
+        enum: ['type', 'model', 'color', 'capacity'],
+        index: true
+    },
+    name: { type: String, required: true, trim: true },
+    parentType: { type: String, trim: true, default: '' }, // สำหรับ category === 'model' ผูกกับ Product Type (เช่น 'iPhone' หรือ 'iPad')
+    colorCode: { type: String, trim: true, default: '' },  // สำหรับ category === 'color' รหัสสี (เช่น #000000)
+    sortOrder: { type: Number, default: 0 },
+    status: { type: String, enum: ['active', 'inactive'], default: 'active' }
+}, { timestamps: true });
+
+ProductCatalogSchema.index({ category: 1, name: 1, parentType: 1 }, { unique: true });
+const ProductCatalog = mongoose.model('ProductCatalog', ProductCatalogSchema);
+
+// System Settings Schema (for system-wide configurations like LINE notification toggle)
+const SystemSettingSchema = new mongoose.Schema({
+    key: { type: String, unique: true, required: true },
+    value: { type: mongoose.Schema.Types.Mixed },
+    updatedBy: String,
+    updatedAt: { type: Date, default: Date.now }
+}, { timestamps: true });
+
+const SystemSetting = mongoose.model('SystemSetting', SystemSettingSchema);
+
+// Helper function: ตรวจสอบข้อมูลอุปกรณ์ว่ามีอยู่ในระบบ "จัดการสินค้า" และเปิดใช้งานอยู่หรือไม่
+async function validateProductCatalogFields({ type, model, color, capacity } = {}) {
+    const catalogCount = await ProductCatalog.countDocuments({ status: 'active' });
+    if (catalogCount === 0) return null; // If catalog is empty/unseeded, skip blocking
+
+    if (type !== undefined && type !== null && String(type).trim() !== '') {
+        const cleanType = String(type).trim();
+        const typeRegex = new RegExp(`^${cleanType.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i');
+        const typeExists = await ProductCatalog.exists({
+            category: 'type',
+            name: { $regex: typeRegex },
+            status: 'active'
+        });
+        if (!typeExists) {
+            return `ประเภทสินค้า "${type}" ไม่อยู่ในระบบจัดการสินค้า หรือถูกระงับการใช้งาน`;
+        }
+    }
+
+    if (model !== undefined && model !== null && String(model).trim() !== '') {
+        const cleanModel = String(model).trim();
+        const modelRegex = new RegExp(`^${cleanModel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i');
+        const modelQuery = {
+            category: 'model',
+            name: { $regex: modelRegex },
+            status: 'active'
+        };
+
+        if (type !== undefined && type !== null && String(type).trim() !== '') {
+            const cleanType = String(type).trim();
+            const parentRegex = new RegExp(`^${cleanType.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i');
+            const matchingModel = await ProductCatalog.exists({
+                ...modelQuery,
+                parentType: { $regex: parentRegex }
+            });
+            if (!matchingModel) {
+                const anyModel = await ProductCatalog.exists(modelQuery);
+                if (!anyModel) {
+                    return `รุ่นสินค้า "${model}" ไม่อยู่ในระบบจัดการสินค้า หรือถูกระงับการใช้งาน`;
+                }
+                return `รุ่นสินค้า "${model}" ไม่ตรงกับประเภทสินค้า "${type}"`;
+            }
+        } else {
+            const modelExists = await ProductCatalog.exists(modelQuery);
+            if (!modelExists) {
+                return `รุ่นสินค้า "${model}" ไม่อยู่ในระบบจัดการสินค้า หรือถูกระงับการใช้งาน`;
+            }
+        }
+    }
+
+    if (color !== undefined && color !== null && String(color).trim() !== '') {
+        const cleanColor = String(color).trim();
+        const colorRegex = new RegExp(`^${cleanColor.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i');
+        const colorExists = await ProductCatalog.exists({
+            category: 'color',
+            name: { $regex: colorRegex },
+            status: 'active'
+        });
+        if (!colorExists) {
+            return `สีสินค้า "${color}" ไม่อยู่ในระบบจัดการสินค้า หรือถูกระงับการใช้งาน`;
+        }
+    }
+
+    if (capacity !== undefined && capacity !== null && String(capacity).trim() !== '') {
+        const cleanCap = String(capacity).trim();
+        const capRegex = new RegExp(`^${cleanCap.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i');
+        const capExists = await ProductCatalog.exists({
+            category: 'capacity',
+            name: { $regex: capRegex },
+            status: 'active'
+        });
+        if (!capExists) {
+            return `ความจุสินค้า "${capacity}" ไม่อยู่ในระบบจัดการสินค้า หรือถูกระงับการใช้งาน`;
+        }
+    }
+
+    return null;
+}
 
 // ═══════════════════════════════════════════════════════════════════
 // FILTER HELPER FUNCTIONS
@@ -3230,6 +3336,12 @@ app.post('/api/warranties', async (req, res) => {
     try {
         const { memberId, device } = req.body;
 
+        // Validate device against active Product Catalog
+        if (device) {
+            const catError = await validateProductCatalogFields(device);
+            if (catError) return res.status(400).json({ message: catError });
+        }
+
         // Generate Unique 7-digit Policy Number
         let policyNumber;
         let isUnique = false;
@@ -3923,6 +4035,9 @@ app.put('/api/warranties/:id', async (req, res) => {
         delete updateData.staffName; // staffName (creator) is immutable
 
         if (updateData.device) {
+            const catError = await validateProductCatalogFields(updateData.device);
+            if (catError) return res.status(400).json({ message: catError });
+
             if (updateData.device.serial) {
                 const existingSerial = await Warranty.findOne({ _id: { $ne: req.params.id }, 'device.serial': updateData.device.serial, approvalStatus: { $ne: 'rejected' } });
                 if (existingSerial) return res.status(400).json({ message: 'Serial นี้ถูกลงทะเบียนแล้วและไม่ได้อยู่ในสถานะไม่อนุมัติ' });
@@ -6741,33 +6856,49 @@ app.post('/api/members', async (req, res) => {
     }
 });
 
-// Lookup members by phone, memberId, or Name (Partial match)
+// Lookup members by phone, memberId, or Name (Partial match) or get all members if query is empty
 app.get('/api/members/lookup', async (req, res) => {
     try {
         const { query } = req.query;
-        if (!query) return res.status(400).json({ success: false, message: 'กรุณาระบุข้อมูลสำหรับค้นหา' });
+        let membersQuery = {};
+        if (query && query.trim()) {
+            const searchRegex = new RegExp(query.trim(), 'i');
+            membersQuery = {
+                $or: [
+                    { phone: searchRegex },
+                    { memberId: searchRegex },
+                    { citizenId: searchRegex },
+                    { firstName: searchRegex },
+                    { lastName: searchRegex }
+                ]
+            };
+        }
 
-        // Search in multiple fields using case-insensitive regex
-        const searchRegex = new RegExp(query, 'i');
-        const members = await Member.find({
-            $or: [
-                { phone: searchRegex },
-                { memberId: searchRegex },
-                { citizenId: searchRegex },
-                { firstName: searchRegex },
-                { lastName: searchRegex }
-            ]
-        }).limit(10).lean(); // Limit results for UI performance
+        const members = await Member.find(membersQuery)
+            .sort({ createdAt: -1 })
+            .lean();
 
-        const enriched = await Promise.all(
-            members.map(async (m) => {
-                const reasons = await getMemberBlacklistReasonsByMemberId(m.memberId);
-                return {
-                    ...m,
-                    memberStatus: reasons.length > 0 ? 'ไม่ปกติ' : 'ปกติ'
-                };
-            })
-        );
+        const memberIds = members.map(m => String(m.memberId)).filter(Boolean);
+        const cutoff = new Date(Date.now() - (5 * 24 * 60 * 60 * 1000));
+        let overdueMemberSet = new Set();
+        if (memberIds.length > 0) {
+            const overdueWarranties = await Warranty.find({
+                memberId: { $in: memberIds },
+                'payment.method': 'Installment',
+                'payment.schedule': {
+                    $elemMatch: {
+                        status: 'Pending',
+                        dueDate: { $lt: cutoff }
+                    }
+                }
+            }).select({ memberId: 1 }).lean();
+            overdueMemberSet = new Set(overdueWarranties.map(w => String(w.memberId)));
+        }
+
+        const enriched = members.map(m => ({
+            ...m,
+            memberStatus: overdueMemberSet.has(String(m.memberId)) ? 'ไม่ปกติ' : 'ปกติ'
+        }));
 
         res.json({ success: true, members: enriched });
     } catch (err) {
@@ -7019,6 +7150,14 @@ app.post('/api/upload/deposit', depositUpload.single('file'), (req, res) => {
 // Create new deposit
 app.post('/api/deposits', async (req, res) => {
     try {
+        const { deviceType, deviceModel } = req.body;
+        if (deviceType || deviceModel) {
+            const catError = await validateProductCatalogFields({ type: deviceType, model: deviceModel });
+            if (catError) {
+                return res.status(400).json({ success: false, message: catError });
+            }
+        }
+
         const deposit = new Deposit(req.body);
         await deposit.save();
 
@@ -7267,8 +7406,11 @@ app.put('/api/warranties/:id/approver-edit', async (req, res) => {
             });
         }
 
-        // Validate duplicates for device
+        // Validate duplicates and catalog for device
         if (device) {
+            const catError = await validateProductCatalogFields(device);
+            if (catError) return res.status(400).json({ success: false, message: catError });
+
             if (device.serial) {
                 const existingSerial = await Warranty.findOne({ _id: { $ne: warrantyId }, 'device.serial': device.serial, approvalStatus: { $ne: 'rejected' } });
                 if (existingSerial) return res.status(400).json({ message: 'Serial นี้ถูกลงทะเบียนแล้วและไม่ได้อยู่ในสถานะไม่อนุมัติ' });
@@ -7503,6 +7645,212 @@ app.get('/api/admin-expenses', async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════════════════
+// PRODUCT CATALOG MANAGEMENT APIs (Types, Models, Colors, Capacities)
+// ═══════════════════════════════════════════════════════════════════
+
+// ฟังก์ชัน Auto-Seed ข้อมูลเริ่มต้นเข้าฐานข้อมูล หากยังไม่มีข้อมูล
+async function seedDefaultProductCatalog() {
+    try {
+        const count = await ProductCatalog.countDocuments();
+        if (count > 0) return;
+
+        console.log('🌱 Seeding initial Product Catalog data...');
+        const initialItems = [
+            // Types (ประเภทสินค้า)
+            { category: 'type', name: 'iPhone', sortOrder: 1 },
+            { category: 'type', name: 'iPad', sortOrder: 2 },
+
+            // Models - iPhone (รุ่นสินค้า iPhone)
+            { category: 'model', name: 'iPhone 13', parentType: 'iPhone', sortOrder: 1 },
+            { category: 'model', name: 'iPhone 13 Pro', parentType: 'iPhone', sortOrder: 2 },
+            { category: 'model', name: 'iPhone 13 Pro Max', parentType: 'iPhone', sortOrder: 3 },
+            { category: 'model', name: 'iPhone 14', parentType: 'iPhone', sortOrder: 4 },
+            { category: 'model', name: 'iPhone 14 Plus', parentType: 'iPhone', sortOrder: 5 },
+            { category: 'model', name: 'iPhone 14 Pro', parentType: 'iPhone', sortOrder: 6 },
+            { category: 'model', name: 'iPhone 14 Pro Max', parentType: 'iPhone', sortOrder: 7 },
+            { category: 'model', name: 'iPhone 15', parentType: 'iPhone', sortOrder: 8 },
+            { category: 'model', name: 'iPhone 15 Plus', parentType: 'iPhone', sortOrder: 9 },
+            { category: 'model', name: 'iPhone 15 Pro', parentType: 'iPhone', sortOrder: 10 },
+            { category: 'model', name: 'iPhone 15 Pro Max', parentType: 'iPhone', sortOrder: 11 },
+            { category: 'model', name: 'iPhone 16', parentType: 'iPhone', sortOrder: 12 },
+            { category: 'model', name: 'iPhone 16 Plus', parentType: 'iPhone', sortOrder: 13 },
+            { category: 'model', name: 'iPhone 16 Pro', parentType: 'iPhone', sortOrder: 14 },
+            { category: 'model', name: 'iPhone 16 Pro Max', parentType: 'iPhone', sortOrder: 15 },
+            { category: 'model', name: 'iPhone 17', parentType: 'iPhone', sortOrder: 16 },
+            { category: 'model', name: 'iPhone 17 Pro', parentType: 'iPhone', sortOrder: 17 },
+            { category: 'model', name: 'iPhone 17 Pro Max', parentType: 'iPhone', sortOrder: 18 },
+
+            // Models - iPad (รุ่นสินค้า iPad)
+            { category: 'model', name: 'iPad Gen11', parentType: 'iPad', sortOrder: 1 },
+            { category: 'model', name: 'iPad Air7', parentType: 'iPad', sortOrder: 2 },
+            { category: 'model', name: 'iPad Air8', parentType: 'iPad', sortOrder: 3 },
+
+            // Colors (สีสินค้า)
+            { category: 'color', name: 'สีดำ (Black)', colorCode: '#1c1c1e', sortOrder: 1 },
+            { category: 'color', name: 'สีขาว (White)', colorCode: '#f2f2f7', sortOrder: 2 },
+            { category: 'color', name: 'บลู (Blue)', colorCode: '#007aff', sortOrder: 3 },
+            { category: 'color', name: 'ชมพู (Pink)', colorCode: '#ff2d55', sortOrder: 4 },
+            { category: 'color', name: 'เขียว (Green)', colorCode: '#34c759', sortOrder: 5 },
+            { category: 'color', name: 'ม่วง (Purple)', colorCode: '#af52de', sortOrder: 6 },
+            { category: 'color', name: 'ส้ม (Orange)', colorCode: '#ff9500', sortOrder: 7 },
+            { category: 'color', name: 'เหลือง (Yellow)', colorCode: '#ffcc00', sortOrder: 8 },
+            { category: 'color', name: 'เงิน (Silver)', colorCode: '#e5e5ea', sortOrder: 9 },
+            { category: 'color', name: 'เทา (Gray)', colorCode: '#8e8e93', sortOrder: 10 },
+            { category: 'color', name: 'กราไฟต์ (Graphite)', colorCode: '#3a3a3c', sortOrder: 11 },
+            { category: 'color', name: 'ทะเลทราย (Desert)', colorCode: '#c4a482', sortOrder: 12 },
+            { category: 'color', name: 'ไทเทเนียมทะเลทราย (Desert Titanium)', colorCode: '#be9b7b', sortOrder: 13 },
+            { category: 'color', name: 'ไวท์ไทเทเนียม (White Titanium)', colorCode: '#e5e4e2', sortOrder: 14 },
+
+            // Capacities (ความจุสินค้า)
+            { category: 'capacity', name: '64GB', sortOrder: 1 },
+            { category: 'capacity', name: '128GB', sortOrder: 2 },
+            { category: 'capacity', name: '256GB', sortOrder: 3 },
+            { category: 'capacity', name: '512GB', sortOrder: 4 },
+            { category: 'capacity', name: '1TB', sortOrder: 5 },
+            { category: 'capacity', name: '2TB', sortOrder: 6 }
+        ];
+
+        await ProductCatalog.insertMany(initialItems);
+        console.log(`✅ Seeded ${initialItems.length} initial Product Catalog items successfully`);
+    } catch (err) {
+        console.error('Failed to seed Product Catalog:', err);
+    }
+}
+
+// GET /api/products-catalog - ดึงข้อมูลสินค้าทั้งหมดหรือกรองตามหมวด
+app.get('/api/products-catalog', async (req, res) => {
+    try {
+        const { category, parentType, search, status } = req.query;
+        const filter = {};
+
+        if (status) {
+            filter.status = status;
+        } else {
+            filter.status = 'active';
+        }
+
+        if (category) filter.category = category;
+        if (parentType) filter.parentType = parentType;
+        if (search) {
+            filter.name = { $regex: String(search), $options: 'i' };
+        }
+
+        const items = await ProductCatalog.find(filter).sort({ sortOrder: 1, createdAt: 1 }).lean();
+
+        // If specific category requested
+        if (category) {
+            return res.json({ success: true, items });
+        }
+
+        // Return all grouped
+        const allItems = await ProductCatalog.find({}).sort({ sortOrder: 1, createdAt: 1 }).lean();
+        const types = allItems.filter(i => i.category === 'type');
+        const models = allItems.filter(i => i.category === 'model');
+        const colors = allItems.filter(i => i.category === 'color');
+        const capacities = allItems.filter(i => i.category === 'capacity');
+
+        res.json({
+            success: true,
+            types,
+            models,
+            colors,
+            capacities,
+            items: allItems
+        });
+    } catch (err) {
+        console.error('GET /api/products-catalog error:', err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// POST /api/products-catalog - เพิ่มรายการสินค้าใหม่
+app.post('/api/products-catalog', async (req, res) => {
+    try {
+        const { category, name, parentType, colorCode, sortOrder, status, recordedBy } = req.body;
+        if (!category || !name) {
+            return res.status(400).json({ success: false, message: 'กรุณาระบุหมวดหมู่และชื่อรายการ' });
+        }
+
+        const cleanName = String(name).trim();
+        const cleanParent = parentType ? String(parentType).trim() : '';
+
+        // Check duplicate
+        const existing = await ProductCatalog.findOne({
+            category,
+            name: cleanName,
+            parentType: cleanParent
+        });
+        if (existing) {
+            return res.status(400).json({ success: false, message: `มีรายการ "${cleanName}" ในระบบแล้ว` });
+        }
+
+        const newItem = new ProductCatalog({
+            category,
+            name: cleanName,
+            parentType: cleanParent,
+            colorCode: colorCode ? String(colorCode).trim() : '',
+            sortOrder: Number(sortOrder) || 0,
+            status: status || 'active'
+        });
+
+        await newItem.save();
+        await logAction('เพิ่มข้อมูลสินค้า', `${category}: ${cleanName}`, recordedBy || 'Admin');
+        res.json({ success: true, item: newItem, message: 'บันทึกข้อมูลเรียบร้อยแล้ว' });
+    } catch (err) {
+        console.error('POST /api/products-catalog error:', err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// PUT /api/products-catalog/:id - แก้ไขรายการสินค้า
+app.put('/api/products-catalog/:id', async (req, res) => {
+    try {
+        const { name, parentType, colorCode, sortOrder, status, recordedBy } = req.body;
+        const item = await ProductCatalog.findById(req.params.id);
+        if (!item) return res.status(404).json({ success: false, message: 'ไม่พบข้อมูลรายการสินค้า' });
+
+        const oldName = item.name;
+        if (name) item.name = String(name).trim();
+        if (parentType !== undefined) item.parentType = String(parentType).trim();
+        if (colorCode !== undefined) item.colorCode = String(colorCode).trim();
+        if (sortOrder !== undefined) item.sortOrder = Number(sortOrder);
+        if (status) item.status = status;
+
+        await item.save();
+
+        // If a Product Type was renamed, cascade update child models parentType
+        if (item.category === 'type' && name && oldName !== item.name) {
+            await ProductCatalog.updateMany({ category: 'model', parentType: oldName }, { parentType: item.name });
+        }
+
+        await logAction('แก้ไขข้อมูลสินค้า', `${item.category}: ${item.name}`, recordedBy || 'Admin');
+        res.json({ success: true, item, message: 'อัปเดตข้อมูลเรียบร้อยแล้ว' });
+    } catch (err) {
+        console.error('PUT /api/products-catalog/:id error:', err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// DELETE /api/products-catalog/:id - ลบรายการสินค้า
+app.delete('/api/products-catalog/:id', async (req, res) => {
+    try {
+        const item = await ProductCatalog.findByIdAndDelete(req.params.id);
+        if (!item) return res.status(404).json({ success: false, message: 'ไม่พบข้อมูลรายการสินค้า' });
+
+        // If deleting a Product Type, also delete its child models
+        if (item.category === 'type') {
+            await ProductCatalog.deleteMany({ category: 'model', parentType: item.name });
+        }
+
+        await logAction('ลบข้อมูลสินค้า', `${item.category}: ${item.name}`, req.query.recordedBy || 'Admin');
+        res.json({ success: true, message: 'ลบข้อมูลเรียบร้อยแล้ว' });
+    } catch (err) {
+        console.error('DELETE /api/products-catalog/:id error:', err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// ═══════════════════════════════════════════════════════════════════
 // LINE MESSAGING API & WEBHOOK
 // ═══════════════════════════════════════════════════════════════════
 
@@ -7512,37 +7860,55 @@ app.post('/api/line/webhook', async (req, res) => {
         const events = req.body?.events || [];
         for (const event of events) {
             const source = event.source || {};
-            const groupId = source.groupId;
+            const groupId = source.groupId || source.roomId;
             const replyToken = event.replyToken;
 
             if (groupId) {
                 console.log(`\n🔔 [LINE Webhook] ตรวจพบ Group ID: ${groupId}`);
                 console.log(`👉 นำค่านี้ไปใส่ใน .env: LINE_GROUP_ID="${groupId}"\n`);
+            }
 
-                // ถ้ามีการพิมพ์ข้อความ หรือ บอทเพิ่งถูกเชิญเข้ากลุ่ม (join)
-                if (event.type === 'join' || (event.type === 'message' && event.message?.type === 'text')) {
-                    const text = event.message?.text || '';
-                    if (event.type === 'join' || text.includes('สวัสดี') || text.toLowerCase().includes('groupid') || text.toLowerCase().includes('id')) {
-                        const token = process.env.LINE_CHANNEL_ACCESS_TOKEN;
-                        if (token && replyToken) {
-                            try {
-                                await fetch('https://api.line.me/v2/bot/message/reply', {
-                                    method: 'POST',
-                                    headers: {
-                                        'Content-Type': 'application/json',
-                                        'Authorization': `Bearer ${token}`
-                                    },
-                                    body: JSON.stringify({
-                                        replyToken,
-                                        messages: [{
-                                            type: 'text',
-                                            text: `สวัสดีฉันคือบอทแจ้งเตือนอัตโนมัติ\n(Group ID: ${groupId})`
-                                        }]
-                                    })
-                                });
-                            } catch (replyErr) {
-                                console.error('LINE Reply error:', replyErr);
-                            }
+            // ตรวจสอบสถานะการแจ้งเตือนจาก DB เสมอ เพื่อให้ซิงค์ตรงกันทันทีแม้ทำงานหลาย Server (Cloud/Local)
+            let isEnabled = getLineNotificationsEnabled();
+            try {
+                const setting = await SystemSetting.findOne({ key: 'line_notifications_enabled' });
+                if (setting && setting.value !== undefined) {
+                    isEnabled = !!setting.value;
+                    setLineNotificationsEnabled(isEnabled);
+                }
+            } catch (dbErr) {
+                console.error('Error fetching line_notifications_enabled in webhook:', dbErr);
+            }
+
+            // ตรวจสอบว่าเปิดการแจ้งเตือน LINE อยู่หรือไม่ ถ้าปิดอยู่ ข้ามการตอบกลับอัตโนมัติทั้งหมด (รวมถึงการพิมพ์ id, สวัสดี, join)
+            if (!isEnabled) {
+                console.log(`⏸️ [LINE Webhook] ได้รับ Event จาก LINE แต่ไม่ตอบกลับข้อความใดๆ เนื่องจากปิดการแจ้งเตือน LINE อยู่`);
+                continue;
+            }
+
+            // ถ้ามีการพิมพ์ข้อความ หรือ บอทเพิ่งถูกเชิญเข้ากลุ่ม (join)
+            if (event.type === 'join' || (event.type === 'message' && event.message?.type === 'text')) {
+                const text = event.message?.text || '';
+                if (event.type === 'join' || text.includes('สวัสดี') || text.toLowerCase().includes('groupid') || text.toLowerCase().includes('id')) {
+                    const token = process.env.LINE_CHANNEL_ACCESS_TOKEN;
+                    if (token && replyToken) {
+                        try {
+                            await fetch('https://api.line.me/v2/bot/message/reply', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'Authorization': `Bearer ${token}`
+                                },
+                                body: JSON.stringify({
+                                    replyToken,
+                                    messages: [{
+                                        type: 'text',
+                                        text: `สวัสดีฉันคือบอทแจ้งเตือนอัตโนมัติ\n(Group ID: ${groupId || 'Direct Message'})`
+                                    }]
+                                })
+                            });
+                        } catch (replyErr) {
+                            console.error('LINE Reply error:', replyErr);
                         }
                     }
                 }
@@ -7558,6 +7924,12 @@ app.post('/api/line/webhook', async (req, res) => {
 // Endpoint สำหรับทดสอบส่งข้อความเข้ากลุ่ม LINE
 app.post('/api/line/test-send', async (req, res) => {
     try {
+        if (!getLineNotificationsEnabled()) {
+            return res.status(400).json({
+                success: false,
+                message: 'ไม่สามารถส่งข้อความได้เนื่องจากสถานะแจ้งเตือน LINE ถูกปิดอยู่'
+            });
+        }
         const { message, groupId } = req.body || {};
         const textToSend = message || 'สวัสดีฉันคือบอทแจ้งเตือนอัตโนมัติ';
         const result = await sendLineMessage(textToSend, groupId);
@@ -7570,6 +7942,12 @@ app.post('/api/line/test-send', async (req, res) => {
 // Endpoint สำหรับทดสอบส่งการแจ้งเตือนสัญญารออนุมัติเข้ากลุ่ม LINE
 app.post('/api/line/test-warranty-notify', async (req, res) => {
     try {
+        if (!getLineNotificationsEnabled()) {
+            return res.status(400).json({
+                success: false,
+                message: 'ไม่สามารถส่งการแจ้งเตือนได้เนื่องจากสถานะแจ้งเตือน LINE ถูกปิดอยู่'
+            });
+        }
         const { warrantyId, isResubmit } = req.body || {};
         let warranty;
         if (warrantyId) {
@@ -7581,6 +7959,42 @@ app.post('/api/line/test-warranty-notify', async (req, res) => {
 
         const result = await notifyWarrantyPending(warranty, { isResubmit: !!isResubmit });
         res.json({ success: true, message: 'ส่งการแจ้งเตือนสัญญารออนุมัติสำเร็จ', result, policyNumber: warranty.policyNumber });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+// Endpoint สำหรับอ่านสถานะการเปิด/ปิด การแจ้งเตือน LINE
+app.get('/api/line/status', (req, res) => {
+    res.json({
+        success: true,
+        enabled: getLineNotificationsEnabled()
+    });
+});
+
+// Endpoint สำหรับเปิด/ปิด การแจ้งเตือน LINE
+app.post('/api/line/toggle', async (req, res) => {
+    try {
+        const { enabled, updatedBy } = req.body || {};
+        const newStatus = (enabled !== undefined && enabled !== null) ? !!enabled : !getLineNotificationsEnabled();
+
+        await SystemSetting.findOneAndUpdate(
+            { key: 'line_notifications_enabled' },
+            {
+                key: 'line_notifications_enabled',
+                value: newStatus,
+                updatedBy: updatedBy || req.headers['x-user-name'] || 'Admin',
+                updatedAt: new Date()
+            },
+            { upsert: true, new: true }
+        );
+
+        setLineNotificationsEnabled(newStatus);
+
+        if (io) {
+            io.emit('line_notify_status_changed', { enabled: newStatus, updatedBy });
+        }
+
+        res.json({ success: true, enabled: newStatus });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }
@@ -7603,8 +8017,23 @@ const startServer = () => {
                 { actionType: 'ชำระปิดยอด/จ่ายเต็ม' },
                 [{ $set: { fullRevenue: '$netTotal' } }]
             );
+            // Seed default Product Catalog if empty
+            await seedDefaultProductCatalog();
+
+            // Load and init LINE notification setting
+            const lineSetting = await SystemSetting.findOne({ key: 'line_notifications_enabled' });
+            if (lineSetting !== null && lineSetting !== undefined && lineSetting.value !== undefined) {
+                setLineNotificationsEnabled(!!lineSetting.value);
+            } else {
+                setLineNotificationsEnabled(true);
+                await SystemSetting.findOneAndUpdate(
+                    { key: 'line_notifications_enabled' },
+                    { key: 'line_notifications_enabled', value: true, updatedAt: new Date() },
+                    { upsert: true }
+                );
+            }
         } catch (err) {
-            console.error('Failed to run startup migration for FinanceTransaction:', err);
+            console.error('Failed to run startup migration/seeding:', err);
         }
     });
 };

@@ -590,6 +590,14 @@
                             </svg>
                             จัดการไฟแนนซ์
                         </a>
+                        <a href="#" id="productsNavLink" data-permission="nav-products">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect>
+                                <line x1="12" y1="18" x2="12.01" y2="18"></line>
+                            </svg>
+                            จัดการสินค้า
+                        </a>
 
                         <a href="#" id="financeNavLink" data-permission="nav-finance">
                             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -654,14 +662,24 @@
                             <h1>รายการประกันเครื่องทั้งหมด</h1>
                             <p>จัดการและติดตามข้อมูลประกันภัยมือถือของลูกค้า</p>
                         </div>
-                        <button id="addNewBtn" class="add-btn">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <line x1="12" y1="5" x2="12" y2="19"></line>
-                                <line x1="5" y1="12" x2="19" y2="12"></line>
-                            </svg>
-                            สร้างสัญญาใหม่
-                        </button>
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <button type="button" class="line-notify-toggle-btn" id="dashLineNotifyToggleBtn" onclick="toggleLineNotification()" title="คลิกเพื่อเปิด/ปิด การแจ้งเตือน LINE">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M12 2C6.48 2 2 5.92 2 10.75c0 2.97 1.7 5.59 4.34 7.21-.19.67-.69 2.45-.79 2.83-.12.48.17.47.36.35.15-.09 2.1-1.42 2.94-1.99.73.1 1.48.15 2.25.15 5.52 0 10-3.92 10-8.75S17.52 2 12 2z"/>
+                                </svg>
+                                <span>แจ้งเตือน LINE:</span>
+                                <span class="line-status-text">เปิด</span>
+                                <span class="line-toggle-indicator"></span>
+                            </button>
+                            <button id="addNewBtn" class="add-btn">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                                </svg>
+                                สร้างสัญญาใหม่
+                            </button>
+                        </div>
                     </header>
 
                     <div class="stats-overview">
@@ -823,7 +841,15 @@
                             <h1>แดชบอร์ดผู้บริหาร</h1>
                             <p>ภาพรวมสถิติธุรกิจและวิเคราะห์ข้อมูล (Business Intelligence)</p>
                         </div>
-                        <div class="header-actions" style="display: flex; gap: 10px;">
+                        <div class="header-actions" style="display: flex; gap: 10px; align-items: center;">
+                            <button type="button" class="line-notify-toggle-btn" id="executiveLineNotifyToggleBtn" onclick="toggleLineNotification()" title="คลิกเพื่อเปิด/ปิด การแจ้งเตือน LINE">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M12 2C6.48 2 2 5.92 2 10.75c0 2.97 1.7 5.59 4.34 7.21-.19.67-.69 2.45-.79 2.83-.12.48.17.47.36.35.15-.09 2.1-1.42 2.94-1.99.73.1 1.48.15 2.25.15 5.52 0 10-3.92 10-8.75S17.52 2 12 2z"/>
+                                </svg>
+                                <span>แจ้งเตือน LINE:</span>
+                                <span class="line-status-text">เปิด</span>
+                                <span class="line-toggle-indicator"></span>
+                            </button>
                             <button id="btnViewAuditLogs" style="display: inline-flex; align-items: center; gap: 10px; padding: 10px 22px;
                                        background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a78bfa 100%);
                                        color: #fff; border: none; border-radius: 12px; cursor: pointer;
@@ -2432,59 +2458,23 @@
                                 </div>
                                 <div class="form-group">
                                     <label>ประเภทเครื่อง <span style="color:red">*</span></label>
-                                    <select id="depDeviceType" required>
-                                        <option value="" disabled selected>เลือกประเภท</option>
-                                        <option value="iPhone">iPhone</option>
-                                        <option value="iPad">iPad</option>
-                                    </select>
+                                    <div class="catalog-combobox-wrapper" id="depDeviceTypeWrapper">
+                                        <input type="text" id="depDeviceType" class="catalog-combobox-input" placeholder="ค้นหาหรือเลือกประเภท..." autocomplete="off" required>
+                                        <span class="catalog-combobox-chevron">
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                                        </span>
+                                        <div class="catalog-combobox-dropdown" id="depDeviceTypeDropdown"></div>
+                                    </div>
                                 </div>
                                 <div class="form-group">
                                     <label>รุ่นเครื่อง <span style="color:red">*</span></label>
-                                    <select id="depDeviceModel" required>
-                                        <option value="" disabled selected>เลือก</option>
-                                        <option value="13 128 ดำ">13 128 ดำ</option>
-                                        <option value="13 128 ขาว">13 128 ขาว</option>
-                                        <option value="15 128 ดำ">15 128 ดำ</option>
-                                        <option value="15 128 บลู">15 128 บลู</option>
-                                        <option value="15 128 ชมพู">15 128 ชมพู</option>
-                                        <option value="15 256 บลู">15 256 บลู</option>
-                                        <option value="16 128 ดำ">16 128 ดำ</option>
-                                        <option value="16 128 บลู">16 128 บลู</option>
-                                        <option value="16 128 ชมพู">16 128 ชมพู</option>
-                                        <option value="16 128 เขียว">16 128 เขียว</option>
-                                        <option value="16 128 ขาว">16 128 ขาว</option>
-                                        <option value="16 256 บลู">16 256 บลู</option>
-                                        <option value="16 Plus 128 ดำ">16 Plus 128 ดำ</option>
-                                        <option value="16 Plus 128 ชมพู">16 Plus 128 ชมพู</option>
-                                        <option value="16 Plus 128 ขาว">16 Plus 128 ขาว</option>
-                                        <option value="16 Pro 128 ดำ">16 Pro 128 ดำ</option>
-                                        <option value="16p 128 ดำ">16p 128 ดำ</option>
-                                        <option value="16p 128 Graphite">16p 128 Graphite</option>
-                                        <option value="16pm 256 ดำ">16pm 256 ดำ</option>
-                                        <option value="16 Pro Max 256 Desert">16 Pro Max 256 Desert</option>
-                                        <option value="16 Pro Max 256 Desert Titanium">16 Pro Max 256 Desert Titanium</option>
-                                        <option value="16 Pro Max 256 Graphite">16 Pro Max 256 Graphite</option>
-                                        <option value="16 Pro Max 256 Silver">16 Pro Max 256 Silver</option>
-                                        <option value="16 Pro Max 256 White Titanium">16 Pro Max 256 White Titanium</option>
-                                        <option value="17 256 ดำ">17 256 ดำ</option>
-                                        <option value="17 256 บลู">17 256 บลู</option>
-                                        <option value="17 256 ม่วง">17 256 ม่วง</option>
-                                        <option value="17 256 ขาว">17 256 ขาว</option>
-                                        <option value="17 256 เขียว">17 256 เขียว</option>
-                                        <option value="17 Pro 256 ขาว">17 Pro 256 ขาว</option>
-                                        <option value="17 Pro 256 ส้ม">17 Pro 256 ส้ม</option>
-                                        <option value="17 Pro 256 บลู">17 Pro 256 บลู</option>
-                                        <option value="17pm 256 บลู">17pm 256 บลู</option>
-                                        <option value="17pm 256 ส้ม">17pm 256 ส้ม</option>
-                                        <option value="17pm 256 ขาว">17pm 256 ขาว</option>
-                                        <option value="iPad Gen11 128 ขาว">iPad Gen11 128 ขาว</option>
-                                        <option value="iPad Gen11 128 บลู">iPad Gen11 128 บลู</option>
-                                        <option value="iPad Gen11 128 ชมพู">iPad Gen11 128 ชมพู</option>
-                                        <option value="iPad Air7 128 ขาว">iPad Air7 128 ขาว</option>
-                                        <option value="iPad Air7 128 ม่วง">iPad Air7 128 ม่วง</option>
-                                        <option value="iPad Air7 128 เทา">iPad Air7 128 เทา</option>
-                                        <option value="iPad Air7 128 บลู">iPad Air7 128 บลู</option>
-                                    </select>
+                                    <div class="catalog-combobox-wrapper" id="depDeviceModelWrapper">
+                                        <input type="text" id="depDeviceModel" class="catalog-combobox-input" placeholder="ค้นหาหรือเลือกรุ่น..." autocomplete="off" required>
+                                        <span class="catalog-combobox-chevron">
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                                        </span>
+                                        <div class="catalog-combobox-dropdown" id="depDeviceModelDropdown"></div>
+                                    </div>
                                 </div>
                                 <div class="form-group">
                                     <label>วันที่ซื้อเครื่อง <span style="color:red">*</span></label>
@@ -3124,6 +3114,133 @@
                     </div>
                 </div>
 
+                <!-- Products Catalog Main Content -->
+                <main id="productsMain" class="main-content" style="display: none;">
+                    <header class="dashboard-header">
+                        <div class="header-titles">
+                            <h1>จัดการข้อมูลสินค้า</h1>
+                            <p>จัดการประเภทสินค้า, ชื่อรุ่นสินค้า, สีสินค้า และความจุสินค้า สำหรับใช้งานในระบบ</p>
+                        </div>
+                        <button id="addProductCatalogBtn" class="add-btn">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <line x1="12" y1="5" x2="12" y2="19"></line>
+                                <line x1="5" y1="12" x2="19" y2="12"></line>
+                            </svg>
+                            <span id="addProductCatalogBtnText">เพิ่มประเภทสินค้า</span>
+                        </button>
+                    </header>
+
+                    <!-- Product Catalog Sub-tabs Navigation -->
+                    <div class="product-catalog-tabs" style="display: flex; gap: 8px; margin-bottom: 20px; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px; flex-wrap: wrap;">
+                        <button type="button" class="catalog-tab-btn active" data-category="type" style="display: flex; align-items: center; gap: 8px; padding: 10px 18px; border-radius: 10px; font-weight: 600; font-size: 0.95rem; border: none; cursor: pointer; transition: all 0.2s; background: var(--primary, #0d9488); color: white;">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect><line x1="12" y1="18" x2="12.01" y2="18"></line></svg>
+                            ประเภทสินค้า (Types)
+                            <span id="badgeCountTypes" class="badge-count" style="background: rgba(255,255,255,0.25); color: white; padding: 2px 8px; border-radius: 12px; font-size: 0.78rem;">0</span>
+                        </button>
+                        <button type="button" class="catalog-tab-btn" data-category="model" style="display: flex; align-items: center; gap: 8px; padding: 10px 18px; border-radius: 10px; font-weight: 600; font-size: 0.95rem; border: none; cursor: pointer; transition: all 0.2s; background: #f1f5f9; color: #475569;">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path><line x1="7" y1="7" x2="7.01" y2="7"></line></svg>
+                            ชื่อรุ่นสินค้า (Models)
+                            <span id="badgeCountModels" class="badge-count" style="background: #e2e8f0; color: #475569; padding: 2px 8px; border-radius: 12px; font-size: 0.78rem;">0</span>
+                        </button>
+                        <button type="button" class="catalog-tab-btn" data-category="color" style="display: flex; align-items: center; gap: 8px; padding: 10px 18px; border-radius: 10px; font-weight: 600; font-size: 0.95rem; border: none; cursor: pointer; transition: all 0.2s; background: #f1f5f9; color: #475569;">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r=".5"></circle><circle cx="17.5" cy="10.5" r=".5"></circle><circle cx="8.5" cy="7.5" r=".5"></circle><circle cx="6.5" cy="12.5" r=".5"></circle><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"></path></svg>
+                            สีสินค้า (Colors)
+                            <span id="badgeCountColors" class="badge-count" style="background: #e2e8f0; color: #475569; padding: 2px 8px; border-radius: 12px; font-size: 0.78rem;">0</span>
+                        </button>
+                        <button type="button" class="catalog-tab-btn" data-category="capacity" style="display: flex; align-items: center; gap: 8px; padding: 10px 18px; border-radius: 10px; font-weight: 600; font-size: 0.95rem; border: none; cursor: pointer; transition: all 0.2s; background: #f1f5f9; color: #475569;">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect><rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect><line x1="6" y1="6" x2="6.01" y2="6"></line><line x1="6" y1="18" x2="6.01" y2="18"></line></svg>
+                            ความจุสินค้า (Capacities)
+                            <span id="badgeCountCapacities" class="badge-count" style="background: #e2e8f0; color: #475569; padding: 2px 8px; border-radius: 12px; font-size: 0.78rem;">0</span>
+                        </button>
+                    </div>
+
+                    <!-- Product Catalog Filter Bar -->
+                    <div class="advanced-filter-bar">
+                        <div class="filter-bar-row" style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+                            <div class="search-container" style="flex: 1; min-width: 250px; margin: 0;">
+                                <input type="text" id="productCatalogSearchInput" style="width: 100%;" placeholder="ค้นหารายการ...">
+                            </div>
+                            <div id="productCatalogTypeFilterGroup" style="display: none; min-width: 180px;">
+                                <select id="productCatalogTypeFilter" style="height: 40px; padding: 0 12px; border-radius: 8px; border: 1.5px solid #cbd5e1; font-size: 0.88rem; width: 100%;">
+                                    <option value="">ทุกประเภทสินค้า</option>
+                                </select>
+                            </div>
+                            <div class="filter-actions">
+                                <button type="button" class="filter-reset-btn" id="productCatalogResetBtn"> ล้างค่า</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Product Catalog Table Container -->
+                    <div class="table-container">
+                        <div class="table-responsive">
+                            <table id="productCatalogTable">
+                                <thead id="productCatalogThead">
+                                    <tr>
+                                        <th style="width: 70px; text-align: center;">ลำดับ</th>
+                                        <th>ชื่อรายการ</th>
+                                        <th>ข้อมูลเพิ่มเติม</th>
+                                        <th style="width: 120px; text-align: center;">จัดการ</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="productCatalogTbody"></tbody>
+                            </table>
+                        </div>
+                        <div id="productCatalogEmptyState" class="empty-state" style="display: none;">
+                            <p>ยังไม่มีข้อมูลในหมวดหมู่นี้</p>
+                        </div>
+                    </div>
+                </main>
+
+                <!-- Product Catalog Add/Edit Modal -->
+                <div id="productCatalogModal" class="modal" style="display: none;">
+                    <div class="modal-content" style="max-width: 480px;">
+                        <div class="modal-header">
+                            <h2 id="productCatalogModalTitle">เพิ่มรายการสินค้า</h2>
+                            <button class="modal-close-btn" id="closeProductCatalogModal">&times;</button>
+                        </div>
+                        <form id="productCatalogForm">
+                            <input type="hidden" id="editCatalogItemId">
+                            <input type="hidden" id="editCatalogCategory" value="type">
+
+                            <!-- Field: Parent Type (Only for 'model') -->
+                            <div class="form-group full-width" id="catalogParentTypeGroup" style="display: none;">
+                                <label for="catalogParentType">สังกัดประเภทสินค้า <span style="color: #ef4444;">*</span></label>
+                                <select id="catalogParentType" style="width: 100%; height: 42px; border-radius: 8px; border: 1.5px solid #cbd5e1; padding: 0 12px; font-size: 0.9rem;">
+                                    <option value="" disabled selected>เลือกประเภทสินค้า</option>
+                                </select>
+                            </div>
+
+                            <!-- Field: Item Name -->
+                            <div class="form-group full-width">
+                                <label id="catalogNameLabel" for="catalogName">ชื่อรายการ <span style="color: #ef4444;">*</span></label>
+                                <input type="text" id="catalogName" required placeholder="กรอกชื่อรายการ...">
+                            </div>
+
+                            <!-- Field: Color Code (Optional for 'color') -->
+                            <div class="form-group full-width" id="catalogColorCodeGroup" style="display: none;">
+                                <label for="catalogColorCode">รหัสสีตัวอย่าง (Hex Code) <span style="font-size: 0.8rem; color: #94a3b8;">(ไม่บังคับ)</span></label>
+                                <div style="display: flex; gap: 8px; align-items: center;">
+                                    <input type="color" id="catalogColorPicker" value="#000000" style="width: 44px; height: 40px; padding: 2px; border: 1px solid #cbd5e1; border-radius: 8px; cursor: pointer;">
+                                    <input type="text" id="catalogColorCode" placeholder="#000000" style="flex: 1;">
+                                </div>
+                            </div>
+
+                            <!-- Field: Sort Order -->
+                            <div class="form-group full-width">
+                                <label for="catalogSortOrder">ลำดับการแสดงผล <span style="font-size: 0.8rem; color: #94a3b8;">(ค่าน้อยจะแสดงก่อน เช่น 1, 2, 3...)</span></label>
+                                <input type="number" id="catalogSortOrder" value="0" min="0" placeholder="0">
+                            </div>
+
+                            <div class="modal-footer" style="margin-top: 20px; display: flex; justify-content: flex-end; gap: 10px;">
+                                <button type="button" class="cancel-btn" id="cancelProductCatalogModal">ยกเลิก</button>
+                                <button type="submit" class="submit-btn" style="background-color: var(--primary);">บันทึก</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
                 <!-- Claims Main Content -->
                 <main id="claimsMain" class="main-content" style="display: none;">
                     <header class="dashboard-header">
@@ -3567,35 +3684,44 @@
                     </div>
 
                     <div class="grid-row">
-                        <div class="form-group"><label>เลขกรมธรรม์ (กธ.)</label><input type="text" id="policyNumber"
-                                readonly class="readonly-field" placeholder="ออกโดยระบบอัตโนมัติ"></div>
-                        <div class="form-group"><label>รหัสสมาชิก</label><input type="text" id="memberId"
-                                placeholder="รหัสสมาชิก"></div>
-                        <div class="form-group"><label>ชื่อ</label><input type="text" id="firstName" required></div>
-                        <div class="form-group"><label>นามสกุล</label><input type="text" id="lastName" required>
-                        </div>
-                        <div class="form-group"><label>เบอร์โทรศัพท์</label><input type="tel" id="phone" required
-                                placeholder="0xxxxxxxxx" maxlength="10" inputmode="numeric" pattern="[0-9]{10}"
-                                title="กรุณากรอกเบอร์โทรศัพท์เป็นตัวเลข 10 หลัก"></div>
+                        
                         <div class="form-group">
                             <label>ร้านค้า (Shop)</label>
                             <select id="shopName" required>
                                 <option value="" disabled selected>โหลดข้อมูลร้านค้า...</option>
                             </select>
                         </div>
+                        
+                        <div class="form-group"></div>
+
+                        <div class="form-group"><label>เลขกรมธรรม์ (กธ.)</label><input type="text" id="policyNumber"
+                                readonly class="readonly-field" placeholder="ออกโดยระบบอัตโนมัติ"></div>
+                        <div class="form-group"><label>รหัสสมาชิก</label><input type="text" id="memberId"
+                                readonly class="readonly-field" placeholder="เลือกจากระบบค้นหาสมาชิก" required></div>
+                        <div class="form-group"><label>ชื่อ</label><input type="text" id="firstName"
+                                readonly class="readonly-field" placeholder="เลือกจากระบบค้นหาสมาชิก" required></div>
+                        <div class="form-group"><label>นามสกุล</label><input type="text" id="lastName"
+                                readonly class="readonly-field" placeholder="เลือกจากระบบค้นหาสมาชิก" required>
+                        </div>
+                        <div class="form-group"><label>เบอร์โทรศัพท์</label><input type="tel" id="phone"
+                                readonly class="readonly-field" placeholder="เลือกจากระบบค้นหาสมาชิก" required
+                                maxlength="10" inputmode="numeric" pattern="[0-9]{10}"
+                                title="กรุณากรอกเบอร์โทรศัพท์เป็นตัวเลข 10 หลัก"></div>
+                        <div class="form-group"></div>
                         <div class="form-group"><label>วันเกิด (พ.ศ.)</label>
                             <div style="display: flex; gap: 0.5rem;">
                                 <input type="number" id="dobDay" placeholder="วัน" min="1" max="31" required
-                                    style="width: 80px;" onwheel="return false;">
+                                    readonly class="readonly-field" style="width: 80px;" onwheel="return false;">
                                 <input type="number" id="dobMonth" placeholder="เดือน" min="1" max="12" required
-                                    style="width: 80px;" onwheel="return false;">
-                                <input type="number" id="dobYear" placeholder="ปี พ.ศ." min="2400" max="2600" required onwheel="return false;">
+                                    readonly class="readonly-field" style="width: 80px;" onwheel="return false;">
+                                <input type="number" id="dobYear" placeholder="ปี พ.ศ." min="2400" max="2600" required
+                                    readonly class="readonly-field" onwheel="return false;">
                             </div>
                         </div>
                         <div class="form-group"><label>อายุ</label><input type="text" id="age" readonly
                                 class="readonly-field" placeholder="คำนวณอัตโนมัติ"></div>
                         <div class="form-group full-width"><label>ที่อยู่</label><textarea id="address" rows="3"
-                                required></textarea></div>
+                                readonly class="readonly-field" placeholder="เลือกจากระบบค้นหาสมาชิก" required></textarea></div>
                     </div>
                 </section>
 
@@ -3613,71 +3739,44 @@
                             </select>
                         </div>
                         <div class="form-group">
-                            <label>ประเภทสินค้า</label>
-                            <select id="productType" required>
-                                <option value="" disabled selected>เลือกประเภท</option>
-                                <option value="iPhone">iPhone</option>
-                                <option value="iPad">iPad</option>
-                            </select>
+                            <label>ประเภทสินค้า <span style="color: #ef4444;">*</span></label>
+                            <div class="catalog-combobox-wrapper" id="productTypeWrapper">
+                                <input type="text" id="productType" class="catalog-combobox-input" placeholder="ค้นหาหรือเลือกประเภทสินค้า..." autocomplete="off" required>
+                                <span class="catalog-combobox-chevron">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                                </span>
+                                <div class="catalog-combobox-dropdown" id="productTypeDropdown"></div>
+                            </div>
                         </div>
                         <div class="form-group">
-                            <label>ชื่อรุ่น (Model Name)</label>
-                            <input type="text" id="model" list="modelList" placeholder="เลือกรุ่น หรือพิมพ์เพิ่มใหม่" autocomplete="off" required>
-                            <datalist id="modelList">
-                                <option value="iPhone 13">iPhone 13</option>
-                                <option value="iPhone 13 Pro">iPhone 13 Pro</option>
-                                <option value="iPhone 13 Pro Max">iPhone 13 Pro Max</option>
-                                <option value="iPhone 14">iPhone 14</option>
-                                <option value="iPhone 14 Plus">iPhone 14 Plus</option>
-                                <option value="iPhone 14 Pro">iPhone 14 Pro</option>
-                                <option value="iPhone 14 Pro Max">iPhone 14 Pro Max</option>
-                                <option value="iPhone 15">iPhone 15</option>
-                                <option value="iPhone 15 Plus">iPhone 15 Plus</option>
-                                <option value="iPhone 15 Pro">iPhone 15 Pro</option>
-                                <option value="iPhone 15 Pro Max">iPhone 15 Pro Max</option>
-                                <option value="iPhone 16">iPhone 16</option>
-                                <option value="iPhone 16 Plus">iPhone 16 Plus</option>
-                                <option value="iPhone 16 Pro">iPhone 16 Pro</option>
-                                <option value="iPhone 16 Pro Max">iPhone 16 Pro Max</option>
-                                <option value="iPhone 17">iPhone 17</option>
-                                <option value="iPhone 17 Pro">iPhone 17 Pro</option>
-                                <option value="iPhone 17 Pro Max">iPhone 17 Pro Max</option>
-                                <option value="iPad Gen11">iPad Gen11</option>
-                                <option value="iPad Air7">iPad Air7</option>
-                                <option value="iPad Air8">iPad Air8</option>
-
-                            </datalist>
+                            <label>ชื่อรุ่น (Model Name) <span style="color: #ef4444;">*</span></label>
+                            <div class="catalog-combobox-wrapper" id="modelWrapper">
+                                <input type="text" id="model" class="catalog-combobox-input" placeholder="ค้นหาหรือเลือกรุ่นสินค้า..." autocomplete="off" required>
+                                <span class="catalog-combobox-chevron">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                                </span>
+                                <div class="catalog-combobox-dropdown" id="modelDropdown"></div>
+                            </div>
                         </div>
                         <div class="form-group">
-                            <label>สี (Color)</label>
-                            <input type="text" id="color" list="colorList" placeholder="เลือกสี หรือพิมพ์เพิ่มใหม่" autocomplete="off" required>
-                            <datalist id="colorList">
-                                <option value="สีดำ">สีดำ (Black)</option>
-                                <option value="สีขาว">สีขาว (White)</option>
-                                <option value="บลู">บลู (Blue)</option>
-                                <option value="ชมพู">ชมพู (Pink)</option>
-                                <option value="เขียว">เขียว (Green)</option>
-                                <option value="ม่วง">ม่วง (Purple)</option>
-                                <option value="ส้ม">ส้ม (Orange)</option>
-                                <option value="เหลือง">เหลือง (Yellow)</option>
-                                <option value="เงิน">เงิน (Silver)</option>
-                                <option value="เทา">เทา (Gray)</option>
-                                <option value="กราไฟต์">กราไฟต์ (Graphite)</option>
-                                <option value="ทะเลทราย">ทะเลทราย (Desert)</option>
-                                <option value="ไทเทเนียมทะเลทราย">ไทเทเนียมทะเลทราย (Desert Titanium)</option>
-                                <option value="ไวท์ไทเทเนียม">ไวท์ไทเทเนียม (White Titanium)</option>
-                            </datalist>
+                            <label>สี (Color) <span style="color: #ef4444;">*</span></label>
+                            <div class="catalog-combobox-wrapper" id="colorWrapper">
+                                <input type="text" id="color" class="catalog-combobox-input" placeholder="ค้นหาหรือเลือกสีสินค้า..." autocomplete="off" required>
+                                <span class="catalog-combobox-chevron">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                                </span>
+                                <div class="catalog-combobox-dropdown" id="colorDropdown"></div>
+                            </div>
                         </div>
                         <div class="form-group">
-                            <label>ความจุ (Capacity)</label>
-                            <select id="capacity" required>
-                                <option value="" disabled selected>เลือกความจุ</option>
-                                <option value="128GB">128GB</option>
-                                <option value="256GB">256GB</option>
-                                <option value="512GB">512GB</option>
-                                <option value="1TB">1TB</option>
-                                <option value="2TB">2TB</option>
-                            </select>
+                            <label>ความจุ (Capacity) <span style="color: #ef4444;">*</span></label>
+                            <div class="catalog-combobox-wrapper" id="capacityWrapper">
+                                <input type="text" id="capacity" class="catalog-combobox-input" placeholder="ค้นหาหรือเลือกความจุ..." autocomplete="off" required>
+                                <span class="catalog-combobox-chevron">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                                </span>
+                                <div class="catalog-combobox-dropdown" id="capacityDropdown"></div>
+                            </div>
                         </div>
                         <div class="form-group"><label>เลขซีเรียล (Serial Number)</label>
                             <input type="text" id="serialNumber" required minlength="10" maxlength="10"

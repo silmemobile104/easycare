@@ -392,7 +392,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const membersNavLink = document.getElementById('membersNavLink');
         const shopsNavLink = document.getElementById('shopsNavLink');
 
-        if (viewName === 'dashboard' || viewName === 'members' || viewName === 'shops' || viewName === 'claims' || viewName === 'statusTracking' || viewName === 'approval' || viewName === 'staff' || viewName === 'executive' || viewName === 'finance' || viewName === 'deposit' || viewName === 'calculator' || viewName === 'dashboard-sales' || viewName === 'dashboard-approver' || viewName === 'finance-companies') {
+        if (viewName === 'dashboard' || viewName === 'members' || viewName === 'shops' || viewName === 'claims' || viewName === 'statusTracking' || viewName === 'approval' || viewName === 'staff' || viewName === 'executive' || viewName === 'finance' || viewName === 'deposit' || viewName === 'calculator' || viewName === 'dashboard-sales' || viewName === 'dashboard-approver' || viewName === 'finance-companies' || viewName === 'products') {
             views.dashboard.style.display = 'block';
 
             // Hide all sub-views first
@@ -417,6 +417,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (staffMain) staffMain.style.display = 'none';
             const financeCompaniesMain = document.getElementById('financeCompaniesMain');
             if (financeCompaniesMain) financeCompaniesMain.style.display = 'none';
+            const productsMainEl = document.getElementById('productsMain');
+            if (productsMainEl) productsMainEl.style.display = 'none';
             const depositMainEl = document.getElementById('depositMain');
             if (depositMainEl) depositMainEl.style.display = 'none';
             const calculatorMainEl = document.getElementById('calculatorView');
@@ -436,6 +438,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (staffNavLinkEl) staffNavLinkEl.classList.remove('active');
             const financeCompaniesNavLinkEl = document.getElementById('financeCompaniesNavLink');
             if (financeCompaniesNavLinkEl) financeCompaniesNavLinkEl.classList.remove('active');
+            const productsNavLinkEl = document.getElementById('productsNavLink');
+            if (productsNavLinkEl) productsNavLinkEl.classList.remove('active');
             const executiveNavLinkEl = document.getElementById('nav-executive');
             if (executiveNavLinkEl) executiveNavLinkEl.classList.remove('active');
             const financeNavLinkEl = document.getElementById('financeNavLink');
@@ -531,6 +535,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (calcView) calcView.style.display = 'block';
                 if (calculatorNavLinkEl) calculatorNavLinkEl.classList.add('active');
                 stopApprovalAutoRefresh();
+            } else if (viewName === 'products') {
+                const productsMainEl = document.getElementById('productsMain');
+                if (productsMainEl) productsMainEl.style.display = 'block';
+                const productsNavLinkEl = document.getElementById('productsNavLink');
+                if (productsNavLinkEl) productsNavLinkEl.classList.add('active');
+                stopApprovalAutoRefresh();
+                fetchProductsCatalog();
             } else {
                 // For other dashboard views, ensure approval refresh is stopped
                 stopApprovalAutoRefresh();
@@ -545,6 +556,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (currentUser) {
             updateApprovalBadge();
             startBadgeInterval();
+            fetchLineNotifyStatus();
         }
     }
 
@@ -775,6 +787,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const financeCompaniesNavLink = document.getElementById('financeCompaniesNavLink');
     if (financeCompaniesNavLink) financeCompaniesNavLink.addEventListener('click', (e) => { e.preventDefault(); showView('finance-companies'); });
+
+    const productsNavLink = document.getElementById('productsNavLink');
+    if (productsNavLink) productsNavLink.addEventListener('click', (e) => { e.preventDefault(); showView('products'); });
 
     const executiveNavLink = document.getElementById('nav-executive');
     if (executiveNavLink) executiveNavLink.addEventListener('click', (e) => { e.preventDefault(); showView('executive'); });
@@ -5148,7 +5163,90 @@ document.addEventListener('DOMContentLoaded', () => {
             urgentApprovalQueue.push(payload || {});
             processUrgentApprovalQueue();
         });
+
+        // Socket.io listener for realtime LINE notify status sync
+        socket.on('line_notify_status_changed', (payload) => {
+            if (payload && payload.enabled !== undefined) {
+                updateLineNotifyButtonsUI(payload.enabled);
+            }
+        });
     }
+
+    // --- LINE Notification Toggle Logic ---
+    let isLineNotifyEnabled = true;
+
+    function updateLineNotifyButtonsUI(enabled) {
+        isLineNotifyEnabled = !!enabled;
+        const buttons = document.querySelectorAll('.line-notify-toggle-btn');
+        buttons.forEach(btn => {
+            const statusText = btn.querySelector('.line-status-text');
+            if (isLineNotifyEnabled) {
+                btn.classList.remove('is-disabled');
+                if (statusText) statusText.textContent = 'เปิด';
+                btn.title = 'คลิกเพื่อปิดการแจ้งเตือน LINE';
+            } else {
+                btn.classList.add('is-disabled');
+                if (statusText) statusText.textContent = 'ปิด';
+                btn.title = 'คลิกเพื่อเปิดการแจ้งเตือน LINE';
+            }
+        });
+    }
+
+    async function fetchLineNotifyStatus() {
+        try {
+            const res = await fetch('/api/line/status');
+            const data = await res.json();
+            if (data.success && data.enabled !== undefined) {
+                updateLineNotifyButtonsUI(data.enabled);
+            }
+        } catch (err) {
+            console.error('Error fetching LINE notify status:', err);
+        }
+    }
+
+    window.toggleLineNotification = async function () {
+        const nextStatus = !isLineNotifyEnabled;
+        // Optimistic UI update
+        updateLineNotifyButtonsUI(nextStatus);
+
+        try {
+            const res = await fetch('/api/line/toggle', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    enabled: nextStatus,
+                    updatedBy: currentUser?.staffName || 'Admin'
+                })
+            });
+            const data = await res.json();
+            if (data.success) {
+                updateLineNotifyButtonsUI(data.enabled);
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        toast: true,
+                        position: 'top-end',
+                        icon: data.enabled ? 'success' : 'info',
+                        title: data.enabled ? '🟢 เปิดการแจ้งเตือน LINE แล้ว' : '⏸️ ปิดการแจ้งเตือน LINE ชั่วคราวแล้ว',
+                        showConfirmButton: false,
+                        timer: 2000,
+                        timerProgressBar: true
+                    });
+                }
+            } else {
+                updateLineNotifyButtonsUI(!nextStatus);
+                showAlert('error', data.message || 'ไม่สามารถเปลี่ยนสถานะการแจ้งเตือนได้');
+            }
+        } catch (err) {
+            console.error('Error toggling LINE notification:', err);
+            updateLineNotifyButtonsUI(!nextStatus);
+            showAlert('error', 'เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์');
+        }
+    };
+
+    // Initial fetch of LINE notification status
+    fetchLineNotifyStatus();
 
     // --- HELPER: Build filter query string from prefixed inputs ---
     function buildFilterQueryString(prefix) {
@@ -7215,7 +7313,14 @@ document.addEventListener('DOMContentLoaded', () => {
             // Update UI
             document.getElementById('regFormTitle').textContent = 'แก้ไขข้อมูลประกันภัย';
             document.getElementById('regFormSubtitle').textContent = `กำลังแก้ไขรหัสสมาชิก: ${data.memberId}`;
-            document.getElementById('memberId').readOnly = true;
+            // Section 01: ข้อมูลสมาชิก (ตั้งค่าเป็น readonly ยกเว้นร้านค้า)
+            ['memberId', 'firstName', 'lastName', 'phone', 'address', 'dobDay', 'dobMonth', 'dobYear', 'age'].forEach(fId => {
+                const el = document.getElementById(fId);
+                if (el) {
+                    el.readOnly = true;
+                    el.classList.add('readonly-field');
+                }
+            });
 
             // Show view first to ensure elements are available
             showView('registration');
@@ -7234,6 +7339,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 updateAge();
             }
             document.getElementById('address').value = data.customer.address || '';
+            const editSearchInputEl = document.getElementById('memberSearchInput');
+            if (editSearchInputEl) {
+                editSearchInputEl.value = `${data.customer.firstName || ''} ${data.customer.lastName || ''} (${data.memberId || ''})`;
+            }
 
             // === Section 02: รายละเอียดอุปกรณ์ ===
             // สภาพเครื่อง
@@ -7446,8 +7555,19 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('regFormTitle').textContent = 'ลงทะเบียนประกันภัย';
         document.getElementById('regFormSubtitle').textContent = 'ประกันคุ้มครองมือถือ iPhone & iPad';
         document.getElementById('policyNumber').value = '';
-        document.getElementById('memberId').readOnly = false;
-        document.getElementById('memberId').value = ''; // Will be populated by lookup or manual entry
+
+        // Section 01 member fields are strictly read-only and filled via member search (except shopName)
+        ['memberId', 'firstName', 'lastName', 'phone', 'address', 'dobDay', 'dobMonth', 'dobYear', 'age'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) {
+                el.readOnly = true;
+                el.classList.add('readonly-field');
+                el.value = '';
+            }
+        });
+        const memberSearchInputEl = document.getElementById('memberSearchInput');
+        if (memberSearchInputEl) memberSearchInputEl.value = '';
+
         document.getElementById('paymentManagementSection').style.display = 'none';
         document.getElementById('initialPaymentCheck').style.display = 'block';
         const initialPaidCheck = document.getElementById('initialPaidCheck');
@@ -7468,6 +7588,8 @@ document.addEventListener('DOMContentLoaded', () => {
         populateShopsDropdown();
         populateFinanceProvidersDropdown();
         populateDepositOptionsForPackage();
+        populateCatalogDropdowns();
+        loadAllMembersLookup();
     }
 
     let globalActiveDeposits = [];
@@ -7640,58 +7762,31 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-        function updateModelOptions(selectedModel = '') {
+    function updateModelOptions(selectedModel = '') {
         const productTypeEl = document.getElementById('productType');
         const modelEl = document.getElementById('model');
-        const modelListEl = document.getElementById('modelList');
         if (!productTypeEl || !modelEl) return;
 
-        const type = productTypeEl.value;
-        const currentVal = selectedModel || modelEl.value;
+        const type = productTypeEl.value.trim();
+        const currentVal = selectedModel || modelEl.value.trim();
 
-        const MODELS = {
-            iPhone: [
-                'iPhone 13',
-                'iPhone 13 Pro',
-                'iPhone 13 Pro Max',
-                'iPhone 14',
-                'iPhone 14 Plus',
-                'iPhone 14 Pro',
-                'iPhone 14 Pro Max',
-                'iPhone 15',
-                'iPhone 15 Plus',
-                'iPhone 15 Pro',
-                'iPhone 15 Pro Max',
-                'iPhone 16',
-                'iPhone 16 Plus',
-                'iPhone 16 Pro',
-                'iPhone 16 Pro Max',
-                'iPhone 17',
-                'iPhone 17 Pro',
-                'iPhone 17 Pro Max'
-            ],
-            iPad: [
-                'iPad Gen11',
-                'iPad Air7',
-                'iPad Air8'
-            ]
-        };
-
-        const list = MODELS[type] || [];
-        if (modelListEl) {
-            modelListEl.innerHTML = '';
-            list.forEach(m => {
-                const opt = document.createElement('option');
-                opt.value = m;
-                modelListEl.appendChild(opt);
-            });
+        let list = [];
+        if (window.productsCatalog && Array.isArray(window.productsCatalog.models) && window.productsCatalog.models.length > 0) {
+            list = window.productsCatalog.models
+                .filter(m => !type || m.parentType === type)
+                .map(m => m.name);
         }
 
         if (list.includes(currentVal)) {
             modelEl.value = currentVal;
-        } else if (!selectedModel) {
+        } else if (selectedModel && list.includes(selectedModel)) {
+            modelEl.value = selectedModel;
+        } else {
             modelEl.value = '';
         }
+
+        const inst = window.catalogComboboxInstances?.['model'];
+        if (inst) inst.render(modelEl.value);
     }
 
 
@@ -8111,50 +8206,179 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('deposit').addEventListener('change', updatePaymentUI);
     document.getElementsByName('paymentMethod').forEach(r => r.addEventListener('change', updatePaymentUI));
 
-    async function searchMembers(query) {
+    // --- Member Search & Autocomplete in Registration Form ---
+    let allMembersLookupCache = null;
+    let isLoadingMembersLookup = false;
+    let currentFilteredMembers = [];
+    let visibleMemberCount = 60;
+
+    async function loadAllMembersLookup(forceRefresh = false) {
+        if (allMembersLookupCache && !forceRefresh) {
+            return allMembersLookupCache;
+        }
+        if (isLoadingMembersLookup) {
+            return new Promise((resolve) => {
+                const interval = setInterval(() => {
+                    if (!isLoadingMembersLookup) {
+                        clearInterval(interval);
+                        resolve(allMembersLookupCache || []);
+                    }
+                }, 50);
+            });
+        }
+
+        isLoadingMembersLookup = true;
+        try {
+            const res = await fetch('/api/members/lookup');
+            const data = await res.json();
+            if (data.success && Array.isArray(data.members)) {
+                allMembersLookupCache = data.members;
+            } else {
+                allMembersLookupCache = [];
+            }
+        } catch (err) {
+            console.error('Error loading all members lookup:', err);
+            allMembersLookupCache = [];
+        } finally {
+            isLoadingMembersLookup = false;
+        }
+        return allMembersLookupCache;
+    }
+
+    function filterMembersLookup(query) {
+        if (!allMembersLookupCache) return [];
+        const q = (query || '').trim().toLowerCase();
+        if (!q) return allMembersLookupCache;
+
+        return allMembersLookupCache.filter(m => {
+            const firstName = (m.firstName || '').toLowerCase();
+            const lastName = (m.lastName || '').toLowerCase();
+            const fullName = `${firstName} ${lastName}`;
+            const phone = String(m.phone || '').toLowerCase();
+            const citizenId = String(m.citizenId || '').toLowerCase();
+            const memberId = String(m.memberId || '').toLowerCase();
+            return fullName.includes(q) ||
+                phone.includes(q) ||
+                citizenId.includes(q) ||
+                memberId.includes(q);
+        });
+    }
+
+    function renderMemberSearchResults() {
         const resultsBox = document.getElementById('memberSearchResults');
-        if (!query || query.length < 2) {
-            resultsBox.style.display = 'none';
+        if (!resultsBox) return;
+
+        if (!currentFilteredMembers || currentFilteredMembers.length === 0) {
+            resultsBox.innerHTML = '<div class="search-result-item" style="cursor: default; color: #94a3b8; justify-content: center; padding: 1.25rem 1rem;">ไม่พบข้อมูลสมาชิก</div>';
+            resultsBox.style.display = 'block';
             return;
         }
 
-        try {
-            const res = await fetch(`/api/members/lookup?query=${encodeURIComponent(query)}`);
-            const data = await res.json();
+        const total = currentFilteredMembers.length;
+        const totalAll = allMembersLookupCache ? allMembersLookupCache.length : total;
+        const toShow = currentFilteredMembers.slice(0, visibleMemberCount);
 
-            if (data.success && data.members && data.members.length > 0) {
-                resultsBox.innerHTML = data.members.map(m => `
-                    <div class="search-result-item" onclick="selectMember(${JSON.stringify(m).replace(/"/g, '&quot;')})">
-                        <div class="search-result-info">
-                            <span class="search-result-name">${m.firstName} ${m.lastName}</span>
-                            <span class="search-result-sub">${m.phone} ${m.citizenId ? `| CID: ${m.citizenId}` : ''}</span>
-                        </div>
-                        <span class="search-result-tag">${m.memberId}${m.memberStatus ? ` <span class=\"status-badge ${m.memberStatus === 'ไม่ปกติ' ? 'status-expired' : 'status-active'}\">${m.memberStatus}</span>` : ''}</span>
+        const headerTitle = total === totalAll
+            ? `สมาชิกทั้งหมด ${total.toLocaleString()} คน`
+            : `พบ ${total.toLocaleString()} คน (จากทั้งหมด ${totalAll.toLocaleString()} คน)`;
+
+        const headerHtml = `
+            <div class="search-result-header">
+                <span><i class="fas fa-users" style="color: var(--primary); margin-right: 5px;"></i> ${headerTitle}</span>
+                <span style="font-weight: normal; font-size: 0.75rem; color: #94a3b8;">คลิกเพื่อเลือก</span>
+            </div>
+        `;
+
+        const itemsHtml = toShow.map(m => {
+            const statusBadge = m.memberStatus
+                ? `<span class="status-badge ${m.memberStatus === 'ไม่ปกติ' ? 'status-expired' : 'status-active'}">${escapeHtml(m.memberStatus)}</span>`
+                : '';
+
+            return `
+                <div class="search-result-item" onclick="selectMemberById('${m._id || m.memberId}')">
+                    <div class="search-result-info">
+                        <span class="search-result-name">${escapeHtml(m.firstName || '')} ${escapeHtml(m.lastName || '')}</span>
+                        <span class="search-result-sub">${escapeHtml(m.phone || '-')} ${m.citizenId ? `| บัตร: ${escapeHtml(m.citizenId)}` : ''}</span>
                     </div>
-                `).join('');
-                resultsBox.style.display = 'block';
-            } else {
-                resultsBox.innerHTML = '<div class="search-result-item" style="cursor: default; color: #94a3b8;">ไม่พบข้อมูลสมาชิก</div>';
-                resultsBox.style.display = 'block';
-            }
-        } catch (err) {
-            console.error('Member search error:', err);
+                    <div style="display: flex; align-items: center; gap: 6px;">
+                        <span class="search-result-tag">${escapeHtml(m.memberId || '')}</span>
+                        ${statusBadge}
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        let footerHtml = '';
+        if (toShow.length < total) {
+            footerHtml = `
+                <div class="search-result-loadmore" onclick="loadMoreMemberResults(event)">
+                    แสดง ${toShow.length} จาก ${total.toLocaleString()} คน (คลิกหรือเลื่อนลงเพื่อดูเพิ่ม)
+                </div>
+            `;
         }
+
+        resultsBox.innerHTML = headerHtml + itemsHtml + footerHtml;
+        resultsBox.style.display = 'block';
+
+        // Infinite scroll handler
+        resultsBox.onscroll = () => {
+            if (resultsBox.scrollTop + resultsBox.clientHeight >= resultsBox.scrollHeight - 30) {
+                if (visibleMemberCount < currentFilteredMembers.length) {
+                    visibleMemberCount += 40;
+                    renderMemberSearchResults();
+                }
+            }
+        };
+    }
+
+    window.loadMoreMemberResults = function (e) {
+        if (e) e.stopPropagation();
+        visibleMemberCount += 50;
+        renderMemberSearchResults();
+    };
+
+    window.selectMemberById = function (id) {
+        if (!allMembersLookupCache) return;
+        const member = allMembersLookupCache.find(m => String(m._id) === String(id) || String(m.memberId) === String(id));
+        if (member) {
+            window.selectMember(member);
+        }
+    };
+
+    async function searchMembers(query) {
+        const resultsBox = document.getElementById('memberSearchResults');
+        if (!resultsBox) return;
+
+        if (!allMembersLookupCache) {
+            resultsBox.innerHTML = `
+                <div class="search-result-item" style="cursor: default; color: #64748b; justify-content: center; padding: 1.25rem 1rem;">
+                    <i class="fas fa-spinner fa-spin" style="margin-right: 8px;"></i> กำลังโหลดรายชื่อสมาชิกทั้งหมด...
+                </div>
+            `;
+            resultsBox.style.display = 'block';
+            await loadAllMembersLookup();
+        }
+
+        visibleMemberCount = 60;
+        currentFilteredMembers = filterMembersLookup(query);
+        renderMemberSearchResults();
     }
 
     window.selectMember = function (member) {
-        document.getElementById('memberId').value = member.memberId;
-        document.getElementById('firstName').value = member.firstName;
-        document.getElementById('lastName').value = member.lastName;
-        document.getElementById('phone').value = member.phone;
-        document.getElementById('address').value = member.shippingAddress || member.idCardAddress || '';
+        document.getElementById('memberId').value = member.memberId || '';
+        document.getElementById('firstName').value = member.firstName || '';
+        document.getElementById('lastName').value = member.lastName || '';
+        document.getElementById('phone').value = member.phone || '';
+        document.getElementById('address').value = member.shippingAddress || member.idCardAddress || member.address || '';
 
         if (member.birthdate) {
             const dob = new Date(member.birthdate);
-            document.getElementById('dobDay').value = dob.getDate();
-            document.getElementById('dobMonth').value = dob.getMonth() + 1;
-            document.getElementById('dobYear').value = dob.getFullYear() + 543;
-            updateAge();
+            if (!isNaN(dob.getTime())) {
+                document.getElementById('dobDay').value = dob.getDate();
+                document.getElementById('dobMonth').value = dob.getMonth() + 1;
+                document.getElementById('dobYear').value = dob.getFullYear() + 543;
+                updateAge();
+            }
         }
 
         document.getElementById('memberSearchResults').style.display = 'none';
@@ -8167,13 +8391,27 @@ document.addEventListener('DOMContentLoaded', () => {
         let debounceTimer;
         searchInput.addEventListener('input', (e) => {
             clearTimeout(debounceTimer);
-            debounceTimer = setTimeout(() => searchMembers(e.target.value.trim()), 300);
+            debounceTimer = setTimeout(() => searchMembers(e.target.value), 60);
         });
+
+        const showDropdown = () => {
+            // If already filled with "FirstName LastName (memberId)", select text for easy replacement and show all
+            if (searchInput.value && searchInput.value.includes('(') && searchInput.value.endsWith(')')) {
+                searchInput.select();
+                searchMembers('');
+            } else {
+                searchMembers(searchInput.value || '');
+            }
+        };
+
+        searchInput.addEventListener('focus', showDropdown);
+        searchInput.addEventListener('click', showDropdown);
 
         // Close dropdown when clicking outside
         document.addEventListener('click', (e) => {
-            if (!searchInput.contains(e.target) && !document.getElementById('memberSearchResults').contains(e.target)) {
-                document.getElementById('memberSearchResults').style.display = 'none';
+            const resultsBox = document.getElementById('memberSearchResults');
+            if (resultsBox && !searchInput.contains(e.target) && !resultsBox.contains(e.target)) {
+                resultsBox.style.display = 'none';
             }
         });
     }
@@ -8252,6 +8490,42 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('warrantyForm').addEventListener('submit', async (e) => {
         e.preventDefault();
+
+        // Strict validation against Product Catalog
+        const pt = (document.getElementById('productType')?.value || '').trim();
+        const mdl = (document.getElementById('model')?.value || '').trim();
+        const clr = (document.getElementById('color')?.value || '').trim();
+        const cap = (document.getElementById('capacity')?.value || '').trim();
+
+        if (window.productsCatalog) {
+            const validTypes = (window.productsCatalog.types || []).map(t => t.name);
+            const validModels = (window.productsCatalog.models || [])
+                .filter(m => !pt || m.parentType === pt)
+                .map(m => m.name);
+            const validColors = (window.productsCatalog.colors || []).map(c => c.name);
+            const validCaps = (window.productsCatalog.capacities || []).map(c => c.name);
+
+            if (validTypes.length > 0 && !validTypes.includes(pt)) {
+                showAlert('warning', 'ประเภทสินค้าไม่ถูกต้อง กรุณาเลือกจากรายการในระบบ "จัดการสินค้า" เท่านั้น');
+                document.getElementById('productType')?.focus();
+                return;
+            }
+            if (validModels.length > 0 && !validModels.includes(mdl)) {
+                showAlert('warning', `ชื่อรุ่น "${mdl}" ไม่ถูกต้องหรือไม่ตรงกับประเภท "${pt}" กรุณาเลือกจากรายการในระบบ "จัดการสินค้า" เท่านั้น`);
+                document.getElementById('model')?.focus();
+                return;
+            }
+            if (validColors.length > 0 && !validColors.includes(clr)) {
+                showAlert('warning', 'สีสินค้าไม่ถูกต้อง กรุณาเลือกจากรายการในระบบ "จัดการสินค้า" เท่านั้น');
+                document.getElementById('color')?.focus();
+                return;
+            }
+            if (validCaps.length > 0 && !validCaps.includes(cap)) {
+                showAlert('warning', 'ความจุสินค้าไม่ถูกต้อง กรุณาเลือกจากรายการในระบบ "จัดการสินค้า" เท่านั้น');
+                document.getElementById('capacity')?.focus();
+                return;
+            }
+        }
 
         const plan = document.getElementById('package').value;
         const checkedRadio = document.querySelector('input[name="paymentMethod"]:checked');
@@ -9061,6 +9335,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let memberStatusFilterVal = 'all';
 
     async function fetchMembers() {
+        allMembersLookupCache = null;
         try {
             const res = await fetch('/api/members');
             allMembers = await res.json();
@@ -12642,6 +12917,22 @@ document.addEventListener('DOMContentLoaded', () => {
             return isNaN(d.getTime()) ? '' : d.toISOString().split('T')[0];
         };
 
+        const curType = w.device?.type || '';
+        const curModel = w.device?.model || '';
+        const curColor = w.device?.color || '';
+        const curCap = w.device?.capacity || '';
+
+        const typeList = window.productsCatalog?.types || [];
+        const modelList = window.productsCatalog?.models || [];
+        const colorList = window.productsCatalog?.colors || [];
+        const capList = window.productsCatalog?.capacities || [];
+
+        const typeOptionsHtml = '<option value="">-- เลือกประเภทสินค้า --</option>' + typeList.map(t => `<option value="${escapeHtml(t.name)}" ${t.name === curType ? 'selected' : ''}>${escapeHtml(t.name)}</option>`).join('');
+        const filteredModels = modelList.filter(m => !curType || m.parentType === curType);
+        const modelOptionsHtml = '<option value="">-- เลือกรุ่นสินค้า --</option>' + filteredModels.map(m => `<option value="${escapeHtml(m.name)}" ${m.name === curModel ? 'selected' : ''}>${escapeHtml(m.name)}</option>`).join('');
+        const colorOptionsHtml = '<option value="">-- เลือกสีสินค้า --</option>' + colorList.map(c => `<option value="${escapeHtml(c.name)}" ${c.name === curColor ? 'selected' : ''}>${escapeHtml(c.name)}</option>`).join('');
+        const capOptionsHtml = '<option value="">-- เลือกความจุสินค้า --</option>' + capList.map(c => `<option value="${escapeHtml(c.name)}" ${c.name === curCap ? 'selected' : ''}>${escapeHtml(c.name)}</option>`).join('');
+
         const { value: formValues } = await SwalTheme.fire({
             title: '✏️ แก้ไขข้อมูล (ก่อนอนุมัติ)',
             html: `
@@ -12685,10 +12976,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div style="margin-bottom:10px;"><label style="font-size:0.9rem;color:#64748b;display:block;margin-bottom:4px;">ที่อยู่จัดส่ง (Shipping Address)</label><textarea id="edit_shippingAddress" style="width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:4px; outline:none; resize:vertical;" rows="2">${escapeHtml(w.customer?.shippingAddress || '')}</textarea></div>
                     
                     <h3 style="margin-top: 20px; margin-bottom: 15px; color: #1e293b; border-bottom: 2px solid #e2e8f0; padding-bottom: 5px;">ข้อมูลอุปกรณ์</h3>
-                    <div style="margin-bottom:10px;"><label style="font-size:0.9rem;color:#64748b;display:block;margin-bottom:4px;">ประเภทอุปกรณ์</label><input id="edit_deviceType" value="${escapeHtml(w.device?.type || '')}" style="width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:4px; outline:none;"></div>
-                    <div style="margin-bottom:10px;"><label style="font-size:0.9rem;color:#64748b;display:block;margin-bottom:4px;">รุ่น (Model)</label><input id="edit_deviceModel" value="${escapeHtml(w.device?.model || '')}" style="width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:4px; outline:none;"></div>
-                    <div style="margin-bottom:10px;"><label style="font-size:0.9rem;color:#64748b;display:block;margin-bottom:4px;">สี</label><input id="edit_color" value="${escapeHtml(w.device?.color || '')}" style="width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:4px; outline:none;"></div>
-                    <div style="margin-bottom:10px;"><label style="font-size:0.9rem;color:#64748b;display:block;margin-bottom:4px;">ความจุ</label><input id="edit_capacity" value="${escapeHtml(w.device?.capacity || '')}" style="width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:4px; outline:none;"></div>
+                    <div style="margin-bottom:10px;"><label style="font-size:0.9rem;color:#64748b;display:block;margin-bottom:4px;">ประเภทอุปกรณ์</label><select id="edit_deviceType" style="width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:4px; outline:none; background:#fff;">${typeOptionsHtml}</select></div>
+                    <div style="margin-bottom:10px;"><label style="font-size:0.9rem;color:#64748b;display:block;margin-bottom:4px;">รุ่น (Model)</label><select id="edit_deviceModel" style="width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:4px; outline:none; background:#fff;">${modelOptionsHtml}</select></div>
+                    <div style="margin-bottom:10px;"><label style="font-size:0.9rem;color:#64748b;display:block;margin-bottom:4px;">สี</label><select id="edit_color" style="width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:4px; outline:none; background:#fff;">${colorOptionsHtml}</select></div>
+                    <div style="margin-bottom:10px;"><label style="font-size:0.9rem;color:#64748b;display:block;margin-bottom:4px;">ความจุ</label><select id="edit_capacity" style="width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:4px; outline:none; background:#fff;">${capOptionsHtml}</select></div>
                     <div style="margin-bottom:10px;"><label style="font-size:0.9rem;color:#64748b;display:block;margin-bottom:4px;">Serial Number</label><input id="edit_serial" value="${escapeHtml(w.device?.serial || '')}" style="width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:4px; outline:none;"></div>
                     <div style="margin-bottom:10px;"><label style="font-size:0.9rem;color:#64748b;display:block;margin-bottom:4px;">IMEI</label><input id="edit_imei" value="${escapeHtml(w.device?.imei || '')}" style="width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:4px; outline:none;"></div>
                     <div style="margin-bottom:10px;"><label style="font-size:0.9rem;color:#64748b;display:block;margin-bottom:4px;">วันสิ้นสุดประกันศูนย์ (พ.ศ.)</label><div style="display:flex;gap:0.5rem;"><input type="number" id="edit_officialWarrantyEndDay" placeholder="วัน" min="1" max="31" value="${w.device?.officialWarrantyEnd ? new Date(w.device.officialWarrantyEnd).getDate() : ''}" style="width:80px; padding:8px; border:1px solid #cbd5e1; border-radius:4px; outline:none;"><input type="number" id="edit_officialWarrantyEndMonth" placeholder="เดือน" min="1" max="12" value="${w.device?.officialWarrantyEnd ? new Date(w.device.officialWarrantyEnd).getMonth() + 1 : ''}" style="width:80px; padding:8px; border:1px solid #cbd5e1; border-radius:4px; outline:none;"><input type="number" id="edit_officialWarrantyEndYear" placeholder="ปี พ.ศ." min="2400" max="2600" value="${w.device?.officialWarrantyEnd ? new Date(w.device.officialWarrantyEnd).getFullYear() + 543 : ''}" style="flex:1; padding:8px; border:1px solid #cbd5e1; border-radius:4px; outline:none;"></div></div>
@@ -12701,7 +12992,27 @@ document.addEventListener('DOMContentLoaded', () => {
             cancelButtonText: 'ยกเลิก',
             confirmButtonColor: '#3b82f6',
             allowOutsideClick: false,
+            didOpen: () => {
+                const typeSelect = document.getElementById('edit_deviceType');
+                const modelSelect = document.getElementById('edit_deviceModel');
+                if (typeSelect && modelSelect) {
+                    typeSelect.addEventListener('change', () => {
+                        const selectedType = typeSelect.value;
+                        const models = (window.productsCatalog?.models || []).filter(m => !selectedType || m.parentType === selectedType);
+                        modelSelect.innerHTML = '<option value="">-- เลือกรุ่นสินค้า --</option>' + models.map(m => `<option value="${escapeHtml(m.name)}">${escapeHtml(m.name)}</option>`).join('');
+                    });
+                }
+            },
             preConfirm: () => {
+                const selType = document.getElementById('edit_deviceType')?.value?.trim();
+                const selModel = document.getElementById('edit_deviceModel')?.value?.trim();
+                const selColor = document.getElementById('edit_color')?.value?.trim();
+                const selCap = document.getElementById('edit_capacity')?.value?.trim();
+
+                if (!selType || !selModel || !selColor || !selCap) {
+                    Swal.showValidationMessage('กรุณาเลือกประเภท, รุ่น, สี และความจุสินค้าให้ครบถ้วน');
+                    return false;
+                }
                 return {
                     customer: {
                         citizenId: document.getElementById('edit_citizenId').value,
@@ -13781,6 +14092,28 @@ document.addEventListener('DOMContentLoaded', () => {
         depositForm.addEventListener('submit', async (e) => {
             e.preventDefault();
 
+            // Strict validation against Product Catalog
+            const depType = (document.getElementById('depDeviceType')?.value || '').trim();
+            const depModel = (document.getElementById('depDeviceModel')?.value || '').trim();
+
+            if (window.productsCatalog) {
+                const validTypes = (window.productsCatalog.types || []).map(t => t.name);
+                const validModels = (window.productsCatalog.models || [])
+                    .filter(m => !depType || m.parentType === depType)
+                    .map(m => m.name);
+
+                if (validTypes.length > 0 && !validTypes.includes(depType)) {
+                    showAlert('warning', 'ประเภทเครื่องไม่ถูกต้อง กรุณาเลือกจากรายการในระบบ "จัดการสินค้า" เท่านั้น');
+                    document.getElementById('depDeviceType')?.focus();
+                    return;
+                }
+                if (validModels.length > 0 && !validModels.includes(depModel)) {
+                    showAlert('warning', `รุ่นเครื่อง "${depModel}" ไม่ถูกต้องหรือไม่ตรงกับประเภท "${depType}" กรุณาเลือกจากรายการในระบบ "จัดการสินค้า" เท่านั้น`);
+                    document.getElementById('depDeviceModel')?.focus();
+                    return;
+                }
+            }
+
             // Validate Split Payment first
             const paymentMethod = document.getElementById('depPaymentMethod')?.value || 'โอนเงิน';
             const totalAmount = Number(document.getElementById('depDepositAmount').value) || 0;
@@ -14323,4 +14656,847 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // ═══════════════════════════════════════════════════════════════════
+    // PRODUCT CATALOG MANAGEMENT (ประเภท, รุ่น, สี, ความจุ)
+    // ═══════════════════════════════════════════════════════════════════
+    let currentCatalogCategory = 'type'; // 'type', 'model', 'color', 'capacity'
+    window.productsCatalog = { types: [], models: [], colors: [], capacities: [] };
+
+    // Map to hold combobox instances
+    window.catalogComboboxInstances = {};
+    window.catalogComboboxInitialized = false;
+
+    function setupSearchableCatalogCombobox({
+        wrapperId,
+        inputId,
+        dropdownId,
+        getOptions,
+        onSelect,
+        onClear,
+        emptyMessage = 'ไม่พบข้อมูลในระบบ "จัดการสินค้า"',
+        warningMessage = 'กรุณาเลือกจากรายการในระบบ "จัดการสินค้า" เท่านั้น (ไม่สามารถระบุค่าอื่นได้)'
+    }) {
+        const wrapper = document.getElementById(wrapperId);
+        const input = document.getElementById(inputId);
+        const dropdown = document.getElementById(dropdownId);
+        if (!wrapper || !input || !dropdown) return null;
+
+        let activeIndex = -1;
+
+        function renderDropdown(filterText = '') {
+            const allItems = (typeof getOptions === 'function' ? getOptions() : []) || [];
+            const cleanFilter = filterText.trim().toLowerCase();
+
+            const filtered = allItems.filter(item => {
+                const name = typeof item === 'string' ? item : item.name;
+                return !cleanFilter || name.toLowerCase().includes(cleanFilter);
+            });
+
+            if (filtered.length === 0) {
+                dropdown.innerHTML = `<div class="combobox-empty-msg">${emptyMessage}</div>`;
+                activeIndex = -1;
+                return;
+            }
+
+            let html = '';
+            filtered.forEach((item, idx) => {
+                const name = typeof item === 'string' ? item : item.name;
+                const colorCode = item.colorCode;
+                const isSelected = input.value.trim() === name;
+
+                let swatchHtml = '';
+                if (colorCode) {
+                    swatchHtml = `<span class="combobox-color-dot" style="background-color: ${colorCode};"></span>`;
+                }
+
+                html += `
+                    <div class="combobox-option-item ${isSelected ? 'selected' : ''}" data-index="${idx}" data-value="${name.replace(/"/g, '&quot;')}">
+                        ${swatchHtml}
+                        <span>${name}</span>
+                    </div>
+                `;
+            });
+
+            dropdown.innerHTML = html;
+            activeIndex = -1;
+
+            dropdown.querySelectorAll('.combobox-option-item').forEach(el => {
+                el.addEventListener('mousedown', (e) => {
+                    e.preventDefault();
+                    selectValue(el.dataset.value);
+                });
+            });
+        }
+
+        function openDropdown() {
+            document.querySelectorAll('.catalog-combobox-dropdown.show').forEach(d => {
+                if (d !== dropdown) {
+                    d.classList.remove('show');
+                    d.closest('.catalog-combobox-wrapper')?.classList.remove('open');
+                }
+            });
+
+            renderDropdown(input.value);
+            dropdown.classList.add('show');
+            wrapper.classList.add('open');
+        }
+
+        function closeDropdown() {
+            dropdown.classList.remove('show');
+            wrapper.classList.remove('open');
+            activeIndex = -1;
+        }
+
+        function selectValue(val) {
+            input.value = val;
+            input.classList.remove('combobox-invalid-input');
+            closeDropdown();
+
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+            input.dispatchEvent(new Event('change', { bubbles: true }));
+
+            if (typeof onSelect === 'function') {
+                onSelect(val);
+            }
+        }
+
+        function validateValue() {
+            const currentVal = input.value.trim();
+            if (!currentVal) {
+                input.classList.remove('combobox-invalid-input');
+                return true;
+            }
+
+            const allItems = (typeof getOptions === 'function' ? getOptions() : []) || [];
+            const validNames = allItems.map(i => (typeof i === 'string' ? i : i.name));
+
+            if (!validNames.includes(currentVal)) {
+                // Not in catalog: clear and notify user
+                input.value = '';
+                input.classList.add('combobox-invalid-input');
+                setTimeout(() => input.classList.remove('combobox-invalid-input'), 2500);
+
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+                input.dispatchEvent(new Event('change', { bubbles: true }));
+
+                if (typeof onClear === 'function') onClear();
+
+                Swal.fire({
+                    toast: true,
+                    position: 'top-end',
+                    icon: 'warning',
+                    title: 'ข้อมูลไม่อยู่ในระบบ',
+                    text: warningMessage,
+                    showConfirmButton: false,
+                    timer: 3000,
+                    timerProgressBar: true
+                });
+                return false;
+            }
+
+            input.classList.remove('combobox-invalid-input');
+            return true;
+        }
+
+        // Event listeners
+        input.addEventListener('focus', () => {
+            openDropdown();
+        });
+
+        input.addEventListener('input', () => {
+            input.classList.remove('combobox-invalid-input');
+            if (!dropdown.classList.contains('show')) {
+                openDropdown();
+            } else {
+                renderDropdown(input.value);
+            }
+        });
+
+        input.addEventListener('blur', () => {
+            setTimeout(() => {
+                closeDropdown();
+                validateValue();
+            }, 180);
+        });
+
+        input.addEventListener('keydown', (e) => {
+            const items = dropdown.querySelectorAll('.combobox-option-item');
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                if (!dropdown.classList.contains('show')) {
+                    openDropdown();
+                    return;
+                }
+                if (items.length > 0) {
+                    activeIndex = (activeIndex + 1) % items.length;
+                    items.forEach((it, i) => it.classList.toggle('active-nav', i === activeIndex));
+                    items[activeIndex]?.scrollIntoView({ block: 'nearest' });
+                }
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                if (items.length > 0) {
+                    activeIndex = (activeIndex - 1 + items.length) % items.length;
+                    items.forEach((it, i) => it.classList.toggle('active-nav', i === activeIndex));
+                    items[activeIndex]?.scrollIntoView({ block: 'nearest' });
+                }
+            } else if (e.key === 'Enter') {
+                if (dropdown.classList.contains('show') && items.length > 0) {
+                    e.preventDefault();
+                    const targetIdx = activeIndex >= 0 ? activeIndex : 0;
+                    if (items[targetIdx]) {
+                        selectValue(items[targetIdx].dataset.value);
+                    }
+                }
+            } else if (e.key === 'Escape') {
+                closeDropdown();
+            }
+        });
+
+        // Chevron click toggle
+        const chevron = wrapper.querySelector('.catalog-combobox-chevron');
+        if (chevron) {
+            chevron.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (dropdown.classList.contains('show')) {
+                    closeDropdown();
+                } else {
+                    input.focus();
+                    openDropdown();
+                }
+            });
+        }
+
+        const instance = {
+            open: openDropdown,
+            close: closeDropdown,
+            validate: validateValue,
+            render: renderDropdown
+        };
+
+        window.catalogComboboxInstances[inputId] = instance;
+        return instance;
+    }
+
+    // Global outside click listener to close comboboxes
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.catalog-combobox-wrapper')) {
+            document.querySelectorAll('.catalog-combobox-dropdown.show').forEach(d => {
+                d.classList.remove('show');
+                d.closest('.catalog-combobox-wrapper')?.classList.remove('open');
+            });
+        }
+    });
+
+    // Initialize all 6 catalog comboboxes
+    function initAllCatalogComboboxes() {
+        // 1. Product Type
+        setupSearchableCatalogCombobox({
+            wrapperId: 'productTypeWrapper',
+            inputId: 'productType',
+            dropdownId: 'productTypeDropdown',
+            getOptions: () => window.productsCatalog.types || [],
+            onSelect: (val) => {
+                toggleIMEIField();
+                const modelEl = document.getElementById('model');
+                if (modelEl && modelEl.value) {
+                    const validModels = (window.productsCatalog.models || [])
+                        .filter(m => m.parentType === val)
+                        .map(m => m.name);
+                    if (!validModels.includes(modelEl.value)) {
+                        modelEl.value = '';
+                        modelEl.dispatchEvent(new Event('change', { bubbles: true }));
+                    }
+                }
+            },
+            onClear: () => {
+                toggleIMEIField();
+                const modelEl = document.getElementById('model');
+                if (modelEl) {
+                    modelEl.value = '';
+                    modelEl.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+            },
+            emptyMessage: 'ไม่พบประเภทสินค้าในระบบ "จัดการสินค้า"',
+            warningMessage: 'กรุณาเลือกประเภทสินค้าจากรายการในระบบ "จัดการสินค้า" เท่านั้น'
+        });
+
+        // 2. Model
+        setupSearchableCatalogCombobox({
+            wrapperId: 'modelWrapper',
+            inputId: 'model',
+            dropdownId: 'modelDropdown',
+            getOptions: () => {
+                const selectedType = document.getElementById('productType')?.value?.trim();
+                const allModels = window.productsCatalog.models || [];
+                if (selectedType) {
+                    return allModels.filter(m => m.parentType === selectedType);
+                }
+                return allModels;
+            },
+            emptyMessage: 'ไม่พบชื่อรุ่นสินค้าในระบบ "จัดการสินค้า"',
+            warningMessage: 'กรุณาเลือกรุ่นสินค้าจากรายการในระบบ "จัดการสินค้า" เท่านั้น'
+        });
+
+        // 3. Color
+        setupSearchableCatalogCombobox({
+            wrapperId: 'colorWrapper',
+            inputId: 'color',
+            dropdownId: 'colorDropdown',
+            getOptions: () => window.productsCatalog.colors || [],
+            emptyMessage: 'ไม่พบสีสินค้าในระบบ "จัดการสินค้า"',
+            warningMessage: 'กรุณาเลือกสีสินค้าจากรายการในระบบ "จัดการสินค้า" เท่านั้น'
+        });
+
+        // 4. Capacity
+        setupSearchableCatalogCombobox({
+            wrapperId: 'capacityWrapper',
+            inputId: 'capacity',
+            dropdownId: 'capacityDropdown',
+            getOptions: () => window.productsCatalog.capacities || [],
+            emptyMessage: 'ไม่พบความจุสินค้าในระบบ "จัดการสินค้า"',
+            warningMessage: 'กรุณาเลือกความจุสินค้าจากรายการในระบบ "จัดการสินค้า" เท่านั้น'
+        });
+
+        // 5. Deposit: Device Type
+        setupSearchableCatalogCombobox({
+            wrapperId: 'depDeviceTypeWrapper',
+            inputId: 'depDeviceType',
+            dropdownId: 'depDeviceTypeDropdown',
+            getOptions: () => window.productsCatalog.types || [],
+            onSelect: (val) => {
+                const depModelEl = document.getElementById('depDeviceModel');
+                if (depModelEl && depModelEl.value) {
+                    const validModels = (window.productsCatalog.models || [])
+                        .filter(m => m.parentType === val)
+                        .map(m => m.name);
+                    if (!validModels.includes(depModelEl.value)) {
+                        depModelEl.value = '';
+                        depModelEl.dispatchEvent(new Event('change', { bubbles: true }));
+                    }
+                }
+            },
+            onClear: () => {
+                const depModelEl = document.getElementById('depDeviceModel');
+                if (depModelEl) {
+                    depModelEl.value = '';
+                    depModelEl.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+            },
+            emptyMessage: 'ไม่พบประเภทเครื่องในระบบ "จัดการสินค้า"',
+            warningMessage: 'กรุณาเลือกประเภทเครื่องจากรายการในระบบ "จัดการสินค้า" เท่านั้น'
+        });
+
+        // 6. Deposit: Device Model
+        setupSearchableCatalogCombobox({
+            wrapperId: 'depDeviceModelWrapper',
+            inputId: 'depDeviceModel',
+            dropdownId: 'depDeviceModelDropdown',
+            getOptions: () => {
+                const selectedType = document.getElementById('depDeviceType')?.value?.trim();
+                const allModels = window.productsCatalog.models || [];
+                if (selectedType) {
+                    return allModels.filter(m => m.parentType === selectedType);
+                }
+                return allModels;
+            },
+            emptyMessage: 'ไม่พบรุ่นเครื่องในระบบ "จัดการสินค้า"',
+            warningMessage: 'กรุณาเลือกรุ่นเครื่องจากรายการในระบบ "จัดการสินค้า" เท่านั้น'
+        });
+    }
+
+    // Function to populate / re-validate Registration & Deposit dynamic inputs from catalog
+    function populateCatalogDropdowns() {
+        if (!window.productsCatalog) return;
+
+        if (!window.catalogComboboxInitialized) {
+            initAllCatalogComboboxes();
+            window.catalogComboboxInitialized = true;
+        }
+
+        // Validate any current values in inputs against updated catalog
+        ['productType', 'model', 'color', 'capacity', 'depDeviceType', 'depDeviceModel'].forEach(id => {
+            const inst = window.catalogComboboxInstances[id];
+            if (inst) inst.validate();
+        });
+    }
+    window.populateCatalogDropdowns = populateCatalogDropdowns;
+
+    // Fetch Product Catalog from API
+    async function fetchProductsCatalog() {
+        try {
+            const res = await fetch('/api/products-catalog');
+            const data = await res.json();
+            if (data.success) {
+                window.productsCatalog = {
+                    types: data.types || [],
+                    models: data.models || [],
+                    colors: data.colors || [],
+                    capacities: data.capacities || []
+                };
+
+                // Update badge counts on tabs
+                const badgeTypes = document.getElementById('badgeCountTypes');
+                const badgeModels = document.getElementById('badgeCountModels');
+                const badgeColors = document.getElementById('badgeCountColors');
+                const badgeCapacities = document.getElementById('badgeCountCapacities');
+
+                if (badgeTypes) badgeTypes.textContent = window.productsCatalog.types.length;
+                if (badgeModels) badgeModels.textContent = window.productsCatalog.models.length;
+                if (badgeColors) badgeColors.textContent = window.productsCatalog.colors.length;
+                if (badgeCapacities) badgeCapacities.textContent = window.productsCatalog.capacities.length;
+
+                // Update Parent Type filter dropdown for models
+                const typeFilter = document.getElementById('productCatalogTypeFilter');
+                if (typeFilter) {
+                    const currentFilter = typeFilter.value;
+                    typeFilter.innerHTML = '<option value="">ทุกประเภทสินค้า</option>';
+                    window.productsCatalog.types.forEach(t => {
+                        const opt = document.createElement('option');
+                        opt.value = t.name;
+                        opt.textContent = t.name;
+                        if (t.name === currentFilter) opt.selected = true;
+                        typeFilter.appendChild(opt);
+                    });
+                }
+
+                renderProductCatalog();
+                populateCatalogDropdowns();
+            }
+        } catch (err) {
+            console.error('Error fetching products catalog:', err);
+        }
+    }
+    window.fetchProductsCatalog = fetchProductsCatalog;
+
+    // Render active tab table
+    function renderProductCatalog() {
+        const tbody = document.getElementById('productCatalogTbody');
+        const emptyState = document.getElementById('productCatalogEmptyState');
+        const thead = document.getElementById('productCatalogThead');
+        if (!tbody) return;
+
+        const searchInput = document.getElementById('productCatalogSearchInput');
+        const searchTerm = searchInput ? searchInput.value.trim().toLowerCase() : '';
+        const typeFilter = document.getElementById('productCatalogTypeFilter');
+        const selectedParentType = (typeFilter && currentCatalogCategory === 'model') ? typeFilter.value : '';
+
+        // Determine items list for current category
+        let items = [];
+        if (currentCatalogCategory === 'type') items = window.productsCatalog.types || [];
+        else if (currentCatalogCategory === 'model') items = window.productsCatalog.models || [];
+        else if (currentCatalogCategory === 'color') items = window.productsCatalog.colors || [];
+        else if (currentCatalogCategory === 'capacity') items = window.productsCatalog.capacities || [];
+
+        // Apply filters
+        let filtered = items.filter(item => {
+            const matchesSearch = !searchTerm || item.name.toLowerCase().includes(searchTerm) || (item.parentType && item.parentType.toLowerCase().includes(searchTerm));
+            const matchesParent = !selectedParentType || item.parentType === selectedParentType;
+            return matchesSearch && matchesParent;
+        });
+
+        // Update table headers according to category
+        if (thead) {
+            if (currentCatalogCategory === 'type') {
+                thead.innerHTML = `
+                    <tr>
+                        <th style="width: 70px; text-align: center;">ลำดับ</th>
+                        <th>ประเภทสินค้า</th>
+                        <th>จำนวนรุ่นที่สังกัด</th>
+                        <th>ลำดับแสดงผล</th>
+                        <th style="width: 130px; text-align: center;">จัดการ</th>
+                    </tr>
+                `;
+            } else if (currentCatalogCategory === 'model') {
+                thead.innerHTML = `
+                    <tr>
+                        <th style="width: 70px; text-align: center;">ลำดับ</th>
+                        <th>ชื่อรุ่นสินค้า</th>
+                        <th>สังกัดประเภทสินค้า</th>
+                        <th>ลำดับแสดงผล</th>
+                        <th style="width: 130px; text-align: center;">จัดการ</th>
+                    </tr>
+                `;
+            } else if (currentCatalogCategory === 'color') {
+                thead.innerHTML = `
+                    <tr>
+                        <th style="width: 70px; text-align: center;">ลำดับ</th>
+                        <th>ชื่อสีสินค้า</th>
+                        <th>ตัวอย่างสี (Hex)</th>
+                        <th>ลำดับแสดงผล</th>
+                        <th style="width: 130px; text-align: center;">จัดการ</th>
+                    </tr>
+                `;
+            } else if (currentCatalogCategory === 'capacity') {
+                thead.innerHTML = `
+                    <tr>
+                        <th style="width: 70px; text-align: center;">ลำดับ</th>
+                        <th>ความจุสินค้า</th>
+                        <th>ลำดับแสดงผล</th>
+                        <th style="width: 130px; text-align: center;">จัดการ</th>
+                    </tr>
+                `;
+            }
+        }
+
+        if (filtered.length === 0) {
+            tbody.innerHTML = '';
+            if (emptyState) emptyState.style.display = 'block';
+            return;
+        }
+
+        if (emptyState) emptyState.style.display = 'none';
+
+        let html = '';
+        filtered.forEach((item, index) => {
+            let infoCell = '';
+            if (currentCatalogCategory === 'type') {
+                const childModelsCount = (window.productsCatalog.models || []).filter(m => m.parentType === item.name).length;
+                infoCell = `<span class="badge" style="background: #e0f2fe; color: #0369a1; padding: 4px 10px; border-radius: 6px; font-weight: 600;">${childModelsCount} รุ่น</span>`;
+            } else if (currentCatalogCategory === 'model') {
+                infoCell = `<span class="badge" style="background: #f1f5f9; color: #334155; padding: 4px 10px; border-radius: 6px; font-weight: 600; border: 1px solid #cbd5e1;">${item.parentType || '-'}</span>`;
+            } else if (currentCatalogCategory === 'color') {
+                const swatch = item.colorCode ? `<span style="display: inline-block; width: 18px; height: 18px; border-radius: 50%; background-color: ${item.colorCode}; border: 1.5px solid #cbd5e1; vertical-align: middle; margin-right: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);"></span>` : '';
+                infoCell = `<div style="display: flex; align-items: center; gap: 6px;">${swatch} <span style="font-family: monospace; font-size: 0.88rem; color: #64748b;">${item.colorCode || '-'}</span></div>`;
+            }
+
+            const sortOrderCell = `<td><span style="color: #64748b; font-size: 0.88rem;">${item.sortOrder || 0}</span></td>`;
+
+            html += `
+                <tr>
+                    <td style="text-align: center; color: #94a3b8; font-weight: 500;">${index + 1}</td>
+                    <td style="font-weight: 600; color: #1e293b;">${item.name}</td>
+                    ${currentCatalogCategory !== 'capacity' ? `<td>${infoCell}</td>` : ''}
+                    ${sortOrderCell}
+                    <td style="text-align: center;">
+                        <div style="display: flex; gap: 6px; justify-content: center;">
+                            <button type="button" class="action-btn edit-btn" onclick="editProductCatalogItem('${item._id}')" title="แก้ไข" style="padding: 6px 10px; border-radius: 6px; border: 1px solid #cbd5e1; background: #fff; cursor: pointer; color: #0284c7;">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+                            </button>
+                            <button type="button" class="action-btn delete-btn" onclick="deleteProductCatalogItem('${item._id}', '${item.name.replace(/'/g, "\\'")}', '${item.category}')" title="ลบ" style="padding: 6px 10px; border-radius: 6px; border: 1px solid #fecaca; background: #fff; cursor: pointer; color: #ef4444;">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        });
+
+        tbody.innerHTML = html;
+    }
+    window.renderProductCatalog = renderProductCatalog;
+
+    // Tab switcher events
+    const catalogTabBtns = document.querySelectorAll('.catalog-tab-btn');
+    catalogTabBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            catalogTabBtns.forEach(b => {
+                b.classList.remove('active');
+                b.style.background = '#f1f5f9';
+                b.style.color = '#475569';
+                const bCount = b.querySelector('.badge-count');
+                if (bCount) {
+                    bCount.style.background = '#e2e8f0';
+                    bCount.style.color = '#475569';
+                }
+            });
+            btn.classList.add('active');
+            btn.style.background = 'var(--primary, #0891b2)';
+            btn.style.color = '#ffffff';
+            const countEl = btn.querySelector('.badge-count');
+            if (countEl) {
+                countEl.style.background = 'rgba(255, 255, 255, 0.25)';
+                countEl.style.color = '#ffffff';
+            }
+
+            currentCatalogCategory = btn.dataset.category;
+
+            // Update add button text
+            const addBtnText = document.getElementById('addProductCatalogBtnText');
+            if (addBtnText) {
+                const categoryNames = {
+                    type: 'เพิ่มประเภทสินค้า',
+                    model: 'เพิ่มชื่อรุ่นสินค้า',
+                    color: 'เพิ่มสีสินค้า',
+                    capacity: 'เพิ่มความจุสินค้า'
+                };
+                addBtnText.textContent = categoryNames[currentCatalogCategory] || 'เพิ่มรายการสินค้า';
+            }
+
+            // Show/hide parentType filter group
+            const typeFilterGroup = document.getElementById('productCatalogTypeFilterGroup');
+            if (typeFilterGroup) {
+                typeFilterGroup.style.display = currentCatalogCategory === 'model' ? 'block' : 'none';
+            }
+
+            // Reset search input
+            const searchInput = document.getElementById('productCatalogSearchInput');
+            if (searchInput) searchInput.value = '';
+
+            renderProductCatalog();
+        });
+    });
+
+    // Search and filter listeners
+    const productCatalogSearchInput = document.getElementById('productCatalogSearchInput');
+    if (productCatalogSearchInput) {
+        productCatalogSearchInput.addEventListener('input', () => renderProductCatalog());
+    }
+
+    const productCatalogTypeFilter = document.getElementById('productCatalogTypeFilter');
+    if (productCatalogTypeFilter) {
+        productCatalogTypeFilter.addEventListener('change', () => renderProductCatalog());
+    }
+
+    const productCatalogResetBtn = document.getElementById('productCatalogResetBtn');
+    if (productCatalogResetBtn) {
+        productCatalogResetBtn.addEventListener('click', () => {
+            if (productCatalogSearchInput) productCatalogSearchInput.value = '';
+            if (productCatalogTypeFilter) productCatalogTypeFilter.value = '';
+            renderProductCatalog();
+        });
+    }
+
+    // Modal logic
+    const productCatalogModal = document.getElementById('productCatalogModal');
+    const addProductCatalogBtn = document.getElementById('addProductCatalogBtn');
+    const closeProductCatalogModal = document.getElementById('closeProductCatalogModal');
+    const cancelProductCatalogModal = document.getElementById('cancelProductCatalogModal');
+    const productCatalogForm = document.getElementById('productCatalogForm');
+
+    function openProductCatalogModal(editItem = null) {
+        if (!productCatalogModal) return;
+        const modalTitle = document.getElementById('productCatalogModalTitle');
+        const editIdInput = document.getElementById('editCatalogItemId');
+        const editCatInput = document.getElementById('editCatalogCategory');
+        const nameInput = document.getElementById('catalogName');
+        const nameLabel = document.getElementById('catalogNameLabel');
+        const parentGroup = document.getElementById('catalogParentTypeGroup');
+        const parentSelect = document.getElementById('catalogParentType');
+        const colorGroup = document.getElementById('catalogColorCodeGroup');
+        const colorInput = document.getElementById('catalogColorCode');
+        const colorPicker = document.getElementById('catalogColorPicker');
+        const sortInput = document.getElementById('catalogSortOrder');
+
+        const cat = editItem ? editItem.category : currentCatalogCategory;
+        if (editCatInput) editCatInput.value = cat;
+
+        const categoryLabels = {
+            type: 'ประเภทสินค้า (เช่น iPhone, iPad, Apple Watch)',
+            model: 'ชื่อรุ่นสินค้า (เช่น iPhone 17 Pro Max)',
+            color: 'ชื่อสีสินค้า (เช่น สีดำ, Desert Titanium)',
+            capacity: 'ความจุสินค้า (เช่น 128GB, 1TB)'
+        };
+
+        if (nameLabel) {
+            nameLabel.innerHTML = `${categoryLabels[cat] || 'ชื่อรายการ'} <span style="color: #ef4444;">*</span>`;
+        }
+
+        // Show/hide fields depending on category
+        if (cat === 'model') {
+            if (parentGroup) parentGroup.style.display = 'block';
+            if (parentSelect) {
+                parentSelect.required = true;
+                parentSelect.innerHTML = '<option value="" disabled selected>เลือกประเภทสินค้า</option>';
+                (window.productsCatalog.types || []).forEach(t => {
+                    const opt = document.createElement('option');
+                    opt.value = t.name;
+                    opt.textContent = t.name;
+                    parentSelect.appendChild(opt);
+                });
+                if (editItem && editItem.parentType) {
+                    parentSelect.value = editItem.parentType;
+                } else {
+                    const activeFilter = document.getElementById('productCatalogTypeFilter')?.value;
+                    if (activeFilter) parentSelect.value = activeFilter;
+                }
+            }
+        } else {
+            if (parentGroup) parentGroup.style.display = 'none';
+            if (parentSelect) parentSelect.required = false;
+        }
+
+        if (cat === 'color') {
+            if (colorGroup) colorGroup.style.display = 'block';
+            if (colorInput && colorPicker) {
+                colorInput.value = editItem?.colorCode || '';
+                colorPicker.value = (editItem?.colorCode && editItem.colorCode.startsWith('#')) ? editItem.colorCode : '#000000';
+            }
+        } else {
+            if (colorGroup) colorGroup.style.display = 'none';
+        }
+
+        if (editItem) {
+            if (modalTitle) modalTitle.textContent = `แก้ไข${categoryLabels[cat]?.split(' ')[0] || 'ข้อมูล'}`;
+            if (editIdInput) editIdInput.value = editItem._id;
+            if (nameInput) nameInput.value = editItem.name;
+            if (sortInput) sortInput.value = editItem.sortOrder ?? 0;
+        } else {
+            if (modalTitle) modalTitle.textContent = `เพิ่ม${categoryLabels[cat]?.split(' ')[0] || 'ข้อมูล'}`;
+            if (editIdInput) editIdInput.value = '';
+            if (nameInput) nameInput.value = '';
+            // Auto calculate next sort order
+            let items = [];
+            if (cat === 'type') items = window.productsCatalog.types || [];
+            else if (cat === 'model') items = window.productsCatalog.models || [];
+            else if (cat === 'color') items = window.productsCatalog.colors || [];
+            else if (cat === 'capacity') items = window.productsCatalog.capacities || [];
+            const maxSort = items.reduce((max, i) => Math.max(max, i.sortOrder || 0), 0);
+            if (sortInput) sortInput.value = maxSort + 1;
+        }
+
+        productCatalogModal.style.display = 'flex';
+    }
+    window.openProductCatalogModal = openProductCatalogModal;
+
+    if (addProductCatalogBtn) {
+        addProductCatalogBtn.addEventListener('click', () => openProductCatalogModal());
+    }
+
+    if (closeProductCatalogModal) {
+        closeProductCatalogModal.addEventListener('click', () => {
+            if (productCatalogModal) productCatalogModal.style.display = 'none';
+        });
+    }
+
+    if (cancelProductCatalogModal) {
+        cancelProductCatalogModal.addEventListener('click', () => {
+            if (productCatalogModal) productCatalogModal.style.display = 'none';
+        });
+    }
+
+    // Color picker synchronization
+    const catalogColorPicker = document.getElementById('catalogColorPicker');
+    const catalogColorCode = document.getElementById('catalogColorCode');
+    if (catalogColorPicker && catalogColorCode) {
+        catalogColorPicker.addEventListener('input', (e) => {
+            catalogColorCode.value = e.target.value;
+        });
+        catalogColorCode.addEventListener('input', (e) => {
+            if (/^#[0-9A-Fa-f]{6}$/.test(e.target.value)) {
+                catalogColorPicker.value = e.target.value;
+            }
+        });
+    }
+
+    // Modal submit handler
+    if (productCatalogForm) {
+        productCatalogForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const editId = document.getElementById('editCatalogItemId')?.value;
+            const category = document.getElementById('editCatalogCategory')?.value;
+            const name = document.getElementById('catalogName')?.value.trim();
+            const parentType = document.getElementById('catalogParentType')?.value;
+            const colorCode = document.getElementById('catalogColorCode')?.value.trim();
+            const sortOrder = Number(document.getElementById('catalogSortOrder')?.value) || 0;
+
+            if (!name) {
+                showAlert('warning', 'กรุณากรอกชื่อรายการ');
+                return;
+            }
+
+            if (category === 'model' && !parentType) {
+                showAlert('warning', 'กรุณาเลือกประเภทสินค้าที่สังกัด');
+                return;
+            }
+
+            const payload = {
+                category,
+                name,
+                parentType: category === 'model' ? parentType : '',
+                colorCode: category === 'color' ? colorCode : '',
+                sortOrder,
+                recordedBy: currentUser ? currentUser.staffName : 'Admin'
+            };
+
+            try {
+                showLoader('กำลังบันทึกข้อมูล...');
+                const url = editId ? `/api/products-catalog/${editId}` : '/api/products-catalog';
+                const method = editId ? 'PUT' : 'POST';
+
+                const res = await fetch(url, {
+                    method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+                hideLoader();
+
+                if (data.success) {
+                    showAlert('success', data.message || 'บันทึกเรียบร้อย');
+                    if (productCatalogModal) productCatalogModal.style.display = 'none';
+                    await fetchProductsCatalog();
+                } else {
+                    showAlert('error', data.message || 'ไม่สามารถบันทึกได้');
+                }
+            } catch (err) {
+                hideLoader();
+                console.error('Save product catalog error:', err);
+                showAlert('error', err.message || 'เกิดข้อผิดพลาดในการบันทึกข้อมูล');
+            }
+        });
+    }
+
+    // Edit item handler
+    window.editProductCatalogItem = function (id) {
+        let allItems = [
+            ...(window.productsCatalog.types || []),
+            ...(window.productsCatalog.models || []),
+            ...(window.productsCatalog.colors || []),
+            ...(window.productsCatalog.capacities || [])
+        ];
+        const item = allItems.find(i => String(i._id) === String(id));
+        if (item) {
+            openProductCatalogModal(item);
+        } else {
+            showAlert('error', 'ไม่พบข้อมูลรายการที่เลือก');
+        }
+    };
+
+    // Delete item handler
+    window.deleteProductCatalogItem = async function (id, name, category) {
+        let confirmText = `คุณต้องการลบ "${name}" ใช่หรือไม่?`;
+        if (category === 'type') {
+            confirmText = `คำเตือน: การลบประเภทสินค้า "${name}" จะลบชื่อรุ่นสินค้าทั้งหมดที่สังกัดประเภทนี้ด้วย! ยืนยันการลบหรือไม่?`;
+        }
+
+        const result = await Swal.fire({
+            title: 'ยืนยันการลบ',
+            text: confirmText,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#ef4444',
+            cancelButtonColor: '#64748b',
+            confirmButtonText: 'ใช่, ลบรายการนี้',
+            cancelButtonText: 'ยกเลิก'
+        });
+
+        if (result.isConfirmed) {
+            try {
+                showLoader('กำลังลบข้อมูล...');
+                const res = await fetch(`/api/products-catalog/${id}?recordedBy=${encodeURIComponent(currentUser ? currentUser.staffName : 'Admin')}`, {
+                    method: 'DELETE'
+                });
+                const data = await res.json();
+                hideLoader();
+
+                if (data.success) {
+                    showAlert('success', 'ลบข้อมูลเรียบร้อยแล้ว');
+                    await fetchProductsCatalog();
+                } else {
+                    showAlert('error', data.message || 'ไม่สามารถลบข้อมูลได้');
+                }
+            } catch (err) {
+                hideLoader();
+                console.error('Delete product catalog item error:', err);
+                showAlert('error', 'เกิดข้อผิดพลาดในการลบข้อมูล');
+            }
+        }
+    };
+
+    // Auto load products catalog at script bootstrap if user logged in
+    if (currentUser) {
+        fetchProductsCatalog();
+    }
+
 });
+
