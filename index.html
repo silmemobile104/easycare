@@ -3678,9 +3678,9 @@
                     <div class="grid-row">
                         
                         <div class="form-group">
-                            <label>ร้านค้า (Shop)</label>
+                            <label>ร้านค้า (Shop) <span style="color: #ef4444;">*</span></label>
                             <select id="shopName" required>
-                                <option value="" disabled selected>โหลดข้อมูลร้านค้า...</option>
+                                <option value="" disabled selected>เลือกร้านค้า</option>
                             </select>
                         </div>
                         
@@ -3688,32 +3688,32 @@
 
                         <div class="form-group"><label>เลขกรมธรรม์ (กธ.)</label><input type="text" id="policyNumber"
                                 readonly class="readonly-field" placeholder="ออกโดยระบบอัตโนมัติ"></div>
-                        <div class="form-group"><label>รหัสสมาชิก</label><input type="text" id="memberId"
+                        <div class="form-group"><label>รหัสสมาชิก <span style="color: #ef4444;">*</span></label><input type="text" id="memberId"
                                 readonly class="readonly-field" placeholder="เลือกจากระบบค้นหาสมาชิก" required></div>
-                        <div class="form-group"><label>ชื่อ</label><input type="text" id="firstName"
-                                readonly class="readonly-field" placeholder="เลือกจากระบบค้นหาสมาชิก" required></div>
-                        <div class="form-group"><label>นามสกุล</label><input type="text" id="lastName"
-                                readonly class="readonly-field" placeholder="เลือกจากระบบค้นหาสมาชิก" required>
+                        <div class="form-group"><label>ชื่อ <span style="color: #ef4444;">*</span></label><input type="text" id="firstName"
+                                placeholder="กรอกชื่อ" required></div>
+                        <div class="form-group"><label>นามสกุล <span style="color: #ef4444;">*</span></label><input type="text" id="lastName"
+                                placeholder="กรอกนามสกุล" required>
                         </div>
-                        <div class="form-group"><label>เบอร์โทรศัพท์</label><input type="tel" id="phone"
-                                readonly class="readonly-field" placeholder="เลือกจากระบบค้นหาสมาชิก" required
+                        <div class="form-group"><label>เบอร์โทรศัพท์ <span style="color: #ef4444;">*</span></label><input type="tel" id="phone"
+                                placeholder="กรอกเบอร์โทรศัพท์ 10 หลัก" required
                                 maxlength="10" inputmode="numeric" pattern="[0-9]{10}"
                                 title="กรุณากรอกเบอร์โทรศัพท์เป็นตัวเลข 10 หลัก"></div>
                         <div class="form-group"></div>
-                        <div class="form-group"><label>วันเกิด (พ.ศ.)</label>
+                        <div class="form-group"><label>วันเกิด (พ.ศ.) <span style="color: #ef4444;">*</span></label>
                             <div style="display: flex; gap: 0.5rem;">
                                 <input type="number" id="dobDay" placeholder="วัน" min="1" max="31" required
-                                    readonly class="readonly-field" style="width: 80px;" onwheel="return false;">
+                                    style="width: 80px;" onwheel="return false;">
                                 <input type="number" id="dobMonth" placeholder="เดือน" min="1" max="12" required
-                                    readonly class="readonly-field" style="width: 80px;" onwheel="return false;">
+                                    style="width: 80px;" onwheel="return false;">
                                 <input type="number" id="dobYear" placeholder="ปี พ.ศ." min="2400" max="2600" required
-                                    readonly class="readonly-field" onwheel="return false;">
+                                    onwheel="return false;" style="flex: 1;">
                             </div>
                         </div>
-                        <div class="form-group"><label>อายุ</label><input type="text" id="age" readonly
-                                class="readonly-field" placeholder="คำนวณอัตโนมัติ"></div>
-                        <div class="form-group full-width"><label>ที่อยู่</label><textarea id="address" rows="3"
-                                readonly class="readonly-field" placeholder="เลือกจากระบบค้นหาสมาชิก" required></textarea></div>
+                        <div class="form-group"><label>อายุ <span style="color: #ef4444;">*</span></label><input type="number" id="age"
+                                min="0" max="150" placeholder="คำนวณอัตโนมัติหรือกรอกอายุ" required onwheel="return false;"></div>
+                        <div class="form-group full-width"><label>ที่อยู่ <span style="color: #ef4444;">*</span></label><textarea id="address" rows="3"
+                                placeholder="กรอกที่อยู่" required></textarea></div>
                     </div>
                 </section>
 
@@ -3724,9 +3724,10 @@
                     </div>
                     <div class="grid-row">
                         <div class="form-group">
-                            <label>สภาพเครื่อง</label>
+                            <label>สภาพเครื่อง <span style="color: #ef4444;">*</span></label>
                             <select id="deviceCondition" required>
-                                <option value="New" selected>มือ 1 (New)</option>
+                                <option value="" disabled selected>กรุณาเลือกสภาพเครื่อง</option>
+                                <option value="New">มือ 1 (New)</option>
                                 <option value="Second-hand">มือ 2 (Second-hand)</option>
                             </select>
                         </div>
@@ -3778,14 +3779,14 @@
                             <input type="text" id="imei" minlength="15" maxlength="15" pattern="\d{15}"
                                 placeholder="ตัวเลข 15 หลัก">
                         </div>
-                        <div class="form-group"><label>วันสิ้นสุดประกันศูนย์ (พ.ศ.)</label>
+                        <div class="form-group"><label>วันสิ้นสุดประกันศูนย์ (พ.ศ.) <span style="color: #ef4444;">*</span></label>
                             <div style="display: flex; gap: 0.5rem;">
                                 <input type="number" id="officialWarrantyEndDay" placeholder="วัน" min="1" max="31" required onwheel="return false;" style="width: 80px;">
                                 <input type="number" id="officialWarrantyEndMonth" placeholder="เดือน" min="1" max="12" required onwheel="return false;" style="width: 80px;">
-                                <input type="number" id="officialWarrantyEndYear" placeholder="ปี พ.ศ." min="2400" max="2600" required onwheel="return false;">
+                                <input type="number" id="officialWarrantyEndYear" placeholder="ปี พ.ศ." min="2400" max="2600" required onwheel="return false;" style="flex: 1;">
                             </div>
                         </div>
-                        <div class="form-group"><label>ราคาเครื่องเต็ม ณ ปัจจุบัน</label>
+                        <div class="form-group"><label>ราคาเครื่องเต็ม ณ ปัจจุบัน <span style="color: #ef4444;">*</span></label>
                             <input type="number" id="fullDevicePrice" placeholder="ระบุราคาเครื่องเต็ม (บาท)" required onwheel="return false;">
                         </div>
                         <div class="form-group"><label>ราคา 70% ของราคาเครื่อง</label>
@@ -4193,10 +4194,28 @@
                             readonly class="readonly-field"></div>
                     <div class="form-group"><label>เพศ</label><input type="text" id="memberGender" readonly
                             class="readonly-field"></div>
-                    <div class="form-group"><label>วันเกิด</label><input type="date" id="memberBirthdate" readonly
-                            class="readonly-field"></div>
-                    <div class="form-group"><label>วันหมดอายุบัตร</label><input type="date" id="memberCardExpiry"
-                            class="readonly-field"></div>
+                    <div class="form-group"><label>วันเกิด (พ.ศ.) <span style="color: #ef4444;">*</span></label>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <input type="number" id="memberBirthDay" placeholder="วัน" min="1" max="31"
+                                style="width: 80px;" onwheel="return false;">
+                            <input type="number" id="memberBirthMonth" placeholder="เดือน" min="1" max="12"
+                                style="width: 80px;" onwheel="return false;">
+                            <input type="number" id="memberBirthYear" placeholder="ปี พ.ศ." min="2400" max="2600"
+                                onwheel="return false;" style="flex: 1;">
+                        </div>
+                        <input type="hidden" id="memberBirthdate">
+                    </div>
+                    <div class="form-group"><label>วันหมดอายุบัตร (พ.ศ.) <span style="color: #ef4444;">*</span></label>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <input type="number" id="memberCardExpiryDay" placeholder="วัน" min="1" max="31"
+                                style="width: 80px;" onwheel="return false;">
+                            <input type="number" id="memberCardExpiryMonth" placeholder="เดือน" min="1" max="12"
+                                style="width: 80px;" onwheel="return false;">
+                            <input type="number" id="memberCardExpiryYear" placeholder="ปี พ.ศ." min="2400" max="2600"
+                                onwheel="return false;" style="flex: 1;">
+                        </div>
+                        <input type="hidden" id="memberCardExpiry">
+                    </div>
                     <div class="form-group"><label>เบอร์โทรศัพท์</label><input type="text" id="memberPhone"
                             placeholder="กรอกเบอร์โทรศัพท์ 10 หลัก" maxlength="10" inputmode="numeric" pattern="\d{10}">
                     </div>

@@ -7313,12 +7313,17 @@ document.addEventListener('DOMContentLoaded', () => {
             // Update UI
             document.getElementById('regFormTitle').textContent = 'แก้ไขข้อมูลประกันภัย';
             document.getElementById('regFormSubtitle').textContent = `กำลังแก้ไขรหัสสมาชิก: ${data.memberId}`;
-            // Section 01: ข้อมูลสมาชิก (ตั้งค่าเป็น readonly ยกเว้นร้านค้า)
-            ['memberId', 'firstName', 'lastName', 'phone', 'address', 'dobDay', 'dobMonth', 'dobYear', 'age'].forEach(fId => {
+            // Section 01: รหัสสมาชิกเป็น readonly, ข้อมูลสมาชิกอื่นแก้ไขได้แบบแมนนวล
+            const memberIdEl = document.getElementById('memberId');
+            if (memberIdEl) {
+                memberIdEl.readOnly = true;
+                memberIdEl.classList.add('readonly-field');
+            }
+            ['firstName', 'lastName', 'phone', 'address', 'dobDay', 'dobMonth', 'dobYear', 'age'].forEach(fId => {
                 const el = document.getElementById(fId);
                 if (el) {
-                    el.readOnly = true;
-                    el.classList.add('readonly-field');
+                    el.readOnly = false;
+                    el.classList.remove('readonly-field');
                 }
             });
 
@@ -7556,12 +7561,18 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('regFormSubtitle').textContent = 'ประกันคุ้มครองมือถือ iPhone & iPad';
         document.getElementById('policyNumber').value = '';
 
-        // Section 01 member fields are strictly read-only and filled via member search (except shopName)
-        ['memberId', 'firstName', 'lastName', 'phone', 'address', 'dobDay', 'dobMonth', 'dobYear', 'age'].forEach(id => {
+        // Section 01: รหัสสมาชิกเป็น readonly ส่วนฟิลด์ข้อมูลสมาชิกสามารถกรอกและแก้ไขแบบแมนนวลได้
+        const memberIdResetEl = document.getElementById('memberId');
+        if (memberIdResetEl) {
+            memberIdResetEl.readOnly = true;
+            memberIdResetEl.classList.add('readonly-field');
+            memberIdResetEl.value = '';
+        }
+        ['firstName', 'lastName', 'phone', 'address', 'dobDay', 'dobMonth', 'dobYear', 'age'].forEach(id => {
             const el = document.getElementById(id);
             if (el) {
-                el.readOnly = true;
-                el.classList.add('readonly-field');
+                el.readOnly = false;
+                el.classList.remove('readonly-field');
                 el.value = '';
             }
         });
@@ -7581,6 +7592,12 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('startDate').value = now.toISOString();
         document.getElementById('endDate').value = nextYear.toISOString();
         updateDateDisplay();
+
+        const deviceCondEl = document.getElementById('deviceCondition');
+        if (deviceCondEl) {
+            deviceCondEl.value = '';
+            deviceCondEl.dispatchEvent(new Event('change'));
+        }
 
         toggleIMEIField();
         updateRemainingDays();
@@ -8179,10 +8196,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
     initSecondHandChecklist();
 
+    function updateSelectPlaceholder(el) {
+        if (!el) return;
+        if (!el.value) {
+            el.classList.add('select-placeholder');
+        } else {
+            el.classList.remove('select-placeholder');
+        }
+    }
+
+    document.querySelectorAll('select').forEach(sel => {
+        updateSelectPlaceholder(sel);
+        sel.addEventListener('change', () => updateSelectPlaceholder(sel));
+    });
+
     const deviceConditionEl = document.getElementById('deviceCondition');
     const secondHandInspectionEl = document.getElementById('secondHandInspection');
     if (deviceConditionEl && secondHandInspectionEl) {
         deviceConditionEl.addEventListener('change', () => {
+            updateSelectPlaceholder(deviceConditionEl);
             if (deviceConditionEl.value === 'Second-hand') {
                 secondHandInspectionEl.style.display = 'block';
             } else {
@@ -8199,6 +8231,37 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('dobDay').addEventListener('input', updateAge);
     document.getElementById('dobMonth').addEventListener('input', updateAge);
     document.getElementById('dobYear').addEventListener('input', updateAge);
+
+    const regPhoneEl = document.getElementById('phone');
+    if (regPhoneEl) {
+        regPhoneEl.addEventListener('input', () => {
+            const digits = regPhoneEl.value.replace(/\D/g, '').slice(0, 10);
+            if (regPhoneEl.value !== digits) regPhoneEl.value = digits;
+
+            // If memberId is empty and 10 digits entered, check if member exists in cache
+            const mIdEl = document.getElementById('memberId');
+            if (mIdEl && !mIdEl.value && digits.length === 10 && allMembersLookupCache) {
+                const matched = allMembersLookupCache.find(m => m.phone === digits);
+                if (matched) {
+                    mIdEl.value = matched.memberId || '';
+                    if (!document.getElementById('firstName').value) document.getElementById('firstName').value = matched.firstName || '';
+                    if (!document.getElementById('lastName').value) document.getElementById('lastName').value = matched.lastName || '';
+                    if (!document.getElementById('address').value) document.getElementById('address').value = matched.shippingAddress || matched.idCardAddress || matched.address || '';
+                    if (matched.birthdate && !document.getElementById('dobYear').value) {
+                        const dob = new Date(matched.birthdate);
+                        if (!isNaN(dob.getTime())) {
+                            document.getElementById('dobDay').value = dob.getDate();
+                            document.getElementById('dobMonth').value = dob.getMonth() + 1;
+                            document.getElementById('dobYear').value = dob.getFullYear() + 543;
+                            updateAge();
+                        }
+                    }
+                    const sInput = document.getElementById('memberSearchInput');
+                    if (sInput) sInput.value = `${matched.firstName || ''} ${matched.lastName || ''} (${matched.memberId || ''})`.trim();
+                }
+            }
+        });
+    }
 
     updateModelOptions();
     document.getElementById('package').addEventListener('change', updatePaymentUI);
@@ -8378,11 +8441,42 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('dobMonth').value = dob.getMonth() + 1;
                 document.getElementById('dobYear').value = dob.getFullYear() + 543;
                 updateAge();
+            } else {
+                document.getElementById('dobDay').value = '';
+                document.getElementById('dobMonth').value = '';
+                document.getElementById('dobYear').value = '';
+                document.getElementById('age').value = '';
             }
+        } else {
+            document.getElementById('dobDay').value = '';
+            document.getElementById('dobMonth').value = '';
+            document.getElementById('dobYear').value = '';
+            document.getElementById('age').value = '';
         }
 
         document.getElementById('memberSearchResults').style.display = 'none';
-        document.getElementById('memberSearchInput').value = `${member.firstName} ${member.lastName} (${member.memberId})`;
+        document.getElementById('memberSearchInput').value = `${member.firstName || ''} ${member.lastName || ''} (${member.memberId || ''})`.trim();
+
+        // Check if any required field is missing in this member record
+        const missing = [];
+        if (!member.firstName) missing.push('ชื่อ');
+        if (!member.lastName) missing.push('นามสกุล');
+        if (!member.phone) missing.push('เบอร์โทรศัพท์');
+        if (!member.birthdate) missing.push('วันเกิด');
+        if (!(member.shippingAddress || member.idCardAddress || member.address)) missing.push('ที่อยู่');
+
+        // ให้ฟิลด์ข้อมูลสมาชิกยังคงแก้ไขได้แบบแมนนวลหลังจากเลือกสมาชิก
+        ['firstName', 'lastName', 'phone', 'address', 'dobDay', 'dobMonth', 'dobYear', 'age'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) {
+                el.readOnly = false;
+                el.classList.remove('readonly-field');
+            }
+        });
+
+        if (missing.length > 0) {
+            showAlert('info', `สมาชิกท่านนี้ยังไม่มีข้อมูล: ${missing.join(', ')} (สามารถกรอกเพิ่มเติมในฟอร์มนี้ได้เลย)`);
+        }
     };
 
     // Member Search Event Listener
@@ -8491,6 +8585,65 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('warrantyForm').addEventListener('submit', async (e) => {
         e.preventDefault();
 
+        // 1. Strict validation for Section 01: ข้อมูลสมาชิก (บังคับให้มีข้อมูลทุกช่อง)
+        const shopName = (document.getElementById('shopName')?.value || '').trim();
+        const memberId = (document.getElementById('memberId')?.value || '').trim();
+        const firstName = (document.getElementById('firstName')?.value || '').trim();
+        const lastName = (document.getElementById('lastName')?.value || '').trim();
+        const phone = (document.getElementById('phone')?.value || '').trim();
+        const dobDay = parseInt(document.getElementById('dobDay')?.value, 10);
+        const dobMonth = parseInt(document.getElementById('dobMonth')?.value, 10);
+        const dobYearBE = parseInt(document.getElementById('dobYear')?.value, 10);
+        const ageVal = (document.getElementById('age')?.value || '').trim();
+        const address = (document.getElementById('address')?.value || '').trim();
+
+        if (!shopName) {
+            showAlert('warning', 'กรุณาเลือกร้านค้า (Shop)');
+            document.getElementById('shopName')?.focus();
+            return;
+        }
+        if (!memberId) {
+            showAlert('warning', 'กรุณาเลือกรหัสสมาชิกจากระบบค้นหาสมาชิก');
+            document.getElementById('memberSearchInput')?.focus();
+            return;
+        }
+        if (!firstName) {
+            showAlert('warning', 'ข้อมูลสมาชิกไม่ครบถ้วน: กรุณาระบุชื่อ');
+            return;
+        }
+        if (!lastName) {
+            showAlert('warning', 'ข้อมูลสมาชิกไม่ครบถ้วน: กรุณาระบุนามสกุล');
+            return;
+        }
+        if (!phone) {
+            showAlert('warning', 'ข้อมูลสมาชิกไม่ครบถ้วน: กรุณาระบุเบอร์โทรศัพท์');
+            return;
+        }
+        if (phone.length !== 10 || !/^\d{10}$/.test(phone)) {
+            showAlert('warning', 'เบอร์โทรศัพท์ต้องเป็นตัวเลข 10 หลัก');
+            return;
+        }
+        if (!dobDay || !dobMonth || !dobYearBE || dobDay < 1 || dobDay > 31 || dobMonth < 1 || dobMonth > 12 || dobYearBE < 2400 || dobYearBE > 2600) {
+            showAlert('warning', 'ข้อมูลสมาชิกไม่ครบถ้วน: กรุณาระบุวันเดือนปีเกิด (พ.ศ.) ให้ถูกต้องและครบถ้วน');
+            return;
+        }
+        if (!ageVal || isNaN(parseInt(ageVal, 10)) || parseInt(ageVal, 10) < 0) {
+            showAlert('warning', 'ข้อมูลสมาชิกไม่ครบถ้วน: ไม่สามารถคำนวณอายุได้ กรุณาตรวจสอบวันเดือนปีเกิด');
+            return;
+        }
+        if (!address) {
+            showAlert('warning', 'ข้อมูลสมาชิกไม่ครบถ้วน: กรุณาระบุที่อยู่สมาชิก');
+            return;
+        }
+
+        // Validate deviceCondition
+        const deviceCondition = (document.getElementById('deviceCondition')?.value || '').trim();
+        if (!deviceCondition) {
+            showAlert('warning', 'กรุณาเลือกสภาพเครื่อง (มือ 1 หรือ มือ 2)');
+            document.getElementById('deviceCondition')?.focus();
+            return;
+        }
+
         // Strict validation against Product Catalog
         const pt = (document.getElementById('productType')?.value || '').trim();
         const mdl = (document.getElementById('model')?.value || '').trim();
@@ -8525,6 +8678,40 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('capacity')?.focus();
                 return;
             }
+        }
+
+        // Validate officialWarrantyEnd (วันสิ้นสุดประกันศูนย์ พ.ศ.)
+        const oweDay = parseInt(document.getElementById('officialWarrantyEndDay')?.value, 10);
+        const oweMonth = parseInt(document.getElementById('officialWarrantyEndMonth')?.value, 10);
+        const oweYearBE = parseInt(document.getElementById('officialWarrantyEndYear')?.value, 10);
+
+        if (!oweDay || !oweMonth || !oweYearBE || isNaN(oweDay) || isNaN(oweMonth) || isNaN(oweYearBE) || oweDay < 1 || oweDay > 31 || oweMonth < 1 || oweMonth > 12 || oweYearBE < 2400 || oweYearBE > 2600) {
+            showAlert('warning', 'กรุณาระบุวันสิ้นสุดประกันศูนย์ (พ.ศ.) ให้ถูกต้องและครบถ้วน');
+            if (!oweDay || isNaN(oweDay) || oweDay < 1 || oweDay > 31) {
+                document.getElementById('officialWarrantyEndDay')?.focus();
+            } else if (!oweMonth || isNaN(oweMonth) || oweMonth < 1 || oweMonth > 12) {
+                document.getElementById('officialWarrantyEndMonth')?.focus();
+            } else {
+                document.getElementById('officialWarrantyEndYear')?.focus();
+            }
+            return;
+        }
+
+        const oweGregYear = oweYearBE - 543;
+        const oweDateObj = new Date(oweGregYear, oweMonth - 1, oweDay);
+        if (oweDateObj.getFullYear() !== oweGregYear || oweDateObj.getMonth() !== oweMonth - 1 || oweDateObj.getDate() !== oweDay) {
+            showAlert('warning', 'วันสิ้นสุดประกันศูนย์ไม่ถูกต้องตามปฏิทิน กรุณาตรวจสอบวันและเดือน');
+            document.getElementById('officialWarrantyEndDay')?.focus();
+            return;
+        }
+
+        // Validate fullDevicePrice (ราคาเครื่องเต็ม ณ ปัจจุบัน)
+        const fullPriceInput = document.getElementById('fullDevicePrice');
+        const fullPriceVal = parseFloat(fullPriceInput?.value);
+        if (!fullPriceVal || isNaN(fullPriceVal) || fullPriceVal <= 0) {
+            showAlert('warning', 'กรุณาระบุราคาเครื่องเต็ม ณ ปัจจุบัน (ต้องมากกว่า 0 บาท)');
+            fullPriceInput?.focus();
+            return;
         }
 
         const plan = document.getElementById('package').value;
@@ -8631,9 +8818,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // Create DOB date object
-        const dobDay = parseInt(document.getElementById('dobDay').value);
-        const dobMonth = parseInt(document.getElementById('dobMonth').value);
-        const dobYearBE = parseInt(document.getElementById('dobYear').value);
         const dob = new Date(dobYearBE - 543, dobMonth - 1, dobDay);
 
         // Upload device images if any
@@ -8679,7 +8863,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        const deviceCondition = document.getElementById('deviceCondition')?.value || 'New';
         let inspectionResult = [];
 
         if (deviceCondition === 'Second-hand') {
@@ -9540,6 +9723,134 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // ── Buddhist Era (พ.ศ.) Date Helpers for Member Modal ──
+    function setMemberDateBE(prefix, dateVal) {
+        const dayEl = document.getElementById(prefix + 'Day');
+        const monthEl = document.getElementById(prefix + 'Month');
+        const yearEl = document.getElementById(prefix + 'Year');
+        const hiddenEl = document.getElementById(prefix === 'memberBirth' ? 'memberBirthdate' : 'memberCardExpiry');
+
+        if (!dateVal) {
+            if (dayEl) dayEl.value = '';
+            if (monthEl) monthEl.value = '';
+            if (yearEl) yearEl.value = '';
+            if (hiddenEl) hiddenEl.value = '';
+            return;
+        }
+
+        let d = '', m = '', y = '';
+
+        if (typeof dateVal === 'string') {
+            const trimmed = dateVal.trim();
+            const isoMatch = trimmed.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+            const slashMatch = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+
+            if (isoMatch) {
+                let yearNum = parseInt(isoMatch[1], 10);
+                if (yearNum < 2400) yearNum += 543;
+                y = yearNum;
+                m = parseInt(isoMatch[2], 10);
+                d = parseInt(isoMatch[3], 10);
+            } else if (slashMatch) {
+                let yearNum = parseInt(slashMatch[3], 10);
+                if (yearNum < 2400) yearNum += 543;
+                y = yearNum;
+                m = parseInt(slashMatch[2], 10);
+                d = parseInt(slashMatch[1], 10);
+            } else {
+                const dt = new Date(trimmed);
+                if (!isNaN(dt.getTime())) {
+                    d = dt.getDate();
+                    m = dt.getMonth() + 1;
+                    let yearNum = dt.getFullYear();
+                    if (yearNum < 2400) yearNum += 543;
+                    y = yearNum;
+                }
+            }
+        } else if (dateVal instanceof Date && !isNaN(dateVal.getTime())) {
+            d = dateVal.getDate();
+            m = dateVal.getMonth() + 1;
+            let yearNum = dateVal.getFullYear();
+            if (yearNum < 2400) yearNum += 543;
+            y = yearNum;
+        }
+
+        if (dayEl) dayEl.value = d || '';
+        if (monthEl) monthEl.value = m || '';
+        if (yearEl) yearEl.value = y || '';
+
+        if (d && m && y) {
+            let yearAD = parseInt(y, 10);
+            if (yearAD > 2400) yearAD -= 543;
+            const mm = String(m).padStart(2, '0');
+            const dd = String(d).padStart(2, '0');
+            if (hiddenEl) hiddenEl.value = `${yearAD}-${mm}-${dd}`;
+        } else {
+            if (hiddenEl) hiddenEl.value = '';
+        }
+    }
+
+    function getMemberDateIso(prefix) {
+        const day = parseInt(document.getElementById(prefix + 'Day')?.value, 10);
+        const month = parseInt(document.getElementById(prefix + 'Month')?.value, 10);
+        let year = parseInt(document.getElementById(prefix + 'Year')?.value, 10);
+
+        if (!day || !month || !year) return '';
+        if (year > 2400) year -= 543;
+        const mm = String(month).padStart(2, '0');
+        const dd = String(day).padStart(2, '0');
+        return `${year}-${mm}-${dd}`;
+    }
+
+    function validateMemberDate(prefix, label) {
+        const dayEl = document.getElementById(prefix + 'Day');
+        const monthEl = document.getElementById(prefix + 'Month');
+        const yearEl = document.getElementById(prefix + 'Year');
+
+        const day = parseInt(dayEl?.value, 10);
+        const month = parseInt(monthEl?.value, 10);
+        const year = parseInt(yearEl?.value, 10);
+
+        const isMissing = !day || !month || !year;
+        const isInvalid = !isMissing && (day < 1 || day > 31 || month < 1 || month > 12 || year < 2400 || year > 2600);
+
+        if (isMissing || isInvalid) {
+            [dayEl, monthEl, yearEl].forEach(el => {
+                if (el) {
+                    el.style.outline = '2px solid #ef4444';
+                    el.style.boxShadow = '0 0 0 3px rgba(239,68,68,0.15)';
+                }
+            });
+            return {
+                valid: false,
+                el: dayEl || monthEl || yearEl,
+                message: isMissing ? label : `${label} (วันที่หรือปี พ.ศ. ไม่ถูกต้อง)`
+            };
+        }
+
+        return { valid: true };
+    }
+
+    // Auto-sync typing to hidden inputs
+    ['memberBirthDay', 'memberBirthMonth', 'memberBirthYear'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.addEventListener('input', () => {
+                const hiddenEl = document.getElementById('memberBirthdate');
+                if (hiddenEl) hiddenEl.value = getMemberDateIso('memberBirth');
+            });
+        }
+    });
+    ['memberCardExpiryDay', 'memberCardExpiryMonth', 'memberCardExpiryYear'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.addEventListener('input', () => {
+                const hiddenEl = document.getElementById('memberCardExpiry');
+                if (hiddenEl) hiddenEl.value = getMemberDateIso('memberCardExpiry');
+            });
+        }
+    });
+
     async function editMember(id) {
         try {
             const res = await fetch(`/api/members/${id}`);
@@ -9571,7 +9882,7 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('memberLastName').value = member.lastName;
             const memberPhoneDirectEl = document.getElementById('memberPhone');
             if (memberPhoneDirectEl) memberPhoneDirectEl.value = member.phone;
-            document.getElementById('memberBirthdate').value = member.birthdate ? member.birthdate.split('T')[0] : '';
+            setMemberDateBE('memberBirth', member.birthdate);
             document.getElementById('memberIdCardAddress').value = member.idCardAddress || '';
             document.getElementById('memberShippingAddress').value = member.shippingAddress || '';
 
@@ -9581,8 +9892,7 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('memberFirstNameEn').value = member.firstNameEn || '';
             document.getElementById('memberLastNameEn').value = member.lastNameEn || '';
             document.getElementById('memberCitizenId').value = member.citizenId || '';
-            const memberCardExpiryEl = document.getElementById('memberCardExpiry');
-            if (memberCardExpiryEl) memberCardExpiryEl.value = member.expiryDate ? member.expiryDate.split('T')[0] : '';
+            setMemberDateBE('memberCardExpiry', member.expiryDate);
             const memberPostalCode = document.getElementById('memberPostalCode');
             if (memberPostalCode) memberPostalCode.value = member.postalCode || '';
             const memberFacebookEl = document.getElementById('memberFacebook');
@@ -9607,7 +9917,16 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('memberFirstNameEn').readOnly = false;
             document.getElementById('memberLastNameEn').readOnly = false;
             document.getElementById('memberGender').readOnly = false;
-            document.getElementById('memberBirthdate').readOnly = false;
+            const memberBirthdateEl = document.getElementById('memberBirthdate');
+            if (memberBirthdateEl) memberBirthdateEl.readOnly = false;
+            ['memberBirthDay', 'memberBirthMonth', 'memberBirthYear', 'memberCardExpiryDay', 'memberCardExpiryMonth', 'memberCardExpiryYear'].forEach(fId => {
+                const fEl = document.getElementById(fId);
+                if (fEl) {
+                    fEl.readOnly = false;
+                    fEl.style.outline = '';
+                    fEl.style.boxShadow = '';
+                }
+            });
             document.getElementById('memberIdCardAddress').readOnly = false;
 
             const photoContainer = document.getElementById('smartCardPhotoContainer');
@@ -9660,8 +9979,8 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('memberGender').value = '';
             document.getElementById('memberFirstNameEn').value = '';
             document.getElementById('memberLastNameEn').value = '';
-            const memberCardExpiryEl = document.getElementById('memberCardExpiry');
-            if (memberCardExpiryEl) memberCardExpiryEl.value = '';
+            setMemberDateBE('memberBirth', '');
+            setMemberDateBE('memberCardExpiry', '');
             const memberPhoneEl = document.getElementById('memberPhone');
             if (memberPhoneEl) memberPhoneEl.value = '';
             const memberPostalCode = document.getElementById('memberPostalCode');
@@ -9701,11 +10020,20 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('memberFirstNameEn').readOnly = false;
             document.getElementById('memberLastNameEn').readOnly = false;
             document.getElementById('memberGender').readOnly = false;
-            document.getElementById('memberBirthdate').readOnly = false;
+            const memberBirthdateEl = document.getElementById('memberBirthdate');
+            if (memberBirthdateEl) memberBirthdateEl.readOnly = false;
             const memberIssueDateEl = document.getElementById('memberIssueDate');
             if (memberIssueDateEl) memberIssueDateEl.readOnly = false;
             const memberExpiryDateEl = document.getElementById('memberExpiryDate');
             if (memberExpiryDateEl) memberExpiryDateEl.readOnly = false;
+            ['memberBirthDay', 'memberBirthMonth', 'memberBirthYear', 'memberCardExpiryDay', 'memberCardExpiryMonth', 'memberCardExpiryYear'].forEach(fId => {
+                const fEl = document.getElementById(fId);
+                if (fEl) {
+                    fEl.readOnly = false;
+                    fEl.style.outline = '';
+                    fEl.style.boxShadow = '';
+                }
+            });
             document.getElementById('memberIdCardAddress').readOnly = false;
 
             document.getElementById('memberModal').style.display = 'flex';
@@ -9772,8 +10100,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     setVal('memberFirstNameEn', data.firstNameEn);
                     setVal('memberLastNameEn', data.lastNameEn);
                     setVal('memberGender', data.gender);
-                    setVal('memberBirthdate', data.birthdate);
-                    setVal('memberCardExpiry', data.expiryDate);
+                    setMemberDateBE('memberBirth', data.birthdate);
+                    setMemberDateBE('memberCardExpiry', data.expiryDate);
                     setVal('memberIdCardAddress', data.address);
 
                     // ปิด Loading → แสดง Success
@@ -9844,8 +10172,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 { id: 'memberFirstNameEn', label: 'First Name (EN)' },
                 { id: 'memberLastNameEn', label: 'Last Name (EN)' },
                 { id: 'memberGender', label: 'เพศ' },
-                { id: 'memberBirthdate', label: 'วันเกิด' },
-                { id: 'memberCardExpiry', label: 'วันหมดอายุบัตร' },
                 { id: 'memberPhone', label: 'เบอร์โทรศัพท์' },
                 { id: 'memberPostalCode', label: 'รหัสไปรษณีย์' },
                 { id: 'memberFacebook', label: 'ชื่อเฟสบุ๊ค' },
@@ -9857,6 +10183,10 @@ document.addEventListener('DOMContentLoaded', () => {
             // ล้าง highlight เก่า
             requiredFields.forEach(f => {
                 const el = document.getElementById(f.id);
+                if (el) { el.style.outline = ''; el.style.boxShadow = ''; }
+            });
+            ['memberBirthDay', 'memberBirthMonth', 'memberBirthYear', 'memberCardExpiryDay', 'memberCardExpiryMonth', 'memberCardExpiryYear'].forEach(id => {
+                const el = document.getElementById(id);
                 if (el) { el.style.outline = ''; el.style.boxShadow = ''; }
             });
             const uploadArea = document.getElementById('idCardImageUploadArea');
@@ -9875,6 +10205,20 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (!firstMissingEl) firstMissingEl = el;
                 }
             });
+
+            // ตรวจสอบวันเกิด (พ.ศ.)
+            const birthCheck = validateMemberDate('memberBirth', 'วันเกิด (พ.ศ.)');
+            if (!birthCheck.valid) {
+                missing.push(birthCheck.message);
+                if (!firstMissingEl) firstMissingEl = birthCheck.el;
+            }
+
+            // ตรวจสอบวันหมดอายุบัตร (พ.ศ.)
+            const expiryCheck = validateMemberDate('memberCardExpiry', 'วันหมดอายุบัตร (พ.ศ.)');
+            if (!expiryCheck.valid) {
+                missing.push(expiryCheck.message);
+                if (!firstMissingEl) firstMissingEl = expiryCheck.el;
+            }
 
             // ตรวจฟอร์แมต phone
             if (phoneDigits.length !== 10) {
@@ -9921,11 +10265,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
+            const birthdateIso = getMemberDateIso('memberBirth');
+            const expiryDateIso = getMemberDateIso('memberCardExpiry');
+            const hiddenBirth = document.getElementById('memberBirthdate');
+            if (hiddenBirth) hiddenBirth.value = birthdateIso;
+            const hiddenExpiry = document.getElementById('memberCardExpiry');
+            if (hiddenExpiry) hiddenExpiry.value = expiryDateIso;
+
             const payload = {
                 firstName: document.getElementById('memberFirstName').value,
                 lastName: document.getElementById('memberLastName').value,
                 phone: phoneDigits,
-                birthdate: document.getElementById('memberBirthdate').value,
+                birthdate: birthdateIso,
                 idCardAddress: document.getElementById('memberIdCardAddress').value,
                 address: document.getElementById('memberIdCardAddress').value,
                 shippingAddress: document.getElementById('memberShippingAddress').value,
@@ -9935,7 +10286,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 firstNameEn: document.getElementById('memberFirstNameEn').value,
                 lastNameEn: document.getElementById('memberLastNameEn').value,
                 gender: document.getElementById('memberGender').value,
-                expiryDate: document.getElementById('memberCardExpiry') ? document.getElementById('memberCardExpiry').value : undefined,
+                expiryDate: expiryDateIso || undefined,
                 facebook: document.getElementById('memberFacebook') ? document.getElementById('memberFacebook').value : undefined,
                 facebookLink: document.getElementById('memberFacebookLink') ? document.getElementById('memberFacebookLink').value : undefined,
                 photo: document.getElementById('smartCardPhoto').src.startsWith('data:image') ? document.getElementById('smartCardPhoto').src : undefined,
@@ -10384,15 +10735,14 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('memberLastName').value = data.lastName;
         document.getElementById('memberFirstNameEn').value = data.firstNameEn;
         document.getElementById('memberLastNameEn').value = data.lastNameEn;
-        document.getElementById('memberBirthdate').value = data.birthdate;
+        setMemberDateBE('memberBirth', data.birthdate);
         document.getElementById('memberGender').value = data.gender;
         document.getElementById('memberIdCardAddress').value = data.address;
         const memberIssueDateEl = document.getElementById('memberIssueDate');
         if (memberIssueDateEl) memberIssueDateEl.value = data.issueDate;
         const memberExpiryDateEl = document.getElementById('memberExpiryDate');
         if (memberExpiryDateEl) memberExpiryDateEl.value = data.expiryDate;
-        const memberCardExpiryEl = document.getElementById('memberCardExpiry');
-        if (memberCardExpiryEl) memberCardExpiryEl.value = data.expiryDate;
+        setMemberDateBE('memberCardExpiry', data.expiryDate);
 
         const photoContainer = document.getElementById('smartCardPhotoContainer');
         const photoImg = document.getElementById('smartCardPhoto');

@@ -3334,7 +3334,35 @@ app.post('/api/upload/phonedetails', phoneDetailsUpload.array('images', 30), (re
 // Create new warranty
 app.post('/api/warranties', async (req, res) => {
     try {
-        const { memberId, device } = req.body;
+        const { memberId, shopName, customer, device } = req.body;
+
+        // บังคับข้อมูลสมาชิกทุกช่อง
+        if (!shopName || !shopName.trim()) {
+            return res.status(400).json({ message: 'กรุณาระบุร้านค้า (Shop)' });
+        }
+        if (!memberId || !memberId.trim()) {
+            return res.status(400).json({ message: 'กรุณาระบุรหัสสมาชิก' });
+        }
+        if (!customer || !customer.firstName || !customer.lastName || !customer.phone || !customer.dob || customer.age === undefined || !customer.address) {
+            return res.status(400).json({ message: 'ข้อมูลสมาชิกไม่ครบถ้วน กรุณากรอกข้อมูลสมาชิกให้ครบทุกช่อง' });
+        }
+
+        if (!device || !device.deviceCondition || !['New', 'Second-hand'].includes(device.deviceCondition)) {
+            return res.status(400).json({ message: 'กรุณาระบุสภาพเครื่อง (มือ 1 หรือ มือ 2)' });
+        }
+
+        if (!device || !device.officialWarrantyEnd) {
+            return res.status(400).json({ message: 'กรุณาระบุวันสิ้นสุดประกันศูนย์' });
+        }
+        const oweDate = new Date(device.officialWarrantyEnd);
+        if (isNaN(oweDate.getTime())) {
+            return res.status(400).json({ message: 'วันสิ้นสุดประกันศูนย์ไม่ถูกต้อง' });
+        }
+
+        const fullPrice = parseFloat(req.body.devicePrice);
+        if (!fullPrice || isNaN(fullPrice) || fullPrice <= 0) {
+            return res.status(400).json({ message: 'กรุณาระบุราคาเครื่องเต็ม ณ ปัจจุบัน (ต้องมากกว่า 0 บาท)' });
+        }
 
         // Validate device against active Product Catalog
         if (device) {
@@ -4013,6 +4041,15 @@ function getWarrantyChanges(oldData, newData) {
         checkField(oldData.device?.imei, newData.device.imei, 'เลข IMEI');
         checkNumber(oldData.device?.deviceValue, newData.device.deviceValue, 'ราคา 70%');
         checkField(oldData.device?.deviceCondition, newData.device.deviceCondition, 'สภาพเครื่อง');
+        if (newData.device.officialWarrantyEnd !== undefined) {
+            const oldOWE = oldData.device?.officialWarrantyEnd ? new Date(oldData.device.officialWarrantyEnd).toLocaleDateString('th-TH') : '-';
+            const newOWE = newData.device.officialWarrantyEnd ? new Date(newData.device.officialWarrantyEnd).toLocaleDateString('th-TH') : '-';
+            checkField(oldOWE, newOWE, 'วันสิ้นสุดประกันศูนย์');
+        }
+    }
+
+    if (newData.devicePrice !== undefined) {
+        checkNumber(oldData.devicePrice, newData.devicePrice, 'ราคาเครื่องเต็ม');
     }
     
     if (newData.package) {
@@ -4034,7 +4071,30 @@ app.put('/api/warranties/:id', async (req, res) => {
         // memberId is immutable as per requirement
         delete updateData.staffName; // staffName (creator) is immutable
 
+        // บังคับข้อมูลสมาชิกทุกช่อง
+        if (updateData.shopName !== undefined && (!updateData.shopName || !updateData.shopName.trim())) {
+            return res.status(400).json({ message: 'กรุณาระบุร้านค้า (Shop)' });
+        }
+        if (updateData.customer) {
+            const { firstName, lastName, phone, dob, age, address } = updateData.customer;
+            if (!firstName || !lastName || !phone || !dob || age === undefined || !address) {
+                return res.status(400).json({ message: 'ข้อมูลสมาชิกไม่ครบถ้วน กรุณากรอกข้อมูลสมาชิกให้ครบทุกช่อง' });
+            }
+        }
+
         if (updateData.device) {
+            if (updateData.device.deviceCondition !== undefined && !['New', 'Second-hand'].includes(updateData.device.deviceCondition)) {
+                return res.status(400).json({ message: 'กรุณาระบุสภาพเครื่อง (มือ 1 หรือ มือ 2)' });
+            }
+            if (updateData.device.officialWarrantyEnd !== undefined) {
+                if (!updateData.device.officialWarrantyEnd) {
+                    return res.status(400).json({ message: 'กรุณาระบุวันสิ้นสุดประกันศูนย์' });
+                }
+                const oweDate = new Date(updateData.device.officialWarrantyEnd);
+                if (isNaN(oweDate.getTime())) {
+                    return res.status(400).json({ message: 'วันสิ้นสุดประกันศูนย์ไม่ถูกต้อง' });
+                }
+            }
             const catError = await validateProductCatalogFields(updateData.device);
             if (catError) return res.status(400).json({ message: catError });
 
@@ -4045,6 +4105,13 @@ app.put('/api/warranties/:id', async (req, res) => {
             if (updateData.device.imei) {
                 const existingImei = await Warranty.findOne({ _id: { $ne: req.params.id }, 'device.imei': updateData.device.imei, approvalStatus: { $ne: 'rejected' } });
                 if (existingImei) return res.status(400).json({ message: 'IMEI นี้ถูกลงทะเบียนแล้วและไม่ได้อยู่ในสถานะไม่อนุมัติ' });
+            }
+        }
+
+        if (updateData.devicePrice !== undefined) {
+            const fullPrice = parseFloat(updateData.devicePrice);
+            if (!fullPrice || isNaN(fullPrice) || fullPrice <= 0) {
+                return res.status(400).json({ message: 'กรุณาระบุราคาเครื่องเต็ม ณ ปัจจุบัน (ต้องมากกว่า 0 บาท)' });
             }
         }
 
@@ -6805,6 +6872,22 @@ app.get('/api/members', async (req, res) => {
     }
 });
 
+// Helper to ensure dates are saved in A.D. (ค.ศ.) if sent in B.E. (พ.ศ.)
+const sanitizeDateToAD = (val) => {
+    if (!val) return val;
+    if (typeof val === 'string') {
+        const isoMatch = val.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+        if (isoMatch) {
+            let y = parseInt(isoMatch[1], 10);
+            if (y > 2400) {
+                y -= 543;
+                return `${y}-${isoMatch[2]}-${isoMatch[3]}`;
+            }
+        }
+    }
+    return val;
+};
+
 // Create new member
 app.post('/api/members', async (req, res) => {
     try {
@@ -6832,6 +6915,9 @@ app.post('/api/members', async (req, res) => {
         if (existingMember) {
             return res.status(400).json({ success: false, message: 'เบอร์โทรศัพท์นี้ถูกใช้งานแล้ว' });
         }
+
+        if (req.body.birthdate) req.body.birthdate = sanitizeDateToAD(req.body.birthdate);
+        if (req.body.expiryDate) req.body.expiryDate = sanitizeDateToAD(req.body.expiryDate);
 
         // Generate Unique Member ID: SMCxxxxxx
         let memberId;
@@ -6952,6 +7038,9 @@ app.put('/api/members/:id', async (req, res) => {
                 return res.status(400).json({ success: false, message: 'เลขบัตรประชาชนนี้ถูกใช้งานโดยสมาชิกท่านอื่นแล้ว' });
             }
         }
+
+        if (req.body.birthdate) req.body.birthdate = sanitizeDateToAD(req.body.birthdate);
+        if (req.body.expiryDate) req.body.expiryDate = sanitizeDateToAD(req.body.expiryDate);
 
         const updatedMember = await Member.findByIdAndUpdate(
             req.params.id,
