@@ -2700,12 +2700,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 const cashflowStatusEl = document.getElementById('hqCashflowStatusText');
 
                 const unpaidFin = sumData.unpaidFinance || 0;
+                const cashFin = sumData.cashFinanceReceived || 0;
                 const changeAmt = sumData.totalChange || 0;
 
                 if (totalProfitEl) totalProfitEl.textContent = formatNumber(totalProfit) + ' ฿';
                 if (totalProfitSubEl) {
                     const parts = [];
                     if (unpaidFin > 0) parts.push(`รอไฟแนนซ์ ${formatNumber(unpaidFin)} ฿`);
+                    if (cashFin > 0) parts.push(`รับเข้า Easy.Care ${formatNumber(cashFin)} ฿`);
                     if (changeAmt > 0) parts.push(`เงินทอน ${formatNumber(changeAmt)} ฿`);
 
                     if (parts.length > 0) {
@@ -3585,10 +3587,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }
                 if (loanReceivedSubtitleEl) {
+                    let baseText = 'โอนเข้าบัญชีสำเร็จ';
+                    if (sum.totalCashFinance > 0) {
+                        baseText = `Silmin (บริษัทแม่) ${formatNumber(sum.totalHqReceived || 0)} ฿ + ไฟแนนซ์ Easy.Care ${formatNumber(sum.totalCashFinance)} ฿`;
+                    }
                     if (totalRem > 0) {
-                        loanReceivedSubtitleEl.textContent = `โอนเข้าบัญชีสำเร็จ (ให้ยืมอยู่ ${formatNumber(totalRem)} ฿)`;
+                        loanReceivedSubtitleEl.textContent = `${baseText} (ให้ยืมอยู่ ${formatNumber(totalRem)} ฿)`;
                     } else {
-                        loanReceivedSubtitleEl.textContent = 'โอนเข้าบัญชีสำเร็จ (พร้อมให้ยืม)';
+                        loanReceivedSubtitleEl.textContent = `${baseText} (พร้อมให้ยืม)`;
                     }
                 }
                 if (totalLoanEl) totalLoanEl.textContent = formatNumber(totalLoan) + ' ฿';
@@ -5410,13 +5416,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
     window.receiveFinanceAmount = async function (txId) {
         const today = new Date().toISOString().split('T')[0];
-        const { value: receivedDate } = await Swal.fire({
+        const { value: formValues } = await Swal.fire({
             title: 'ยืนยันการรับยอด',
             html: `
-                <p style="margin-bottom: 10px;">คุณแน่ใจหรือไม่ว่าต้องการยืนยันการรับยอดจากไฟแนนซ์สำหรับรายการนี้?</p>
-                <div style="text-align: left;">
-                    <label for="receivedDateInput" style="display: block; font-size: 14px; margin-bottom: 5px; color: #64748b;">ระบุวันที่รับยอด:</label>
-                    <input type="date" id="receivedDateInput" class="swal2-input" value="${today}" style="margin: 0; width: 100%; box-sizing: border-box;">
+                <p style="margin-bottom: 12px; font-size: 14px; color: #334155;">คุณแน่ใจหรือไม่ว่าต้องการยืนยันการรับยอดจากไฟแนนซ์สำหรับรายการนี้?</p>
+                <div style="text-align: left; background: #f8fafc; padding: 14px; border-radius: 10px; border: 1px solid #e2e8f0;">
+                    <label for="receivedDateInput" style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 5px; color: #475569;">ระบุวันที่รับยอด:</label>
+                    <input type="date" id="receivedDateInput" class="swal2-input" value="${today}" style="margin: 0 0 14px 0; width: 100%; box-sizing: border-box; font-size: 14px; height: 38px;">
+                    
+                    <div style="border-top: 1px dashed #cbd5e1; padding-top: 12px;">
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px; font-weight: 700; color: #0f172a; user-select: none;">
+                            <input type="checkbox" id="receivedAsCashCheckbox" style="width: 18px; height: 18px; accent-color: #10b981; cursor: pointer;">
+                            Easy.Care (รับเข้า Easy.Care โดยตรง)
+                        </label>
+                        <div style="font-size: 12px; color: #64748b; margin: 4px 0 0 26px; line-height: 1.45;">
+                            • <strong>ถ้าติ๊ก (Easy.Care):</strong> ยอดเงินสดในส่วน <em>"บันทึกให้ยืม (Easy.Care)"</em> จะเพิ่มขึ้น<br>
+                            • <strong>ถ้าไม่ติ๊ก (Silmin):</strong> ยอดหนี้คงค้างจะเพิ่มในส่วน <em>"รับชำระหนี้ (Silmin)"</em> จะเพิ่มขึ้น
+                        </div>
+                    </div>
                 </div>
             `,
             icon: 'question',
@@ -5425,25 +5442,35 @@ document.addEventListener('DOMContentLoaded', () => {
             cancelButtonText: 'ยกเลิก',
             confirmButtonColor: '#3b82f6',
             preConfirm: () => {
-                const val = document.getElementById('receivedDateInput').value;
-                if (!val) {
+                const receivedDate = document.getElementById('receivedDateInput').value;
+                if (!receivedDate) {
                     Swal.showValidationMessage('กรุณาเลือกวันที่');
+                    return false;
                 }
-                return val;
+                const receivedAsCash = document.getElementById('receivedAsCashCheckbox').checked;
+                return { receivedDate, receivedAsCash };
             }
         });
 
-        if (!receivedDate) return;
+        if (!formValues) return;
 
         try {
+            const staffName = (currentUser && currentUser.staffName) ? currentUser.staffName : 'Staff';
             const res = await fetch(`/api/finance/transactions/${txId}/receive`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ receivedDate })
+                body: JSON.stringify({
+                    receivedDate: formValues.receivedDate,
+                    receivedAsCash: formValues.receivedAsCash,
+                    staffName
+                })
             });
             const data = await res.json();
             if (data.success) {
-                showAlert('success', 'บันทึกการรับยอดสำเร็จ');
+                const msg = formValues.receivedAsCash
+                    ? 'บันทึกรับยอดเข้า Easy.Care สำเร็จ (เพิ่มเข้ายอดเงินสดยืมแล้ว)'
+                    : 'บันทึกรับยอดเข้า Silmin (บริษัทแม่) สำเร็จ (เพิ่มเข้ายอดรับชำระหนี้แล้ว)';
+                showAlert('success', msg);
                 fetchFinanceData(); // Refresh table
             } else {
                 showAlert('error', data.message || 'เกิดข้อผิดพลาดในการรับยอด');
@@ -5729,9 +5756,15 @@ document.addEventListener('DOMContentLoaded', () => {
                             displayNetTotalText += ` ฿<br><span style="color: #dc2626; font-size: 0.85em;">รอการชำระเงินจากไฟแนนซ์</span><br><button class="btn btn-sm" style="margin-top: 5px; padding: 2px 8px; font-size: 12px; background-color: #3b82f6; color: white; border-radius: 4px;" onclick="receiveFinanceAmount('${tx._id}')">รับยอด</button>`;
                         } else if (tx.financeReceivedDate) {
                             const receivedDateText = new Date(tx.financeReceivedDate).toLocaleDateString('th-TH');
-                            displayNetTotalText += ` ฿<br><span style="color: #0d9488; font-size: 0.85em;">รับยอดเมื่อ: ${receivedDateText}</span>`;
+                            const typeBadge = tx.receivedAsCash
+                                ? '<span style="display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 0.75em; background: #ecfdf5; color: #059669; border: 1px solid #a7f3d0; margin-left: 2px;">Easy.Care</span>'
+                                : '<span style="display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 0.75em; background: #f0f9ff; color: #0284c7; border: 1px solid #bae6fd; margin-left: 2px;" title="Silmin (บริษัทแม่)">Silmin</span>';
+                            displayNetTotalText += ` ฿<br><span style="color: #0d9488; font-size: 0.85em;">รับยอดเมื่อ: ${receivedDateText} ${typeBadge}</span>`;
                         } else {
-                            displayNetTotalText += ` ฿<br><span style="color: #0d9488; font-size: 0.85em;">รับยอดแล้ว</span>`;
+                            const typeBadge = tx.receivedAsCash
+                                ? '<span style="display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 0.75em; background: #ecfdf5; color: #059669; border: 1px solid #a7f3d0; margin-left: 2px;">Easy.Care</span>'
+                                : '<span style="display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 0.75em; background: #f0f9ff; color: #0284c7; border: 1px solid #bae6fd; margin-left: 2px;" title="Silmin (บริษัทแม่)">Silmin</span>';
+                            displayNetTotalText += ` ฿<br><span style="color: #0d9488; font-size: 0.85em;">รับยอดแล้ว ${typeBadge}</span>`;
                         }
                     } else if (tx.actionType !== 'คืนเงินชดเชยสละสิทธิ์เครื่อง' && tx.actionType.startsWith('ชำระ')) {
                         if (tx.actionType.includes('ชำระค่างวดที่') || tx.actionType === 'ชำระปิดยอด/จ่ายเต็ม') {

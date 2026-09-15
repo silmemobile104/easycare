@@ -440,6 +440,7 @@ const FinanceTransactionSchema = new mongoose.Schema({
     financeProvider: { type: String },
     financeReceived: { type: Boolean, default: false },
     financeReceivedDate: { type: Date },
+    receivedAsCash: { type: Boolean, default: false },
     branch: String,
     evidenceUrl: String,
     evidenceUrls: [String],
@@ -4564,16 +4565,22 @@ app.get('/api/finance/transactions', async (req, res) => {
 
 app.put('/api/finance/transactions/:id/receive', async (req, res) => {
     try {
-        const { receivedDate } = req.body;
+        const { receivedDate, receivedAsCash, staffName } = req.body;
+        const isCash = Boolean(receivedAsCash);
         const tx = await FinanceTransaction.findByIdAndUpdate(
             req.params.id,
             {
                 financeReceived: true,
-                financeReceivedDate: receivedDate ? new Date(receivedDate) : new Date()
+                financeReceivedDate: receivedDate ? new Date(receivedDate) : new Date(),
+                receivedAsCash: isCash
             },
             { new: true }
         );
         if (!tx) return res.status(404).json({ message: 'Transaction not found' });
+
+        const channelLabel = isCash ? 'Easy.Care (เข้าเงินสดยืม)' : 'Silmin (บริษัทแม่/รับชำระหนี้)';
+        await logAction('Receive Finance Amount', `บันทึกรับยอดจากไฟแนนซ์ ${tx.financeProvider || ''} สำหรับสัญญา ${tx.policyNumber} จำนวน ${tx.financedAmount || 0} บาท (${channelLabel})`, staffName || 'System');
+
         res.json({ success: true, transaction: tx });
     } catch (err) {
         res.status(500).json({ message: err.message });
@@ -5369,7 +5376,7 @@ app.get('/api/finance/export/excel', async (req, res) => {
 // HEAD OFFICE SETTLEMENT APIS (รับเงินโอนจากสำนักงานใหญ่ SilminMobile)
 // ═══════════════════════════════════════════════════════════════════
 
-// ฟังก์ชันคำนวณยอดหักสำหรับรับชำระหนี้: ยอดที่ยังไม่ได้รับจากไฟแนนซ์ และ เงินทอน
+// ฟังก์ชันคำนวณยอดหักสำหรับรับชำระหนี้: ยอดที่ยังไม่ได้รับจากไฟแนนซ์, ยอดไฟแนนซ์ที่รับเป็นเงินสด, และ เงินทอน
 async function getFinanceDeductions(startDate, endDate) {
     const rangeMatchTx = {};
     if (startDate) {
@@ -5394,12 +5401,22 @@ async function getFinanceDeductions(startDate, endDate) {
                             { $ifNull: ["$financedAmount", 0] }
                         ]
                     }
+                },
+                cashFinanceFromAmount: {
+                    $sum: {
+                        $cond: [
+                            { $and: [{ $eq: ["$financeReceived", true] }, { $eq: ["$receivedAsCash", true] }] },
+                            { $ifNull: ["$financedAmount", 0] },
+                            0
+                        ]
+                    }
                 }
             }
         }
     ]);
 
     let totalUnpaid = Number(aggr?.[0]?.unpaidFromFinancedAmount || 0);
+    let totalCashFinance = Number(aggr?.[0]?.cashFinanceFromAmount || 0);
     let totalChange = Number(aggr?.[0]?.totalChange || 0);
 
     // Fallback สำหรับรายการประวัติเดิมที่ไม่มี financedAmount
@@ -5420,10 +5437,12 @@ async function getFinanceDeductions(startDate, endDate) {
 
         if (tx.financeReceived !== true) {
             totalUnpaid += amount;
+        } else if (tx.receivedAsCash === true) {
+            totalCashFinance += amount;
         }
     });
 
-    return { totalUnpaid, totalChange };
+    return { totalUnpaid, totalCashFinance, totalChange };
 }
 
 // 1. สรุปยอดเงิน: กำไรสะสม, ยอดที่โอนมาแล้ว, และยอดคงค้าง
@@ -5437,11 +5456,11 @@ app.get('/api/finance/hq-settlement/summary', async (req, res) => {
         const totalExpense = Number(profitData?.kpis?.totalExpense || 0);
         const netProfit = Number(profitData?.kpis?.netProfit || 0);
 
-        // คำนวณยอดที่ยังไม่ได้รับจากไฟแนนซ์ และ เงินทอน
-        const { totalUnpaid: unpaidFinance, totalChange } = await getFinanceDeductions(startDate, endDate);
+        // คำนวณยอดที่ยังไม่ได้รับจากไฟแนนซ์, ยอดไฟแนนซ์ที่รับเป็นเงินสด, และ เงินทอน
+        const { totalUnpaid: unpaidFinance, totalCashFinance: cashFinanceReceived, totalChange } = await getFinanceDeductions(startDate, endDate);
 
-        // ใน รับชำระหนี้: กำไรสุทธิสะสมทั้งหมด ร่วมกับรายจ่าย ไม่หักรายจ่ายออก, ลบยอดรอไฟแนนซ์ และลบเงินทอนออก
-        const totalNetProfit = Math.max(0, totalIncome - unpaidFinance - totalChange);
+        // ใน รับชำระหนี้: กำไรสุทธิสะสมทั้งหมด ร่วมกับรายจ่าย ไม่หักรายจ่ายออก, ลบยอดรอไฟแนนซ์, ลบยอดไฟแนนซ์ที่รับเป็นเงินสดแล้ว, และลบเงินทอนออก
+        const totalNetProfit = Math.max(0, totalIncome - unpaidFinance - cashFinanceReceived - totalChange);
 
         // รวมยอดที่ สนง.ใหญ่ โอนมาแล้ว
         const matchHq = {};
@@ -5469,12 +5488,13 @@ app.get('/api/finance/hq-settlement/summary', async (req, res) => {
 
         res.json({
             success: true,
-            totalNetProfit, // ร่วมกับรายจ่าย ไม่หักรายจ่ายออก, หักยอดรอไฟแนนซ์และเงินทอนออกแล้ว
+            totalNetProfit, // ร่วมกับรายจ่าย ไม่หักรายจ่ายออก, หักยอดรอไฟแนนซ์, ยอดรับเงินสดไฟแนนซ์ และเงินทอนออกแล้ว
             totalIncome,
             totalExpense,
             netProfit,
-            unpaidFinance, // ยอดที่ยังไม่ได้รับจากไฟแนนซ์
-            totalChange,   // ยอดเงินทอน
+            unpaidFinance,       // ยอดที่ยังไม่ได้รับจากไฟแนนซ์
+            cashFinanceReceived, // ยอดไฟแนนซ์ที่รับเป็นเงินสดแล้ว (เข้าเงินสดยืม EasyCare ไม่เข้า HQ)
+            totalChange,         // ยอดเงินทอน
             totalReceived,
             remainingBalance,
             count
@@ -5640,9 +5660,9 @@ app.get('/api/finance/hq-settlement/export/excel', async (req, res) => {
         const settlements = await HqSettlement.find(match).sort({ transferDate: -1 }).lean();
         const profitData = await buildProfitStatementData({ startDate, endDate });
         const totalIncome = Number(profitData?.kpis?.totalIncome || 0);
-        const { totalUnpaid: unpaidFinance, totalChange } = await getFinanceDeductions(startDate, endDate);
-        // ใน รับชำระหนี้: กำไรสุทธิสะสมทั้งหมด ร่วมกับรายจ่าย ไม่หักรายจ่ายออก, ลบยอดรอไฟแนนซ์ และลบเงินทอนออก
-        const totalNetProfit = Math.max(0, totalIncome - unpaidFinance - totalChange);
+        const { totalUnpaid: unpaidFinance, totalCashFinance: cashFinanceReceived, totalChange } = await getFinanceDeductions(startDate, endDate);
+        // ใน รับชำระหนี้: กำไรสุทธิสะสมทั้งหมด ร่วมกับรายจ่าย ไม่หักรายจ่ายออก, ลบยอดรอไฟแนนซ์, ลบยอดไฟแนนซ์ที่รับเป็นเงินสดแล้ว, และลบเงินทอนออก
+        const totalNetProfit = Math.max(0, totalIncome - unpaidFinance - cashFinanceReceived - totalChange);
         const totalReceived = settlements.reduce((sum, s) => sum + Number(s.amount || 0), 0);
         const remainingBalance = totalNetProfit - totalReceived;
 
@@ -5694,10 +5714,13 @@ app.get('/api/finance/hq-settlement/export/excel', async (req, res) => {
 
         wsSummary.addRow({ label: 'ยอดรายรับสะสมทั้งหมด (รวมรายจ่าย)', value: totalIncome });
         wsSummary.addRow({ label: 'หัก: ยอดเงินที่รอรับจากไฟแนนซ์ (ยังไม่ได้รับ)', value: unpaidFinance });
+        if (cashFinanceReceived > 0) {
+            wsSummary.addRow({ label: 'หัก: ยอดเงินที่รับเข้า Easy.Care (เข้าเงินสดยืม)', value: cashFinanceReceived });
+        }
         wsSummary.addRow({ label: 'หัก: ยอดเงินทอนลูกค้า', value: totalChange });
         wsSummary.addRow({ label: 'กำไรสุทธิสะสมทั้งหมด (ฐานรับชำระหนี้สุทธิ)', value: totalNetProfit });
-        wsSummary.addRow({ label: 'ยอดเงินที่ สนง.ใหญ่ (SilminMobile) โอนมาแล้ว', value: totalReceived });
-        wsSummary.addRow({ label: 'ยอดหนี้คงค้างที่รอรับจาก สนง.ใหญ่', value: remainingBalance });
+        wsSummary.addRow({ label: 'ยอดเงินที่ Silmin (บริษัทแม่) โอนมาแล้ว', value: totalReceived });
+        wsSummary.addRow({ label: 'ยอดหนี้คงค้างที่รอรับจาก Silmin (บริษัทแม่)', value: remainingBalance });
         wsSummary.addRow({ label: 'จำนวนครั้งที่โอน (รายการ)', value: settlements.length });
         wsSummary.getColumn('value').numFmt = '#,##0.00';
 
@@ -5785,7 +5808,50 @@ app.get('/api/finance/loans/summary', async (req, res) => {
                 }
             }
         ]);
-        const totalReceived = Number(hqAgg?.[0]?.totalReceived || 0);
+        const totalHqReceived = Number(hqAgg?.[0]?.totalReceived || 0);
+
+        // รวมยอดเงินสดที่รับจากไฟแนนซ์ (financeReceived = true และ receivedAsCash = true)
+        const cashFinanceAgg = await FinanceTransaction.aggregate([
+            {
+                $match: {
+                    actionType: { $ne: 'คืนเงินชดเชยสละสิทธิ์เครื่อง' },
+                    policyNumber: { $not: /^LN-/ },
+                    financeReceived: true,
+                    receivedAsCash: true
+                }
+            },
+            {
+                $group: {
+                    _id: null,
+                    totalCashFinance: { $sum: { $ifNull: ["$financedAmount", 0] } }
+                }
+            }
+        ]);
+        let totalCashFinance = Number(cashFinanceAgg?.[0]?.totalCashFinance || 0);
+
+        // Fallback สำหรับรายการประวัติเดิมที่ไม่มี financedAmount
+        const oldCashFinanceRecords = await FinanceTransaction.find({
+            actionType: { $ne: 'คืนเงินชดเชยสละสิทธิ์เครื่อง' },
+            policyNumber: { $not: /^LN-/ },
+            financeReceived: true,
+            receivedAsCash: true,
+            financedAmount: { $exists: false },
+            financeDisplay: { $exists: true, $ne: null }
+        }).lean();
+
+        oldCashFinanceRecords.forEach(tx => {
+            let amount = 0;
+            if (tx.financeDisplay && tx.financeDisplay.includes('(')) {
+                const match = tx.financeDisplay.match(/\(([^)]+)\)/);
+                if (match) amount = parseFloat(match[1]) || 0;
+            } else if (tx.financeDisplay) {
+                amount = parseFloat(String(tx.financeDisplay).replace(/[^0-9.]/g, '')) || 0;
+            }
+            totalCashFinance += amount;
+        });
+
+        // ยอดเงินสดทั้งหมดของ EasyCare = เงินโอนจาก สนง.ใหญ่ + เงินสดที่รับจากไฟแนนซ์
+        const totalReceived = totalHqReceived + totalCashFinance;
         // ยอดเงินคงเหลือพร้อมให้ยืม = ยอดที่ได้รับแล้ว ลบด้วย ยอดหนี้คงค้างรอคืน (ติดลบได้หากให้ยืมเกินยอดเงินสดที่มี)
         const availableFunds = totalReceived - (summary.totalRemainingAmount || 0);
 
@@ -5794,6 +5860,8 @@ app.get('/api/finance/loans/summary', async (req, res) => {
             summary: {
                 ...summary,
                 overdueCount,
+                totalHqReceived,
+                totalCashFinance,
                 totalReceived,
                 availableFunds,
                 availableCash: totalReceived
