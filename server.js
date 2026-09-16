@@ -6624,6 +6624,7 @@ app.post('/api/claims/:id/decision', async (req, res) => {
                 transferAmount: transferAmount,
                 changeAmount: changeAmount,
                 netTotal: netTotal,
+                fullRevenue: netTotal,
                 branch: warranty.shopName || null,
                 evidenceUrl: evidenceUrl,
                 recordedBy: staffName

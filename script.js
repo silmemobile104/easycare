@@ -5766,6 +5766,9 @@ document.addEventListener('DOMContentLoaded', () => {
                                 : '<span style="display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 0.75em; background: #f0f9ff; color: #0284c7; border: 1px solid #bae6fd; margin-left: 2px;" title="Silmin (บริษัทแม่)">Silmin</span>';
                             displayNetTotalText += ` ฿<br><span style="color: #0d9488; font-size: 0.85em;">รับยอดแล้ว ${typeBadge}</span>`;
                         }
+                    } else if (tx.actionType === 'ชำระค่าซ่อมส่วนต่าง' || tx.actionType.includes('ส่วนต่าง')) {
+                        const actualReceived = (tx.cashReceived || 0) + (tx.transferAmount || 0) - (tx.changeAmount || 0);
+                        displayNetTotalText = formatNumber(actualReceived || tx.netTotal);
                     } else if (tx.actionType !== 'คืนเงินชดเชยสละสิทธิ์เครื่อง' && tx.actionType.startsWith('ชำระ')) {
                         if (tx.actionType.includes('ชำระค่างวดที่') || tx.actionType === 'ชำระปิดยอด/จ่ายเต็ม') {
                             const actualReceived = (tx.cashReceived || 0) + (tx.transferAmount || 0) - (tx.changeAmount || 0);
