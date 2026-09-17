@@ -998,27 +998,13 @@ app.get('/api/finance/expenses/summary', async (req, res) => {
                         { $match: { $or: [{ 'updates.title': { $not: /\(เกินวงเงิน\)/ } }, { status: { $ne: 'ลูกค้าสละสิทธิ์เครื่อง' } }] } },
                         ...(Object.keys(baseMatch).length > 0 ? [{ $match: baseMatch }] : []),
                         { $group: { _id: null, totalExpense: { $sum: '$__expenseAmount' } } }
-                    ],
-                    totalCostAgg: [
-                        {
-                            $addFields: {
-                                __expenseDate: '$claimDate',
-                                __expenseAmount: { $ifNull: ['$totalCost', 0] }
-                            }
-                        },
-                        { $match: { __expenseAmount: { $gt: 0 } } },
-                        ...(Object.keys(baseMatch).length > 0 ? [{ $match: baseMatch }] : []),
-                        { $group: { _id: null, totalExpense: { $sum: '$__expenseAmount' } } }
                     ]
                 }
             },
             {
                 $project: {
                     totalExpense: {
-                        $add: [
-                            { $ifNull: [{ $arrayElemAt: ['$updateAgg.totalExpense', 0] }, 0] },
-                            { $ifNull: [{ $arrayElemAt: ['$totalCostAgg.totalExpense', 0] }, 0] }
-                        ]
+                        $ifNull: [{ $arrayElemAt: ['$updateAgg.totalExpense', 0] }, 0]
                     }
                 }
             }
@@ -4875,26 +4861,13 @@ async function buildProfitStatementData({ startDate, endDate, includeCompare = f
                             { $match: { $or: [{ 'updates.title': { $not: /\(เกินวงเงิน\)/ } }, { status: { $ne: 'ลูกค้าสละสิทธิ์เครื่อง' } }] } },
                             ...(Object.keys(rangeMatchClaimUpdate).length > 0 ? [{ $match: rangeMatchClaimUpdate }] : []),
                             { $group: { _id: null, total: { $sum: '$updates.cost' } } }
-                        ],
-                        totalCosts: [
-                            {
-                                $addFields: {
-                                    __totalCost: { $ifNull: ['$totalCost', 0] }
-                                }
-                            },
-                            { $match: { __totalCost: { $gt: 0 } } },
-                            ...(Object.keys(rangeMatchClaimTotal).length > 0 ? [{ $match: rangeMatchClaimTotal }] : []),
-                            { $group: { _id: null, total: { $sum: '$__totalCost' } } }
                         ]
                     }
                 },
                 {
                     $project: {
                         total: {
-                            $add: [
-                                { $ifNull: [{ $arrayElemAt: ['$updateCosts.total', 0] }, 0] },
-                                { $ifNull: [{ $arrayElemAt: ['$totalCosts.total', 0] }, 0] }
-                            ]
+                            $ifNull: [{ $arrayElemAt: ['$updateCosts.total', 0] }, 0]
                         }
                     }
                 }
@@ -4937,45 +4910,18 @@ async function buildProfitStatementData({ startDate, endDate, includeCompare = f
             ]),
             Claim.aggregate([
                 { $project: { claimDate: 1, totalCost: 1, status: 1, updates: 1 } },
+                { $unwind: { path: '$updates', preserveNullAndEmptyArrays: false } },
+                { $match: { 'updates.cost': { $gt: 0 } } },
+                { $match: { 'updates.title': { $ne: 'ลูกค้าตกลงรับเครื่องคืนและชำระเงินส่วนต่าง' } } },
+                { $match: { $or: [{ 'updates.title': { $not: /\(เกินวงเงิน\)/ } }, { status: { $ne: 'ลูกค้าสละสิทธิ์เครื่อง' } }] } },
+                ...(Object.keys(rangeMatchClaimUpdate).length > 0 ? [{ $match: rangeMatchClaimUpdate }] : []),
                 {
-                    $facet: {
-                        updateTrend: [
-                            { $unwind: { path: '$updates', preserveNullAndEmptyArrays: false } },
-                            { $match: { 'updates.cost': { $gt: 0 } } },
-                            { $match: { 'updates.title': { $ne: 'ลูกค้าตกลงรับเครื่องคืนและชำระเงินส่วนต่าง' } } },
-                            { $match: { $or: [{ 'updates.title': { $not: /\(เกินวงเงิน\)/ } }, { status: { $ne: 'ลูกค้าสละสิทธิ์เครื่อง' } }] } },
-                            ...(Object.keys(rangeMatchClaimUpdate).length > 0 ? [{ $match: rangeMatchClaimUpdate }] : []),
-                            {
-                                $addFields: {
-                                    __bucket: { $dateToString: { format: '%Y-%m', date: '$updates.date' } },
-                                    __amount: { $ifNull: ['$updates.cost', 0] }
-                                }
-                            },
-                            { $group: { _id: '$__bucket', claim: { $sum: '$__amount' } } },
-                            { $sort: { _id: 1 } }
-                        ],
-                        totalTrend: [
-                            {
-                                $addFields: {
-                                    __bucket: { $dateToString: { format: '%Y-%m', date: '$claimDate' } },
-                                    __amount: { $ifNull: ['$totalCost', 0] }
-                                }
-                            },
-                            { $match: { __amount: { $gt: 0 } } },
-                            ...(Object.keys(rangeMatchClaimTotal).length > 0 ? [{ $match: rangeMatchClaimTotal }] : []),
-                            { $group: { _id: '$__bucket', claim: { $sum: '$__amount' } } },
-                            { $sort: { _id: 1 } }
-                        ]
+                    $addFields: {
+                        __bucket: { $dateToString: { format: '%Y-%m', date: '$updates.date' } },
+                        __amount: { $ifNull: ['$updates.cost', 0] }
                     }
                 },
-                {
-                    $project: {
-                        merged: { $concatArrays: ['$updateTrend', '$totalTrend'] }
-                    }
-                },
-                { $unwind: { path: '$merged', preserveNullAndEmptyArrays: false } },
-                { $replaceRoot: { newRoot: '$merged' } },
-                { $group: { _id: '$_id', claim: { $sum: '$claim' } } },
+                { $group: { _id: '$__bucket', claim: { $sum: '$__amount' } } },
                 { $sort: { _id: 1 } }
             ]),
             AdminExpense.aggregate([
