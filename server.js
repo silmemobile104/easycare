@@ -6326,6 +6326,7 @@ app.get('/api/claims', async (req, res) => {
             },
             {
                 $addFields: {
+                    'policyNumber': { $ifNull: ['$policyNumber', { $arrayElemAt: ['$warrantyInfo.policyNumber', 0] }] },
                     'imei': { $ifNull: ['$imei', { $arrayElemAt: ['$warrantyInfo.device.imei', 0] }] },
                     'serialNumber': { $ifNull: ['$serialNumber', { $arrayElemAt: ['$warrantyInfo.device.serial', 0] }] },
                     'color': { $ifNull: ['$color', { $arrayElemAt: ['$warrantyInfo.device.color', 0] }] }
@@ -6369,6 +6370,7 @@ app.get('/api/claims/pending', async (req, res) => {
             },
             {
                 $addFields: {
+                    'policyNumber': { $ifNull: ['$policyNumber', { $arrayElemAt: ['$warrantyInfo.policyNumber', 0] }] },
                     'imei': { $ifNull: ['$imei', { $arrayElemAt: ['$warrantyInfo.device.imei', 0] }] },
                     'serialNumber': { $ifNull: ['$serialNumber', { $arrayElemAt: ['$warrantyInfo.device.serial', 0] }] },
                     'color': { $ifNull: ['$color', { $arrayElemAt: ['$warrantyInfo.device.color', 0] }] }
@@ -6421,6 +6423,7 @@ app.get('/api/claims/history/:warrantyId', async (req, res) => {
             },
             {
                 $addFields: {
+                    'policyNumber': { $ifNull: ['$policyNumber', { $arrayElemAt: ['$warrantyInfo.policyNumber', 0] }] },
                     'imei': { $ifNull: ['$imei', { $arrayElemAt: ['$warrantyInfo.device.imei', 0] }] },
                     'serialNumber': { $ifNull: ['$serialNumber', { $arrayElemAt: ['$warrantyInfo.device.serial', 0] }] },
                     'color': { $ifNull: ['$color', { $arrayElemAt: ['$warrantyInfo.device.color', 0] }] }

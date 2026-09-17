@@ -10888,6 +10888,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return `
                 <tr>
                     <td data-label="วันที่ลงทะเบียน">${r.createdAt ? new Date(r.createdAt).toLocaleString('th-TH') : '-'}</td>
+                    <td data-label="เลขกรมธรรม์" style="font-weight: 600; color: #1e293b;">${r.policyNumber || '-'}</td>
                     <td data-label="รหัสการเคลม" style="font-weight: 600; color: var(--primary);">${r.claimId || '-'}</td>
                     <td data-label="รหัสสมาชิก">${r.memberId || '-'}</td>
                     <td data-label="ชื่อลูกค้า">${r.customer.firstName} ${r.customer.lastName}</td>
@@ -11561,6 +11562,7 @@ document.addEventListener('DOMContentLoaded', () => {
         body.innerHTML = claims.map(c => `
             <tr class="${c && c.isOverdue ? 'row-overdue' : ''}">
                 <td data-label="รหัสเคลม" style="font-weight: 600; color: var(--primary);">${c.claimId || '-'}</td>
+                <td data-label="เลขกรมธรรม์" style="font-weight: 600; color: #1e293b;">${c.policyNumber || '-'}</td>
                 <td data-label="วันที่แจ้งเคลม">${c.claimDate ? new Date(c.claimDate).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' }) : '-'}</td>
                 <td data-label="ชื่อลูกค้า">${c.customerName || '-'}</td>
                 <td data-label="เบอร์โทรศัพท์">${c.customerPhone || '-'}</td>
@@ -11570,7 +11572,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 ? `<span class="status-badge status-overdue">⚠️ เกินกำหนดอัปเดต (${safeDays(c.daysOverdue)} วัน)</span>`
                 : `<span class="status-badge" style="background: linear-gradient(135deg, #ef4444, #dc2626); color: white; box-shadow: 0 2px 8px rgba(239, 68, 68, 0.4); font-weight: 700;">รอเคลม</span>`}
                 </td>
-                <td data-label="ทำรายการ">
+                <td data-label="จัดการ">
                     <div style="display: flex; gap: 0.5rem; justify-content: center;">
                         <button class="status-update-btn submit-btn" data-id="${c._id}" style="padding: 0.4rem 1rem; font-size: 0.85rem; background: linear-gradient(135deg, #3b82f6, #2563eb);">
                             📋 อัปเดตสถานะ
