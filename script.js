@@ -2685,13 +2685,18 @@ document.addEventListener('DOMContentLoaded', () => {
             if (sumData.success) {
                 const totalProfit = sumData.totalNetProfit || 0;
                 const totalReceived = sumData.totalReceived || 0;
+                const hqReceived = sumData.hqReceived || 0;
+                const loanRepaidReceived = sumData.loanRepaidReceived || 0;
                 const remaining = sumData.remainingBalance || 0;
+                const loanRemaining = sumData.loanRemainingAmount || 0;
                 const txCount = sumData.count || 0;
 
                 const totalProfitEl = document.getElementById('hqTotalNetProfitDisplay');
                 const totalProfitSubEl = document.getElementById('hqTotalNetProfitSubtitle');
                 const totalRecEl = document.getElementById('hqTotalReceivedDisplay');
+                const totalRecSubEl = document.getElementById('hqTotalReceivedSubtitle');
                 const remBalEl = document.getElementById('hqRemainingBalanceDisplay');
+                const remBalSubEl = document.getElementById('hqRemainingBalanceSubtitle');
                 const ratioEl = document.getElementById('hqSettlementRatioDisplay');
                 const pBarEl = document.getElementById('hqSettlementProgressBar');
                 const txCountEl = document.getElementById('hqSettlementTxCount');
@@ -2717,7 +2722,21 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }
                 if (totalRecEl) totalRecEl.textContent = formatNumber(totalReceived) + ' ฿';
+                if (totalRecSubEl) {
+                    if (loanRepaidReceived > 0) {
+                        totalRecSubEl.textContent = `สนง.ใหญ่ ${formatNumber(hqReceived)} ฿ + คืนเงินยืม ${formatNumber(loanRepaidReceived)} ฿`;
+                    } else {
+                        totalRecSubEl.textContent = 'โอนเข้าบัญชีสำเร็จ';
+                    }
+                }
                 if (remBalEl) remBalEl.textContent = formatNumber(remaining) + ' ฿';
+                if (remBalSubEl) {
+                    if (loanRemaining > 0) {
+                        remBalSubEl.textContent = `ยอดที่ยังไม่ได้ชำระ (รวมหนี้เงินยืม ${formatNumber(loanRemaining)} ฿)`;
+                    } else {
+                        remBalSubEl.textContent = 'ยอดที่ยังไม่ได้ชำระ';
+                    }
+                }
 
                 // Settlement Ratio calculation
                 const ratio = (totalProfit > 0) ? Math.min(100, Math.max(0, (totalReceived / totalProfit) * 100)) : (totalReceived > 0 ? 100 : 0);
@@ -2797,6 +2816,7 @@ document.addEventListener('DOMContentLoaded', () => {
         items.forEach((item, idx) => {
             const tr = document.createElement('tr');
             tr.className = 'hq-table-row';
+            const isLoanRepay = item.sourceType === 'loan_repay';
             const dateStr = item.transferDate ? new Date(item.transferDate).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' }) : '-';
             const amountStr = formatNumber(item.amount || 0) + ' ฿';
             
@@ -2811,10 +2831,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Channel badge styling
             let channelBadge = `<span style="display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 6px; font-size: 0.76rem; font-weight: 600; background: #f1f5f9; color: #475569;">${escapeHtml(item.channel || 'โอนเงิน')}</span>`;
-            if (item.channel === 'โอนเงินเข้าบัญชี') {
+            if (isLoanRepay) {
+                channelBadge = `<span style="display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 6px; font-size: 0.76rem; font-weight: 600; background: #ecfdf5; color: #059669; border: 1px solid #a7f3d0;"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg> คืนเงินยืม</span>`;
+            } else if (item.channel === 'โอนเงินเข้าบัญชี') {
                 channelBadge = `<span style="display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 6px; font-size: 0.76rem; font-weight: 600; background: #e0f2fe; color: #0284c7;"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"></polyline><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M21 13v2a4 4 0 0 1-4 4H3"></path></svg> โอนเงินเข้าบัญชี</span>`;
             } else if (item.channel === 'เงินสด') {
-                channelBadge = `<span style="display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 6px; font-size: 0.76rem; font-weight: 600; background: #dcfce7; color: #15803d;"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"></rect><circle cx="12" cy="12" r="2"></circle></svg> เงินสด</span>`;
+                channelBadge = `<span style="display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 6px; font-size: 0.76rem; font-weight: 600; background: #dcfce7; color: #15803d;"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"></rect><circle cx="12" cy="12" r="2"></circle></svg> เงินสด</span>`;
             } else if (item.channel === 'เช็คธนาคาร') {
                 channelBadge = `<span style="display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 6px; font-size: 0.76rem; font-weight: 600; background: #fef3c7; color: #b45309;">เช็คธนาคาร</span>`;
             }
@@ -2824,16 +2846,52 @@ document.addEventListener('DOMContentLoaded', () => {
                 ? `<span style="display: inline-flex; align-items: center; gap: 5px; font-size: 0.82rem; font-weight: 600; color: #334155; background: #f8fafc; border: 1px solid #e2e8f0; padding: 3px 9px; border-radius: 6px;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#0d9488" stroke-width="2"><line x1="3" y1="21" x2="21" y2="21"></line><line x1="3" y1="10" x2="21" y2="10"></line><polyline points="5 6 12 3 19 6"></polyline></svg>${escapeHtml(item.bankAccount)}</span>`
                 : `<span style="color: #94a3b8; font-size: 0.85rem;">-</span>`;
 
-            tr.innerHTML = `
-                <td style="text-align: center; color: #94a3b8; font-weight: 500;">${idx + 1}</td>
-                <td style="text-align: center;"><span style="font-weight: 600; color: #1e293b;">${dateStr}</span></td>
-                <td style="text-align: right;"><span style="font-weight: 700; color: #0d9488; font-size: 0.98rem; font-family: monospace, var(--font-family);">+ ${amountStr}</span></td>
-                <td style="text-align: center;">${channelBadge}</td>
-                <td style="text-align: center;">${bankHtml}</td>
-                <td style="text-align: left;"><span style="color: #334155; font-size: 0.85rem;">${escapeHtml(item.remark || '-')}</span></td>
-                <td style="text-align: center;">${slipHtml}</td>
-                <td style="text-align: center;"><span style="display: inline-flex; align-items: center; gap: 4px; font-size: 0.78rem; color: #475569; background: #f8fafc; border: 1px solid #e2e8f0; padding: 2px 7px; border-radius: 6px;"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>${escapeHtml(item.recordedBy || '-')}</span></td>
-                <td style="text-align: center;">
+            // Remark & Title formatting
+            let remarkHtml = '';
+            if (isLoanRepay) {
+                remarkHtml = `
+                    <div style="display: flex; flex-direction: column; gap: 3px;">
+                        <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                            <span style="display: inline-flex; align-items: center; gap: 3px; font-size: 0.72rem; font-weight: 700; background: #e0e7ff; color: #4338ca; padding: 2px 7px; border-radius: 5px; font-family: monospace;">
+                                ${escapeHtml(item.refNumber || 'LN-REPAY')}
+                            </span>
+                            <span style="font-weight: 700; color: #0f172a; font-size: 0.86rem;">
+                                📥 รับชำระคืนเงินยืม: <span style="color: #0284c7;">${escapeHtml(item.borrowerName || '-')}</span>
+                            </span>
+                            ${item.repaymentNo ? `<span style="font-size: 0.72rem; font-weight: 600; background: #f1f5f9; color: #475569; padding: 1px 6px; border-radius: 4px;">งวดที่ ${item.repaymentNo}</span>` : ''}
+                        </div>
+                        ${item.remark && !item.remark.startsWith('รับชำระคืนเงินยืม สัญญา') ? `<div style="font-size: 0.78rem; color: #64748b; margin-top: 1px;">${escapeHtml(item.remark)}</div>` : ''}
+                    </div>
+                `;
+            } else {
+                remarkHtml = `
+                    <div style="display: flex; flex-direction: column; gap: 2px;">
+                        <div style="display: flex; align-items: center; gap: 6px;">
+                            <span style="display: inline-flex; align-items: center; gap: 3px; font-size: 0.72rem; font-weight: 600; background: #f1f5f9; color: #475569; padding: 1px 6px; border-radius: 4px;">🏢 สนง.ใหญ่</span>
+                            <span style="color: #1e293b; font-size: 0.86rem; font-weight: 500;">${escapeHtml(item.remark || 'เงินโอนจาก สนง.ใหญ่ SilminMobile')}</span>
+                        </div>
+                        ${item.refNumber && item.refNumber !== '-' ? `<div style="font-size: 0.74rem; color: #94a3b8;">อ้างอิง: ${escapeHtml(item.refNumber)}</div>` : ''}
+                    </div>
+                `;
+            }
+
+            // Actions buttons
+            let actionsHtml = '';
+            if (isLoanRepay) {
+                actionsHtml = `
+                    <div style="display: inline-flex; align-items: center; justify-content: center; gap: 4px;">
+                        ${item.loanId ? `
+                        <button type="button" class="btn-loan-history" style="background: none; border: none; color: #4338ca; cursor: pointer; padding: 5px; border-radius: 6px; display: inline-flex; align-items: center; transition: all 0.15s ease;" onmouseover="this.style.background='#e0e7ff'" onmouseout="this.style.background='none'" onclick="window.showLoanHistoryModal('${item.loanId}')" title="เปิดดูประวัติสัญญาเงินยืมนี้">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                        </button>
+                        ` : ''}
+                        <button type="button" class="btn-delete-item" style="background: none; border: none; color: #ef4444; cursor: pointer; padding: 5px; border-radius: 6px; display: inline-flex; align-items: center; transition: all 0.15s ease;" onmouseover="this.style.background='#fee2e2'" onmouseout="this.style.background='none'" onclick="window.deleteHqSettlement('${item._id}')" title="ลบรายการนี้ (ยอดจะถูกปรับคืนในสัญญาเงินยืม)">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                        </button>
+                    </div>
+                `;
+            } else {
+                actionsHtml = `
                     <div style="display: inline-flex; align-items: center; justify-content: center; gap: 4px;">
                         <button type="button" class="btn-edit-item" style="background: none; border: none; color: #0284c7; cursor: pointer; padding: 5px; border-radius: 6px; display: inline-flex; align-items: center; transition: all 0.15s ease;" onmouseover="this.style.background='#e0f2fe'" onmouseout="this.style.background='none'" onclick="window.editHqSettlement('${item._id}')" title="แก้ไขรายการนี้">
                             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
@@ -2842,7 +2900,19 @@ document.addEventListener('DOMContentLoaded', () => {
                             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
                         </button>
                     </div>
-                </td>
+                `;
+            }
+
+            tr.innerHTML = `
+                <td style="text-align: center; color: #94a3b8; font-weight: 500;">${idx + 1}</td>
+                <td style="text-align: center;"><span style="font-weight: 600; color: #1e293b;">${dateStr}</span></td>
+                <td style="text-align: right;"><span style="font-weight: 700; color: #0d9488; font-size: 0.98rem; font-family: monospace, var(--font-family);">+ ${amountStr}</span></td>
+                <td style="text-align: center;">${channelBadge}</td>
+                <td style="text-align: center;">${bankHtml}</td>
+                <td style="text-align: left;">${remarkHtml}</td>
+                <td style="text-align: center;">${slipHtml}</td>
+                <td style="text-align: center;"><span style="display: inline-flex; align-items: center; gap: 4px; font-size: 0.78rem; color: #475569; background: #f8fafc; border: 1px solid #e2e8f0; padding: 2px 7px; border-radius: 6px;"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>${escapeHtml(item.recordedBy || '-')}</span></td>
+                <td style="text-align: center;">${actionsHtml}</td>
             `;
             tbody.appendChild(tr);
         });
@@ -2909,6 +2979,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (!item) {
             showAlert('error', 'ไม่พบข้อมูลรายการที่ต้องการแก้ไข');
+            return;
+        }
+
+        if (item.sourceType === 'loan_repay') {
+            Swal.fire({
+                title: 'รายการชำระคืนเงินยืม',
+                text: 'รายการนี้เชื่อมโยงกับสัญญาเงินยืม หากต้องการดูรายละเอียด กรุณาเปิดดูผ่านประวัติสัญญาเงินยืม',
+                icon: 'info',
+                showCancelButton: true,
+                confirmButtonColor: '#4338ca',
+                confirmButtonText: 'เปิดดูสัญญาเงินยืม',
+                cancelButtonText: 'ปิด'
+            }).then((res) => {
+                if (res.isConfirmed && item.loanId) {
+                    window.showLoanHistoryModal(item.loanId);
+                }
+            });
             return;
         }
 
@@ -3181,9 +3268,16 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     window.deleteHqSettlement = async function(id) {
+        const item = (Array.isArray(currentHqSettlements) ? currentHqSettlements : []).find(it => it._id === id);
+        const isLoanRepay = item && item.sourceType === 'loan_repay';
+        const confirmTitle = isLoanRepay ? 'ยืนยันการลบรายการคืนเงินยืม?' : 'ยืนยันการลบรายการ?';
+        const confirmText = isLoanRepay
+            ? `รายการนี้เป็นรายการรับคืนเงินยืมของ ${item.borrowerName || ''} (${formatNumber(item.amount)} ฿)\nหากลบ ระบบจะปรับยอดหนี้คงค้างในสัญญาเงินยืมกลับให้อัตโนมัติ`
+            : 'คุณแน่ใจหรือไม่ว่าต้องการลบรายการรับเงินโอนนี้ การกระทำนี้ไม่สามารถยกเลิกได้';
+
         const result = await Swal.fire({
-            title: 'ยืนยันการลบรายการ?',
-            text: 'คุณแน่ใจหรือไม่ว่าต้องการลบรายการรับเงินโอนนี้ การกระทำนี้ไม่สามารถยกเลิกได้',
+            title: confirmTitle,
+            text: confirmText,
             icon: 'warning',
             showCancelButton: true,
             confirmButtonColor: '#ef4444',
@@ -3204,8 +3298,11 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             const data = await res.json();
             if (data.success) {
-                showAlert('success', 'ลบรายการรับเงินโอนสำเร็จ');
+                showAlert('success', 'ลบรายการสำเร็จ');
                 fetchHqSettlementData();
+                if (isLoanRepay && typeof fetchLoanData === 'function') {
+                    fetchLoanData();
+                }
             } else {
                 showAlert('error', data.message || 'เกิดข้อผิดพลาดในการลบรายการ');
             }
@@ -4214,7 +4311,28 @@ document.addEventListener('DOMContentLoaded', () => {
                         ✓ ชำระครบ 100% ปิดยอดสัญญา
                     </div>
 
-                    <!-- Row 2: Remark -->
+                    <!-- Row 2: Channel & Destination Account -->
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 10px;">
+                        <div>
+                            <label style="display: flex; align-items: center; gap: 6px; font-size: 0.82rem; font-weight: 600; color: #334155; margin-bottom: 5px;">
+                                ช่องทางการรับเงิน
+                            </label>
+                            <select id="swalRepayChannel" style="width: 100%; height: 38px; padding: 0 10px; border: 1.5px solid #cbd5e1; border-radius: 8px; font-size: 0.86rem; color: #1e293b; outline: none; box-sizing: border-box; background: #fff;">
+                                <option value="โอนเงินเข้าบัญชี" selected>โอนเงินเข้าบัญชี</option>
+                                <option value="เงินสด">เงินสด</option>
+                                <option value="เช็คธนาคาร">เช็คธนาคาร</option>
+                                <option value="อื่นๆ">อื่นๆ</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label style="display: flex; align-items: center; gap: 6px; font-size: 0.82rem; font-weight: 600; color: #334155; margin-bottom: 5px;">
+                                บัญชี / ธนาคารที่รับเงิน
+                            </label>
+                            <input type="text" id="swalRepayBankAccount" placeholder="เช่น บัญชีบริษัท EasyCare หรือ เงินสด" value="บัญชีบริษัท EasyCare" style="width: 100%; height: 38px; padding: 0 10px; border: 1.5px solid #cbd5e1; border-radius: 8px; font-size: 0.86rem; color: #1e293b; outline: none; box-sizing: border-box;">
+                        </div>
+                    </div>
+
+                    <!-- Row 3: Remark -->
                     <div style="margin-bottom: 10px;">
                         <label style="display: flex; align-items: center; gap: 6px; font-size: 0.82rem; font-weight: 600; color: #334155; margin-bottom: 5px;">
                             หมายเหตุ
@@ -4222,7 +4340,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <input type="text" id="swalRepayRemark" value="ชำระคืนเงินยืมงวดที่ ${nextRepayNo}" placeholder="ระบุหมายเหตุ (ถ้ามี)" style="width: 100%; height: 38px; padding: 0 10px; border: 1.5px solid #cbd5e1; border-radius: 8px; font-size: 0.86rem; color: #1e293b; outline: none; box-sizing: border-box;">
                     </div>
 
-                    <!-- Row 3: Slip Upload Box -->
+                    <!-- Row 4: Slip Upload Box -->
                     <div style="margin-bottom: 4px;">
                         <label style="display: flex; align-items: center; gap: 6px; font-size: 0.82rem; font-weight: 600; color: #334155; margin-bottom: 5px;">
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
@@ -4317,6 +4435,8 @@ document.addEventListener('DOMContentLoaded', () => {
             preConfirm: () => {
                 const amount = parseFloat((document.getElementById('swalRepayAmount') || {}).value);
                 const repaymentDate = (document.getElementById('swalRepayDate') || {}).value;
+                const channel = (document.getElementById('swalRepayChannel') || {}).value || 'โอนเงินเข้าบัญชี';
+                const bankAccount = (document.getElementById('swalRepayBankAccount') || {}).value?.trim() || 'บัญชีบริษัท EasyCare';
                 const remark = (document.getElementById('swalRepayRemark') || {}).value?.trim();
                 const fileInput = document.getElementById('swalRepaySlipFile');
                 const file = fileInput && fileInput.files && fileInput.files[0] ? fileInput.files[0] : null;
@@ -4334,7 +4454,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     return false;
                 }
 
-                return { amount, repaymentDate, remark, file };
+                return { amount, repaymentDate, channel, bankAccount, remark, file };
             }
         });
 
@@ -4361,7 +4481,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const payload = {
                 amount: formValues.amount,
                 repaymentDate: formValues.repaymentDate,
-                fundDestination: '-',
+                fundDestination: formValues.bankAccount || '-',
+                channel: formValues.channel || 'โอนเงินเข้าบัญชี',
+                bankAccount: formValues.bankAccount || '-',
                 remark: formValues.remark,
                 evidenceUrl,
                 evidenceUrls: evidenceUrl ? [evidenceUrl] : [],
@@ -4382,6 +4504,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     : `บันทึกรับคืน ${formatNumber(formValues.amount)} ฿ สำเร็จ (คงเหลือ ${formatNumber(updatedLoan.remainingAmount)} ฿)`;
                 showAlert('success', msg);
                 fetchLoanData();
+                if (typeof fetchHqSettlementData === 'function') {
+                    fetchHqSettlementData(true);
+                }
             } else {
                 showAlert('error', data.message || 'บันทึกไม่สำเร็จ');
             }

@@ -533,7 +533,7 @@ const InstallmentPlanSchema = new mongoose.Schema({
 }, { collection: 'installmentPlans' });
 const InstallmentPlan = mongoose.model('InstallmentPlan', InstallmentPlanSchema);
 
-// HqSettlement Schema (บันทึกรับเงินโอนจากสำนักงานใหญ่ SilminMobile)
+// HqSettlement Schema (บันทึกรับเงินโอนจากสำนักงานใหญ่ SilminMobile / รับคืนเงินยืม)
 const HqSettlementSchema = new mongoose.Schema({
     transferDate: { type: Date, required: true, default: Date.now },
     amount: { type: Number, required: true },
@@ -543,7 +543,11 @@ const HqSettlementSchema = new mongoose.Schema({
     remark: { type: String },
     evidenceUrls: [String],
     evidenceUrl: { type: String },
-    recordedBy: { type: String, required: true }
+    recordedBy: { type: String, required: true },
+    sourceType: { type: String, enum: ['hq', 'loan_repay'], default: 'hq' },
+    loanId: { type: mongoose.Schema.Types.ObjectId, ref: 'Loan' },
+    borrowerName: { type: String },
+    repaymentNo: { type: Number }
 }, { timestamps: true });
 const HqSettlement = mongoose.model('HqSettlement', HqSettlementSchema);
 
@@ -5423,14 +5427,47 @@ app.get('/api/finance/hq-settlement/summary', async (req, res) => {
                 $group: {
                     _id: null,
                     totalReceived: { $sum: '$amount' },
+                    hqReceived: {
+                        $sum: {
+                            $cond: [{ $ne: ['$sourceType', 'loan_repay'] }, '$amount', 0]
+                        }
+                    },
+                    loanRepaidReceived: {
+                        $sum: {
+                            $cond: [{ $eq: ['$sourceType', 'loan_repay'] }, '$amount', 0]
+                        }
+                    },
                     count: { $sum: 1 }
                 }
             }
         ]);
 
         const totalReceived = Number(hqAgg?.[0]?.totalReceived || 0);
+        const hqReceived = Number(hqAgg?.[0]?.hqReceived || 0);
+        const loanRepaidReceived = Number(hqAgg?.[0]?.loanRepaidReceived || 0);
         const count = Number(hqAgg?.[0]?.count || 0);
-        const remainingBalance = totalNetProfit - totalReceived;
+
+        // รวมยอดหนี้คงค้างรอคืนจากเมนูบันทึกให้ยืม (Loan)
+        const matchLoan = {};
+        if (startDate) {
+            matchLoan.loanDate = { ...(matchLoan.loanDate || {}), $gte: new Date(String(startDate)) };
+        }
+        if (endDate) {
+            matchLoan.loanDate = { ...(matchLoan.loanDate || {}), $lte: new Date(String(endDate) + 'T23:59:59.999Z') };
+        }
+
+        const loanAgg = await Loan.aggregate([
+            ...(Object.keys(matchLoan).length > 0 ? [{ $match: matchLoan }] : []),
+            {
+                $group: {
+                    _id: null,
+                    totalRemainingAmount: { $sum: '$remainingAmount' }
+                }
+            }
+        ]);
+        const loanRemainingAmount = Number(loanAgg?.[0]?.totalRemainingAmount || 0);
+        const rawHqRemainingBalance = Math.max(0, totalNetProfit - hqReceived);
+        const remainingBalance = rawHqRemainingBalance + loanRemainingAmount;
 
         res.json({
             success: true,
@@ -5441,8 +5478,12 @@ app.get('/api/finance/hq-settlement/summary', async (req, res) => {
             unpaidFinance,       // ยอดที่ยังไม่ได้รับจากไฟแนนซ์
             cashFinanceReceived, // ยอดไฟแนนซ์ที่รับเป็นเงินสดแล้ว (เข้าเงินสดยืม EasyCare ไม่เข้า HQ)
             totalChange,         // ยอดเงินทอน
-            totalReceived,
-            remainingBalance,
+            totalReceived,       // รวมยอดเงินที่ได้รับชำระทั้งหมด (Silmin + คืนเงินยืม)
+            hqReceived,          // ยอดที่ได้รับจาก Silmin บริษัทแม่
+            loanRepaidReceived,  // ยอดที่ได้รับชำระคืนจากเงินยืม
+            remainingBalance,    // ยอดหนี้คงค้างรวม (หนี้ Silmin + ยอดหนี้คงค้างรอคืนจากเงินยืม)
+            rawHqRemainingBalance, // ยอดหนี้คงค้างเฉพาะ Silmin
+            loanRemainingAmount, // ยอดหนี้คงค้างรอคืนจากเงินยืม
             count
         });
     } catch (err) {
@@ -5469,7 +5510,8 @@ app.get('/api/finance/hq-settlement', async (req, res) => {
                 { channel: regex },
                 { bankAccount: regex },
                 { refNumber: regex },
-                { recordedBy: regex }
+                { recordedBy: regex },
+                { borrowerName: regex }
             ];
         }
 
@@ -5572,7 +5614,28 @@ app.delete('/api/finance/hq-settlement/:id', async (req, res) => {
         const item = await HqSettlement.findByIdAndDelete(id);
         if (!item) return res.status(404).json({ success: false, message: 'ไม่พบรายการดังกล่าว' });
 
-        await logAction('Delete HQ Settlement', `ลบรายการรับเงินโอนจากสำนักงานใหญ่ จำนวน ${Number(item.amount).toLocaleString('th-TH')} บาท`, staffName || 'System');
+        // หากเป็นรายการคืนเงินยืม ให้ Rollback คืนยอดในสัญญาเงินยืม
+        if (item.sourceType === 'loan_repay' && item.loanId) {
+            const loan = await Loan.findById(item.loanId);
+            if (loan) {
+                const rolledBackAmount = Number(item.amount || 0);
+                loan.repaidAmount = Math.max(0, Number((loan.repaidAmount - rolledBackAmount).toFixed(2)));
+                loan.remainingAmount = Math.min(loan.loanAmount, Number((loan.remainingAmount + rolledBackAmount).toFixed(2)));
+                if (loan.remainingAmount >= loan.loanAmount) {
+                    loan.status = 'active';
+                } else if (loan.remainingAmount > 0) {
+                    loan.status = 'partial';
+                } else {
+                    loan.status = 'repaid';
+                }
+                if (Array.isArray(loan.repayments)) {
+                    loan.repayments = loan.repayments.filter(r => r.repaymentNo !== item.repaymentNo && String(r.amount) !== String(item.amount));
+                }
+                await loan.save();
+            }
+        }
+
+        await logAction('Delete HQ Settlement', `ลบรายการรับเงินโอน/คืนเงินยืม จำนวน ${Number(item.amount).toLocaleString('th-TH')} บาท`, staffName || 'System');
 
         res.json({ success: true, message: 'ลบรายการสำเร็จ' });
     } catch (err) {
@@ -5608,24 +5671,47 @@ app.get('/api/finance/hq-settlement/export/excel', async (req, res) => {
         const totalIncome = Number(profitData?.kpis?.totalIncome || 0);
         const { totalUnpaid: unpaidFinance, totalCashFinance: cashFinanceReceived, totalChange } = await getFinanceDeductions(startDate, endDate);
         // ใน รับชำระหนี้: กำไรสุทธิสะสมทั้งหมด ร่วมกับรายจ่าย ไม่หักรายจ่ายออก, ลบยอดรอไฟแนนซ์, ลบยอดไฟแนนซ์ที่รับเป็นเงินสดแล้ว, และลบเงินทอนออก
-        const totalNetProfit = Math.max(0, totalIncome - unpaidFinance - cashFinanceReceived - totalChange);
         const totalReceived = settlements.reduce((sum, s) => sum + Number(s.amount || 0), 0);
-        const remainingBalance = totalNetProfit - totalReceived;
+        const hqReceived = settlements.filter(s => s.sourceType !== 'loan_repay').reduce((sum, s) => sum + Number(s.amount || 0), 0);
+        const loanRepaidReceived = settlements.filter(s => s.sourceType === 'loan_repay').reduce((sum, s) => sum + Number(s.amount || 0), 0);
+
+        // รวมยอดหนี้คงค้างรอคืนจากเมนูบันทึกให้ยืม (Loan)
+        const matchLoan = {};
+        if (startDate) {
+            matchLoan.loanDate = { ...(matchLoan.loanDate || {}), $gte: new Date(String(startDate)) };
+        }
+        if (endDate) {
+            matchLoan.loanDate = { ...(matchLoan.loanDate || {}), $lte: new Date(String(endDate) + 'T23:59:59.999Z') };
+        }
+
+        const loanAgg = await Loan.aggregate([
+            ...(Object.keys(matchLoan).length > 0 ? [{ $match: matchLoan }] : []),
+            {
+                $group: {
+                    _id: null,
+                    totalRemainingAmount: { $sum: '$remainingAmount' }
+                }
+            }
+        ]);
+        const loanRemainingAmount = Number(loanAgg?.[0]?.totalRemainingAmount || 0);
+        const rawHqRemainingBalance = Math.max(0, totalNetProfit - hqReceived);
+        const remainingBalance = rawHqRemainingBalance + loanRemainingAmount;
 
         const workbook = new ExcelJS.Workbook();
         workbook.creator = 'EasyCare';
         workbook.created = new Date();
 
-        // Sheet 1: รายการโอนเงินจาก สนง.ใหญ่
-        const ws = workbook.addWorksheet('รับเงินจาก สนง.ใหญ่');
+        // Sheet 1: รายการโอนเงินจาก สนง.ใหญ่ / รับชำระคืนเงินยืม
+        const ws = workbook.addWorksheet('รับชำระหนี้');
         ws.columns = [
             { header: 'ลำดับ', key: 'no', width: 8 },
-            { header: 'วันที่โอน', key: 'transferDate', width: 16 },
-            { header: 'ยอดเงินโอน (บาท)', key: 'amount', width: 20 },
-            { header: 'ช่องทางการโอน', key: 'channel', width: 20 },
+            { header: 'ประเภทรายการ', key: 'typeLabel', width: 22 },
+            { header: 'วันที่โอน/รับชำระ', key: 'transferDate', width: 16 },
+            { header: 'ยอดเงิน (บาท)', key: 'amount', width: 20 },
+            { header: 'ช่องทาง', key: 'channel', width: 20 },
             { header: 'บัญชี / ธนาคารที่รับเงิน', key: 'bankAccount', width: 25 },
-            { header: 'เลขที่อ้างอิง', key: 'refNumber', width: 18 },
-            { header: 'หมายเหตุ', key: 'remark', width: 35 },
+            { header: 'เลขที่อ้างอิง/สัญญา', key: 'refNumber', width: 18 },
+            { header: 'หมายเหตุ', key: 'remark', width: 40 },
             { header: 'ผู้บันทึก', key: 'recordedBy', width: 18 },
             { header: 'ลิงก์สลิปหลักฐาน', key: 'evidenceUrl', width: 35 }
         ];
@@ -5633,8 +5719,11 @@ app.get('/api/finance/hq-settlement/export/excel', async (req, res) => {
         ws.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0D9488' } };
 
         settlements.forEach((s, idx) => {
+            const isLoanRepay = s.sourceType === 'loan_repay';
+            const typeLabel = isLoanRepay ? 'รับชำระคืนเงินยืม' : 'รับเงินโอนจาก สนง.ใหญ่';
             ws.addRow({
                 no: idx + 1,
+                typeLabel,
                 transferDate: s.transferDate ? new Date(s.transferDate) : null,
                 amount: Number(s.amount || 0),
                 channel: s.channel || '-',
@@ -5665,8 +5754,16 @@ app.get('/api/finance/hq-settlement/export/excel', async (req, res) => {
         }
         wsSummary.addRow({ label: 'หัก: ยอดเงินทอนลูกค้า', value: totalChange });
         wsSummary.addRow({ label: 'กำไรสุทธิสะสมทั้งหมด (ฐานรับชำระหนี้สุทธิ)', value: totalNetProfit });
-        wsSummary.addRow({ label: 'ยอดเงินที่ Silmin (บริษัทแม่) โอนมาแล้ว', value: totalReceived });
-        wsSummary.addRow({ label: 'ยอดหนี้คงค้างที่รอรับจาก Silmin (บริษัทแม่)', value: remainingBalance });
+        wsSummary.addRow({ label: 'ยอดเงินที่ Silmin (บริษัทแม่) โอนมาแล้ว', value: hqReceived });
+        if (loanRepaidReceived > 0) {
+            wsSummary.addRow({ label: 'ยอดเงินที่ได้รับชำระคืนจากเงินยืม (Easy.Care)', value: loanRepaidReceived });
+        }
+        wsSummary.addRow({ label: 'รวมยอดเงินที่ได้รับชำระแล้วทั้งหมด', value: totalReceived });
+        wsSummary.addRow({ label: 'ยอดหนี้คงค้างที่รอรับจาก Silmin (บริษัทแม่)', value: rawHqRemainingBalance });
+        if (loanRemainingAmount > 0) {
+            wsSummary.addRow({ label: 'บวก: ยอดหนี้คงค้างรอคืนจากเงินยืม (Easy.Care)', value: loanRemainingAmount });
+        }
+        wsSummary.addRow({ label: 'ยอดหนี้คงค้างสุทธิรวม', value: remainingBalance });
         wsSummary.addRow({ label: 'จำนวนครั้งที่โอน (รายการ)', value: settlements.length });
         wsSummary.getColumn('value').numFmt = '#,##0.00';
 
@@ -5963,7 +6060,7 @@ app.post('/api/finance/loans', async (req, res) => {
 app.post('/api/finance/loans/:id/repay', async (req, res) => {
     try {
         const { id } = req.params;
-        const { amount, repaymentDate, fundDestination, evidenceUrls, evidenceUrl, remark, staffName } = req.body;
+        const { amount, repaymentDate, fundDestination, evidenceUrls, evidenceUrl, remark, staffName, channel, bankAccount } = req.body;
 
         const repayAmt = Number(amount);
         if (!repayAmt || repayAmt <= 0) {
@@ -5997,22 +6094,47 @@ app.post('/api/finance/loans/:id/repay', async (req, res) => {
             loan.status = 'partial';
         }
 
+        const repDate = repaymentDate ? new Date(repaymentDate) : new Date();
+        const displayRemark = (remark && remark.trim())
+            ? remark.trim()
+            : `รับชำระคืนเงินยืม สัญญา: ${loan.loanNumber} (${loan.borrowerName}) งวดที่ ${repaymentNo}`;
+
+        const assignedBankAccount = bankAccount || (fundDestination && fundDestination !== '-' ? fundDestination : 'บัญชีบริษัท EasyCare');
+        const assignedChannel = channel || 'โอนเงินเข้าบัญชี';
+
         loan.repayments.push({
             repaymentNo,
-            repaymentDate: repaymentDate ? new Date(repaymentDate) : new Date(),
+            repaymentDate: repDate,
             amount: repayAmt,
-            fundDestination: fundDestination || '-',
+            fundDestination: assignedBankAccount,
             evidenceUrls: urls,
             evidenceUrl: urls[0] || null,
-            remark: remark || '',
+            remark: displayRemark,
             recordedBy: staffName || 'System'
         });
 
         await loan.save();
 
-        await logAction('Repay Loan', `บันทึกรับคืนเงินยืมสัญญา: ${loan.loanNumber} งวดที่ ${repaymentNo} จำนวน ${repayAmt.toLocaleString('th-TH')} บาท`, staffName || 'System');
+        // สร้างรายการในตารางรับชำระหนี้ (HqSettlement) โดยอัตโนมัติ
+        const hqRecord = await HqSettlement.create({
+            transferDate: repDate,
+            amount: repayAmt,
+            channel: assignedChannel,
+            bankAccount: assignedBankAccount,
+            refNumber: `${loan.loanNumber}#${repaymentNo}`,
+            remark: displayRemark,
+            evidenceUrls: urls,
+            evidenceUrl: urls[0] || null,
+            recordedBy: staffName || 'System',
+            sourceType: 'loan_repay',
+            loanId: loan._id,
+            borrowerName: loan.borrowerName,
+            repaymentNo: repaymentNo
+        });
 
-        res.json({ success: true, data: loan });
+        await logAction('Repay Loan', `บันทึกรับคืนเงินยืมสัญญา: ${loan.loanNumber} งวดที่ ${repaymentNo} จำนวน ${repayAmt.toLocaleString('th-TH')} บาท (ลงบันทึกรับชำระหนี้ ID: ${hqRecord._id})`, staffName || 'System');
+
+        res.json({ success: true, data: loan, hqSettlement: hqRecord });
     } catch (err) {
         console.error('POST /api/finance/loans/:id/repay error:', err);
         res.status(500).json({ success: false, message: err.message });
@@ -6120,6 +6242,8 @@ app.delete('/api/finance/loans/:id', async (req, res) => {
 
         // ลบ FinanceTransaction ที่เกี่ยวข้อง
         await FinanceTransaction.deleteMany({ policyNumber: loan.loanNumber });
+        // ลบรายการใน HqSettlement ที่เกิดจากการคืนเงินยืมของสัญญานี้
+        await HqSettlement.deleteMany({ loanId: id });
         await Loan.findByIdAndDelete(id);
 
         await logAction('Delete Loan', `ลบสัญญาเงินยืมเลขที่: ${loan.loanNumber} ของ ${loan.borrowerName}`, staffName || 'System');

@@ -1806,7 +1806,7 @@
                                 <div class="stat-content">
                                     <h3 id="hqTotalReceivedDisplay" style="font-weight: 700; color: #0d9488; font-size: 1.35rem;">0 ฿</h3>
                                     <p style="font-weight: 600; color: #475569; margin: 2px 0 0 0;">ยอดเงินที่ได้รับแล้ว</p>
-                                    <span style="font-size: 0.72rem; color: #0d9488; font-weight: 500;">โอนเข้าบัญชีสำเร็จ</span>
+                                    <span id="hqTotalReceivedSubtitle" style="font-size: 0.72rem; color: #0d9488; font-weight: 500;">โอนเข้าบัญชีสำเร็จ</span>
                                 </div>
                             </div>
 
@@ -1821,7 +1821,7 @@
                                 <div class="stat-content">
                                     <h3 id="hqRemainingBalanceDisplay" style="font-weight: 700; color: #e11d48; font-size: 1.35rem;">0 ฿</h3>
                                     <p style="font-weight: 600; color: #475569; margin: 2px 0 0 0;">ยอดหนี้คงค้าง</p>
-                                    <span style="font-size: 0.72rem; color: #e11d48; font-weight: 500;">ยอดที่ยังไม่ได้ชำระ</span>
+                                    <span id="hqRemainingBalanceSubtitle" style="font-size: 0.72rem; color: #e11d48; font-weight: 500;">ยอดที่ยังไม่ได้ชำระ</span>
                                 </div>
                             </div>
 
@@ -1933,13 +1933,13 @@
                                     <thead>
                                         <tr style="background: #f8fafc;">
                                             <th style="width: 4%; text-align: center;">#</th>
-                                            <th style="width: 11%; text-align: center;">วันที่โอน</th>
-                                            <th style="width: 14%; text-align: right;">ยอดเงินโอน (บาท)</th>
-                                            <th style="width: 13%; text-align: center;">ช่องทาง</th>
+                                            <th style="width: 11%; text-align: center;">วันที่โอน/รับเงิน</th>
+                                            <th style="width: 14%; text-align: right;">ยอดเงินที่ได้รับ (บาท)</th>
+                                            <th style="width: 12%; text-align: center;">ช่องทาง</th>
                                             <th style="width: 15%; text-align: center;">บัญชี / ธนาคารที่รับเงิน</th>
-                                            <th style="width: 17%; text-align: left;">หมายเหตุ / งวดการโอน</th>
-                                            <th style="width: 9%; text-align: center;">หลักฐานสลิป</th>
-                                            <th style="width: 10%; text-align: center;">ผู้บันทึก</th>
+                                            <th style="width: 20%; text-align: left;">รายการ / หมายเหตุ</th>
+                                            <th style="width: 8%; text-align: center;">หลักฐานสลิป</th>
+                                            <th style="width: 9%; text-align: center;">ผู้บันทึก</th>
                                             <th style="width: 7%; text-align: center;">จัดการ</th>
                                         </tr>
                                     </thead>
