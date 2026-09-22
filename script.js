@@ -2195,6 +2195,7 @@ document.addEventListener('DOMContentLoaded', () => {
             fetchFinanceData();
         }
     }
+    window.setFinanceTab = setFinanceTab;
 
     let incomeChartInstance = null;
     let expenseChartInstance = null;
@@ -3859,6 +3860,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let easyCareCashBalance = 0;
     let easyCareTotalReceived = 0;
     let easyCareAvailableFunds = 0;
+    let latestLoanSummary = null;
 
     async function fetchLoanData(silent = false) {
         if (!silent) showLoader('กำลังโหลดข้อมูลบันทึกให้ยืม...');
@@ -3886,6 +3888,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (sumData.success && sumData.summary) {
                 const sum = sumData.summary;
+                latestLoanSummary = sum;
                 const totalLoan = sum.totalLoanAmount || 0;
                 const totalRepaid = sum.totalRepaidAmount || 0;
                 const totalRem = sum.totalRemainingAmount || 0;
@@ -3900,7 +3903,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const easyCareCashEl = document.getElementById('loanEasyCareCashDisplay');
                 const availableFundsEl = document.getElementById('loanAvailableFundsDisplay');
-                const loanReceivedSubtitleEl = document.getElementById('loanReceivedSubtitle');
                 const totalLoanEl = document.getElementById('loanTotalAmountDisplay');
                 const remEl = document.getElementById('loanRemainingAmountDisplay');
                 const repaidEl = document.getElementById('loanRepaidAmountDisplay');
@@ -3908,24 +3910,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 const overdueBadgeEl = document.getElementById('loanOverdueBadgeText');
                 const repaidTextEl = document.getElementById('loanRepaidCountText');
 
-                if (easyCareCashEl) easyCareCashEl.textContent = formatNumber(totalReceived) + ' ฿';
+                if (easyCareCashEl) {
+                    easyCareCashEl.textContent = formatNumber(totalReceived) + ' ฿';
+                    if (totalReceived < 0) {
+                        easyCareCashEl.style.color = '#ef4444';
+                    } else {
+                        easyCareCashEl.style.color = '#0f172a';
+                    }
+                }
                 if (availableFundsEl) {
                     availableFundsEl.textContent = formatNumber(availableFunds) + ' ฿';
                     if (availableFunds < 0) {
                         availableFundsEl.style.color = '#e11d48';
                     } else {
                         availableFundsEl.style.color = '#059669';
-                    }
-                }
-                if (loanReceivedSubtitleEl) {
-                    let baseText = 'โอนเข้าบัญชีสำเร็จ';
-                    if (sum.totalCashFinance > 0) {
-                        baseText = `Silmin (บริษัทแม่) ${formatNumber(sum.totalHqReceived || 0)} ฿ + ไฟแนนซ์ Easy.Care ${formatNumber(sum.totalCashFinance)} ฿`;
-                    }
-                    if (totalRem > 0) {
-                        loanReceivedSubtitleEl.textContent = `${baseText} (ให้ยืมอยู่ ${formatNumber(totalRem)} ฿)`;
-                    } else {
-                        loanReceivedSubtitleEl.textContent = `${baseText} (พร้อมให้ยืม)`;
                     }
                 }
                 if (totalLoanEl) totalLoanEl.textContent = formatNumber(totalLoan) + ' ฿';
@@ -4190,7 +4188,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 </svg>
                             </div>
                             <div>
-                                <div style="font-size: 0.76rem; color: #64748b; font-weight: 500;">ยอดเงินสดที่มีทั้งหมด: ${formatNumber(easyCareTotalReceived)} ฿</div>
+                                <div style="font-size: 0.76rem; color: #64748b; font-weight: 500;">ยอดเงินสดที่มีทั้งหมด: <span style="font-weight: 700; color: ${easyCareTotalReceived < 0 ? '#ef4444' : '#1e293b'};">${formatNumber(easyCareTotalReceived)} ฿</span> (หักรายจ่ายเคลมแล้ว)</div>
                                 <div style="font-size: 0.82rem; font-weight: 700; color: ${easyCareAvailableFunds < 0 ? '#e11d48' : '#15803d'};">คงเหลือหลังหักเงินยืม</div>
                             </div>
                         </div>
@@ -4893,6 +4891,248 @@ document.addEventListener('DOMContentLoaded', () => {
             if (result.isConfirmed && canRepayNow) {
                 window.showRepayLoanModal(id);
             }
+        });
+    };
+
+    window.showCashBalanceBreakdownModal = async function() {
+        let sum = latestLoanSummary;
+        if (!sum || !sum.claimExpenseBreakdown) {
+            try {
+                showLoader('กำลังโหลดรายละเอียดที่มายอดเงินสด...');
+                const res = await fetch('/api/finance/loans/summary');
+                const data = await res.json();
+                if (data.success && data.summary) {
+                    sum = data.summary;
+                    latestLoanSummary = sum;
+                }
+            } catch (err) {
+                console.error('Fetch loan summary error:', err);
+            } finally {
+                hideLoader();
+            }
+        }
+
+        if (!sum) {
+            showAlert('error', 'ไม่สามารถโหลดข้อมูลรายละเอียดได้');
+            return;
+        }
+
+        const totalHqReceived = Number(sum.totalHqReceived || 0);
+        const totalHqCount = Number(sum.totalHqCount || 0);
+        const totalCashFinance = Number(sum.totalCashFinance || 0);
+        const totalCashFinanceCount = Number(sum.totalCashFinanceCount || 0);
+        const totalCashInflow = Number(sum.totalCashInflow !== undefined ? sum.totalCashInflow : (totalHqReceived + totalCashFinance));
+
+        const breakdown = sum.claimExpenseBreakdown || {};
+        const claimRepairCost = Number(breakdown.claimRepairCost || 0);
+        const claimRepairCount = Number(breakdown.claimRepairCount || 0);
+        const claimRefundCost = Number(breakdown.claimRefundCost || 0);
+        const claimRefundCount = Number(breakdown.claimRefundCount || 0);
+        const manualExpenseCost = Number(breakdown.manualExpenseCost || 0);
+        const manualExpenseCount = Number(breakdown.manualExpenseCount || 0);
+        const totalClaimExpense = Number(sum.totalClaimExpense !== undefined ? sum.totalClaimExpense : (claimRepairCost + claimRefundCost + manualExpenseCost));
+        const totalClaimCount = Number(breakdown.totalClaimCount !== undefined ? breakdown.totalClaimCount : (claimRepairCount + claimRefundCount + manualExpenseCount));
+
+        const totalReceived = Number(sum.totalReceived !== undefined ? sum.totalReceived : (totalCashInflow - totalClaimExpense));
+        const totalRemainingAmount = Number(sum.totalRemainingAmount || 0);
+        const availableFunds = Number(sum.availableFunds !== undefined ? sum.availableFunds : (totalReceived - totalRemainingAmount));
+
+        await Swal.fire({
+            width: 640,
+            background: '#ffffff',
+            showCloseButton: true,
+            showConfirmButton: false,
+            html: `
+                <div style="text-align: left; font-family: var(--font-family, sans-serif); color: #1e293b;">
+                    <!-- Header -->
+                    <div style="display: flex; align-items: center; gap: 12px; padding-bottom: 14px; border-bottom: 1px solid #f1f5f9; margin-bottom: 16px;">
+                        <div style="width: 44px; height: 44px; border-radius: 12px; background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: #ffffff; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.28); flex-shrink: 0;">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="2" y="6" width="20" height="12" rx="2"></rect>
+                                <circle cx="12" cy="12" r="2"></circle>
+                                <path d="M6 12h.01M18 12h.01"></path>
+                            </svg>
+                        </div>
+                        <div>
+                            <div style="font-size: 1.15rem; font-weight: 800; color: #0f172a; line-height: 1.3;">
+                                ที่มาของยอดเงินสดที่มีทั้งหมด
+                            </div>
+                            <div style="font-size: 0.78rem; color: #64748b; margin-top: 2px;">
+                                รายละเอียดแหล่งที่มารายรับเงินสด และยอดหักรายจ่ายเคลมสุทธิ
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 1. รายรับเงินสดสะสม (Inflow) -->
+                    <div style="background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 12px; padding: 12px 14px; margin-bottom: 14px;">
+                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+                            <div style="display: flex; align-items: center; gap: 6px;">
+                                <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #10b981;"></span>
+                                <span style="font-size: 0.85rem; font-weight: 700; color: #047857;">1. รายรับเงินสดที่ได้รับแล้ว (Cash Inflow)</span>
+                            </div>
+                            <span style="font-size: 0.72rem; color: #047857; background: #d1fae5; padding: 2px 8px; border-radius: 10px; font-weight: 600;">ยอดบวก (+)</span>
+                        </div>
+
+                        <!-- 1.1 สนง.ใหญ่ Silmin -->
+                        <div style="display: flex; align-items: flex-start; justify-content: space-between; padding: 8px 10px; background: #ffffff; border-radius: 8px; margin-bottom: 6px; border: 1px solid #f1f5f9;">
+                            <div>
+                                <div style="font-size: 0.82rem; font-weight: 700; color: #1e293b; display: flex; align-items: center; gap: 6px;">
+                                    <span>🏢 เงินโอนจาก สนง.ใหญ่ (Silmin)</span>
+                                    <span style="font-size: 0.68rem; color: #475569; background: #f1f5f9; padding: 1px 6px; border-radius: 4px; font-weight: 500;">${totalHqCount} รายการ</span>
+                                </div>
+                                <div style="font-size: 0.72rem; color: #64748b; margin-top: 2px;">
+                                    ยอดเงินโอนเข้าบัญชีสำเร็จ จากเมนู "บันทึกรับเงินโอน" (HqSettlement)
+                                </div>
+                            </div>
+                            <div style="text-align: right; white-space: nowrap; margin-left: 10px;">
+                                <div style="font-size: 0.95rem; font-weight: 800; color: #059669; font-family: monospace, var(--font-family);">+${formatNumber(totalHqReceived)} ฿</div>
+                            </div>
+                        </div>
+
+                        <!-- 1.2 ไฟแนนซ์รับสด -->
+                        <div style="display: flex; align-items: flex-start; justify-content: space-between; padding: 8px 10px; background: #ffffff; border-radius: 8px; margin-bottom: 8px; border: 1px solid #f1f5f9;">
+                            <div>
+                                <div style="font-size: 0.82rem; font-weight: 700; color: #1e293b; display: flex; align-items: center; gap: 6px;">
+                                    <span>💵 เงินสดรับจากไฟแนนซ์ (EasyCare)</span>
+                                    <span style="font-size: 0.68rem; color: #475569; background: #f1f5f9; padding: 1px 6px; border-radius: 4px; font-weight: 500;">${totalCashFinanceCount} รายการ</span>
+                                </div>
+                                <div style="font-size: 0.72rem; color: #64748b; margin-top: 2px;">
+                                    รายการไฟแนนซ์ที่บันทึกรับเป็นเงินสดจริง (Finance Transactions)
+                                </div>
+                            </div>
+                            <div style="text-align: right; white-space: nowrap; margin-left: 10px;">
+                                <div style="font-size: 0.95rem; font-weight: 800; color: #059669; font-family: monospace, var(--font-family);">+${formatNumber(totalCashFinance)} ฿</div>
+                            </div>
+                        </div>
+
+                        <!-- Inflow Subtotal -->
+                        <div style="display: flex; align-items: center; justify-content: space-between; padding-top: 6px; border-top: 1px dashed #cbd5e1; font-size: 0.82rem;">
+                            <span style="font-weight: 700; color: #334155;">รวมรายรับเงินสดสะสม</span>
+                            <span style="font-weight: 800; color: #047857; font-size: 1rem; font-family: monospace, var(--font-family);">+${formatNumber(totalCashInflow)} ฿</span>
+                        </div>
+                    </div>
+
+                    <!-- 2. หัก: รายจ่ายเคลมรวม (Claim Expenses Outflow) -->
+                    <div style="background: #fff1f2; border: 1.5px solid #fecdd3; border-radius: 12px; padding: 12px 14px; margin-bottom: 14px;">
+                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+                            <div style="display: flex; align-items: center; gap: 6px;">
+                                <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #e11d48;"></span>
+                                <span style="font-size: 0.85rem; font-weight: 700; color: #be123c;">2. หัก: รายจ่ายเคลมรวม (Claim Expenses)</span>
+                            </div>
+                            <span style="font-size: 0.72rem; color: #be123c; background: #ffe4e6; padding: 2px 8px; border-radius: 10px; font-weight: 600;">ยอดหักลบ (-)</span>
+                        </div>
+
+                        <!-- 2.1 ค่าซ่อม/อะไหล่เคลม -->
+                        <div style="display: flex; align-items: flex-start; justify-content: space-between; padding: 8px 10px; background: #ffffff; border-radius: 8px; margin-bottom: 6px; border: 1px solid #ffe4e6;">
+                            <div>
+                                <div style="font-size: 0.82rem; font-weight: 700; color: #1e293b; display: flex; align-items: center; gap: 6px;">
+                                    <span>🔧 ค่าซ่อมและอะไหล่จริงจากงานเคลม</span>
+                                    <span style="font-size: 0.68rem; color: #be123c; background: #ffe4e6; padding: 1px 6px; border-radius: 4px; font-weight: 500;">${claimRepairCount} รายการ</span>
+                                </div>
+                                <div style="font-size: 0.72rem; color: #64748b; margin-top: 2px;">
+                                    ค่าใช้จ่ายซ่อมจริงในขั้นตอนงานเคลม (Claim Updates Cost)
+                                </div>
+                            </div>
+                            <div style="text-align: right; white-space: nowrap; margin-left: 10px;">
+                                <div style="font-size: 0.92rem; font-weight: 700; color: #e11d48; font-family: monospace, var(--font-family);">${claimRepairCost > 0 ? '-' : ''}${formatNumber(claimRepairCost)} ฿</div>
+                            </div>
+                        </div>
+
+                        <!-- 2.2 คืนเงินชดเชยสละสิทธิ์ -->
+                        <div style="display: flex; align-items: flex-start; justify-content: space-between; padding: 8px 10px; background: #ffffff; border-radius: 8px; margin-bottom: 6px; border: 1px solid #ffe4e6;">
+                            <div>
+                                <div style="font-size: 0.82rem; font-weight: 700; color: #1e293b; display: flex; align-items: center; gap: 6px;">
+                                    <span>🤝 เงินชดเชยคืนลูกค้า (สละสิทธิ์เครื่อง)</span>
+                                    <span style="font-size: 0.68rem; color: #be123c; background: #ffe4e6; padding: 1px 6px; border-radius: 4px; font-weight: 500;">${claimRefundCount} รายการ</span>
+                                </div>
+                                <div style="font-size: 0.72rem; color: #64748b; margin-top: 2px;">
+                                    เงินคืนชดเชยให้แก่ลูกค้ากรณีสละสิทธิ์เครื่อง (Finance Transactions)
+                                </div>
+                            </div>
+                            <div style="text-align: right; white-space: nowrap; margin-left: 10px;">
+                                <div style="font-size: 0.92rem; font-weight: 700; color: #e11d48; font-family: monospace, var(--font-family);">${claimRefundCost > 0 ? '-' : ''}${formatNumber(claimRefundCost)} ฿</div>
+                            </div>
+                        </div>
+
+                        <!-- 2.3 รายจ่ายบันทึกเอง -->
+                        <div style="display: flex; align-items: flex-start; justify-content: space-between; padding: 8px 10px; background: #ffffff; border-radius: 8px; margin-bottom: 8px; border: 1px solid #ffe4e6;">
+                            <div>
+                                <div style="font-size: 0.82rem; font-weight: 700; color: #1e293b; display: flex; align-items: center; gap: 6px;">
+                                    <span>📝 รายจ่ายเคลมที่บันทึกด้วยตนเอง</span>
+                                    <span style="font-size: 0.68rem; color: #be123c; background: #ffe4e6; padding: 1px 6px; border-radius: 4px; font-weight: 500;">${manualExpenseCount} รายการ</span>
+                                </div>
+                                <div style="font-size: 0.72rem; color: #64748b; margin-top: 2px;">
+                                    ค่าจัดส่ง ค่าเดินทาง หรือค่าใช้จ่ายประกอบงานเคลมอื่นๆ (Manual Expenses)
+                                </div>
+                            </div>
+                            <div style="text-align: right; white-space: nowrap; margin-left: 10px;">
+                                <div style="font-size: 0.92rem; font-weight: 700; color: #e11d48; font-family: monospace, var(--font-family);">${manualExpenseCost > 0 ? '-' : ''}${formatNumber(manualExpenseCost)} ฿</div>
+                            </div>
+                        </div>
+
+                        <!-- Outflow Subtotal -->
+                        <div style="display: flex; align-items: center; justify-content: space-between; padding-top: 6px; border-top: 1px dashed #fca5a5; font-size: 0.82rem;">
+                            <span style="font-weight: 700; color: #9f1239;">รวมหักรายจ่ายเคลมทั้งหมด (${totalClaimCount} รายการ)</span>
+                            <span style="font-weight: 800; color: #e11d48; font-size: 1rem; font-family: monospace, var(--font-family);">${totalClaimExpense > 0 ? '-' : ''}${formatNumber(totalClaimExpense)} ฿</span>
+                        </div>
+                    </div>
+
+                    <!-- 3. สรุปยอดเงินสดสุทธิที่มีทั้งหมด (Net Balance Card) -->
+                    <div style="background: ${totalReceived < 0 ? 'linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)' : 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)'}; border: 2px solid ${totalReceived < 0 ? '#f87171' : '#86efac'}; border-radius: 12px; padding: 14px 16px; margin-bottom: 14px;">
+                        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+                            <div>
+                                <div style="font-size: 0.88rem; font-weight: 800; color: ${totalReceived < 0 ? '#991b1b' : '#14532d'};">
+                                    💰 ยอดเงินสดที่มีทั้งหมด (สุทธิ)
+                                </div>
+                                <div style="font-size: 0.72rem; color: #64748b; margin-top: 2px;">
+                                    สูตร: (รายรับ ${formatNumber(totalCashInflow)} ฿) - (รายจ่ายเคลม ${formatNumber(totalClaimExpense)} ฿)
+                                </div>
+                            </div>
+                            <div style="text-align: right;">
+                                <div style="font-size: 1.35rem; font-weight: 800; color: ${totalReceived < 0 ? '#dc2626' : '#15803d'}; font-family: monospace, var(--font-family);">
+                                    ${formatNumber(totalReceived)} ฿
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 4. สรุปสถานะการให้ยืมเงิน (Loan Context) -->
+                    <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 14px; margin-bottom: 16px;">
+                        <div style="font-size: 0.78rem; font-weight: 700; color: #475569; margin-bottom: 6px;">
+                            📌 สถานะเงินพร้อมให้ยืม (Lending Availability):
+                        </div>
+                        <div style="display: flex; align-items: center; justify-content: space-between; font-size: 0.78rem; color: #64748b; margin-bottom: 4px;">
+                            <span>ยอดเงินสดสุทธิที่มี</span>
+                            <span style="font-family: monospace, var(--font-family); font-weight: 600;">${formatNumber(totalReceived)} ฿</span>
+                        </div>
+                        <div style="display: flex; align-items: center; justify-content: space-between; font-size: 0.78rem; color: #e11d48; margin-bottom: 6px;">
+                            <span>หัก ยอดเงินให้ยืมคงค้างรอคืน</span>
+                            <span style="font-family: monospace, var(--font-family); font-weight: 600;">-${formatNumber(totalRemainingAmount)} ฿</span>
+                        </div>
+                        <div style="display: flex; align-items: center; justify-content: space-between; padding-top: 6px; border-top: 1px dashed #cbd5e1; font-size: 0.85rem;">
+                            <span style="font-weight: 700; color: #1e293b;">คงเหลือหลังหักเงินยืม (พร้อมให้ยืม)</span>
+                            <span style="font-weight: 800; color: ${availableFunds < 0 ? '#e11d48' : '#059669'}; font-family: monospace, var(--font-family); font-size: 1.05rem;">
+                                ${formatNumber(availableFunds)} ฿
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- Actions / Quick Links -->
+                    <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+                        <div style="display: flex; gap: 6px;">
+                            <button type="button" onclick="if (typeof setFinanceTab === 'function') setFinanceTab('hqSettlement'); else { const b = document.getElementById('financeTabHqSettlement'); if (b) b.click(); } Swal.close();" style="height: 32px; padding: 0 10px; background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.74rem; font-weight: 600; color: #334155; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;">
+                                🏢 ดูเงินโอน สนง.ใหญ่
+                            </button>
+                            <button type="button" onclick="if (typeof setFinanceTab === 'function') setFinanceTab('expense'); else { const b = document.getElementById('financeTabExpense'); if (b) b.click(); } Swal.close();" style="height: 32px; padding: 0 10px; background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.74rem; font-weight: 600; color: #334155; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;">
+                                🔧 ดูรายจ่ายเคลม
+                            </button>
+                        </div>
+                        <button type="button" onclick="Swal.close();" style="height: 32px; padding: 0 16px; background: #0f172a; color: #ffffff; border: none; border-radius: 6px; font-size: 0.76rem; font-weight: 600; cursor: pointer;">
+                            ปิด
+                        </button>
+                    </div>
+                </div>
+            `
         });
     };
 

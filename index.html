@@ -1982,7 +1982,7 @@
                         <!-- 5 Overview KPI Cards -->
                         <div class="stats-overview" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px; margin-bottom: 18px;">
                             <!-- Card 0: EASY.CARE Cash & Available Funds (ยอดเงินสดที่มีทั้งหมด / คงเหลือหลังหักเงินยืม / ข้อความอธิบาย) -->
-                            <div class="stat-card" style="border-top: 4px solid #10b981; border-radius: 14px; background: linear-gradient(180deg, #ffffff 0%, #f0fdf4 100%);">
+                            <div id="loanEasyCareCashCard" class="stat-card" onclick="showCashBalanceBreakdownModal()" style="border-top: 4px solid #10b981; border-radius: 14px; background: linear-gradient(180deg, #ffffff 0%, #f0fdf4 100%); cursor: pointer; transition: transform 0.15s ease, box-shadow 0.15s ease;" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 8px 20px rgba(16, 185, 129, 0.2)';" onmouseout="this.style.transform='none'; this.style.boxShadow='';" title="คลิกเพื่อดูรายละเอียดที่มาของยอดเงินสดทั้งหมด">
                                 <div class="stat-icon" style="background: rgba(16, 185, 129, 0.15); color: #10b981; align-self: flex-start; margin-top: 2px;">
                                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                         <rect x="2" y="6" width="20" height="12" rx="2"></rect>
@@ -1993,7 +1993,10 @@
                                 <div class="stat-content" style="flex: 1; min-width: 0;">
                                     <!-- บรรทัดแรก: ยอดเงินสดที่มีทั้งหมด -->
                                     <div style="display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 4px;">
-                                        <span style="font-size: 0.74rem; font-weight: 600; color: #64748b;">ยอดเงินสดที่มีทั้งหมด</span>
+                                        <span style="font-size: 0.74rem; font-weight: 600; color: #64748b; display: inline-flex; align-items: center; gap: 5px;">
+                                            ยอดเงินสดที่มีทั้งหมด
+                                            <span style="font-size: 0.65rem; color: #047857; background: #d1fae5; padding: 1px 6px; border-radius: 6px; font-weight: 700; border: 1px solid #a7f3d0;">ดูที่มา 🔍</span>
+                                        </span>
                                         <span id="loanEasyCareCashDisplay" style="font-weight: 800; color: #0f172a; font-size: 1.05rem; font-family: monospace, var(--font-family);">0 ฿</span>
                                     </div>
 

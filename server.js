@@ -970,89 +970,132 @@ app.get('/api/finance/expenses', async (req, res) => {
     }
 });
 
-app.get('/api/finance/expenses/summary', async (req, res) => {
-    try {
-        const baseMatch = buildExpenseFilterMatch(req.query);
+async function calculateTotalClaimExpense(query = {}) {
+    const baseMatch = buildExpenseFilterMatch(query);
 
-        const pipeline = [
-            {
-                $project: {
-                    claimId: 1,
-                    policyNumber: 1,
-                    customerName: 1,
-                    customerPhone: 1,
-                    deviceModel: 1,
-                    claimShopName: 1,
-                    claimDate: 1,
-                    claimDate: 1,
-                    totalCost: 1,
-                    status: 1,
-                    updates: 1
-                }
-            },
-            {
-                $facet: {
-                    updateAgg: [
-                        { $unwind: { path: '$updates', preserveNullAndEmptyArrays: false } },
-                        {
-                            $addFields: {
-                                __expenseDate: '$updates.date',
-                                __expenseAmount: { $ifNull: ['$updates.cost', 0] }
-                            }
-                        },
-                        { $match: { __expenseAmount: { $gt: 0 } } },
-                        { $match: { 'updates.title': { $ne: 'ลูกค้าตกลงรับเครื่องคืนและชำระเงินส่วนต่าง' } } },
-                        { $match: { $or: [{ 'updates.title': { $not: /\(เกินวงเงิน\)/ } }, { status: { $ne: 'ลูกค้าสละสิทธิ์เครื่อง' } }] } },
-                        ...(Object.keys(baseMatch).length > 0 ? [{ $match: baseMatch }] : []),
-                        { $group: { _id: null, totalExpense: { $sum: '$__expenseAmount' } } }
-                    ]
-                }
-            },
-            {
-                $project: {
-                    totalExpense: {
-                        $ifNull: [{ $arrayElemAt: ['$updateAgg.totalExpense', 0] }, 0]
-                    }
+    const pipeline = [
+        {
+            $project: {
+                claimId: 1,
+                policyNumber: 1,
+                customerName: 1,
+                customerPhone: 1,
+                deviceModel: 1,
+                claimShopName: 1,
+                claimDate: 1,
+                totalCost: 1,
+                status: 1,
+                updates: 1
+            }
+        },
+        {
+            $facet: {
+                updateAgg: [
+                    { $unwind: { path: '$updates', preserveNullAndEmptyArrays: false } },
+                    {
+                        $addFields: {
+                            __expenseDate: '$updates.date',
+                            __expenseAmount: { $ifNull: ['$updates.cost', 0] }
+                        }
+                    },
+                    { $match: { __expenseAmount: { $gt: 0 } } },
+                    { $match: { 'updates.title': { $ne: 'ลูกค้าตกลงรับเครื่องคืนและชำระเงินส่วนต่าง' } } },
+                    { $match: { $or: [{ 'updates.title': { $not: /\(เกินวงเงิน\)/ } }, { status: { $ne: 'ลูกค้าสละสิทธิ์เครื่อง' } }] } },
+                    ...(Object.keys(baseMatch).length > 0 ? [{ $match: baseMatch }] : []),
+                    { $group: { _id: null, totalExpense: { $sum: '$__expenseAmount' }, count: { $sum: 1 } } }
+                ]
+            }
+        },
+        {
+            $project: {
+                totalExpense: {
+                    $ifNull: [{ $arrayElemAt: ['$updateAgg.totalExpense', 0] }, 0]
+                },
+                count: {
+                    $ifNull: [{ $arrayElemAt: ['$updateAgg.count', 0] }, 0]
                 }
             }
+        }
+    ];
+
+    const rows = await Claim.aggregate(pipeline);
+    let claimRepairCost = rows && rows[0] ? Number(rows[0].totalExpense || 0) : 0;
+    let claimRepairCount = rows && rows[0] ? Number(rows[0].count || 0) : 0;
+
+    // Add refund transaction amounts
+    const refundTxQuery = { actionType: 'คืนเงินชดเชยสละสิทธิ์เครื่อง' };
+    if (query.startDate) {
+        refundTxQuery.transactionDate = { ...(refundTxQuery.transactionDate || {}), $gte: new Date(String(query.startDate)) };
+    }
+    if (query.endDate) {
+        refundTxQuery.transactionDate = { ...(refundTxQuery.transactionDate || {}), $lte: new Date(String(query.endDate) + 'T23:59:59.999Z') };
+    }
+    if (query.search) {
+        const regex = { $regex: String(query.search), $options: 'i' };
+        refundTxQuery.$or = [
+            { policyNumber: regex },
+            { customerName: regex },
+            { actionType: regex }
         ];
+    }
+    const refundRows = await FinanceTransaction.aggregate([
+        { $match: refundTxQuery },
+        { $group: { _id: null, totalRefund: { $sum: '$netTotal' }, count: { $sum: 1 } } }
+    ]);
+    let claimRefundCost = 0;
+    let claimRefundCount = 0;
+    if (refundRows && refundRows.length > 0) {
+        claimRefundCost = Math.abs(refundRows[0].totalRefund);
+        claimRefundCount = Number(refundRows[0].count || 0);
+    }
 
-        const rows = await Claim.aggregate(pipeline);
-        let totalExpense = rows && rows[0] ? Number(rows[0].totalExpense || 0) : 0;
+    // Add manual expense amounts
+    const manualSumQuery = {};
+    if (query.startDate) {
+        manualSumQuery.expenseDate = { ...(manualSumQuery.expenseDate || {}), $gte: new Date(String(query.startDate)) };
+    }
+    if (query.endDate) {
+        manualSumQuery.expenseDate = { ...(manualSumQuery.expenseDate || {}), $lte: new Date(String(query.endDate) + 'T23:59:59.999Z') };
+    }
+    if (query.search) {
+        const regex = { $regex: String(query.search), $options: 'i' };
+        manualSumQuery.$or = [
+            { title: regex },
+            { category: regex },
+            { note: regex },
+            { recordedBy: regex }
+        ];
+    }
+    const manualSumRows = await ManualExpense.aggregate([
+        { $match: manualSumQuery },
+        { $group: { _id: null, totalManual: { $sum: '$amount' }, count: { $sum: 1 } } }
+    ]);
+    let manualExpenseCost = 0;
+    let manualExpenseCount = 0;
+    if (manualSumRows && manualSumRows.length > 0) {
+        manualExpenseCost = Number(manualSumRows[0].totalManual || 0);
+        manualExpenseCount = Number(manualSumRows[0].count || 0);
+    }
 
-        // Add refund transaction amounts
-        const refundTxQuery = { actionType: 'คืนเงินชดเชยสละสิทธิ์เครื่อง' };
-        if (req.query.startDate) {
-            refundTxQuery.transactionDate = { ...(refundTxQuery.transactionDate || {}), $gte: new Date(String(req.query.startDate)) };
-        }
-        if (req.query.endDate) {
-            refundTxQuery.transactionDate = { ...(refundTxQuery.transactionDate || {}), $lte: new Date(String(req.query.endDate) + 'T23:59:59.999Z') };
-        }
-        const refundRows = await FinanceTransaction.aggregate([
-            { $match: refundTxQuery },
-            { $group: { _id: null, totalRefund: { $sum: '$netTotal' } } }
-        ]);
-        if (refundRows && refundRows.length > 0) {
-            totalExpense += Math.abs(refundRows[0].totalRefund);
-        }
+    const totalClaimExpense = claimRepairCost + claimRefundCost + manualExpenseCost;
+    const totalClaimCount = claimRepairCount + claimRefundCount + manualExpenseCount;
 
-        // Add manual expense amounts
-        const manualSumQuery = {};
-        if (req.query.startDate) {
-            manualSumQuery.expenseDate = { ...(manualSumQuery.expenseDate || {}), $gte: new Date(String(req.query.startDate)) };
-        }
-        if (req.query.endDate) {
-            manualSumQuery.expenseDate = { ...(manualSumQuery.expenseDate || {}), $lte: new Date(String(req.query.endDate) + 'T23:59:59.999Z') };
-        }
-        const manualSumRows = await ManualExpense.aggregate([
-            { $match: manualSumQuery },
-            { $group: { _id: null, totalManual: { $sum: '$amount' } } }
-        ]);
-        if (manualSumRows && manualSumRows.length > 0) {
-            totalExpense += Number(manualSumRows[0].totalManual || 0);
-        }
+    return {
+        claimRepairCost,
+        claimRepairCount,
+        claimRefundCost,
+        claimRefundCount,
+        manualExpenseCost,
+        manualExpenseCount,
+        totalClaimExpense,
+        totalClaimCount
+    };
+}
 
-        res.json({ totalExpense });
+app.get('/api/finance/expenses/summary', async (req, res) => {
+    try {
+        const result = await calculateTotalClaimExpense(req.query);
+        res.json({ totalExpense: result.totalClaimExpense, breakdown: result });
     } catch (err) {
         res.status(500).json({ message: err.message });
     }
@@ -5850,11 +5893,13 @@ app.get('/api/finance/loans/summary', async (req, res) => {
             {
                 $group: {
                     _id: null,
-                    totalReceived: { $sum: '$amount' }
+                    totalReceived: { $sum: '$amount' },
+                    count: { $sum: 1 }
                 }
             }
         ]);
         const totalHqReceived = Number(hqAgg?.[0]?.totalReceived || 0);
+        const totalHqCount = Number(hqAgg?.[0]?.count || 0);
 
         // รวมยอดเงินสดที่รับจากไฟแนนซ์ (financeReceived = true และ receivedAsCash = true)
         const cashFinanceAgg = await FinanceTransaction.aggregate([
@@ -5869,11 +5914,13 @@ app.get('/api/finance/loans/summary', async (req, res) => {
             {
                 $group: {
                     _id: null,
-                    totalCashFinance: { $sum: { $ifNull: ["$financedAmount", 0] } }
+                    totalCashFinance: { $sum: { $ifNull: ["$financedAmount", 0] } },
+                    count: { $sum: 1 }
                 }
             }
         ]);
         let totalCashFinance = Number(cashFinanceAgg?.[0]?.totalCashFinance || 0);
+        let totalCashFinanceCount = Number(cashFinanceAgg?.[0]?.count || 0);
 
         // Fallback สำหรับรายการประวัติเดิมที่ไม่มี financedAmount
         const oldCashFinanceRecords = await FinanceTransaction.find({
@@ -5895,9 +5942,15 @@ app.get('/api/finance/loans/summary', async (req, res) => {
             }
             totalCashFinance += amount;
         });
+        totalCashFinanceCount += oldCashFinanceRecords.length;
 
-        // ยอดเงินสดทั้งหมดของ EasyCare = เงินโอนจาก สนง.ใหญ่ + เงินสดที่รับจากไฟแนนซ์
-        const totalReceived = totalHqReceived + totalCashFinance;
+        // คำนวณรายจ่ายเคลมรวมและแจกแจงที่มา (เคลม + เงินชดเชย + บันทึกเอง)
+        const claimExpenseBreakdown = await calculateTotalClaimExpense();
+        const totalClaimExpense = claimExpenseBreakdown.totalClaimExpense;
+
+        // ยอดเงินสดทั้งหมดของ EasyCare = (เงินโอนจาก สนง.ใหญ่ + เงินสดที่รับจากไฟแนนซ์) - รายจ่ายเคลมรวม
+        const totalCashInflow = totalHqReceived + totalCashFinance;
+        const totalReceived = totalCashInflow - totalClaimExpense;
         // ยอดเงินคงเหลือพร้อมให้ยืม = ยอดที่ได้รับแล้ว ลบด้วย ยอดหนี้คงค้างรอคืน (ติดลบได้หากให้ยืมเกินยอดเงินสดที่มี)
         const availableFunds = totalReceived - (summary.totalRemainingAmount || 0);
 
@@ -5907,7 +5960,12 @@ app.get('/api/finance/loans/summary', async (req, res) => {
                 ...summary,
                 overdueCount,
                 totalHqReceived,
+                totalHqCount,
                 totalCashFinance,
+                totalCashFinanceCount,
+                totalCashInflow,
+                claimExpenseBreakdown,
+                totalClaimExpense,
                 totalReceived,
                 availableFunds,
                 availableCash: totalReceived
