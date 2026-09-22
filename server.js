@@ -5388,13 +5388,24 @@ async function getFinanceDeductions(startDate, endDate) {
         {
             $group: {
                 _id: null,
+                totalCount: { $sum: 1 },
                 totalChange: { $sum: { $ifNull: ["$changeAmount", 0] } },
+                changeCount: { $sum: { $cond: [{ $gt: [{ $ifNull: ["$changeAmount", 0] }, 0] }, 1, 0] } },
                 unpaidFromFinancedAmount: {
                     $sum: {
                         $cond: [
                             { $eq: ["$financeReceived", true] },
                             0,
                             { $ifNull: ["$financedAmount", 0] }
+                        ]
+                    }
+                },
+                unpaidCount: {
+                    $sum: {
+                        $cond: [
+                            { $eq: ["$financeReceived", true] },
+                            0,
+                            1
                         ]
                     }
                 },
@@ -5406,14 +5417,27 @@ async function getFinanceDeductions(startDate, endDate) {
                             0
                         ]
                     }
+                },
+                cashFinanceCount: {
+                    $sum: {
+                        $cond: [
+                            { $and: [{ $eq: ["$financeReceived", true] }, { $eq: ["$receivedAsCash", true] }] },
+                            1,
+                            0
+                        ]
+                    }
                 }
             }
         }
     ]);
 
+    let totalIncomeCount = Number(aggr?.[0]?.totalCount || 0);
     let totalUnpaid = Number(aggr?.[0]?.unpaidFromFinancedAmount || 0);
+    let unpaidFinanceCount = Number(aggr?.[0]?.unpaidCount || 0);
     let totalCashFinance = Number(aggr?.[0]?.cashFinanceFromAmount || 0);
+    let cashFinanceCount = Number(aggr?.[0]?.cashFinanceCount || 0);
     let totalChange = Number(aggr?.[0]?.totalChange || 0);
+    let changeCount = Number(aggr?.[0]?.changeCount || 0);
 
     // Fallback สำหรับรายการประวัติเดิมที่ไม่มี financedAmount
     const oldFinanceRecords = await FinanceTransaction.find({
@@ -5433,12 +5457,22 @@ async function getFinanceDeductions(startDate, endDate) {
 
         if (tx.financeReceived !== true) {
             totalUnpaid += amount;
+            unpaidFinanceCount += 1;
         } else if (tx.receivedAsCash === true) {
             totalCashFinance += amount;
+            cashFinanceCount += 1;
         }
     });
 
-    return { totalUnpaid, totalCashFinance, totalChange };
+    return {
+        totalUnpaid,
+        unpaidFinanceCount,
+        totalCashFinance,
+        cashFinanceCount,
+        totalChange,
+        changeCount,
+        totalIncomeCount
+    };
 }
 
 // 1. สรุปยอดเงิน: กำไรสะสม, ยอดที่โอนมาแล้ว, และยอดคงค้าง
@@ -5453,7 +5487,15 @@ app.get('/api/finance/hq-settlement/summary', async (req, res) => {
         const netProfit = Number(profitData?.kpis?.netProfit || 0);
 
         // คำนวณยอดที่ยังไม่ได้รับจากไฟแนนซ์, ยอดไฟแนนซ์ที่รับเป็นเงินสด, และ เงินทอน
-        const { totalUnpaid: unpaidFinance, totalCashFinance: cashFinanceReceived, totalChange } = await getFinanceDeductions(startDate, endDate);
+        const {
+            totalUnpaid: unpaidFinance,
+            unpaidFinanceCount,
+            totalCashFinance: cashFinanceReceived,
+            cashFinanceCount,
+            totalChange,
+            changeCount,
+            totalIncomeCount
+        } = await getFinanceDeductions(startDate, endDate);
 
         // ใน รับชำระหนี้: กำไรสุทธิสะสมทั้งหมด ร่วมกับรายจ่าย ไม่หักรายจ่ายออก, ลบยอดรอไฟแนนซ์, ลบยอดไฟแนนซ์ที่รับเป็นเงินสดแล้ว, และลบเงินทอนออก
         const totalNetProfit = Math.max(0, totalIncome - unpaidFinance - cashFinanceReceived - totalChange);
@@ -5519,11 +5561,15 @@ app.get('/api/finance/hq-settlement/summary', async (req, res) => {
             success: true,
             totalNetProfit, // ร่วมกับรายจ่าย ไม่หักรายจ่ายออก, หักยอดรอไฟแนนซ์, ยอดรับเงินสดไฟแนนซ์ และเงินทอนออกแล้ว
             totalIncome,
+            totalIncomeCount,
             totalExpense,
             netProfit,
             unpaidFinance,       // ยอดที่ยังไม่ได้รับจากไฟแนนซ์
+            unpaidFinanceCount,
             cashFinanceReceived, // ยอดไฟแนนซ์ที่รับเป็นเงินสดแล้ว (เข้าเงินสดยืม EasyCare ไม่เข้า HQ)
+            cashFinanceCount,
             totalChange,         // ยอดเงินทอน
+            changeCount,
             totalReceived,       // รวมยอดเงินที่ได้รับชำระทั้งหมด (Silmin + คืนเงินยืม)
             hqReceived,          // ยอดที่ได้รับจาก Silmin บริษัทแม่
             loanRepaidReceived,  // ยอดที่ได้รับชำระคืนจากเงินยืม
