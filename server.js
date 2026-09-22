@@ -944,6 +944,8 @@ app.get('/api/finance/expenses', async (req, res) => {
         }
         const manualRows = await ManualExpense.find(manualQuery).lean();
         const formattedManual = manualRows.map(m => ({
+            _id: m._id,
+            id: m._id,
             expenseDate: m.expenseDate,
             claimId: '-',
             policyNumber: '-',
@@ -952,6 +954,7 @@ app.get('/api/finance/expenses', async (req, res) => {
             claimShopName: '-',
             expenseTitle: m.title,
             centerName: m.category,
+            category: m.category,
             amount: m.amount,
             source: 'manual',
             note: m.note || '',
@@ -7777,11 +7780,34 @@ app.get('/api/manual-expenses', async (req, res) => {
     }
 });
 
+app.put('/api/manual-expenses/:id', manualExpenseUpload.single('receipt'), async (req, res) => {
+    try {
+        const { expenseDate, category, title, amount, note, staffName } = req.body;
+        const doc = await ManualExpense.findById(req.params.id);
+        if (!doc) return res.status(404).json({ success: false, message: 'ไม่พบรายการ' });
+
+        if (expenseDate) doc.expenseDate = new Date(expenseDate);
+        if (category) doc.category = category;
+        if (title) doc.title = title;
+        if (amount !== undefined) doc.amount = Number(amount);
+        if (note !== undefined) doc.note = note;
+        if (req.file) doc.receiptUrl = req.file.path;
+
+        await doc.save();
+        await logAction('UPDATE_MANUAL_EXPENSE', `แก้ไขรายจ่าย "${doc.title}" จำนวน ${doc.amount} บาท`, staffName || req.body.recordedBy || 'System');
+        res.json({ success: true, data: doc });
+    } catch (err) {
+        console.error('PUT /api/manual-expenses/:id error:', err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
 app.delete('/api/manual-expenses/:id', async (req, res) => {
     try {
         const doc = await ManualExpense.findByIdAndDelete(req.params.id);
         if (!doc) return res.status(404).json({ success: false, message: 'ไม่พบรายการ' });
-        await logAction('DELETE_MANUAL_EXPENSE', `ลบรายจ่าย "${doc.title}" จำนวน ${doc.amount} บาท`, req.body.staffName || 'System');
+        const staff = req.query.staffName || (req.body && req.body.staffName) || 'System';
+        await logAction('DELETE_MANUAL_EXPENSE', `ลบรายจ่าย "${doc.title}" จำนวน ${doc.amount} บาท`, staff);
         res.json({ success: true });
     } catch (err) {
         console.error('DELETE /api/manual-expenses/:id error:', err);
@@ -7871,6 +7897,48 @@ app.get('/api/admin-expenses', async (req, res) => {
         res.json({ success: true, data, totalAmount });
     } catch (err) {
         console.error('GET /api/admin-expenses error:', err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// PUT /api/admin-expenses/:id — แก้ไขรายจ่ายบริหาร
+app.put('/api/admin-expenses/:id', async (req, res) => {
+    try {
+        const { expenseDate, category, title, amount, staffName } = req.body;
+        const doc = await AdminExpense.findById(req.params.id);
+        if (!doc) return res.status(404).json({ success: false, message: 'ไม่พบรายการรายจ่ายบริหาร' });
+
+        if (category) {
+            const existingCat = await ExpenseCategory.findOne({ name: category });
+            if (!existingCat) {
+                await new ExpenseCategory({ name: category }).save();
+            }
+            doc.category = category;
+        }
+
+        if (expenseDate) doc.expenseDate = new Date(expenseDate);
+        if (title) doc.title = title;
+        if (amount !== undefined) doc.amount = Number(amount);
+
+        await doc.save();
+        await logAction('UPDATE_ADMIN_EXPENSE', `แก้ไขรายจ่ายบริหาร "${doc.title}" หมวด "${doc.category}" จำนวน ${doc.amount} บาท`, staffName || req.body.recordedBy || 'System');
+        res.json({ success: true, data: doc });
+    } catch (err) {
+        console.error('PUT /api/admin-expenses/:id error:', err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// DELETE /api/admin-expenses/:id — ลบรายจ่ายบริหาร
+app.delete('/api/admin-expenses/:id', async (req, res) => {
+    try {
+        const doc = await AdminExpense.findByIdAndDelete(req.params.id);
+        if (!doc) return res.status(404).json({ success: false, message: 'ไม่พบรายการรายจ่ายบริหาร' });
+        const staff = req.query.staffName || (req.body && req.body.staffName) || 'System';
+        await logAction('DELETE_ADMIN_EXPENSE', `ลบรายจ่ายบริหาร "${doc.title}" หมวด "${doc.category}" จำนวน ${doc.amount} บาท`, staff);
+        res.json({ success: true });
+    } catch (err) {
+        console.error('DELETE /api/admin-expenses/:id error:', err);
         res.status(500).json({ success: false, message: err.message });
     }
 });

@@ -1459,6 +1459,7 @@
                                             <th>จำนวนเงิน</th>
                                             <th>ที่มา</th>
                                             <th>ผู้บันทึก</th>
+                                            <th style="text-align: center;">จัดการ</th>
                                         </tr>
                                     </thead>
                                     <tbody id="financeExpenseBody"></tbody>
@@ -1549,6 +1550,7 @@
                                             <th>ชื่อรายการ</th>
                                             <th>จำนวนเงิน</th>
                                             <th>ผู้บันทึก</th>
+                                            <th style="text-align: center;">จัดการ</th>
                                         </tr>
                                     </thead>
                                     <tbody id="adminExpenseBody"></tbody>
@@ -2320,11 +2322,12 @@
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid #e2e8f0;">
                             <h2 style="margin: 0; font-size: 1.3rem; color: #0f172a; display: flex; align-items: center; gap: 10px;">
                                 <span style="display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; background: linear-gradient(135deg, #f59e0b, #d97706); border-radius: 10px; color: #fff; font-size: 1.1rem;">📝</span>
-                                บันทึกรายจ่ายด้วยตนเอง
+                                <span id="manualExpenseModalTitle">บันทึกรายจ่ายด้วยตนเอง</span>
                             </h2>
                             <button type="button" id="closeManualExpenseModal" style="background: none; border: none; font-size: 1.8rem; cursor: pointer; color: #94a3b8; line-height: 1; padding: 0 5px;">&times;</button>
                         </div>
                         <form id="manualExpenseForm">
+                            <input type="hidden" id="meExpenseId" value="">
                             <div class="form-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
                                 <div class="form-group">
                                     <label>วันที่จ่าย <span style="color:red">*</span></label>
@@ -2369,7 +2372,7 @@
                             </div>
                             <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
                                 <button type="button" id="cancelManualExpenseBtn" style="padding: 10px 24px; border-radius: 10px; border: 1px solid #e2e8f0; background: #f8fafc; color: #475569; cursor: pointer; font-weight: 500;">ยกเลิก</button>
-                                <button type="submit" class="add-btn">บันทึกรายจ่าย</button>
+                                <button type="submit" id="meSubmitBtn" class="add-btn">บันทึกรายจ่าย</button>
                             </div>
                         </form>
                     </div>
@@ -2381,11 +2384,12 @@
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid #e2e8f0;">
                             <h2 style="margin: 0; font-size: 1.3rem; color: #0f172a; display: flex; align-items: center; gap: 10px;">
                                 <span style="display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; background: linear-gradient(135deg, #8b5cf6, #7c3aed); border-radius: 10px; color: #fff; font-size: 1.1rem;">🏢</span>
-                                บันทึกรายจ่ายบริหาร
+                                <span id="adminExpenseModalTitle">บันทึกรายจ่ายบริหาร</span>
                             </h2>
                             <button type="button" id="closeAdminExpenseModal" style="background: none; border: none; font-size: 1.8rem; cursor: pointer; color: #94a3b8; line-height: 1; padding: 0 5px;">&times;</button>
                         </div>
                         <form id="adminExpenseForm">
+                            <input type="hidden" id="aeExpenseId" value="">
                             <div class="form-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
                                 <div class="form-group">
                                     <label>วันที่ทำรายการ <span style="color:red">*</span></label>
@@ -2416,7 +2420,7 @@
                             </div>
                             <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
                                 <button type="button" id="cancelAdminExpenseBtn" style="padding: 10px 24px; border-radius: 10px; border: 1px solid #e2e8f0; background: #f8fafc; color: #475569; cursor: pointer; font-weight: 500;">ยกเลิก</button>
-                                <button type="submit" class="add-btn">บันทึกรายจ่ายบริหาร</button>
+                                <button type="submit" id="aeSubmitBtn" class="add-btn">บันทึกรายจ่ายบริหาร</button>
                             </div>
                         </form>
                     </div>

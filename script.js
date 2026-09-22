@@ -1497,6 +1497,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ═══ Manual Expense Modal ═══
+    // ═══ Manual Expense Modal ═══
     const addManualExpenseBtn = document.getElementById('addManualExpenseBtn');
     const manualExpenseModal = document.getElementById('manualExpenseModal');
     const closeManualExpenseModal = document.getElementById('closeManualExpenseModal');
@@ -1505,6 +1506,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function openManualExpenseModal() {
         if (!manualExpenseModal) return;
+        const idEl = document.getElementById('meExpenseId');
+        if (idEl) idEl.value = '';
+        const titleEl = document.getElementById('manualExpenseModalTitle');
+        if (titleEl) titleEl.textContent = 'บันทึกรายจ่ายด้วยตนเอง';
+        const submitBtn = document.getElementById('meSubmitBtn');
+        if (submitBtn) submitBtn.textContent = 'บันทึกรายจ่าย';
+
+        if (manualExpenseForm) manualExpenseForm.reset();
+        const preview = document.getElementById('meReceiptPreview');
+        if (preview) preview.innerHTML = '';
+
         // Set default date to today
         const todayStr = new Date().toISOString().split('T')[0];
         const dateEl = document.getElementById('meExpenseDate');
@@ -1519,9 +1531,102 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!manualExpenseModal) return;
         manualExpenseModal.style.display = 'none';
         if (manualExpenseForm) manualExpenseForm.reset();
+        const idEl = document.getElementById('meExpenseId');
+        if (idEl) idEl.value = '';
         const preview = document.getElementById('meReceiptPreview');
         if (preview) preview.innerHTML = '';
     }
+
+    window.openEditManualExpense = function (id) {
+        if (!manualExpenseModal) return;
+        const item = (window._lastFinanceExpenseRows || []).find(r => (r._id || r.id) === id);
+        if (!item) {
+            showAlert('error', 'ไม่พบข้อมูลรายการที่ต้องการแก้ไข');
+            return;
+        }
+
+        const idEl = document.getElementById('meExpenseId');
+        if (idEl) idEl.value = id;
+
+        const titleEl = document.getElementById('manualExpenseModalTitle');
+        if (titleEl) titleEl.textContent = 'แก้ไขรายจ่ายด้วยตนเอง';
+
+        const submitBtn = document.getElementById('meSubmitBtn');
+        if (submitBtn) submitBtn.textContent = 'บันทึกการแก้ไข';
+
+        const dateEl = document.getElementById('meExpenseDate');
+        if (dateEl && item.expenseDate) {
+            try {
+                dateEl.value = new Date(item.expenseDate).toISOString().split('T')[0];
+            } catch (e) {
+                dateEl.value = '';
+            }
+        }
+
+        const catEl = document.getElementById('meCategory');
+        if (catEl) catEl.value = item.category || item.centerName || '';
+
+        const tEl = document.getElementById('meTitle');
+        if (tEl) tEl.value = item.expenseTitle || '';
+
+        const amountEl = document.getElementById('meAmount');
+        if (amountEl) amountEl.value = item.amount || 0;
+
+        const recordedByEl = document.getElementById('meRecordedBy');
+        if (recordedByEl) recordedByEl.value = item.recordedBy || (currentUser ? currentUser.staffName : '');
+
+        const noteEl = document.getElementById('meNote');
+        if (noteEl) noteEl.value = item.note || '';
+
+        const fileInput = document.getElementById('meReceiptFile');
+        if (fileInput) fileInput.value = '';
+
+        const preview = document.getElementById('meReceiptPreview');
+        if (preview) {
+            if (item.receiptUrl) {
+                preview.innerHTML = `
+                    <div style="font-size: 0.8rem; color: #64748b; margin-bottom: 4px;">รูปใบเสร็จปัจจุบัน:</div>
+                    <a href="${item.receiptUrl}" target="_blank">
+                        <img src="${item.receiptUrl}" style="max-width: 180px; max-height: 120px; border-radius: 8px; border: 2px solid var(--primary); object-fit: cover;">
+                    </a>
+                    <div style="font-size: 0.75rem; color: #94a3b8; margin-top: 2px;">(เลือกไฟล์ใหม่หากต้องการเปลี่ยนรูป)</div>
+                `;
+            } else {
+                preview.innerHTML = '';
+            }
+        }
+
+        manualExpenseModal.style.display = 'flex';
+    };
+
+    window.deleteManualExpense = async function (id) {
+        const item = (window._lastFinanceExpenseRows || []).find(r => (r._id || r.id) === id);
+        const title = item ? (item.expenseTitle || 'รายจ่ายนี้') : 'รายจ่ายนี้';
+        const confirmed = await window.showDeleteConfirm(`คุณต้องการลบรายจ่าย "${title}" หรือไม่?`);
+        if (!confirmed) return;
+
+        showLoader('กำลังลบรายจ่าย...');
+        try {
+            const staff = (typeof currentUser !== 'undefined' && currentUser && currentUser.staffName) ? currentUser.staffName : 'System';
+            const res = await fetch(`/api/manual-expenses/${id}?staffName=${encodeURIComponent(staff)}`, {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ staffName: staff })
+            });
+            const result = await res.json();
+            if (result.success) {
+                showAlert('success', 'ลบรายการรายจ่ายสำเร็จ');
+                fetchFinanceExpenseData();
+            } else {
+                showAlert('error', result.message || 'ไม่สามารถลบรายการได้');
+            }
+        } catch (err) {
+            console.error('Delete manual expense error:', err);
+            showAlert('error', 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้');
+        } finally {
+            hideLoader();
+        }
+    };
 
     if (addManualExpenseBtn) addManualExpenseBtn.addEventListener('click', openManualExpenseModal);
     if (closeManualExpenseModal) closeManualExpenseModal.addEventListener('click', closeManualExpenseModalFn);
@@ -1563,6 +1668,7 @@ document.addEventListener('DOMContentLoaded', () => {
         manualExpenseForm.addEventListener('submit', async (e) => {
             e.preventDefault();
 
+            const expenseId = (document.getElementById('meExpenseId') || {}).value;
             const expenseDate = (document.getElementById('meExpenseDate') || {}).value;
             const category = (document.getElementById('meCategory') || {}).value;
             const title = (document.getElementById('meTitle') || {}).value;
@@ -1576,30 +1682,34 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
+            const staffName = (typeof currentUser !== 'undefined' && currentUser && currentUser.staffName) ? currentUser.staffName : '';
             const formData = new FormData();
             formData.append('expenseDate', expenseDate);
             formData.append('category', category);
             formData.append('title', title);
             formData.append('amount', amount);
             formData.append('note', note || '');
-            formData.append('recordedBy', recordedBy || (currentUser ? currentUser.staffName : ''));
+            formData.append('recordedBy', recordedBy || staffName);
+            formData.append('staffName', staffName);
             if (fileInput && fileInput.files[0]) {
                 formData.append('receipt', fileInput.files[0]);
             }
 
-            showLoader('กำลังบันทึกรายจ่าย...');
+            const isEdit = !!expenseId;
+            showLoader(isEdit ? 'กำลังบันทึกการแก้ไขรายจ่าย...' : 'กำลังบันทึกรายจ่าย...');
             try {
-                const res = await fetch('/api/manual-expenses', {
-                    method: 'POST',
+                const url = isEdit ? `/api/manual-expenses/${expenseId}` : '/api/manual-expenses';
+                const res = await fetch(url, {
+                    method: isEdit ? 'PUT' : 'POST',
                     body: formData
                 });
                 const data = await res.json();
                 if (data.success) {
-                    showAlert('success', 'บันทึกรายจ่ายสำเร็จ');
+                    showAlert('success', isEdit ? 'แก้ไขรายจ่ายสำเร็จ' : 'บันทึกรายจ่ายสำเร็จ');
                     closeManualExpenseModalFn();
                     fetchFinanceExpenseData();
                 } else {
-                    showAlert('error', data.message || 'ไม่สามารถบันทึกรายจ่ายได้');
+                    showAlert('error', data.message || (isEdit ? 'ไม่สามารถแก้ไขรายจ่ายได้' : 'ไม่สามารถบันทึกรายจ่ายได้'));
                 }
             } catch (err) {
                 console.error('Submit manual expense error:', err);
@@ -1664,6 +1774,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function openAdminExpenseModal() {
         if (!adminExpenseModal) return;
+        const idEl = document.getElementById('aeExpenseId');
+        if (idEl) idEl.value = '';
+        const titleEl = document.getElementById('adminExpenseModalTitle');
+        if (titleEl) titleEl.textContent = 'บันทึกรายจ่ายบริหาร';
+        const submitBtn = document.getElementById('aeSubmitBtn');
+        if (submitBtn) submitBtn.textContent = 'บันทึกรายจ่ายบริหาร';
+
         const todayStr = new Date().toISOString().split('T')[0];
         const dateEl = document.getElementById('aeExpenseDate');
         if (dateEl) dateEl.value = todayStr;
@@ -1683,8 +1800,105 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!adminExpenseModal) return;
         adminExpenseModal.style.display = 'none';
         if (adminExpenseForm) adminExpenseForm.reset();
+        const idEl = document.getElementById('aeExpenseId');
+        if (idEl) idEl.value = '';
         if (adminExpenseNewCategoryGroup) adminExpenseNewCategoryGroup.style.display = 'none';
     }
+
+    window.openEditAdminExpense = async function (id) {
+        if (!adminExpenseModal) return;
+        const item = (window._lastAdminExpenseRows || []).find(r => r._id === id);
+        if (!item) {
+            showAlert('error', 'ไม่พบข้อมูลรายการที่ต้องการแก้ไข');
+            return;
+        }
+
+        const idEl = document.getElementById('aeExpenseId');
+        if (idEl) idEl.value = id;
+
+        const titleEl = document.getElementById('adminExpenseModalTitle');
+        if (titleEl) titleEl.textContent = 'แก้ไขรายจ่ายบริหาร';
+
+        const submitBtn = document.getElementById('aeSubmitBtn');
+        if (submitBtn) submitBtn.textContent = 'บันทึกการแก้ไข';
+
+        const dateEl = document.getElementById('aeExpenseDate');
+        if (dateEl && item.expenseDate) {
+            try {
+                dateEl.value = new Date(item.expenseDate).toISOString().split('T')[0];
+            } catch (e) {
+                dateEl.value = '';
+            }
+        }
+
+        const tEl = document.getElementById('aeTitle');
+        if (tEl) tEl.value = item.title || '';
+
+        const amountEl = document.getElementById('aeAmount');
+        if (amountEl) amountEl.value = item.amount || 0;
+
+        const recordedByEl = document.getElementById('aeRecordedBy');
+        if (recordedByEl) recordedByEl.value = item.recordedBy || (currentUser ? currentUser.staffName : '');
+
+        // Load categories then set value
+        await loadExpenseCategories();
+
+        if (adminExpenseCategorySelect) {
+            let optionExists = false;
+            for (let i = 0; i < adminExpenseCategorySelect.options.length; i++) {
+                if (adminExpenseCategorySelect.options[i].value === item.category) {
+                    optionExists = true;
+                    break;
+                }
+            }
+            if (optionExists) {
+                adminExpenseCategorySelect.value = item.category;
+                if (adminExpenseNewCategoryGroup) adminExpenseNewCategoryGroup.style.display = 'none';
+                if (adminExpenseNewCategoryInput) {
+                    adminExpenseNewCategoryInput.value = '';
+                    adminExpenseNewCategoryInput.required = false;
+                }
+            } else {
+                adminExpenseCategorySelect.value = '__NEW__';
+                if (adminExpenseNewCategoryGroup) adminExpenseNewCategoryGroup.style.display = 'block';
+                if (adminExpenseNewCategoryInput) {
+                    adminExpenseNewCategoryInput.value = item.category || '';
+                    adminExpenseNewCategoryInput.required = true;
+                }
+            }
+        }
+
+        adminExpenseModal.style.display = 'flex';
+    };
+
+    window.deleteAdminExpense = async function (id) {
+        const item = (window._lastAdminExpenseRows || []).find(r => r._id === id);
+        const title = item ? (item.title || 'รายจ่ายบริหารนี้') : 'รายจ่ายบริหารนี้';
+        const confirmed = await window.showDeleteConfirm(`คุณต้องการลบรายจ่ายบริหาร "${title}" หรือไม่?`);
+        if (!confirmed) return;
+
+        showLoader('กำลังลบรายจ่ายบริหาร...');
+        try {
+            const staff = (typeof currentUser !== 'undefined' && currentUser && currentUser.staffName) ? currentUser.staffName : 'System';
+            const res = await fetch(`/api/admin-expenses/${id}?staffName=${encodeURIComponent(staff)}`, {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ staffName: staff })
+            });
+            const result = await res.json();
+            if (result.success) {
+                showAlert('success', 'ลบรายจ่ายบริหารสำเร็จ');
+                fetchAdminExpenseData();
+            } else {
+                showAlert('error', result.message || 'ไม่สามารถลบรายจ่ายบริหารได้');
+            }
+        } catch (err) {
+            console.error('Delete admin expense error:', err);
+            showAlert('error', 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้');
+        } finally {
+            hideLoader();
+        }
+    };
 
     if (addAdminExpenseBtn) addAdminExpenseBtn.addEventListener('click', openAdminExpenseModal);
     if (closeAdminExpenseModalBtn) closeAdminExpenseModalBtn.addEventListener('click', closeAdminExpenseModalFn);
@@ -1701,6 +1915,7 @@ document.addEventListener('DOMContentLoaded', () => {
         adminExpenseForm.addEventListener('submit', async (e) => {
             e.preventDefault();
 
+            const expenseId = (document.getElementById('aeExpenseId') || {}).value;
             const expenseDate = (document.getElementById('aeExpenseDate') || {}).value;
             let category = (adminExpenseCategorySelect || {}).value;
             const newCategory = (adminExpenseNewCategoryInput || {}).value;
@@ -1718,26 +1933,31 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            showLoader('กำลังบันทึกรายจ่ายบริหาร...');
+            const isEdit = !!expenseId;
+            showLoader(isEdit ? 'กำลังบันทึกการแก้ไขรายจ่ายบริหาร...' : 'กำลังบันทึกรายจ่ายบริหาร...');
             try {
-                const res = await fetch('/api/admin-expenses', {
-                    method: 'POST',
+                const url = isEdit ? `/api/admin-expenses/${expenseId}` : '/api/admin-expenses';
+                const staffName = (typeof currentUser !== 'undefined' && currentUser && currentUser.staffName) ? currentUser.staffName : '';
+                const payload = {
+                    expenseDate,
+                    category,
+                    title,
+                    amount: Number(amount),
+                    recordedBy: recordedBy || staffName,
+                    staffName: staffName
+                };
+                const res = await fetch(url, {
+                    method: isEdit ? 'PUT' : 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        expenseDate,
-                        category,
-                        title,
-                        amount: Number(amount),
-                        recordedBy: recordedBy || (currentUser ? currentUser.staffName : '')
-                    })
+                    body: JSON.stringify(payload)
                 });
                 const data = await res.json();
                 if (data.success) {
-                    showAlert('success', 'บันทึกรายจ่ายบริหารสำเร็จ');
+                    showAlert('success', isEdit ? 'แก้ไขรายจ่ายบริหารสำเร็จ' : 'บันทึกรายจ่ายบริหารสำเร็จ');
                     closeAdminExpenseModalFn();
                     fetchAdminExpenseData();
                 } else {
-                    showAlert('error', data.message || 'ไม่สามารถบันทึกรายจ่ายบริหารได้');
+                    showAlert('error', data.message || (isEdit ? 'ไม่สามารถแก้ไขรายจ่ายบริหารได้' : 'ไม่สามารถบันทึกรายจ่ายบริหารได้'));
                 }
             } catch (err) {
                 console.error('Submit admin expense error:', err);
@@ -1806,13 +2026,15 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderAdminExpenseTable(rows) {
+        const list = Array.isArray(rows) ? rows : [];
+        window._lastAdminExpenseRows = list;
         const tbody = document.getElementById('adminExpenseBody');
         const emptyState = document.getElementById('adminExpenseEmptyState');
         const table = document.getElementById('adminExpenseTable');
 
         if (tbody) tbody.innerHTML = '';
 
-        if (!rows || rows.length === 0) {
+        if (list.length === 0) {
             if (emptyState) emptyState.style.display = 'block';
             if (table) table.style.display = 'none';
             const countEl = document.getElementById('financeAdminExpenseCount');
@@ -1824,12 +2046,23 @@ document.addEventListener('DOMContentLoaded', () => {
         if (table) table.style.display = '';
 
         const countEl = document.getElementById('financeAdminExpenseCount');
-        if (countEl) countEl.textContent = rows.length;
+        if (countEl) countEl.textContent = list.length;
 
-        rows.forEach((r, index) => {
+        list.forEach((r, index) => {
             const tr = document.createElement('tr');
             const dateText = r.expenseDate ? new Date(r.expenseDate).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' }) : '-';
             const amountText = formatNumber(r.amount || 0);
+
+            const actionsHtml = `
+                <div style="display: inline-flex; align-items: center; justify-content: center; gap: 4px;">
+                    <button type="button" class="btn-edit-item" style="background: none; border: none; color: #0284c7; cursor: pointer; padding: 5px; border-radius: 6px; display: inline-flex; align-items: center; transition: all 0.15s ease;" onmouseover="this.style.background='#e0f2fe'" onmouseout="this.style.background='none'" onclick="window.openEditAdminExpense('${r._id}')" title="แก้ไขรายการนี้">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                    </button>
+                    <button type="button" class="btn-delete-item" style="background: none; border: none; color: #ef4444; cursor: pointer; padding: 5px; border-radius: 6px; display: inline-flex; align-items: center; transition: all 0.15s ease;" onmouseover="this.style.background='#fee2e2'" onmouseout="this.style.background='none'" onclick="window.deleteAdminExpense('${r._id}')" title="ลบรายการนี้">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                    </button>
+                </div>
+            `;
 
             tr.innerHTML = `
                 <td>${index + 1}</td>
@@ -1838,6 +2071,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td>${r.title || '-'}</td>
                 <td style="color:#ef4444; font-weight: 700;">-${amountText}</td>
                 <td>${r.recordedBy || '-'}</td>
+                <td style="text-align: center;">${actionsHtml}</td>
             `;
             tbody.appendChild(tr);
         });
@@ -5161,8 +5395,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 fetch(`/api/finance/expenses${qs}`),
                 fetch(`/api/finance/expenses/summary${qs}`)
             ]);
+
+            if (!rowsRes.ok) {
+                const errData = await rowsRes.json().catch(() => ({}));
+                throw new Error(errData.message || `HTTP ${rowsRes.status}`);
+            }
+
             const rows = await rowsRes.json();
-            const summary = await sumRes.json();
+            const summary = sumRes.ok ? await sumRes.json().catch(() => ({})) : {};
 
             const totalExpenseEl = document.getElementById('totalExpenseDisplay');
             if (totalExpenseEl) {
@@ -5172,20 +5412,22 @@ document.addEventListener('DOMContentLoaded', () => {
             renderFinanceExpenses(rows);
         } catch (err) {
             console.error('Fetch finance expense data error:', err);
-            showAlert('error', 'ไม่สามารถโหลดข้อมูลรายจ่ายได้');
+            showAlert('error', 'ไม่สามารถโหลดข้อมูลรายจ่ายได้: ' + (err.message || ''));
         } finally {
             hideLoader();
         }
     }
 
     function renderFinanceExpenses(rows) {
+        const list = Array.isArray(rows) ? rows : [];
+        window._lastFinanceExpenseRows = list;
         const tbody = document.getElementById('financeExpenseBody');
         const emptyState = document.getElementById('financeExpenseEmptyState');
         const table = document.getElementById('financeExpenseTable');
 
         if (tbody) tbody.innerHTML = '';
 
-        if (!rows || rows.length === 0) {
+        if (list.length === 0) {
             if (emptyState) emptyState.style.display = 'block';
             if (table) table.style.display = 'none';
             const countEl = document.getElementById('financeClaimExpenseCount');
@@ -5197,9 +5439,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (table) table.style.display = '';
 
         const countEl = document.getElementById('financeClaimExpenseCount');
-        if (countEl) countEl.textContent = rows.length;
+        if (countEl) countEl.textContent = list.length;
 
-        rows.forEach((r, index) => {
+        list.forEach((r, index) => {
             const tr = document.createElement('tr');
             const dateText = r.expenseDate ? new Date(r.expenseDate).toLocaleString('th-TH') : '-';
             const amountText = '-' + formatNumber(r.amount || 0);
@@ -5211,6 +5453,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (isManual) {
                 tr.style.background = 'rgba(245, 158, 11, 0.04)';
+            }
+
+            let actionsHtml = '<span style="color: #94a3b8; font-size: 0.85rem;" title="รายการจากระบบเคลม">-</span>';
+            const manualId = r._id || r.id;
+            if (isManual && manualId) {
+                actionsHtml = `
+                    <div style="display: inline-flex; align-items: center; justify-content: center; gap: 4px;">
+                        <button type="button" class="btn-edit-item" style="background: none; border: none; color: #0284c7; cursor: pointer; padding: 5px; border-radius: 6px; display: inline-flex; align-items: center; transition: all 0.15s ease;" onmouseover="this.style.background='#e0f2fe'" onmouseout="this.style.background='none'" onclick="window.openEditManualExpense('${manualId}')" title="แก้ไขรายการนี้">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                        </button>
+                        <button type="button" class="btn-delete-item" style="background: none; border: none; color: #ef4444; cursor: pointer; padding: 5px; border-radius: 6px; display: inline-flex; align-items: center; transition: all 0.15s ease;" onmouseover="this.style.background='#fee2e2'" onmouseout="this.style.background='none'" onclick="window.deleteManualExpense('${manualId}')" title="ลบรายการนี้">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                        </button>
+                    </div>
+                `;
             }
 
             tr.innerHTML = `
@@ -5226,6 +5483,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td style="color:#ef4444; font-weight: 700;">${amountText}</td>
                 <td>${sourceBadge}</td>
                 <td>${recordedByText}</td>
+                <td style="text-align: center;">${actionsHtml}</td>
             `;
             tbody.appendChild(tr);
         });
