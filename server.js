@@ -149,7 +149,9 @@ async function getMemberBlacklistReasonsByMemberId(memberId) {
 }
 
 // MongoDB Connection
-mongoose.connect(process.env.MONGO_URI)
+mongoose.connect(process.env.MONGO_URI, {
+    tlsAllowInvalidCertificates: true
+})
     .then(() => {
         console.log('Connected to MongoDB Atlas (Cloudinary Enabled)');
         // Drop unique index on memberId if it exists (to allow multi-package per member)
@@ -449,13 +451,52 @@ const FinanceTransactionSchema = new mongoose.Schema({
 
 const FinanceTransaction = mongoose.model('FinanceTransaction', FinanceTransactionSchema);
 
-// AuditLog Schema
+// AuditLog Schema - Enhanced Enterprise Audit Log System
 const AuditLogSchema = new mongoose.Schema({
+    // ข้อมูลผู้ใช้งาน / พนักงาน (Staff Identity)
+    staffId: { type: String, default: '', index: true },
+    username: { type: String, default: '', index: true },
+    staffName: { type: String, default: 'System' },
+    role: { type: String, default: '', index: true },
+    shopName: { type: String, default: '', index: true },
+    ipAddress: { type: String, default: '' },
+    userAgent: { type: String, default: '' },
+
+    // โมดูลและประเภทการกระทำ (Module & Action)
+    module: { 
+        type: String, 
+        default: 'SYSTEM',
+        index: true 
+    },
+    actionType: { 
+        type: String, 
+        default: 'UPDATE',
+        index: true 
+    },
     action: { type: String, required: true },
     detail: { type: String, required: true },
-    staffName: { type: String, required: true },
-    timestamp: { type: Date, default: Date.now }
-});
+
+    // ข้อมูลเป้าหมายที่ถูกกระทำ (Target Reference)
+    targetId: { type: String, default: '', index: true },
+    targetType: { type: String, default: '' },
+
+    // บันทึกการเปลี่ยนแปลง (Diff & Metadata Snapshot)
+    metadata: { type: mongoose.Schema.Types.Mixed, default: null },
+    changes: {
+        before: { type: mongoose.Schema.Types.Mixed, default: null },
+        after: { type: mongoose.Schema.Types.Mixed, default: null }
+    },
+
+    timestamp: { type: Date, default: Date.now, index: true }
+}, { timestamps: true });
+
+// Composite Indexes เพื่อความเร็วสูงในการค้นหา
+AuditLogSchema.index({ module: 1, timestamp: -1 });
+AuditLogSchema.index({ staffId: 1, timestamp: -1 });
+AuditLogSchema.index({ username: 1, timestamp: -1 });
+AuditLogSchema.index({ actionType: 1, timestamp: -1 });
+AuditLogSchema.index({ targetId: 1, timestamp: -1 });
+
 const AuditLog = mongoose.model('AuditLog', AuditLogSchema);
 
 // Deposit Schema (การมัดจำ)
@@ -509,12 +550,117 @@ const AdminExpenseSchema = new mongoose.Schema({
 }, { timestamps: true });
 const AdminExpense = mongoose.model('AdminExpense', AdminExpenseSchema);
 
-// Helper function สำหรับบันทึก Log
-async function logAction(action, detail, staffName) {
+// Universal Helper function สำหรับบันทึก Audit Log อย่างละเอียด ทุกการเคลื่อนไหว
+async function recordAuditLog(req, {
+    module = 'SYSTEM',
+    actionType = 'UPDATE',
+    action,
+    detail,
+    targetId = '',
+    targetType = '',
+    metadata = null,
+    changes = null,
+    staffOverride = null
+} = {}) {
     try {
-        await new AuditLog({ action, detail, staffName: staffName || 'System' }).save();
+        let staffId = '';
+        let username = '';
+        let staffName = 'System';
+        let role = '';
+        let shopName = '';
+        let ipAddress = '';
+        let userAgent = '';
+
+        if (req) {
+            // ดึง IP Address ของเครื่องที่ทำรายการ
+            const forwarded = req.headers['x-forwarded-for'];
+            ipAddress = (forwarded ? forwarded.split(',')[0].trim() : req.socket?.remoteAddress) || '';
+            userAgent = req.headers['user-agent'] || '';
+
+            // ดึงข้อมูลพนักงานจาก Custom Headers
+            staffId = req.headers['x-staff-id'] || '';
+            username = req.headers['x-staff-username'] || '';
+            if (req.headers['x-staff-name']) {
+                try {
+                    staffName = decodeURIComponent(req.headers['x-staff-name']);
+                } catch (_) {
+                    staffName = req.headers['x-staff-name'];
+                }
+            }
+            role = req.headers['x-user-role'] || '';
+            if (req.headers['x-shop-name']) {
+                try {
+                    shopName = decodeURIComponent(req.headers['x-shop-name']);
+                } catch (_) {
+                    shopName = req.headers['x-shop-name'];
+                }
+            }
+
+            // Fallback จาก Request Body หากไม่มีใน Headers
+            if (!staffName || staffName === 'System') {
+                staffName = req.body?.staffName || req.body?.recordedBy || req.body?.approver || req.body?.rejectBy || staffName;
+            }
+            if (!role) {
+                role = req.body?.role || '';
+            }
+            if (!shopName) {
+                shopName = req.body?.shopName || req.body?.shopBranch || '';
+            }
+            if (!username) {
+                username = req.body?.username || '';
+            }
+        }
+
+        // กรณีมีการส่ง staffOverride เจาะจง
+        if (staffOverride) {
+            if (staffOverride.staffId) staffId = staffOverride.staffId;
+            if (staffOverride.username) username = staffOverride.username;
+            if (staffOverride.staffName) staffName = staffOverride.staffName;
+            if (staffOverride.role) role = staffOverride.role;
+            if (staffOverride.shopName) shopName = staffOverride.shopName;
+        }
+
+        const logDoc = new AuditLog({
+            staffId: String(staffId || ''),
+            username: String(username || ''),
+            staffName: String(staffName || 'System'),
+            role: String(role || ''),
+            shopName: String(shopName || ''),
+            ipAddress: String(ipAddress || ''),
+            userAgent: String(userAgent || ''),
+            module: String(module || 'SYSTEM'),
+            actionType: String(actionType || 'UPDATE'),
+            action: String(action || 'Activity'),
+            detail: String(detail || ''),
+            targetId: String(targetId || ''),
+            targetType: String(targetType || ''),
+            metadata: metadata || null,
+            changes: changes || null,
+            timestamp: new Date()
+        });
+
+        await logDoc.save();
     } catch (err) {
-        console.error('Failed to save audit log:', err);
+        console.error('Failed to save audit log:', err.message);
+    }
+}
+
+// Backward-compatible wrapper สำหรับจุดเดิมที่เรียกใช้ logAction
+async function logAction(action, detail, staffName, module = 'SYSTEM', actionType = 'UPDATE', targetId = '', targetType = '') {
+    try {
+        await recordAuditLog(null, {
+            module,
+            actionType,
+            action,
+            detail,
+            targetId,
+            targetType,
+            staffOverride: {
+                staffName: staffName || 'System'
+            }
+        });
+    } catch (err) {
+        console.error('Failed in logAction wrapper:', err.message);
     }
 }
 
@@ -611,6 +757,29 @@ const SystemSettingSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 const SystemSetting = mongoose.model('SystemSetting', SystemSettingSchema);
+
+// ═══════════════════════════════════════════════════════════════════
+// DEFAULT SYSTEM MENU PERMISSIONS
+// ═══════════════════════════════════════════════════════════════════
+const DEFAULT_SYSTEM_MENU_PERMISSIONS = [
+    { id: 'nav-executive', name: 'แดชบอร์ด (ผู้บริหาร)', category: 'dashboard', roles: ['admin'], enabled: true, order: 1 },
+    { id: 'nav-dashboard-sales', name: 'แดชบอร์ด (ฝ่ายขาย)', category: 'dashboard', roles: ['admin', 'sales'], enabled: true, order: 2 },
+    { id: 'nav-dashboard-approver', name: 'แดชบอร์ด (ฝ่ายอนุมัติ)', category: 'dashboard', roles: ['admin', 'approver'], enabled: true, order: 3 },
+    { id: 'nav-packages', name: 'แพ็กเกจ (รายการสัญญา)', category: 'operations', roles: ['admin', 'sales', 'approver', 'finance'], enabled: true, order: 4 },
+    { id: 'nav-members', name: 'สมาชิก', category: 'operations', roles: ['admin', 'sales', 'approver', 'finance'], enabled: true, order: 5 },
+    { id: 'nav-shops', name: 'ร้านค้า', category: 'operations', roles: ['admin'], enabled: true, order: 6 },
+    { id: 'nav-claims', name: 'แจ้งเคลม', category: 'claims', roles: ['admin', 'sales'], enabled: true, order: 7 },
+    { id: 'nav-tracking', name: 'ติดตามสถานะงานเคลม', category: 'claims', roles: ['admin', 'sales'], enabled: true, order: 8 },
+    { id: 'nav-approval', name: 'อนุมัติสัญญา', category: 'claims', roles: ['admin', 'approver'], enabled: true, order: 9 },
+    { id: 'nav-staff', name: 'จัดการพนักงาน', category: 'admin', roles: ['admin'], enabled: true, order: 10 },
+    { id: 'nav-finance-companies', name: 'จัดการไฟแนนซ์', category: 'admin', roles: ['admin'], enabled: true, order: 11 },
+    { id: 'nav-products', name: 'จัดการสินค้า', category: 'admin', roles: ['admin'], enabled: true, order: 12 },
+    { id: 'nav-finance', name: 'การเงิน (Finance)', category: 'finance', roles: ['admin', 'approver', 'finance'], enabled: true, order: 13 },
+    { id: 'nav-deposit', name: 'การมัดจำ', category: 'finance', roles: ['admin', 'sales', 'finance'], enabled: true, order: 14 },
+    { id: 'nav-calculator', name: 'คำนวณราคา', category: 'tools', roles: ['admin', 'sales', 'approver', 'finance'], enabled: true, order: 15 },
+    { id: 'nav-permissions', name: 'จัดการสิทธิ์เมนู', category: 'admin', roles: ['admin'], enabled: true, order: 16 },
+    { id: 'nav-audit-logs', name: 'ประวัติการใช้งาน (Audit Log)', category: 'admin', roles: ['admin'], enabled: true, order: 17 }
+];
 
 // Helper function: ตรวจสอบข้อมูลอุปกรณ์ว่ามีอยู่ในระบบ "จัดการสินค้า" และเปิดใช้งานอยู่หรือไม่
 async function validateProductCatalogFields({ type, model, color, capacity } = {}) {
@@ -2083,7 +2252,7 @@ app.post('/api/register', async (req, res) => {
     }
 });
 
-// Login (Database-backed)
+// Login (Database-backed) with Detailed Audit Logging
 app.post('/api/login', async (req, res) => {
     try {
         const { username, password } = req.body;
@@ -2093,24 +2262,84 @@ app.post('/api/login', async (req, res) => {
 
         if (staff) {
             if (staff.status === 'suspended') {
+                await recordAuditLog(req, {
+                    module: 'AUTH',
+                    actionType: 'LOGIN_FAILED',
+                    action: 'เข้าสู่ระบบไม่สำเร็จ (บัญชีถูกระงับ)',
+                    detail: `พยายามเข้าสู่ระบบด้วยบัญชีที่ถูกระงับการใช้งาน: ${username}`,
+                    targetId: staff.staffId,
+                    targetType: 'Staff',
+                    staffOverride: { staffId: staff.staffId, username, staffName: staff.staffName, role: staff.role, shopName: staff.shopName || '' }
+                });
                 return res.status(403).json({ success: false, message: 'บัญชีผู้ใช้นี้ถูกระงับการใช้งาน กรุณาติดต่อผู้ดูแลระบบ' });
             }
-            await logAction('Login', `เข้าสู่ระบบสำเร็จ (${staff.role})`, staff.staffName);
+
+            await recordAuditLog(req, {
+                module: 'AUTH',
+                actionType: 'LOGIN',
+                action: 'เข้าสู่ระบบสำเร็จ',
+                detail: `พนักงาน ${staff.staffName} (${staff.staffPosition || staff.role}) เข้าสู่ระบบสำเร็จ`,
+                targetId: staff.staffId,
+                targetType: 'Staff',
+                staffOverride: { staffId: staff.staffId, username: staff.username, staffName: staff.staffName, role: staff.role, shopName: staff.shopName || '' }
+            });
+
             res.json({
                 success: true,
-                user: { staffName: staff.staffName, staffId: staff.staffId, staffPosition: staff.staffPosition, role: staff.role }
+                user: { 
+                    staffName: staff.staffName, 
+                    staffId: staff.staffId, 
+                    staffPosition: staff.staffPosition, 
+                    role: staff.role,
+                    username: staff.username,
+                    shopName: staff.shopName || ''
+                }
             });
         } else {
-            // Fallback for admin if no staff exists yet (optional, but keep for convenience as per requirement)
+            // Fallback for admin if no staff exists yet
             if (username === 'admin' && password === '1234') {
-                await logAction('Login', 'เข้าสู่ระบบสำเร็จ (admin fallback)', 'Admin');
+                await recordAuditLog(req, {
+                    module: 'AUTH',
+                    actionType: 'LOGIN',
+                    action: 'เข้าสู่ระบบสำเร็จ (Admin Fallback)',
+                    detail: 'ผู้ดูแลระบบสำรอง (admin fallback) เข้าสู่ระบบสำเร็จ',
+                    targetId: 'STF000',
+                    targetType: 'Staff',
+                    staffOverride: { staffId: 'STF000', username: 'admin', staffName: 'Admin', role: 'admin', shopName: 'สำนักงานใหญ่' }
+                });
                 return res.json({
                     success: true,
-                    user: { staffName: 'Admin', staffId: 'STF000', role: 'admin' }
+                    user: { staffName: 'Admin', staffId: 'STF000', role: 'admin', username: 'admin', shopName: 'สำนักงานใหญ่' }
                 });
             }
+
+            await recordAuditLog(req, {
+                module: 'AUTH',
+                actionType: 'LOGIN_FAILED',
+                action: 'เข้าสู่ระบบไม่สำเร็จ (รหัสผ่านไม่ถูกต้อง)',
+                detail: `พยายามเข้าสู่ระบบด้วยชื่อผู้ใช้: "${username || 'ไม่ระบุ'}" แต่รหัสผ่านไม่ถูกต้องหรือไม่มีบัญชีในระบบ`,
+                targetId: username || '',
+                targetType: 'Auth',
+                staffOverride: { username: username || '', staffName: 'ผู้ไม่ประสงค์ออกนาม', role: 'unknown' }
+            });
+
             res.status(401).json({ success: false, message: 'Invalid credentials' });
         }
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// Logout (Audit Logged)
+app.post('/api/logout', async (req, res) => {
+    try {
+        await recordAuditLog(req, {
+            module: 'AUTH',
+            actionType: 'LOGOUT',
+            action: 'ออกจากระบบ',
+            detail: 'ผู้ใช้งานได้ทำการออกจากระบบ (Logout)'
+        });
+        res.json({ success: true, message: 'Logged out successfully' });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }
@@ -2126,10 +2355,338 @@ function checkAdminRole(req, res, next) {
     next();
 }
 
+// Middleware to check Audit Log Access (Admin or roles permitted in dynamic menu permissions)
+async function checkAuditLogAccess(req, res, next) {
+    const userRole = req.headers['x-user-role'] || 'sales';
+    if (userRole === 'admin') return next();
+
+    try {
+        const setting = await SystemSetting.findOne({ key: 'menu_permissions' }).lean();
+        const list = (setting && Array.isArray(setting.value)) ? setting.value : DEFAULT_SYSTEM_MENU_PERMISSIONS;
+        const auditMenu = list.find(m => m.id === 'nav-audit-logs');
+        if (auditMenu && auditMenu.enabled !== false && Array.isArray(auditMenu.roles) && auditMenu.roles.includes(userRole)) {
+            return next();
+        }
+    } catch (e) {
+        console.error('checkAuditLogAccess error:', e);
+    }
+    return res.status(403).json({ success: false, message: 'Forbidden: Access to audit logs required' });
+}
+
 // ═══════════════════════════════════════════════════════════════════
-// AUDIT LOG API (Admin Only)
+// AUDIT LOG API SUITE (Comprehensive Staff Activity Tracking)
 // ═══════════════════════════════════════════════════════════════════
 
+// 1. GET /api/audit-logs - Advanced Filter & Pagination Query
+app.get('/api/audit-logs', checkAuditLogAccess, async (req, res) => {
+    try {
+        const page = Math.max(1, parseInt(req.query.page) || 1);
+        const limit = Math.min(100, Math.max(5, parseInt(req.query.limit) || 25));
+        const skip = (page - 1) * limit;
+
+        const filter = {};
+
+        // Module filter
+        if (req.query.module && req.query.module !== 'ALL') {
+            filter.module = req.query.module;
+        }
+
+        // ActionType filter
+        if (req.query.actionType && req.query.actionType !== 'ALL') {
+            filter.actionType = req.query.actionType;
+        }
+
+        // Role filter
+        if (req.query.role && req.query.role !== 'ALL') {
+            filter.role = req.query.role;
+        }
+
+        // Shop/Branch filter
+        if (req.query.shop && req.query.shop !== 'ALL') {
+            filter.shopName = req.query.shop;
+        }
+
+        // Specific Staff (by staffId, username or staffName)
+        if (req.query.staffId) {
+            filter.staffId = req.query.staffId;
+        } else if (req.query.username) {
+            filter.username = req.query.username;
+        } else if (req.query.staffName && req.query.staffName !== 'ALL') {
+            filter.staffName = req.query.staffName;
+        }
+
+        // Date range filter
+        if (req.query.startDate || req.query.endDate) {
+            filter.timestamp = {};
+            if (req.query.startDate) {
+                const s = new Date(req.query.startDate);
+                s.setHours(0, 0, 0, 0);
+                filter.timestamp.$gte = s;
+            }
+            if (req.query.endDate) {
+                const e = new Date(req.query.endDate);
+                e.setHours(23, 59, 59, 999);
+                filter.timestamp.$lte = e;
+            }
+        }
+
+        // Keyword Search across multiple fields
+        if (req.query.search && req.query.search.trim()) {
+            const regex = new RegExp(req.query.search.trim(), 'i');
+            filter.$or = [
+                { action: regex },
+                { detail: regex },
+                { staffName: regex },
+                { username: regex },
+                { targetId: regex },
+                { ipAddress: regex },
+                { shopName: regex }
+            ];
+        }
+
+        const [totalRecords, logs] = await Promise.all([
+            AuditLog.countDocuments(filter),
+            AuditLog.find(filter)
+                .sort({ timestamp: -1 })
+                .skip(skip)
+                .limit(limit)
+                .lean()
+        ]);
+
+        const totalPages = Math.ceil(totalRecords / limit) || 1;
+
+        res.json({
+            success: true,
+            logs,
+            pagination: {
+                totalRecords,
+                currentPage: page,
+                totalPages,
+                limit
+            }
+        });
+    } catch (err) {
+        console.error('Audit Log Query Error:', err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// 2. GET /api/audit-logs/stats - Real-time KPI Cards & Activity Metrics
+app.get('/api/audit-logs/stats', checkAuditLogAccess, async (req, res) => {
+    try {
+        const now = new Date();
+        const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+        const endToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+
+        const startYesterday = new Date(startToday.getTime() - 24 * 60 * 60 * 1000);
+        const endYesterday = new Date(endToday.getTime() - 24 * 60 * 60 * 1000);
+
+        const [
+            totalToday,
+            totalYesterday,
+            activeStaffList,
+            criticalActionsToday,
+            loginSuccessToday,
+            loginFailedToday,
+            topStaffToday,
+            moduleStats
+        ] = await Promise.all([
+            AuditLog.countDocuments({ timestamp: { $gte: startToday, $lte: endToday } }),
+            AuditLog.countDocuments({ timestamp: { $gte: startYesterday, $lte: endYesterday } }),
+            AuditLog.distinct('staffName', {
+                timestamp: { $gte: startToday, $lte: endToday },
+                staffName: { $nin: ['System', '', 'ผู้ไม่ประสงค์ออกนาม'] }
+            }),
+            AuditLog.countDocuments({
+                timestamp: { $gte: startToday, $lte: endToday },
+                actionType: { $in: ['DELETE', 'REJECT', 'LOGIN_FAILED', 'SETTINGS_CHANGE'] }
+            }),
+            AuditLog.countDocuments({
+                timestamp: { $gte: startToday, $lte: endToday },
+                actionType: 'LOGIN'
+            }),
+            AuditLog.countDocuments({
+                timestamp: { $gte: startToday, $lte: endToday },
+                actionType: 'LOGIN_FAILED'
+            }),
+            AuditLog.aggregate([
+                { $match: { timestamp: { $gte: startToday, $lte: endToday }, staffName: { $ne: 'System' } } },
+                { $group: { _id: '$staffName', count: { $sum: 1 }, role: { $first: '$role' }, shopName: { $first: '$shopName' } } },
+                { $sort: { count: -1 } },
+                { $limit: 5 }
+            ]),
+            AuditLog.aggregate([
+                { $match: { timestamp: { $gte: startToday, $lte: endToday } } },
+                { $group: { _id: '$module', count: { $sum: 1 } } },
+                { $sort: { count: -1 } }
+            ])
+        ]);
+
+        const growthPercent = totalYesterday > 0 
+            ? Math.round(((totalToday - totalYesterday) / totalYesterday) * 100) 
+            : (totalToday > 0 ? 100 : 0);
+
+        res.json({
+            success: true,
+            stats: {
+                totalToday,
+                totalYesterday,
+                growthPercent,
+                activeStaffCount: activeStaffList.length,
+                criticalActionsToday,
+                loginSuccessToday,
+                loginFailedToday,
+                topStaffToday,
+                moduleStats
+            }
+        });
+    } catch (err) {
+        console.error('Audit Log Stats Error:', err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// 3. GET /api/audit-logs/staff-list - Distinct List of Active Staff for Dropdowns
+app.get('/api/audit-logs/staff-list', checkAuditLogAccess, async (req, res) => {
+    try {
+        const staffDocs = await Staff.find({}, 'staffId staffName staffPosition username role shopName').lean();
+        const distinctNames = await AuditLog.distinct('staffName', { staffName: { $ne: 'System' } });
+        res.json({
+            success: true,
+            staff: staffDocs,
+            distinctNames
+        });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// 4. GET /api/audit-logs/staff-timeline - Chronological Flow for Individual Staff
+app.get('/api/audit-logs/staff-timeline', checkAuditLogAccess, async (req, res) => {
+    try {
+        const { staffName, username, staffId, date } = req.query;
+        if (!staffName && !username && !staffId) {
+            return res.status(400).json({ success: false, message: 'กรุณาระบุพนักงานที่ต้องการตรวจสอบไทม์ไลน์' });
+        }
+
+        const filter = {};
+        if (staffId) filter.staffId = staffId;
+        else if (username) filter.username = username;
+        else if (staffName) filter.staffName = staffName;
+
+        const targetDate = date ? new Date(date) : new Date();
+        const start = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate(), 0, 0, 0);
+        const end = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate(), 23, 59, 59, 999);
+        filter.timestamp = { $gte: start, $lte: end };
+
+        const timeline = await AuditLog.find(filter).sort({ timestamp: 1 }).lean();
+        res.json({ success: true, timeline, date: start.toISOString().split('T')[0] });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// 5. GET /api/audit-logs/:id - Single Log Detail & Diff Inspection
+app.get('/api/audit-logs/detail/:id', checkAuditLogAccess, async (req, res) => {
+    try {
+        const log = await AuditLog.findById(req.params.id).lean();
+        if (!log) {
+            return res.status(404).json({ success: false, message: 'ไม่พบรายการ Audit Log นี้' });
+        }
+        res.json({ success: true, log });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// 6. GET /api/audit-logs/export/excel - Filtered Export to Excel
+app.get('/api/audit-logs/export/excel', checkAuditLogAccess, async (req, res) => {
+    try {
+        const filter = {};
+        if (req.query.module && req.query.module !== 'ALL') filter.module = req.query.module;
+        if (req.query.actionType && req.query.actionType !== 'ALL') filter.actionType = req.query.actionType;
+        if (req.query.role && req.query.role !== 'ALL') filter.role = req.query.role;
+        if (req.query.shop && req.query.shop !== 'ALL') filter.shopName = req.query.shop;
+        if (req.query.staffName && req.query.staffName !== 'ALL') filter.staffName = req.query.staffName;
+        if (req.query.startDate || req.query.endDate) {
+            filter.timestamp = {};
+            if (req.query.startDate) {
+                const s = new Date(req.query.startDate);
+                s.setHours(0, 0, 0, 0);
+                filter.timestamp.$gte = s;
+            }
+            if (req.query.endDate) {
+                const e = new Date(req.query.endDate);
+                e.setHours(23, 59, 59, 999);
+                filter.timestamp.$lte = e;
+            }
+        }
+        if (req.query.search && req.query.search.trim()) {
+            const regex = new RegExp(req.query.search.trim(), 'i');
+            filter.$or = [
+                { action: regex },
+                { detail: regex },
+                { staffName: regex },
+                { username: regex },
+                { targetId: regex }
+            ];
+        }
+
+        const rows = await AuditLog.find(filter).sort({ timestamp: -1 }).limit(5000).lean();
+
+        const workbook = new ExcelJS.Workbook();
+        const ws = workbook.addWorksheet('Staff Audit Logs');
+
+        ws.columns = [
+            { header: 'วัน-เวลา', key: 'timestamp', width: 22 },
+            { header: 'พนักงาน', key: 'staffName', width: 20 },
+            { header: 'Username', key: 'username', width: 15 },
+            { header: 'บทบาท (Role)', key: 'role', width: 15 },
+            { header: 'สาขา (Shop)', key: 'shopName', width: 20 },
+            { header: 'โมดูล (Module)', key: 'module', width: 18 },
+            { header: 'ประเภทงาน (Action Type)', key: 'actionType', width: 20 },
+            { header: 'รายการ (Action)', key: 'action', width: 25 },
+            { header: 'เป้าหมาย (Target)', key: 'targetId', width: 20 },
+            { header: 'รายละเอียด (Detail)', key: 'detail', width: 60 },
+            { header: 'IP Address', key: 'ipAddress', width: 18 }
+        ];
+
+        ws.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+        ws.getRow(1).fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FF1E293B' }
+        };
+
+        for (const r of rows) {
+            ws.addRow({
+                timestamp: r.timestamp ? new Date(r.timestamp) : null,
+                staffName: r.staffName || '-',
+                username: r.username || '-',
+                role: r.role || '-',
+                shopName: r.shopName || '-',
+                module: r.module || '-',
+                actionType: r.actionType || '-',
+                action: r.action || '-',
+                targetId: r.targetId || '-',
+                detail: r.detail || '-',
+                ipAddress: r.ipAddress || '-'
+            });
+        }
+
+        ws.getColumn('timestamp').numFmt = 'dd/mm/yyyy hh:mm:ss';
+
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', 'attachment; filename="Staff_Audit_Logs.xlsx"');
+        await workbook.xlsx.write(res);
+        res.end();
+    } catch (err) {
+        console.error('Export Audit Logs Error:', err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// Legacy backward-compatible route
 app.get('/api/logs', checkAdminRole, async (req, res) => {
     try {
         const logs = await AuditLog.find().sort({ timestamp: -1 }).limit(100).lean();
@@ -3155,6 +3712,17 @@ app.post('/api/staff', checkAdminRole, async (req, res) => {
         await newStaff.save();
 
         const insertedStaff = await Staff.findById(newStaff._id, { password: 0 });
+
+        await recordAuditLog(req, {
+            module: 'STAFF',
+            actionType: 'CREATE',
+            action: 'เพิ่มพนักงานใหม่',
+            detail: `สร้างบัญชีพนักงานใหม่: ${staffName} (User: ${username}, ตำแหน่ง: ${staffPosition}, สิทธิ์: ${role})`,
+            targetId: staffId,
+            targetType: 'Staff',
+            metadata: { username, staffName, role, staffPosition, status: status || 'active' }
+        });
+
         res.status(201).json({ success: true, staff: insertedStaff });
     } catch (err) {
         res.status(400).json({ success: false, message: err.message });
@@ -3165,10 +3733,10 @@ app.post('/api/staff', checkAdminRole, async (req, res) => {
 app.put('/api/staff/:id', checkAdminRole, async (req, res) => {
     try {
         const { staffName, role, password, status } = req.body;
+        const targetStaff = await Staff.findById(req.params.id);
 
         // Safety check: Prevent suspending the last active administrator
         if (status === 'suspended') {
-            const targetStaff = await Staff.findById(req.params.id);
             if (targetStaff && targetStaff.role === 'admin') {
                 const activeAdminCount = await Staff.countDocuments({ role: 'admin', status: 'active', _id: { $ne: req.params.id } });
                 if (activeAdminCount === 0) {
@@ -3199,6 +3767,19 @@ app.put('/api/staff/:id', checkAdminRole, async (req, res) => {
 
         if (!updatedStaff) return res.status(404).json({ success: false, message: 'Staff not found' });
 
+        await recordAuditLog(req, {
+            module: 'STAFF',
+            actionType: 'UPDATE',
+            action: 'แก้ไขข้อมูลพนักงาน',
+            detail: `แก้ไขข้อมูลพนักงาน: ${updatedStaff.staffName} (User: ${updatedStaff.username}, สิทธิ์: ${updatedStaff.role})`,
+            targetId: updatedStaff.staffId || req.params.id,
+            targetType: 'Staff',
+            changes: {
+                before: { staffName: targetStaff?.staffName, role: targetStaff?.role, status: targetStaff?.status },
+                after: { staffName: updatedStaff.staffName, role: updatedStaff.role, status: updatedStaff.status }
+            }
+        });
+
         res.json({ success: true, staff: updatedStaff });
     } catch (err) {
         res.status(400).json({ success: false, message: err.message });
@@ -3210,6 +3791,17 @@ app.delete('/api/staff/:id', checkAdminRole, async (req, res) => {
     try {
         const deletedStaff = await Staff.findByIdAndDelete(req.params.id);
         if (!deletedStaff) return res.status(404).json({ success: false, message: 'Staff not found' });
+
+        await recordAuditLog(req, {
+            module: 'STAFF',
+            actionType: 'DELETE',
+            action: 'ลบบัญชีพนักงาน',
+            detail: `ลบบัญชีพนักงาน: ${deletedStaff.staffName} (User: ${deletedStaff.username}, รหัส: ${deletedStaff.staffId})`,
+            targetId: deletedStaff.staffId || req.params.id,
+            targetType: 'Staff',
+            metadata: { username: deletedStaff.username, staffName: deletedStaff.staffName, role: deletedStaff.role }
+        });
+
         res.json({ success: true, message: 'Staff deleted successfully' });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
@@ -3504,7 +4096,22 @@ app.post('/api/warranties', async (req, res) => {
             }
         }
 
-        await logAction('Create Warranty', `สร้างสัญญาใหม่เลขที่: ${newWarranty.policyNumber}`, req.body.staffName || newWarranty.staffName || 'System');
+        await recordAuditLog(req, {
+            module: 'PACKAGES',
+            actionType: 'CREATE',
+            action: 'สร้างสัญญาใหม่',
+            detail: `สร้างสัญญาใหม่เลขที่ ${newWarranty.policyNumber} (ลูกค้า: ${newWarranty.customer?.firstName || ''} ${newWarranty.customer?.lastName || ''}, รุ่น: ${newWarranty.device?.brand || ''} ${newWarranty.device?.model || ''}, ราคา: ${newWarranty.devicePrice || 0} บาท, สาขา: ${newWarranty.shopName || '-'})`,
+            targetId: newWarranty.policyNumber,
+            targetType: 'Warranty',
+            metadata: {
+                policyNumber: newWarranty.policyNumber,
+                customerName: `${newWarranty.customer?.firstName || ''} ${newWarranty.customer?.lastName || ''}`,
+                phone: newWarranty.customer?.phone,
+                device: `${newWarranty.device?.brand || ''} ${newWarranty.device?.model || ''}`,
+                devicePrice: newWarranty.devicePrice,
+                shopName: newWarranty.shopName
+            }
+        });
         res.status(201).json(newWarranty);
     } catch (err) {
         res.status(400).json({ message: err.message });
@@ -3774,7 +4381,15 @@ app.put('/api/warranties/:id/approve', async (req, res) => {
         warranty.approvalDate = new Date();
         await warranty.save();
 
-        await logAction('Approve Warranty', `อนุมัติสัญญาเลขที่: ${warranty.policyNumber || req.params.id} (${warranty.approvalStatus})`, approver || 'System');
+        await recordAuditLog(req, {
+            module: 'APPROVAL',
+            actionType: 'APPROVE',
+            action: 'อนุมัติสัญญา',
+            detail: `อนุมัติสัญญาเลขที่ ${warranty.policyNumber} (สถานะ: ${warranty.approvalStatus}) ผู้อนุมัติ: ${approver || 'System'}`,
+            targetId: warranty.policyNumber,
+            targetType: 'Warranty',
+            metadata: { policyNumber: warranty.policyNumber, approvalStatus: warranty.approvalStatus, approver }
+        });
         res.json({ success: true, warranty });
     } catch (err) {
         res.status(400).json({ message: err.message });
@@ -3796,6 +4411,17 @@ app.put('/api/warranties/:id/reject', async (req, res) => {
             { new: true }
         );
         if (!warranty) return res.status(404).json({ message: 'Record not found' });
+
+        await recordAuditLog(req, {
+            module: 'APPROVAL',
+            actionType: 'REJECT',
+            action: 'ปฏิเสธสัญญา',
+            detail: `ปฏิเสธสัญญาเลขที่ ${warranty.policyNumber} โดย: ${rejectBy || 'System'} (เหตุผล: ${reason || 'ไม่ระบุ'})`,
+            targetId: warranty.policyNumber,
+            targetType: 'Warranty',
+            metadata: { policyNumber: warranty.policyNumber, rejectReason: reason, rejectBy }
+        });
+
         res.json({ success: true, warranty });
     } catch (err) {
         res.status(400).json({ message: err.message });
@@ -3818,7 +4444,16 @@ app.put('/api/warranties/:id/request-correction', async (req, res) => {
         );
         if (!warranty) return res.status(404).json({ message: 'Record not found' });
         
-        await logAction('Correction Request', `ส่งคืนสัญญากลับไปแก้ไขเลขที่: ${warranty.policyNumber || req.params.id}`, rejectBy || 'System');
+        await recordAuditLog(req, {
+            module: 'APPROVAL',
+            actionType: 'CORRECTION',
+            action: 'ส่งกลับแก้ไขสัญญา',
+            detail: `ส่งกลับสัญญาเลขที่ ${warranty.policyNumber} ให้แก้ไข โดย: ${rejectBy || 'System'} (เหตุผล: ${reason || 'ไม่ระบุ'})`,
+            targetId: warranty.policyNumber,
+            targetType: 'Warranty',
+            metadata: { policyNumber: warranty.policyNumber, reason, rejectBy }
+        });
+
         res.json({ success: true, warranty });
     } catch (err) {
         res.status(400).json({ message: err.message });
@@ -4202,6 +4837,20 @@ app.put('/api/warranties/:id', async (req, res) => {
             }
         }
 
+        await recordAuditLog(req, {
+            module: 'PACKAGES',
+            actionType: 'UPDATE',
+            action: 'แก้ไขข้อมูลสัญญา',
+            detail: `แก้ไขข้อมูลสัญญาเลขที่ ${updated.policyNumber} (ลูกค้า: ${updated.customer?.firstName || ''} ${updated.customer?.lastName || ''})${changeString ? ' รายละเอียด: ' + changeString : ''}`,
+            targetId: updated.policyNumber,
+            targetType: 'Warranty',
+            metadata: { policyNumber: updated.policyNumber, changesSummary: changeString },
+            changes: {
+                before: { customer: currentWarranty.customer, device: currentWarranty.device, devicePrice: currentWarranty.devicePrice },
+                after: { customer: updated.customer, device: updated.device, devicePrice: updated.devicePrice }
+            }
+        });
+
         res.json(updated);
     } catch (err) {
         res.status(400).json({ message: err.message });
@@ -4431,6 +5080,17 @@ app.delete('/api/warranties/:id', async (req, res) => {
     try {
         const deleted = await Warranty.findByIdAndDelete(req.params.id);
         if (!deleted) return res.status(404).json({ message: 'Record not found' });
+
+        await recordAuditLog(req, {
+            module: 'PACKAGES',
+            actionType: 'DELETE',
+            action: 'ลบสัญญา',
+            detail: `ลบข้อมูลสัญญาเลขที่ ${deleted.policyNumber} (ลูกค้า: ${deleted.customer?.firstName || ''} ${deleted.customer?.lastName || ''}, สาขา: ${deleted.shopName || '-'})`,
+            targetId: deleted.policyNumber,
+            targetType: 'Warranty',
+            metadata: { policyNumber: deleted.policyNumber, customer: `${deleted.customer?.firstName || ''} ${deleted.customer?.lastName || ''}`, shopName: deleted.shopName }
+        });
+
         res.json({ success: true, message: 'Record deleted successfully' });
     } catch (err) {
         res.status(500).json({ message: err.message });
@@ -6535,7 +7195,15 @@ app.post('/api/claims', claimUpload.array('images', 10), async (req, res) => {
         // Update Warranty status to 'Wait for Claim'
         await Warranty.findByIdAndUpdate(warrantyId, { claimStatus: 'pending' });
 
-        await logAction('Open Claim', `เปิดงานเคลมใหม่ ID: ${newClaim.claimId}, ลูกค้า: ${customerName || '-'}`, staffName || 'System');
+        await recordAuditLog(req, {
+            module: 'CLAIMS',
+            actionType: 'CREATE',
+            action: 'เปิดงานเคลมใหม่',
+            detail: `เปิดงานเคลมใหม่รหัส ${newClaim.claimId} (ลูกค้า: ${customerName || '-'}, อาการเสีย: ${newClaim.damageType || '-'}, สาขา: ${newClaim.claimShopName || '-'})`,
+            targetId: newClaim.claimId,
+            targetType: 'Claim',
+            metadata: { claimId: newClaim.claimId, customerName, damageType: newClaim.damageType, shopName: newClaim.claimShopName }
+        });
         res.status(201).json({ success: true, claim: newClaim });
     } catch (err) {
         res.status(400).json({ success: false, message: err.message });
@@ -6751,6 +7419,16 @@ app.post('/api/claims/:id/updates', claimUpload.fields([
 
         if (io) io.emit('claimUpdate', { claimId: claim.claimId, id: claim._id.toString(), warrantyId: claim.warrantyId?.toString() });
 
+        await recordAuditLog(req, {
+            module: 'TRACKING',
+            actionType: 'STATUS_CHANGE',
+            action: 'อัปเดตสถานะงานเคลม',
+            detail: `อัปเดตงานเคลม ${claim.claimId}: "${req.body.title || 'อัปเดตขั้นตอน'}" (ค่าใช้จ่าย: ${cost} บาท, ศูนย์ซ่อม: ${centerName || '-'})`,
+            targetId: claim.claimId,
+            targetType: 'Claim',
+            metadata: { claimId: claim.claimId, step: nextStep, title: req.body.title, cost, centerName, technicianName }
+        });
+
         res.json({ success: true, claim });
     } catch (err) {
         res.status(400).json({ success: false, message: err.message });
@@ -6937,6 +7615,16 @@ app.post('/api/claims/:id/complete', claimUpload.fields([
         await Warranty.findByIdAndUpdate(claim.warrantyId, { claimStatus: 'normal' });
 
         if (io) io.emit('claimUpdate', { claimId: claim.claimId, id: claim._id.toString(), warrantyId: claim.warrantyId?.toString() });
+
+        await recordAuditLog(req, {
+            module: 'TRACKING',
+            actionType: 'SETTLEMENT',
+            action: 'ปิดงานเคลม (ส่งมอบเครื่อง)',
+            detail: `ปิดงานเคลมและส่งมอบเครื่อง รหัส ${claim.claimId} (วิธีรับ: ${returnMethod})`,
+            targetId: claim.claimId,
+            targetType: 'Claim',
+            metadata: { claimId: claim.claimId, returnMethod, pickupBranch }
+        });
 
         res.json({ success: true, claim });
     } catch (err) {
@@ -7185,6 +7873,17 @@ app.post('/api/members', async (req, res) => {
             memberId
         });
         await newMember.save();
+
+        await recordAuditLog(req, {
+            module: 'MEMBERS',
+            actionType: 'CREATE',
+            action: 'เพิ่มสมาชิกใหม่',
+            detail: `เพิ่มสมาชิกใหม่: ${newMember.firstName || ''} ${newMember.lastName || ''} (รหัส: ${newMember.memberId}, เบอร์: ${newMember.phone})`,
+            targetId: newMember.memberId,
+            targetType: 'Member',
+            metadata: { memberId: newMember.memberId, name: `${newMember.firstName || ''} ${newMember.lastName || ''}`, phone: newMember.phone }
+        });
+
         res.status(201).json({ success: true, member: newMember });
     } catch (err) {
         res.status(400).json({ success: false, message: err.message });
@@ -7263,6 +7962,7 @@ app.get('/api/members/:id', async (req, res) => {
 app.put('/api/members/:id', async (req, res) => {
     try {
         const { phone, citizenId, postalCode } = req.body;
+        const oldMember = await Member.findById(req.params.id);
 
         const normalizeDigits = (v) => String(v || '').replace(/\D/g, '');
         const phoneDigits = normalizeDigits(phone);
@@ -7297,6 +7997,20 @@ app.put('/api/members/:id', async (req, res) => {
             { new: true }
         );
         if (!updatedMember) return res.status(404).json({ success: false, message: 'ไม่พบข้อมูลสมาชิก' });
+
+        await recordAuditLog(req, {
+            module: 'MEMBERS',
+            actionType: 'UPDATE',
+            action: 'แก้ไขข้อมูลสมาชิก',
+            detail: `แก้ไขข้อมูลสมาชิก: ${updatedMember.firstName || ''} ${updatedMember.lastName || ''} (รหัส: ${updatedMember.memberId})`,
+            targetId: updatedMember.memberId || req.params.id,
+            targetType: 'Member',
+            changes: {
+                before: { firstName: oldMember?.firstName, lastName: oldMember?.lastName, phone: oldMember?.phone },
+                after: { firstName: updatedMember.firstName, lastName: updatedMember.lastName, phone: updatedMember.phone }
+            }
+        });
+
         res.json({ success: true, member: updatedMember });
     } catch (err) {
         res.status(400).json({ success: false, message: err.message });
@@ -7304,10 +8018,21 @@ app.put('/api/members/:id', async (req, res) => {
 });
 
 // Delete member
-app.delete('/api/members/:id', async (req, res) => {
+app.delete('/api/members/:id', checkAdminRole, async (req, res) => {
     try {
         const deleted = await Member.findByIdAndDelete(req.params.id);
         if (!deleted) return res.status(404).json({ success: false, message: 'ไม่พบข้อมูลสมาชิก' });
+
+        await recordAuditLog(req, {
+            module: 'MEMBERS',
+            actionType: 'DELETE',
+            action: 'ลบข้อมูลสมาชิก',
+            detail: `ลบข้อมูลสมาชิก: ${deleted.firstName || ''} ${deleted.lastName || ''} (รหัส: ${deleted.memberId}, เบอร์: ${deleted.phone})`,
+            targetId: deleted.memberId || req.params.id,
+            targetType: 'Member',
+            metadata: { memberId: deleted.memberId, name: `${deleted.firstName || ''} ${deleted.lastName || ''}`, phone: deleted.phone }
+        });
+
         res.json({ success: true, message: 'ลบข้อมูลสมาชิกสำเร็จ' });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
@@ -8399,6 +9124,179 @@ app.post('/api/line/toggle', async (req, res) => {
 
         res.json({ success: true, enabled: newStatus });
     } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// DYNAMIC MENU PERMISSIONS API
+// ═══════════════════════════════════════════════════════════════════
+
+// 1. ดึงข้อมูลการตั้งค่าสิทธิ์เมนูทั้งหมด
+app.get('/api/system/menu-permissions', async (req, res) => {
+    try {
+        const setting = await SystemSetting.findOne({ key: 'menu_permissions' }).lean();
+        if (setting && Array.isArray(setting.value) && setting.value.length > 0) {
+            // Merge with defaults if any new menus are added
+            const savedList = setting.value;
+            const existingIds = new Set(savedList.map(item => item.id));
+            let merged = [...savedList];
+            let hasNewDefaults = false;
+            DEFAULT_SYSTEM_MENU_PERMISSIONS.forEach(def => {
+                if (!existingIds.has(def.id)) {
+                    merged.push(def);
+                    hasNewDefaults = true;
+                }
+            });
+            // Sort by order
+            merged.sort((a, b) => (Number(a.order) || 99) - (Number(b.order) || 99));
+
+            // If any new default menus were merged, persist to database
+            if (hasNewDefaults) {
+                await SystemSetting.findOneAndUpdate(
+                    { key: 'menu_permissions' },
+                    { $set: { value: merged } }
+                );
+            }
+
+            return res.json({ success: true, data: merged });
+        }
+
+        // Initialize with default permissions
+        await SystemSetting.findOneAndUpdate(
+            { key: 'menu_permissions' },
+            {
+                key: 'menu_permissions',
+                value: DEFAULT_SYSTEM_MENU_PERMISSIONS,
+                updatedBy: 'System',
+                updatedAt: new Date()
+            },
+            { upsert: true, new: true }
+        );
+
+        res.json({ success: true, data: DEFAULT_SYSTEM_MENU_PERMISSIONS });
+    } catch (err) {
+        console.error('GET /api/system/menu-permissions error:', err);
+        res.status(500).json({ success: false, message: err.message, data: DEFAULT_SYSTEM_MENU_PERMISSIONS });
+    }
+});
+
+// 2. บันทึกการตั้งค่าสิทธิ์เมนูใหม่ (เฉพาะ Admin)
+app.post('/api/system/menu-permissions', checkAdminRole, async (req, res) => {
+    try {
+        const { menus } = req.body || {};
+        if (!Array.isArray(menus) || menus.length === 0) {
+            return res.status(400).json({ success: false, message: 'ข้อมูลรายการเมนูไม่ถูกต้อง' });
+        }
+
+        // Validate and ensure admin always has access to nav-permissions to prevent lock-out
+        const sanitizedMenus = menus.map((m, index) => {
+            let roles = Array.isArray(m.roles) ? [...m.roles] : [];
+            if (m.id === 'nav-permissions' && !roles.includes('admin')) {
+                roles.push('admin');
+            }
+            return {
+                id: String(m.id || '').trim(),
+                name: String(m.name || '').trim(),
+                category: String(m.category || 'operations').trim(),
+                roles: Array.from(new Set(roles)),
+                enabled: m.enabled !== false,
+                order: typeof m.order === 'number' ? m.order : (index + 1)
+            };
+        });
+
+        let staffName = req.body && req.body.updatedBy ? req.body.updatedBy : null;
+        if (!staffName && req.headers['x-user-name']) {
+            try {
+                staffName = decodeURIComponent(req.headers['x-user-name']);
+            } catch (e) {
+                staffName = req.headers['x-user-name'];
+            }
+        }
+        if (!staffName) staffName = 'Admin';
+
+        await SystemSetting.findOneAndUpdate(
+            { key: 'menu_permissions' },
+            {
+                key: 'menu_permissions',
+                value: sanitizedMenus,
+                updatedBy: staffName,
+                updatedAt: new Date()
+            },
+            { upsert: true, new: true }
+        );
+
+        // Record Audit Log
+        try {
+            await AuditLog.create({
+                action: 'UPDATE_MENU_PERMISSIONS',
+                detail: `อัปเดตสิทธิ์การมองเห็นและตำแหน่งของเมนู ${sanitizedMenus.length} รายการ`,
+                staffName: staffName
+            });
+        } catch (logErr) {
+            console.error('AuditLog error for menu permissions:', logErr.message);
+        }
+
+        if (io) {
+            io.emit('menu_permissions_updated', sanitizedMenus);
+        }
+
+        res.json({
+            success: true,
+            message: 'บันทึกการตั้งค่าสิทธิ์เมนูเรียบร้อยแล้ว',
+            data: sanitizedMenus
+        });
+    } catch (err) {
+        console.error('POST /api/system/menu-permissions error:', err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// 3. รีเซ็ตสิทธิ์เมนูเป็นค่าเริ่มต้น (เฉพาะ Admin)
+app.post('/api/system/menu-permissions/reset', checkAdminRole, async (req, res) => {
+    try {
+        let staffName = req.body && req.body.updatedBy ? req.body.updatedBy : null;
+        if (!staffName && req.headers['x-user-name']) {
+            try {
+                staffName = decodeURIComponent(req.headers['x-user-name']);
+            } catch (e) {
+                staffName = req.headers['x-user-name'];
+            }
+        }
+        if (!staffName) staffName = 'Admin';
+
+        await SystemSetting.findOneAndUpdate(
+            { key: 'menu_permissions' },
+            {
+                key: 'menu_permissions',
+                value: DEFAULT_SYSTEM_MENU_PERMISSIONS,
+                updatedBy: staffName,
+                updatedAt: new Date()
+            },
+            { upsert: true, new: true }
+        );
+
+        try {
+            await AuditLog.create({
+                action: 'RESET_MENU_PERMISSIONS',
+                detail: 'รีเซ็ตสิทธิ์การมองเห็นเมนูทั้งหมดเป็นค่ามาตรฐาน',
+                staffName: staffName
+            });
+        } catch (logErr) {
+            console.error('AuditLog error:', logErr.message);
+        }
+
+        if (io) {
+            io.emit('menu_permissions_updated', DEFAULT_SYSTEM_MENU_PERMISSIONS);
+        }
+
+        res.json({
+            success: true,
+            message: 'รีเซ็ตสิทธิ์เมนูเป็นค่าเริ่มต้นเรียบร้อยแล้ว',
+            data: DEFAULT_SYSTEM_MENU_PERMISSIONS
+        });
+    } catch (err) {
+        console.error('POST /api/system/menu-permissions/reset error:', err);
         res.status(500).json({ success: false, message: err.message });
     }
 });

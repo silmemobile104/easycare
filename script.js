@@ -382,6 +382,14 @@ document.addEventListener('DOMContentLoaded', () => {
             showAlert('warning', 'บัญชีของคุณไม่มีสิทธิ์เข้าเมนูอนุมัติสัญญา');
             viewName = 'dashboard';
         }
+        if (viewName === 'permissions' && typeof hasPermission === 'function' && !hasPermission('nav-permissions')) {
+            showAlert('warning', 'บัญชีของคุณไม่มีสิทธิ์เข้าเมนูจัดการสิทธิ์เมนู');
+            viewName = 'dashboard';
+        }
+        if (viewName === 'audit-logs' && typeof hasPermission === 'function' && !hasPermission('nav-audit-logs')) {
+            showAlert('warning', 'บัญชีของคุณไม่มีสิทธิ์เข้าเมนูประวัติการใช้งาน');
+            viewName = 'dashboard';
+        }
         Object.keys(views).forEach(key => {
             if (views[key]) views[key].style.display = 'none';
         });
@@ -392,7 +400,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const membersNavLink = document.getElementById('membersNavLink');
         const shopsNavLink = document.getElementById('shopsNavLink');
 
-        if (viewName === 'dashboard' || viewName === 'members' || viewName === 'shops' || viewName === 'claims' || viewName === 'statusTracking' || viewName === 'approval' || viewName === 'staff' || viewName === 'executive' || viewName === 'finance' || viewName === 'deposit' || viewName === 'calculator' || viewName === 'dashboard-sales' || viewName === 'dashboard-approver' || viewName === 'finance-companies' || viewName === 'products') {
+        if (viewName === 'dashboard' || viewName === 'members' || viewName === 'shops' || viewName === 'claims' || viewName === 'statusTracking' || viewName === 'approval' || viewName === 'staff' || viewName === 'executive' || viewName === 'finance' || viewName === 'deposit' || viewName === 'calculator' || viewName === 'dashboard-sales' || viewName === 'dashboard-approver' || viewName === 'finance-companies' || viewName === 'products' || viewName === 'permissions' || viewName === 'audit-logs') {
             views.dashboard.style.display = 'block';
 
             // Hide all sub-views first
@@ -423,6 +431,10 @@ document.addEventListener('DOMContentLoaded', () => {
             if (depositMainEl) depositMainEl.style.display = 'none';
             const calculatorMainEl = document.getElementById('calculatorView');
             if (calculatorMainEl) calculatorMainEl.style.display = 'none';
+            const permissionsMainEl = document.getElementById('permissionsMain');
+            if (permissionsMainEl) permissionsMainEl.style.display = 'none';
+            const auditLogsMainEl = document.getElementById('auditLogsMain');
+            if (auditLogsMainEl) auditLogsMainEl.style.display = 'none';
 
             // Remove active class from all nav links
             if (dashNavLink) dashNavLink.classList.remove('active');
@@ -452,6 +464,10 @@ document.addEventListener('DOMContentLoaded', () => {
             if (depositNavLinkEl) depositNavLinkEl.classList.remove('active');
             const calculatorNavLinkEl = document.getElementById('calculatorNavLink');
             if (calculatorNavLinkEl) calculatorNavLinkEl.classList.remove('active');
+            const permissionsNavLinkEl = document.getElementById('permissionsNavLink');
+            if (permissionsNavLinkEl) permissionsNavLinkEl.classList.remove('active');
+            const auditLogsNavLinkEl = document.getElementById('auditLogsNavLink');
+            if (auditLogsNavLinkEl) auditLogsNavLinkEl.classList.remove('active');
 
             if (viewName === 'dashboard') {
                 dashMain.style.display = 'block';
@@ -542,6 +558,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (productsNavLinkEl) productsNavLinkEl.classList.add('active');
                 stopApprovalAutoRefresh();
                 fetchProductsCatalog();
+            } else if (viewName === 'permissions') {
+                const permissionsMainEl = document.getElementById('permissionsMain');
+                if (permissionsMainEl) permissionsMainEl.style.display = 'block';
+                const permissionsNavLinkEl = document.getElementById('permissionsNavLink');
+                if (permissionsNavLinkEl) permissionsNavLinkEl.classList.add('active');
+                stopApprovalAutoRefresh();
+                initMenuPermissionsView();
+            } else if (viewName === 'audit-logs') {
+                const auditLogsMainEl = document.getElementById('auditLogsMain');
+                if (auditLogsMainEl) auditLogsMainEl.style.display = 'block';
+                const auditLogsNavLinkEl = document.getElementById('auditLogsNavLink');
+                if (auditLogsNavLinkEl) auditLogsNavLinkEl.classList.add('active');
+                stopApprovalAutoRefresh();
+                initAuditLogsView();
             } else {
                 // For other dashboard views, ensure approval refresh is stopped
                 stopApprovalAutoRefresh();
@@ -805,6 +835,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const salesDashboardLink = document.getElementById('salesDashboardLink');
     if (salesDashboardLink) salesDashboardLink.addEventListener('click', (e) => { e.preventDefault(); showView('dashboard-sales'); });
+
+    const permissionsNavLink = document.getElementById('permissionsNavLink');
+    if (permissionsNavLink) permissionsNavLink.addEventListener('click', (e) => { e.preventDefault(); showView('permissions'); });
+
+    const auditLogsNavLink = document.getElementById('auditLogsNavLink');
+    if (auditLogsNavLink) auditLogsNavLink.addEventListener('click', (e) => { e.preventDefault(); showView('audit-logs'); });
 
     // Sales Dashboard Card Clicks -> Navigation & Filter
     window.goToSalesFilteredTab = function (type) {
@@ -6023,6 +6059,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 updateLineNotifyButtonsUI(payload.enabled);
             }
         });
+
+        // Socket.io listener for realtime menu permissions sync
+        socket.on('menu_permissions_updated', (updatedList) => {
+            if (Array.isArray(updatedList)) {
+                if (typeof setMenuPermissions === 'function') {
+                    setMenuPermissions(updatedList);
+                }
+                if (typeof applyMenuPermissions === 'function') {
+                    applyMenuPermissions();
+                }
+                const permMain = document.getElementById('permissionsMain');
+                if (permMain && permMain.style.display !== 'none') {
+                    menuPermissionsData = updatedList;
+                    renderMenuPermissionsMatrix();
+                }
+            }
+        });
     }
 
     // --- LINE Notification Toggle Logic ---
@@ -10560,6 +10613,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const nextBatch = currentMembersRecords.slice(currentMembersIndex, currentMembersIndex + membersItemsPerPage);
             if (nextBatch.length === 0) return;
 
+            const activeUserRole = (currentUser && currentUser.role) || localStorage.getItem('userRole') || '';
+            const isAdmin = activeUserRole === 'admin';
+
             const chunkHtml = nextBatch.map(m => `
                 <tr>
                     <td data-label="รหัสสมาชิก" style="font-weight: 600;">${m.memberId || '-'}</td>
@@ -10574,9 +10630,11 @@ document.addEventListener('DOMContentLoaded', () => {
                             <button class="edit-member-btn edit-btn" data-id="${m._id}" title="แก้ไข">
                                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
                             </button>
+                            ${isAdmin ? `
                             <button class="delete-member-btn edit-btn" data-id="${m._id}" title="ลบ" style="color: #ef4444;">
                                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
                             </button>
+                            ` : ''}
                         </div>
                     </td>
                 </tr>
@@ -10589,11 +10647,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     async function deleteMember(id) {
+        const activeUserRole = (currentUser && currentUser.role) || localStorage.getItem('userRole') || '';
+        if (activeUserRole !== 'admin') {
+            showAlert('error', 'สิทธิ์ไม่เพียงพอ: เฉพาะผู้ดูแลระบบ (Admin) เท่านั้นที่สามารถลบข้อมูลสมาชิกได้');
+            return;
+        }
+
         const confirmed = await showDeleteConfirm('คุณต้องการลบสมาชิกนี้ใช่หรือไม่? บัญชีและประวัติจะถูกลบออกถาวร');
         if (!confirmed) return;
 
         try {
-            const res = await fetch(`/api/members/${id}`, { method: 'DELETE' });
+            const res = await fetch(`/api/members/${id}`, {
+                method: 'DELETE',
+                headers: {
+                    'x-user-role': activeUserRole
+                }
+            });
             if (res.ok) {
                 showAlert('success', 'ลบสมาชิกสำเร็จ');
                 fetchMembers();
@@ -16732,6 +16801,1182 @@ document.addEventListener('DOMContentLoaded', () => {
     if (currentUser) {
         fetchProductsCatalog();
     }
+
+    // ==========================================
+    // MENU PERMISSIONS MANAGEMENT SYSTEM
+    // ==========================================
+    let menuPermissionsData = [];
+    let menuPermSearchQuery = '';
+    let menuPermCategoryFilterVal = '';
+    let menuPermissionsListenersInitialized = false;
+
+    function getMenuCategoryLabel(cat) {
+        const map = {
+            'dashboard': '📊 แดชบอร์ด',
+            'operations': '📋 ปฏิบัติการ',
+            'claims': '🔧 เคลมและบริการ',
+            'finance': '💵 การเงิน',
+            'tools': '🧮 เครื่องมือ',
+            'admin': '⚙️ ระบบ'
+        };
+        return map[cat] || cat || 'ทั่วไป';
+    }
+
+    async function initMenuPermissionsView() {
+        try {
+            // Setup DOM event listeners if not already initialized
+            setupMenuPermissionsEventListeners();
+
+            // Load initial state from permissions.js cache / defaults
+            if (typeof getMenuPermissionsList === 'function') {
+                const list = getMenuPermissionsList();
+                if (Array.isArray(list) && list.length > 0) {
+                    menuPermissionsData = JSON.parse(JSON.stringify(list));
+                }
+            }
+
+            renderMenuPermissionsMatrix();
+
+            // Fetch latest configuration from server
+            const role = (currentUser && currentUser.role) || localStorage.getItem('userRole') || 'admin';
+            const staffName = (currentUser && currentUser.staffName) || 'Admin';
+
+            const res = await fetch('/api/system/menu-permissions', {
+                headers: {
+                    'x-user-role': role,
+                    'x-user-name': encodeURIComponent(staffName)
+                }
+            });
+
+            if (res.ok) {
+                const json = await res.json();
+                if (json && json.success && Array.isArray(json.data) && json.data.length > 0) {
+                    menuPermissionsData = json.data;
+                    if (typeof setMenuPermissions === 'function') {
+                        setMenuPermissions(menuPermissionsData);
+                    }
+                    if (typeof applyMenuPermissions === 'function') {
+                        applyMenuPermissions();
+                    }
+                    renderMenuPermissionsMatrix();
+                }
+            }
+        } catch (err) {
+            console.error('initMenuPermissionsView error:', err);
+        }
+    }
+
+    function renderMenuPermissionsMatrix() {
+        const tbody = document.getElementById('menuPermissionsTbody');
+        const emptyState = document.getElementById('menuPermissionsEmptyState');
+        if (!tbody) return;
+
+        // Sort data by order
+        menuPermissionsData.sort((a, b) => (Number(a.order) || 99) - (Number(b.order) || 99));
+
+        // Update role summary counters
+        let countAdmin = 0, countSales = 0, countApprover = 0, countFinance = 0;
+        menuPermissionsData.forEach(item => {
+            if (item.enabled !== false) {
+                const roles = Array.isArray(item.roles) ? item.roles : [];
+                if (roles.includes('admin')) countAdmin++;
+                if (roles.includes('sales')) countSales++;
+                if (roles.includes('approver')) countApprover++;
+                if (roles.includes('finance')) countFinance++;
+            }
+        });
+
+        const countPermAdminEl = document.getElementById('countPermAdmin');
+        const countPermSalesEl = document.getElementById('countPermSales');
+        const countPermApproverEl = document.getElementById('countPermApprover');
+        const countPermFinanceEl = document.getElementById('countPermFinance');
+        if (countPermAdminEl) countPermAdminEl.textContent = `${countAdmin} เมนู`;
+        if (countPermSalesEl) countPermSalesEl.textContent = `${countSales} เมนู`;
+        if (countPermApproverEl) countPermApproverEl.textContent = `${countApprover} เมนู`;
+        if (countPermFinanceEl) countPermFinanceEl.textContent = `${countFinance} เมนู`;
+
+        // Filter by search query and category
+        const query = (menuPermSearchQuery || '').toLowerCase().trim();
+        const catFilter = menuPermCategoryFilterVal || '';
+
+        const filteredList = menuPermissionsData.filter(item => {
+            const matchesQuery = !query || 
+                (item.name && item.name.toLowerCase().includes(query)) ||
+                (item.id && item.id.toLowerCase().includes(query));
+            const matchesCat = !catFilter || item.category === catFilter;
+            return matchesQuery && matchesCat;
+        });
+
+        if (filteredList.length === 0) {
+            tbody.innerHTML = '';
+            if (emptyState) emptyState.style.display = 'block';
+            return;
+        }
+
+        if (emptyState) emptyState.style.display = 'none';
+
+        tbody.innerHTML = filteredList.map(item => {
+            const isNavPermissions = item.id === 'nav-permissions';
+            const roles = Array.isArray(item.roles) ? item.roles : [];
+            const isEnabled = item.enabled !== false;
+            const globalIndex = menuPermissionsData.findIndex(x => x.id === item.id);
+            const isFirst = globalIndex === 0;
+            const isLast = globalIndex === menuPermissionsData.length - 1;
+
+            return `
+                <tr style="${!isEnabled ? 'background: #f8fafc; opacity: 0.6;' : ''}">
+                    <td style="text-align: center; vertical-align: middle;">
+                        <span style="display: inline-block; min-width: 28px; padding: 3px 8px; border-radius: 6px; background: #e2e8f0; color: #334155; font-weight: 700; font-size: 0.85rem;">
+                            ${item.order || (globalIndex + 1)}
+                        </span>
+                    </td>
+                    <td style="vertical-align: middle;">
+                        <div style="font-weight: 600; font-size: 0.95rem; color: #1e293b;">${escapeHtml(item.name || item.id)}</div>
+                        <span style="display: inline-block; margin-top: 2px; font-size: 0.75rem; color: #64748b; background: #f1f5f9; padding: 1px 6px; border-radius: 4px;">
+                            ${getMenuCategoryLabel(item.category)}
+                        </span>
+                    </td>
+                    <td style="text-align: center; vertical-align: middle;">
+                        <label style="cursor: pointer; display: inline-flex; align-items: center; justify-content: center; margin: 0;">
+                            <input type="checkbox" class="perm-role-checkbox" data-id="${item.id}" data-role="admin"
+                                ${roles.includes('admin') ? 'checked' : ''}
+                                ${isNavPermissions ? 'disabled title="ผู้ดูแลระบบต้องเข้าถึงหน้านี้ได้เสมอเพื่อความปลอดภัย"' : ''}
+                                style="width: 19px; height: 19px; accent-color: #7c3aed; cursor: ${isNavPermissions ? 'not-allowed' : 'pointer'};">
+                        </label>
+                    </td>
+                    <td style="text-align: center; vertical-align: middle;">
+                        <label style="cursor: pointer; display: inline-flex; align-items: center; justify-content: center; margin: 0;">
+                            <input type="checkbox" class="perm-role-checkbox" data-id="${item.id}" data-role="sales"
+                                ${roles.includes('sales') ? 'checked' : ''}
+                                style="width: 19px; height: 19px; accent-color: #2563eb; cursor: pointer;">
+                        </label>
+                    </td>
+                    <td style="text-align: center; vertical-align: middle;">
+                        <label style="cursor: pointer; display: inline-flex; align-items: center; justify-content: center; margin: 0;">
+                            <input type="checkbox" class="perm-role-checkbox" data-id="${item.id}" data-role="approver"
+                                ${roles.includes('approver') ? 'checked' : ''}
+                                style="width: 19px; height: 19px; accent-color: #0284c7; cursor: pointer;">
+                        </label>
+                    </td>
+                    <td style="text-align: center; vertical-align: middle;">
+                        <label style="cursor: pointer; display: inline-flex; align-items: center; justify-content: center; margin: 0;">
+                            <input type="checkbox" class="perm-role-checkbox" data-id="${item.id}" data-role="finance"
+                                ${roles.includes('finance') ? 'checked' : ''}
+                                style="width: 19px; height: 19px; accent-color: #059669; cursor: pointer;">
+                        </label>
+                    </td>
+                    <td style="text-align: center; vertical-align: middle;">
+                        <label style="display: inline-flex; align-items: center; gap: 6px; cursor: pointer; margin: 0;">
+                            <input type="checkbox" class="perm-menu-enabled-toggle" data-id="${item.id}"
+                                ${isEnabled ? 'checked' : ''}
+                                ${isNavPermissions ? 'disabled title="เมนูจัดการสิทธิ์ต้องเปิดใช้งานเสมอ"' : ''}
+                                style="width: 18px; height: 18px; accent-color: #0d9488; cursor: ${isNavPermissions ? 'not-allowed' : 'pointer'};">
+                            <span style="font-size: 0.8rem; font-weight: 600; color: ${isEnabled ? '#059669' : '#dc2626'};">
+                                ${isEnabled ? 'เปิด' : 'ปิด'}
+                            </span>
+                        </label>
+                    </td>
+                    <td style="text-align: center; vertical-align: middle;">
+                        <div style="display: flex; gap: 4px; justify-content: center;">
+                            <button type="button" class="btn-move-perm-up" data-id="${item.id}" title="เลื่อนขึ้น"
+                                ${isFirst ? 'disabled' : ''}
+                                style="width: 28px; height: 28px; border-radius: 6px; border: 1px solid #cbd5e1; background: #ffffff; color: #334155; cursor: ${isFirst ? 'not-allowed' : 'pointer'}; opacity: ${isFirst ? '0.35' : '1'}; display: inline-flex; align-items: center; justify-content: center; font-size: 0.8rem;">
+                                ▲
+                            </button>
+                            <button type="button" class="btn-move-perm-down" data-id="${item.id}" title="เลื่อนลง"
+                                ${isLast ? 'disabled' : ''}
+                                style="width: 28px; height: 28px; border-radius: 6px; border: 1px solid #cbd5e1; background: #ffffff; color: #334155; cursor: ${isLast ? 'not-allowed' : 'pointer'}; opacity: ${isLast ? '0.35' : '1'}; display: inline-flex; align-items: center; justify-content: center; font-size: 0.8rem;">
+                                ▼
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+
+        // Attach event listeners to checkboxes and buttons in tbody
+        tbody.querySelectorAll('.perm-role-checkbox').forEach(cb => {
+            cb.addEventListener('change', (e) => {
+                const id = e.target.dataset.id;
+                const role = e.target.dataset.role;
+                const checked = e.target.checked;
+                const targetItem = menuPermissionsData.find(x => x.id === id);
+                if (targetItem) {
+                    if (!Array.isArray(targetItem.roles)) targetItem.roles = [];
+                    if (checked) {
+                        if (!targetItem.roles.includes(role)) targetItem.roles.push(role);
+                    } else {
+                        targetItem.roles = targetItem.roles.filter(r => r !== role);
+                    }
+                    renderMenuPermissionsMatrix();
+                }
+            });
+        });
+
+        tbody.querySelectorAll('.perm-menu-enabled-toggle').forEach(cb => {
+            cb.addEventListener('change', (e) => {
+                const id = e.target.dataset.id;
+                const checked = e.target.checked;
+                const targetItem = menuPermissionsData.find(x => x.id === id);
+                if (targetItem) {
+                    targetItem.enabled = checked;
+                    renderMenuPermissionsMatrix();
+                }
+            });
+        });
+
+        tbody.querySelectorAll('.btn-move-perm-up').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const id = e.currentTarget.dataset.id;
+                moveMenuItem(id, -1);
+            });
+        });
+
+        tbody.querySelectorAll('.btn-move-perm-down').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const id = e.currentTarget.dataset.id;
+                moveMenuItem(id, 1);
+            });
+        });
+    }
+
+    function moveMenuItem(id, direction) {
+        const index = menuPermissionsData.findIndex(x => x.id === id);
+        if (index === -1) return;
+        const targetIndex = index + direction;
+        if (targetIndex < 0 || targetIndex >= menuPermissionsData.length) return;
+
+        // Swap items in memory array
+        const temp = menuPermissionsData[index];
+        menuPermissionsData[index] = menuPermissionsData[targetIndex];
+        menuPermissionsData[targetIndex] = temp;
+
+        // Reassign orders
+        menuPermissionsData.forEach((item, idx) => {
+            item.order = idx + 1;
+        });
+
+        renderMenuPermissionsMatrix();
+    }
+
+    function handleBulkRoleToggle(role) {
+        if (!['admin', 'sales', 'approver', 'finance'].includes(role)) return;
+
+        const nonLockedItems = menuPermissionsData.filter(item => !(role === 'admin' && item.id === 'nav-permissions'));
+        const allHaveRole = nonLockedItems.every(item => Array.isArray(item.roles) && item.roles.includes(role));
+
+        nonLockedItems.forEach(item => {
+            if (!Array.isArray(item.roles)) item.roles = [];
+            if (allHaveRole) {
+                item.roles = item.roles.filter(r => r !== role);
+            } else {
+                if (!item.roles.includes(role)) item.roles.push(role);
+            }
+        });
+
+        // Ensure nav-permissions retains admin
+        const navPerm = menuPermissionsData.find(x => x.id === 'nav-permissions');
+        if (navPerm) {
+            if (!Array.isArray(navPerm.roles)) navPerm.roles = ['admin'];
+            else if (!navPerm.roles.includes('admin')) navPerm.roles.push('admin');
+        }
+
+        renderMenuPermissionsMatrix();
+        showAlert('info', `สลับสิทธิ์สำหรับตำแหน่ง "${role.toUpperCase()}" เรียบร้อยแล้ว`);
+    }
+
+    async function saveMenuPermissionsToServer() {
+        try {
+            // Safety guard: ensure nav-permissions always has admin and is enabled
+            const navPerm = menuPermissionsData.find(x => x.id === 'nav-permissions');
+            if (navPerm) {
+                if (!Array.isArray(navPerm.roles)) navPerm.roles = ['admin'];
+                else if (!navPerm.roles.includes('admin')) navPerm.roles.push('admin');
+                navPerm.enabled = true;
+            }
+
+            // Ensure orders are sequential numbers
+            menuPermissionsData.forEach((item, idx) => {
+                item.order = idx + 1;
+            });
+
+            showLoader('กำลังบันทึกการตั้งค่าสิทธิ์เมนู...');
+
+            const userRole = (currentUser && currentUser.role) || localStorage.getItem('userRole') || 'admin';
+            const staffName = (currentUser && currentUser.staffName) || 'Admin';
+
+            const res = await fetch('/api/system/menu-permissions', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-user-role': userRole,
+                    'x-user-name': encodeURIComponent(staffName)
+                },
+                body: JSON.stringify({
+                    menus: menuPermissionsData,
+                    updatedBy: staffName
+                })
+            });
+
+            const data = await res.json();
+            hideLoader();
+
+            if (data.success) {
+                menuPermissionsData = data.data || menuPermissionsData;
+                if (typeof setMenuPermissions === 'function') {
+                    setMenuPermissions(menuPermissionsData);
+                }
+                if (typeof applyMenuPermissions === 'function') {
+                    applyMenuPermissions();
+                }
+                renderMenuPermissionsMatrix();
+
+                Swal.fire({
+                    icon: 'success',
+                    title: 'บันทึกสำเร็จ!',
+                    text: 'สิทธิ์การมองเห็นและลำดับของเมนูได้รับการอัปเดตเรียบร้อยแล้ว',
+                    timer: 2000,
+                    showConfirmButton: false
+                });
+            } else {
+                showAlert('error', data.message || 'ไม่สามารถบันทึกสิทธิ์เมนูได้');
+            }
+        } catch (err) {
+            hideLoader();
+            console.error('Save menu permissions error:', err);
+            showAlert('error', 'เกิดข้อผิดพลาดในการบันทึกสิทธิ์เมนู: ' + err.message);
+        }
+    }
+
+    async function resetMenuPermissionsToServer() {
+        const confirmResult = await Swal.fire({
+            title: 'คืนค่าเริ่มต้นสิทธิ์เมนู?',
+            text: 'ระบบจะรีเซ็ตสิทธิ์การมองเห็นและลำดับของเมนูทั้งหมดกลับเป็นค่ามาตรฐานจากโรงงาน ยืนยันหรือไม่?',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#0d9488',
+            cancelButtonColor: '#64748b',
+            confirmButtonText: 'ใช่, คืนค่าเริ่มต้น',
+            cancelButtonText: 'ยกเลิก'
+        });
+
+        if (!confirmResult.isConfirmed) return;
+
+        try {
+            showLoader('กำลังคืนค่าเริ่มต้น...');
+            const userRole = (currentUser && currentUser.role) || localStorage.getItem('userRole') || 'admin';
+            const staffName = (currentUser && currentUser.staffName) || 'Admin';
+
+            const res = await fetch('/api/system/menu-permissions/reset', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-user-role': userRole,
+                    'x-user-name': encodeURIComponent(staffName)
+                },
+                body: JSON.stringify({
+                    updatedBy: staffName
+                })
+            });
+
+            const data = await res.json();
+            hideLoader();
+
+            if (data.success) {
+                menuPermissionsData = data.data || [];
+                if (typeof setMenuPermissions === 'function') {
+                    setMenuPermissions(menuPermissionsData);
+                }
+                if (typeof applyMenuPermissions === 'function') {
+                    applyMenuPermissions();
+                }
+                renderMenuPermissionsMatrix();
+
+                Swal.fire({
+                    icon: 'success',
+                    title: 'คืนค่าเริ่มต้นสำเร็จ!',
+                    text: 'รีเซ็ตสิทธิ์และลำดับเมนูทั้งหมดกลับเป็นค่ามาตรฐานเรียบร้อยแล้ว',
+                    timer: 2000,
+                    showConfirmButton: false
+                });
+            } else {
+                showAlert('error', data.message || 'ไม่สามารถคืนค่าเริ่มต้นได้');
+            }
+        } catch (err) {
+            hideLoader();
+            console.error('Reset menu permissions error:', err);
+            showAlert('error', 'เกิดข้อผิดพลาด: ' + err.message);
+        }
+    }
+
+    function setupMenuPermissionsEventListeners() {
+        if (menuPermissionsListenersInitialized) return;
+        menuPermissionsListenersInitialized = true;
+
+        const searchInput = document.getElementById('menuPermSearchInput');
+        if (searchInput) {
+            searchInput.addEventListener('input', (e) => {
+                menuPermSearchQuery = e.target.value;
+                renderMenuPermissionsMatrix();
+            });
+        }
+
+        const categoryFilter = document.getElementById('menuPermCategoryFilter');
+        if (categoryFilter) {
+            categoryFilter.addEventListener('change', (e) => {
+                menuPermCategoryFilterVal = e.target.value;
+                renderMenuPermissionsMatrix();
+            });
+        }
+
+        const resetFilterBtn = document.getElementById('menuPermResetFilterBtn');
+        if (resetFilterBtn) {
+            resetFilterBtn.addEventListener('click', () => {
+                menuPermSearchQuery = '';
+                menuPermCategoryFilterVal = '';
+                if (searchInput) searchInput.value = '';
+                if (categoryFilter) categoryFilter.value = '';
+                renderMenuPermissionsMatrix();
+            });
+        }
+
+        document.querySelectorAll('.perm-bulk-toggle-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const role = e.currentTarget.dataset.role;
+                handleBulkRoleToggle(role);
+            });
+        });
+
+        const btnSaveTop = document.getElementById('btnSaveMenuPermissions');
+        if (btnSaveTop) btnSaveTop.addEventListener('click', saveMenuPermissionsToServer);
+
+        const btnSaveBottom = document.getElementById('btnSaveMenuPermissionsBottom');
+        if (btnSaveBottom) btnSaveBottom.addEventListener('click', saveMenuPermissionsToServer);
+
+        const btnReset = document.getElementById('btnResetMenuPermissions');
+        if (btnReset) btnReset.addEventListener('click', resetMenuPermissionsToServer);
+    }
+
+    // Expose handlers globally
+    window.initMenuPermissionsView = initMenuPermissionsView;
+    window.saveMenuPermissionsToServer = saveMenuPermissionsToServer;
+    window.resetMenuPermissionsToServer = resetMenuPermissionsToServer;
+
+    // ═══════════════════════════════════════════════════════════════════
+    // AUDIT LOG CONTROLLER (ระบบตรวจสอบประวัติการทำงานและการเคลื่อนไหว)
+    // ═══════════════════════════════════════════════════════════════════
+
+    let auditCurrentPage = 1;
+    let auditTotalPages = 1;
+    let auditDebounceTimer = null;
+    let auditCurrentLogsData = [];
+    let auditStaffListLoaded = false;
+
+    // Helper: สร้าง Auth Headers พร้อมข้อมูลพนักงานที่ทำการร้องขอ
+    function getAuditAuthHeaders(extra = {}) {
+        const headers = { ...extra };
+        if (currentUser) {
+            if (currentUser.role) headers['x-user-role'] = currentUser.role;
+            if (currentUser.staffId) headers['x-staff-id'] = currentUser.staffId;
+            if (currentUser.username) headers['x-staff-username'] = currentUser.username;
+            if (currentUser.staffName) headers['x-staff-name'] = encodeURIComponent(currentUser.staffName);
+            if (currentUser.shopName) headers['x-shop-name'] = encodeURIComponent(currentUser.shopName);
+        }
+        return headers;
+    }
+
+    // Helper: แปลงวัน-เวลาภาษาไทยพร้อมเวลาสัมพัทธ์ (Time Ago)
+    function formatAuditDate(dateVal) {
+        if (!dateVal) return '-';
+        const d = new Date(dateVal);
+        if (isNaN(d.getTime())) return '-';
+
+        const dateStr = d.toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' });
+        const timeStr = d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+        const diffSec = Math.floor((Date.now() - d.getTime()) / 1000);
+        let timeAgo = '';
+        if (diffSec < 60) timeAgo = 'เมื่อสักครู่';
+        else if (diffSec < 3600) timeAgo = `${Math.floor(diffSec / 60)} นาทีที่แล้ว`;
+        else if (diffSec < 86400) timeAgo = `${Math.floor(diffSec / 3600)} ชม.ที่แล้ว`;
+        else timeAgo = `${Math.floor(diffSec / 86400)} วันที่แล้ว`;
+
+        return `
+            <div style="font-weight: 600; color: #1e293b; font-size: 0.85rem;">${dateStr} ${timeStr}</div>
+            <div style="font-size: 0.72rem; color: #64748b;">${timeAgo}</div>
+        `;
+    }
+
+    // Helper: ป้ายกำกับโมดูล (Module Badge)
+    function renderAuditModuleBadge(module) {
+        const moduleMap = {
+            'AUTH': { label: '🔐 ยืนยันตัวตน', bg: '#f1f5f9', color: '#475569' },
+            'PACKAGES': { label: '📄 รายการสัญญา', bg: '#eff6ff', color: '#1d4ed8' },
+            'APPROVAL': { label: '✅ อนุมัติสัญญา', bg: '#ecfdf5', color: '#047857' },
+            'CLAIMS': { label: '🛠️ แจ้งเคลม', bg: '#fff7ed', color: '#c2410c' },
+            'TRACKING': { label: '🚚 ติดตามงานเคลม', bg: '#fef3c7', color: '#b45309' },
+            'MEMBERS': { label: '👥 สมาชิก', bg: '#f5f3ff', color: '#6d28d9' },
+            'SHOPS': { label: '🏪 ร้านค้า', bg: '#fdf2f8', color: '#be185d' },
+            'STAFF': { label: '👨‍💼 จัดการพนักงาน', bg: '#e0e7ff', color: '#4338ca' },
+            'FINANCE_COMPANIES': { label: '🏢 บริษัทไฟแนนซ์', bg: '#f0fdfa', color: '#0f766e' },
+            'PRODUCTS': { label: '📱 จัดการสินค้า', bg: '#ecfeff', color: '#0e7490' },
+            'FINANCE': { label: '💰 การเงิน/สินเชื่อ', bg: '#f0fdf4', color: '#15803d' },
+            'DEPOSIT': { label: '💵 การมัดจำ', bg: '#fefce8', color: '#a16207' },
+            'PERMISSIONS': { label: '⚙️ จัดการสิทธิ์', bg: '#f3e8ff', color: '#7e22ce' },
+            'EXPORT': { label: '📊 ส่งออกข้อมูล', bg: '#e2e8f0', color: '#334155' },
+            'SYSTEM': { label: '🖥️ ระบบส่วนกลาง', bg: '#f8fafc', color: '#64748b' }
+        };
+        const item = moduleMap[module] || { label: module || 'ระบบ', bg: '#f1f5f9', color: '#475569' };
+        return `<span style="display: inline-block; padding: 4px 8px; border-radius: 6px; font-size: 0.76rem; font-weight: 700; background: ${item.bg}; color: ${item.color}; white-space: nowrap;">${item.label}</span>`;
+    }
+
+    // Helper: ป้ายกำกับประเภทงาน (Action Type Badge)
+    function renderAuditActionBadge(type) {
+        const typeMap = {
+            'CREATE': { label: 'สร้างใหม่ (CREATE)', bg: '#dcfce7', color: '#15803d' },
+            'UPDATE': { label: 'แก้ไข (UPDATE)', bg: '#fef9c3', color: '#a16207' },
+            'DELETE': { label: 'ลบข้อมูล (DELETE)', bg: '#fee2e2', color: '#b91c1c' },
+            'APPROVE': { label: 'อนุมัติ (APPROVE)', bg: '#dbeafe', color: '#1d4ed8' },
+            'REJECT': { label: 'ปฏิเสธ (REJECT)', bg: '#ffe4e6', color: '#be123c' },
+            'CORRECTION': { label: 'ส่งกลับแก้ไข', bg: '#ffedd5', color: '#c2410c' },
+            'LOGIN': { label: 'เข้าสู่ระบบ (LOGIN)', bg: '#d1fae5', color: '#065f46' },
+            'LOGIN_FAILED': { label: 'ล็อกอินล้มเหลว', bg: '#fecdd3', color: '#9f1239' },
+            'LOGOUT': { label: 'ออกจากระบบ', bg: '#f1f5f9', color: '#475569' },
+            'STATUS_CHANGE': { label: 'เปลี่ยนสถานะ', bg: '#e0e7ff', color: '#3730a3' },
+            'SETTLEMENT': { label: 'ชำระ/ส่งมอบ', bg: '#ede9fe', color: '#6d28d9' },
+            'PAYMENT': { label: 'รับชำระเงิน', bg: '#ecfdf5', color: '#047857' },
+            'SETTINGS_CHANGE': { label: 'ปรับตั้งค่า', bg: '#fae8ff', color: '#86198f' },
+            'EXPORT_EXCEL': { label: 'Export Excel', bg: '#e2e8f0', color: '#1e293b' },
+            'EXPORT_PDF': { label: 'Export PDF', bg: '#e2e8f0', color: '#1e293b' }
+        };
+        const item = typeMap[type] || { label: type || 'กิจกรรม', bg: '#f1f5f9', color: '#475569' };
+        return `<span style="display: inline-block; padding: 3px 8px; border-radius: 9999px; font-size: 0.72rem; font-weight: 700; background: ${item.bg}; color: ${item.color}; white-space: nowrap;">${item.label}</span>`;
+    }
+
+    // เริ่มต้นหน้าต่าง Audit Log View
+    async function initAuditLogsView() {
+        if (!currentUser || currentUser.role !== 'admin') {
+            showAlert('warning', 'เมนูประวัติการใช้งาน (Audit Log) สงวนสิทธิ์เฉพาะผู้ดูแลระบบเท่านั้น');
+            showView('dashboard');
+            return;
+        }
+
+        // โหลดรายชื่อพนักงานใส่ตัวกรอง (ทำเพียงครั้งแรก)
+        if (!auditStaffListLoaded) {
+            await loadAuditLogStaffList();
+        }
+
+        // โหลดข้อมูลสถิติและการ์ด KPI
+        fetchAuditLogStats();
+
+        // โหลดรายการ Log หน้าแรก
+        fetchAuditLogs(1);
+    }
+
+    // โหลดรายชื่อพนักงานใส่ตัวกรอง Dropdown
+    async function loadAuditLogStaffList() {
+        try {
+            const res = await fetch('/api/audit-logs/staff-list', {
+                headers: getAuditAuthHeaders()
+            });
+            const data = await res.json();
+            if (data.success) {
+                const staffSelect = document.getElementById('auditFilterStaff');
+                if (staffSelect) {
+                    let options = '<option value="ALL">พนักงานทุกคน (All Staff)</option>';
+                    const seenNames = new Set();
+
+                    // รายชื่อจากตาราง Staff
+                    if (Array.isArray(data.staff)) {
+                        data.staff.forEach(s => {
+                            if (s && s.staffName && !seenNames.has(s.staffName)) {
+                                seenNames.add(s.staffName);
+                                options += `<option value="${s.staffName}">${s.staffName} (${s.staffPosition || s.role || 'พนักงาน'}${s.shopName ? ' - ' + s.shopName : ''})</option>`;
+                            }
+                        });
+                    }
+
+                    // รายชื่อเพิ่มเติมที่เคยปรากฏใน AuditLog
+                    if (Array.isArray(data.distinctNames)) {
+                        data.distinctNames.forEach(name => {
+                            if (name && !seenNames.has(name) && name !== 'System') {
+                                seenNames.add(name);
+                                options += `<option value="${name}">${name}</option>`;
+                            }
+                        });
+                    }
+
+                    staffSelect.innerHTML = options;
+                    auditStaffListLoaded = true;
+                }
+            }
+        } catch (err) {
+            console.error('Failed to load audit staff list:', err);
+        }
+    }
+
+    // โหลดข้อมูลสถิติและการ์ด KPI
+    async function fetchAuditLogStats() {
+        try {
+            const res = await fetch('/api/audit-logs/stats', {
+                headers: getAuditAuthHeaders()
+            });
+            const data = await res.json();
+            if (data.success && data.stats) {
+                const s = data.stats;
+                const setEl = (id, val) => {
+                    const el = document.getElementById(id);
+                    if (el) el.textContent = val;
+                };
+
+                setEl('statAuditTotalToday', (s.totalToday || 0).toLocaleString('th-TH'));
+                setEl('statAuditActiveStaff', (s.activeStaffCount || 0).toLocaleString('th-TH'));
+                setEl('statAuditCritical', (s.criticalActionsToday || 0).toLocaleString('th-TH'));
+                setEl('statAuditLogins', (s.loginSuccessToday || 0).toLocaleString('th-TH'));
+
+                const growthBadge = document.getElementById('statAuditGrowthBadge');
+                if (growthBadge) {
+                    const pct = s.growthPercent || 0;
+                    if (pct >= 0) {
+                        growthBadge.textContent = `+${pct}% จากเมื่อวาน (${(s.totalYesterday || 0).toLocaleString()} รายการ)`;
+                        growthBadge.style.color = '#10b981';
+                    } else {
+                        growthBadge.textContent = `${pct}% จากเมื่อวาน (${(s.totalYesterday || 0).toLocaleString()} รายการ)`;
+                        growthBadge.style.color = '#ef4444';
+                    }
+                }
+
+                const failedBadge = document.getElementById('statAuditLoginFailedNotice');
+                if (failedBadge) {
+                    const failedCount = s.loginFailedToday || 0;
+                    if (failedCount > 0) {
+                        failedBadge.innerHTML = `<b style="color: #ef4444;">⚠️ มี Login ล้มเหลว ${failedCount} ครั้ง</b>`;
+                    } else {
+                        failedBadge.textContent = 'ความปลอดภัยปกติ (ล้มเหลว 0 ครั้ง)';
+                        failedBadge.style.color = '#8b5cf6';
+                    }
+                }
+            }
+        } catch (err) {
+            console.error('Failed to fetch audit log stats:', err);
+        }
+    }
+
+    // โหลดรายการ Audit Logs ตามเงื่อนไขตัวกรอง
+    async function fetchAuditLogs(page = 1) {
+        try {
+            const tableBody = document.getElementById('auditLogsTableBody');
+            const emptyState = document.getElementById('auditLogsEmptyState');
+            const loadingState = document.getElementById('auditLogsLoading');
+
+            if (loadingState) loadingState.style.display = 'block';
+            if (emptyState) emptyState.style.display = 'none';
+            if (tableBody) tableBody.innerHTML = '';
+
+            const staff = (document.getElementById('auditFilterStaff') || {}).value || 'ALL';
+            const role = (document.getElementById('auditFilterRole') || {}).value || 'ALL';
+            const module = (document.getElementById('auditFilterModule') || {}).value || 'ALL';
+            const actionType = (document.getElementById('auditFilterActionType') || {}).value || 'ALL';
+            const dateRange = (document.getElementById('auditFilterDateRange') || {}).value || 'ALL';
+            const search = ((document.getElementById('auditSearchInput') || {}).value || '').trim();
+            const limit = parseInt((document.getElementById('auditFilterLimit') || {}).value) || 25;
+
+            let startDate = '';
+            let endDate = '';
+
+            const formatDateParam = (d) => {
+                const year = d.getFullYear();
+                const month = String(d.getMonth() + 1).padStart(2, '0');
+                const day = String(d.getDate()).padStart(2, '0');
+                return `${year}-${month}-${day}`;
+            };
+
+            const now = new Date();
+            if (dateRange === 'today') {
+                startDate = formatDateParam(now);
+                endDate = formatDateParam(now);
+            } else if (dateRange === 'yesterday') {
+                const y = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+                startDate = formatDateParam(y);
+                endDate = formatDateParam(y);
+            } else if (dateRange === '7days') {
+                const s = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+                startDate = formatDateParam(s);
+                endDate = formatDateParam(now);
+            } else if (dateRange === 'thisMonth') {
+                const s = new Date(now.getFullYear(), now.getMonth(), 1);
+                startDate = formatDateParam(s);
+                endDate = formatDateParam(now);
+            } else if (dateRange === 'custom') {
+                startDate = (document.getElementById('auditStartDate') || {}).value || '';
+                endDate = (document.getElementById('auditEndDate') || {}).value || '';
+            }
+
+            const queryParams = new URLSearchParams({
+                page: page,
+                limit: limit
+            });
+
+            if (staff !== 'ALL') queryParams.append('staffName', staff);
+            if (role !== 'ALL') queryParams.append('role', role);
+            if (module !== 'ALL') queryParams.append('module', module);
+            if (actionType !== 'ALL') queryParams.append('actionType', actionType);
+            if (startDate) queryParams.append('startDate', startDate);
+            if (endDate) queryParams.append('endDate', endDate);
+            if (search) queryParams.append('search', search);
+
+            const res = await fetch(`/api/audit-logs?${queryParams.toString()}`, {
+                headers: getAuditAuthHeaders()
+            });
+
+            const data = await res.json();
+            if (loadingState) loadingState.style.display = 'none';
+
+            if (!res.ok || !data.success) {
+                throw new Error(data.message || 'ไม่สามารถโหลด Audit Logs ได้');
+            }
+
+            auditCurrentLogsData = data.logs || [];
+            auditCurrentPage = (data.pagination && data.pagination.currentPage) || page;
+            auditTotalPages = (data.pagination && data.pagination.totalPages) || 1;
+
+            renderAuditLogsTable(auditCurrentLogsData, data.pagination);
+
+        } catch (err) {
+            console.error('Fetch Audit Logs Error:', err);
+            const loadingState = document.getElementById('auditLogsLoading');
+            if (loadingState) loadingState.style.display = 'none';
+            showAlert('error', err.message);
+        }
+    }
+
+    // แสดงผลรายการ Audit Logs ในตาราง
+    function renderAuditLogsTable(logs, pagination) {
+        const tableBody = document.getElementById('auditLogsTableBody');
+        const emptyState = document.getElementById('auditLogsEmptyState');
+        if (!tableBody) return;
+
+        if (!logs || logs.length === 0) {
+            tableBody.innerHTML = '';
+            if (emptyState) emptyState.style.display = 'block';
+            updateAuditPagination(0, 0, 0, 1, 1);
+            return;
+        }
+
+        if (emptyState) emptyState.style.display = 'none';
+
+        const rowsHtml = logs.map(log => {
+            const timeHtml = formatAuditDate(log.timestamp);
+            const moduleHtml = renderAuditModuleBadge(log.module);
+            const actionTypeHtml = renderAuditActionBadge(log.actionType);
+
+            const staffInitial = (log.staffName && log.staffName.trim().length > 0) ? log.staffName.trim().charAt(0).toUpperCase() : 'S';
+            const roleBadgeClass = log.role === 'admin' ? '#8b5cf6' : (log.role === 'approver' ? '#3b82f6' : (log.role === 'finance' ? '#10b981' : '#f59e0b'));
+
+            let staffSubInfo = '';
+            if (log.username) staffSubInfo += `@${log.username}`;
+            if (log.shopName) staffSubInfo += (staffSubInfo ? ' | ' : '') + log.shopName;
+
+            let targetHtml = '-';
+            if (log.targetId) {
+                targetHtml = `
+                    <div style="font-weight: 700; color: #1e293b;">${log.action || '-'}</div>
+                    <div style="font-family: monospace; font-size: 0.78rem; color: #2563eb;">#${log.targetId}</div>
+                `;
+            } else {
+                targetHtml = `<div style="font-weight: 700; color: #1e293b;">${log.action || '-'}</div>`;
+            }
+
+            const cleanStaffName = (log.staffName || 'System').replace(/'/g, "\\'");
+
+            return `
+                <tr style="border-bottom: 1px solid #f1f5f9; transition: background 0.15s ease;">
+                    <td style="padding: 12px 14px; white-space: nowrap; vertical-align: top;">${timeHtml}</td>
+                    <td style="padding: 12px 14px; vertical-align: top;">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <div style="width: 32px; height: 32px; border-radius: 50%; background: ${roleBadgeClass}; color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.85rem; flex-shrink: 0;">
+                                ${staffInitial}
+                            </div>
+                            <div>
+                                <a href="#" onclick="openStaffTimeline('${cleanStaffName}'); return false;" style="font-weight: 700; color: #0f766e; text-decoration: none; font-size: 0.88rem;" title="คลิกเพื่อดูไทม์ไลน์ของพนักงานคนนี้">
+                                    ${log.staffName || 'System'}
+                                </a>
+                                <div style="font-size: 0.72rem; color: #64748b;">${staffSubInfo || '-'}</div>
+                            </div>
+                        </div>
+                    </td>
+                    <td style="padding: 12px 14px; vertical-align: top;">${moduleHtml}</td>
+                    <td style="padding: 12px 14px; vertical-align: top;">${actionTypeHtml}</td>
+                    <td style="padding: 12px 14px; vertical-align: top;">${targetHtml}</td>
+                    <td style="padding: 12px 14px; font-size: 0.85rem; color: #334155; line-height: 1.4; vertical-align: top; max-width: 350px;">
+                        ${log.detail || '-'}
+                    </td>
+                    <td style="padding: 12px 14px; font-size: 0.78rem; font-family: monospace; color: #64748b; white-space: nowrap; vertical-align: top;">
+                        ${log.ipAddress || '-'}
+                    </td>
+                    <td style="padding: 12px 14px; text-align: center; vertical-align: top; white-space: nowrap;">
+                        <button type="button" class="action-btn" onclick="openAuditLogDetail('${log._id}')" style="height: 30px; padding: 0 10px; font-size: 0.78rem; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px;">
+                            🔍 ดูข้อมูล
+                        </button>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+
+        tableBody.innerHTML = rowsHtml;
+
+        const totalRecords = pagination ? pagination.totalRecords : logs.length;
+        const limit = pagination ? pagination.limit : 25;
+        const page = pagination ? pagination.currentPage : 1;
+        const start = totalRecords > 0 ? (page - 1) * limit + 1 : 0;
+        const end = Math.min(page * limit, totalRecords);
+
+        updateAuditPagination(start, end, totalRecords, page, pagination ? pagination.totalPages : 1);
+    }
+
+    // อัปเดตส่วนควบคุม Pagination
+    function updateAuditPagination(start, end, total, page, totalPages) {
+        const setVal = (id, val) => {
+            const el = document.getElementById(id);
+            if (el) el.textContent = val;
+        };
+
+        setVal('auditPageStart', start);
+        setVal('auditPageEnd', end);
+        setVal('auditTotalRecords', total.toLocaleString('th-TH'));
+        setVal('auditPageIndicator', `หน้า ${page} / ${totalPages}`);
+
+        const btnPrev = document.getElementById('btnAuditPrevPage');
+        const btnNext = document.getElementById('btnAuditNextPage');
+
+        if (btnPrev) btnPrev.disabled = page <= 1;
+        if (btnNext) btnNext.disabled = page >= totalPages;
+    }
+
+    // เปิด Modal ดูรายละเอียดและ Before/After Diff ของ Log รายการนั้น
+    async function openAuditLogDetail(logId) {
+        let log = auditCurrentLogsData.find(l => String(l._id) === String(logId));
+
+        if (!log) {
+            try {
+                showLoader('กำลังโหลดรายละเอียด...');
+                const res = await fetch(`/api/audit-logs/detail/${logId}`, {
+                    headers: getAuditAuthHeaders()
+                });
+                const data = await res.json();
+                hideLoader();
+                if (data.success && data.log) {
+                    log = data.log;
+                } else {
+                    showAlert('error', data.message || 'ไม่พบข้อมูล');
+                    return;
+                }
+            } catch (e) {
+                hideLoader();
+                showAlert('error', e.message);
+                return;
+            }
+        }
+
+        const modal = document.getElementById('auditLogDetailModal');
+        if (!modal) return;
+
+        // Populate fields
+        const dateStr = log.timestamp ? new Date(log.timestamp).toLocaleString('th-TH') : '-';
+        document.getElementById('modalLogTimestampHeader').textContent = `วัน-เวลา: ${dateStr}`;
+        document.getElementById('modalLogStaffName').textContent = log.staffName || 'System';
+        document.getElementById('modalLogStaffSub').textContent = `Username: ${log.username || '-'} | Role: ${log.role || '-'} | สาขา: ${log.shopName || '-'}`;
+
+        document.getElementById('modalLogModuleBadge').innerHTML = renderAuditModuleBadge(log.module);
+        document.getElementById('modalLogActionTypeBadge').innerHTML = renderAuditActionBadge(log.actionType);
+        document.getElementById('modalLogIpAddress').textContent = `${log.ipAddress || '-'} ${log.userAgent ? '(' + log.userAgent.substring(0, 40) + '...)' : ''}`;
+        document.getElementById('modalLogDetailText').textContent = log.detail || '-';
+
+        // Target Box
+        const targetBox = document.getElementById('modalLogTargetBox');
+        if (log.targetId) {
+            targetBox.style.display = 'block';
+            document.getElementById('modalLogTargetType').textContent = log.targetType || 'TARGET';
+            document.getElementById('modalLogTargetId').textContent = log.targetId;
+        } else {
+            targetBox.style.display = 'none';
+        }
+
+        // Before / After Diff Table
+        const diffSection = document.getElementById('modalLogDiffSection');
+        const diffTableBody = document.getElementById('modalLogDiffTableBody');
+        if (log.changes && (log.changes.before || log.changes.after)) {
+            const beforeObj = log.changes.before || {};
+            const afterObj = log.changes.after || {};
+            const allKeys = Array.from(new Set([...Object.keys(beforeObj), ...Object.keys(afterObj)]));
+
+            let diffRows = '';
+            allKeys.forEach(k => {
+                const bVal = beforeObj[k] !== undefined ? (typeof beforeObj[k] === 'object' ? JSON.stringify(beforeObj[k]) : String(beforeObj[k])) : '-';
+                const aVal = afterObj[k] !== undefined ? (typeof afterObj[k] === 'object' ? JSON.stringify(afterObj[k]) : String(afterObj[k])) : '-';
+                diffRows += `
+                    <tr>
+                        <td style="padding: 8px 12px; border-bottom: 1px solid #f1f5f9; font-weight: 700; color: #475569;">${k}</td>
+                        <td style="padding: 8px 12px; border-bottom: 1px solid #f1f5f9; color: #dc2626; background: #fff5f5; font-family: monospace; font-size: 0.8rem;">${bVal}</td>
+                        <td style="padding: 8px 12px; border-bottom: 1px solid #f1f5f9; color: #16a34a; background: #f0fdf4; font-family: monospace; font-size: 0.8rem;">${aVal}</td>
+                    </tr>
+                `;
+            });
+
+            diffTableBody.innerHTML = diffRows || '<tr><td colspan="3" style="text-align: center; padding: 10px;">ไม่มีความแตกต่าง</td></tr>';
+            diffSection.style.display = 'block';
+        } else {
+            diffSection.style.display = 'none';
+        }
+
+        // Raw JSON Payload
+        document.getElementById('modalLogRawJson').textContent = JSON.stringify(log, null, 2);
+
+        modal.style.display = 'flex';
+    }
+
+    // เปิด Modal ดูไทม์ไลน์รายบุคคล (Staff Daily Activity Timeline)
+    async function openStaffTimeline(staffName) {
+        if (!staffName || staffName === 'System') return;
+
+        const modal = document.getElementById('staffTimelineModal');
+        const container = document.getElementById('staffTimelineContainer');
+        const emptyState = document.getElementById('staffTimelineEmpty');
+        if (!modal || !container) return;
+
+        document.getElementById('timelineStaffTitle').textContent = staffName;
+        const todayStr = new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' });
+        document.getElementById('timelineDateTitle').textContent = todayStr;
+
+        container.innerHTML = '<div style="color: #64748b; font-size: 0.85rem; padding: 10px;">กำลังโหลดไทม์ไลน์...</div>';
+        if (emptyState) emptyState.style.display = 'none';
+        modal.style.display = 'flex';
+
+        try {
+            const res = await fetch(`/api/audit-logs/staff-timeline?staffName=${encodeURIComponent(staffName)}`, {
+                headers: getAuditAuthHeaders()
+            });
+            const data = await res.json();
+
+            if (!res.ok || !data.success || !data.timeline || data.timeline.length === 0) {
+                container.innerHTML = '';
+                if (emptyState) emptyState.style.display = 'block';
+                return;
+            }
+
+            const itemsHtml = data.timeline.map((item, idx) => {
+                const time = item.timestamp ? new Date(item.timestamp).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '-';
+                return `
+                    <div style="position: relative; margin-bottom: 20px;">
+                        <div style="position: absolute; left: -27px; top: 2px; width: 14px; height: 14px; border-radius: 50%; background: #0f766e; border: 3px solid #fff; box-shadow: 0 0 0 2px #0f766e;"></div>
+                        <div style="font-size: 0.78rem; font-weight: 700; color: #0f766e;">${time} น.</div>
+                        <div style="display: flex; gap: 8px; align-items: center; margin: 4px 0;">
+                            ${renderAuditModuleBadge(item.module)}
+                            ${renderAuditActionBadge(item.actionType)}
+                            <b style="font-size: 0.88rem; color: #1e293b;">${item.action}</b>
+                        </div>
+                        <div style="font-size: 0.82rem; color: #475569; line-height: 1.4; background: #f8fafc; padding: 8px 12px; border-radius: 8px; border: 1px solid #e2e8f0; margin-top: 4px;">
+                            ${item.detail}
+                            ${item.targetId ? `<div style="margin-top: 4px; font-size: 0.75rem; color: #2563eb; font-family: monospace;">เลขอ้างอิง: #${item.targetId}</div>` : ''}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            container.innerHTML = itemsHtml;
+        } catch (err) {
+            console.error('Staff Timeline Error:', err);
+            container.innerHTML = `<div style="color: #ef4444; padding: 10px;">เกิดข้อผิดพลาดในการโหลดไทม์ไลน์: ${err.message}</div>`;
+        }
+    }
+
+    // ส่งออกรายการ Audit Logs เป็นไฟล์ Excel ตามตัวกรอง
+    function exportAuditLogsExcel() {
+        const staff = (document.getElementById('auditFilterStaff') || {}).value || 'ALL';
+        const role = (document.getElementById('auditFilterRole') || {}).value || 'ALL';
+        const module = (document.getElementById('auditFilterModule') || {}).value || 'ALL';
+        const actionType = (document.getElementById('auditFilterActionType') || {}).value || 'ALL';
+        const dateRange = (document.getElementById('auditFilterDateRange') || {}).value || 'ALL';
+        const search = ((document.getElementById('auditSearchInput') || {}).value || '').trim();
+
+        let startDate = '';
+        let endDate = '';
+
+        const formatDateParam = (d) => {
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        };
+
+        const now = new Date();
+        if (dateRange === 'today') {
+            startDate = formatDateParam(now);
+            endDate = formatDateParam(now);
+        } else if (dateRange === 'yesterday') {
+            const y = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+            startDate = formatDateParam(y);
+            endDate = formatDateParam(y);
+        } else if (dateRange === '7days') {
+            const s = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+            startDate = formatDateParam(s);
+            endDate = formatDateParam(now);
+        } else if (dateRange === 'thisMonth') {
+            const s = new Date(now.getFullYear(), now.getMonth(), 1);
+            startDate = formatDateParam(s);
+            endDate = formatDateParam(now);
+        } else if (dateRange === 'custom') {
+            startDate = (document.getElementById('auditStartDate') || {}).value || '';
+            endDate = (document.getElementById('auditEndDate') || {}).value || '';
+        }
+
+        const params = new URLSearchParams();
+        if (staff !== 'ALL') params.append('staffName', staff);
+        if (role !== 'ALL') params.append('role', role);
+        if (module !== 'ALL') params.append('module', module);
+        if (actionType !== 'ALL') params.append('actionType', actionType);
+        if (startDate) params.append('startDate', startDate);
+        if (endDate) params.append('endDate', endDate);
+        if (search) params.append('search', search);
+
+        const exportUrl = `/api/audit-logs/export/excel?${params.toString()}`;
+        if (typeof handleExportExcel === 'function') {
+            handleExportExcel(exportUrl, 'Staff_Audit_Logs.xlsx', null);
+        } else {
+            window.open(exportUrl, '_blank');
+        }
+    }
+
+    // ผูก Event Listeners สำหรับหน้า Audit Log
+    function setupAuditLogsEventListeners() {
+        // ปุ่มรีเฟรชข้อมูล
+        const btnRefresh = document.getElementById('btnRefreshAuditLogs');
+        if (btnRefresh) {
+            btnRefresh.addEventListener('click', () => {
+                fetchAuditLogStats();
+                fetchAuditLogs(auditCurrentPage);
+            });
+        }
+
+        // ปุ่มล้างตัวกรอง
+        const btnReset = document.getElementById('btnResetAuditFilters');
+        if (btnReset) {
+            btnReset.addEventListener('click', () => {
+                const staffSel = document.getElementById('auditFilterStaff');
+                if (staffSel) staffSel.value = 'ALL';
+                const roleSel = document.getElementById('auditFilterRole');
+                if (roleSel) roleSel.value = 'ALL';
+                const modSel = document.getElementById('auditFilterModule');
+                if (modSel) modSel.value = 'ALL';
+                const actSel = document.getElementById('auditFilterActionType');
+                if (actSel) actSel.value = 'ALL';
+                const dateSel = document.getElementById('auditFilterDateRange');
+                if (dateSel) dateSel.value = 'ALL';
+                const searchInp = document.getElementById('auditSearchInput');
+                if (searchInp) searchInp.value = '';
+
+                const customDateContainer = document.getElementById('auditCustomDateContainer');
+                if (customDateContainer) customDateContainer.style.display = 'none';
+
+                fetchAuditLogs(1);
+            });
+        }
+
+        // ปุ่มส่งออก Excel
+        const btnExport = document.getElementById('btnExportAuditLogs');
+        if (btnExport) {
+            btnExport.addEventListener('click', exportAuditLogsExcel);
+        }
+
+        // ตัวกรอง Dropdowns
+        ['auditFilterStaff', 'auditFilterRole', 'auditFilterModule', 'auditFilterActionType', 'auditFilterLimit'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) {
+                el.addEventListener('change', () => fetchAuditLogs(1));
+            }
+        });
+
+        // ตัวกรองช่วงวันที่
+        const dateRangeSelect = document.getElementById('auditFilterDateRange');
+        if (dateRangeSelect) {
+            dateRangeSelect.addEventListener('change', () => {
+                const customContainer = document.getElementById('auditCustomDateContainer');
+                if (customContainer) {
+                    if (dateRangeSelect.value === 'custom') {
+                        customContainer.style.display = 'flex';
+                    } else {
+                        customContainer.style.display = 'none';
+                        fetchAuditLogs(1);
+                    }
+                }
+            });
+        }
+
+        const startDateInput = document.getElementById('auditStartDate');
+        const endDateInput = document.getElementById('auditEndDate');
+        if (startDateInput) startDateInput.addEventListener('change', () => fetchAuditLogs(1));
+        if (endDateInput) endDateInput.addEventListener('change', () => fetchAuditLogs(1));
+
+        // ค้นหาคำสำคัญแบบ Debounced
+        const searchInput = document.getElementById('auditSearchInput');
+        if (searchInput) {
+            searchInput.addEventListener('input', () => {
+                if (auditDebounceTimer) clearTimeout(auditDebounceTimer);
+                auditDebounceTimer = setTimeout(() => {
+                    fetchAuditLogs(1);
+                }, 400);
+            });
+        }
+
+        // ปุ่มเปลี่ยนหน้า Pagination
+        const btnPrev = document.getElementById('btnAuditPrevPage');
+        if (btnPrev) {
+            btnPrev.addEventListener('click', () => {
+                if (auditCurrentPage > 1) {
+                    fetchAuditLogs(auditCurrentPage - 1);
+                }
+            });
+        }
+
+        const btnNext = document.getElementById('btnAuditNextPage');
+        if (btnNext) {
+            btnNext.addEventListener('click', () => {
+                if (auditCurrentPage < auditTotalPages) {
+                    fetchAuditLogs(auditCurrentPage + 1);
+                }
+            });
+        }
+
+        // ปิด Modals
+        const closeDetailBtn = document.getElementById('closeAuditLogDetailModal');
+        const closeDetailBottom = document.getElementById('btnCloseAuditLogDetailBottom');
+        const detailModal = document.getElementById('auditLogDetailModal');
+        if (closeDetailBtn) closeDetailBtn.addEventListener('click', () => { if (detailModal) detailModal.style.display = 'none'; });
+        if (closeDetailBottom) closeDetailBottom.addEventListener('click', () => { if (detailModal) detailModal.style.display = 'none'; });
+
+        const closeTimelineBtn = document.getElementById('closeStaffTimelineModal');
+        const closeTimelineBottom = document.getElementById('btnCloseStaffTimelineBottom');
+        const timelineModal = document.getElementById('staffTimelineModal');
+        if (closeTimelineBtn) closeTimelineBtn.addEventListener('click', () => { if (timelineModal) timelineModal.style.display = 'none'; });
+        if (closeTimelineBottom) closeTimelineBottom.addEventListener('click', () => { if (timelineModal) timelineModal.style.display = 'none'; });
+
+        window.addEventListener('click', (e) => {
+            if (e.target === detailModal) detailModal.style.display = 'none';
+            if (e.target === timelineModal) timelineModal.style.display = 'none';
+        });
+    }
+
+    // Expose globally
+    window.initAuditLogsView = initAuditLogsView;
+    window.openAuditLogDetail = openAuditLogDetail;
+    window.openStaffTimeline = openStaffTimeline;
+    window.exportAuditLogsExcel = exportAuditLogsExcel;
+
+    // Attach listeners on load
+    setupAuditLogsEventListeners();
+
+    // Attach listeners on load
+    setupMenuPermissionsEventListeners();
 
 });
 
