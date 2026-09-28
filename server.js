@@ -5259,6 +5259,66 @@ app.get('/api/finance/transactions', async (req, res) => {
     }
 });
 
+// รับยอดไฟแนนซ์แบบกลุ่ม (Batch / Bulk Receive)
+app.put('/api/finance/transactions/batch-receive', async (req, res) => {
+    try {
+        const { transactionIds, receivedDate, receivedAsCash, staffName } = req.body;
+        if (!Array.isArray(transactionIds) || transactionIds.length === 0) {
+            return res.status(400).json({ success: false, message: 'กรุณาระบุรายการที่ต้องการรับยอดอย่างน้อย 1 รายการ' });
+        }
+
+        const isCash = Boolean(receivedAsCash);
+        const dateToSet = receivedDate ? new Date(receivedDate) : new Date();
+
+        // ค้นหาเฉพาะรายการที่ยังไม่ได้รับยอด เพื่อความปลอดภัยสูงสุดและไม่แตะต้องรายการที่รับยอดแล้ว
+        const pendingTxs = await FinanceTransaction.find({
+            _id: { $in: transactionIds },
+            financeReceived: { $ne: true }
+        });
+
+        if (pendingTxs.length === 0) {
+            return res.status(400).json({ success: false, message: 'ไม่พบรายการที่รอการรับยอด หรือรายการที่เลือกถูกรับยอดไปแล้ว' });
+        }
+
+        const targetIds = pendingTxs.map(t => t._id);
+
+        // ปรับปรุงเฉพาะฟิลด์การรับยอด โดยคงข้อมูลเดิมทุกอย่างไว้ 100%
+        const updateResult = await FinanceTransaction.updateMany(
+            {
+                _id: { $in: targetIds },
+                financeReceived: { $ne: true }
+            },
+            {
+                $set: {
+                    financeReceived: true,
+                    financeReceivedDate: dateToSet,
+                    receivedAsCash: isCash
+                }
+            }
+        );
+
+        const channelLabel = isCash ? 'Easy.Care (เข้าเงินสดยืม)' : 'Silmin (บริษัทแม่/รับชำระหนี้)';
+        const totalFinancedAmount = pendingTxs.reduce((sum, tx) => sum + (tx.financedAmount || tx.netTotal || 0), 0);
+        const policyList = pendingTxs.map(t => t.policyNumber).filter(Boolean).slice(0, 10).join(', ') + (pendingTxs.length > 10 ? ` และอีก ${pendingTxs.length - 10} รายการ` : '');
+
+        await logAction(
+            'Batch Receive Finance Amount',
+            `บันทึกรับยอดแบบกลุ่มจากไฟแนนซ์ จำนวน ${pendingTxs.length} รายการ ยอดรวม ${totalFinancedAmount} บาท (${channelLabel}) สัญญา: [${policyList}]`,
+            staffName || 'System'
+        );
+
+        res.json({
+            success: true,
+            receivedCount: updateResult.modifiedCount || pendingTxs.length,
+            totalFinancedAmount,
+            message: `รับยอดแบบกลุ่มสำเร็จ ${updateResult.modifiedCount || pendingTxs.length} รายการ`
+        });
+    } catch (err) {
+        console.error('Batch receive finance error:', err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
 app.put('/api/finance/transactions/:id/receive', async (req, res) => {
     try {
         const { receivedDate, receivedAsCash, staffName } = req.body;
@@ -5895,7 +5955,7 @@ app.get('/api/profit-statement/export/excel', async (req, res) => {
 
 app.get('/api/finance/export/excel', async (req, res) => {
     try {
-        const { startDate, endDate, fields, includeSummary, paymentMethod, financeProvider } = req.query || {};
+        const { startDate, endDate, fields, includeSummary, paymentMethod, financeProvider, search, shopName, paymentType } = req.query || {};
 
         const match = { actionType: { $ne: 'คืนเงินชดเชยสละสิทธิ์เครื่อง' }, policyNumber: { $not: /^LN-/ } };
         if (startDate) {
@@ -5910,6 +5970,16 @@ app.get('/api/finance/export/excel', async (req, res) => {
         if (financeProvider && String(financeProvider) !== 'all') {
             match.financeProvider = String(financeProvider);
         }
+        if (shopName && String(shopName) !== 'all') {
+            match.branch = String(shopName);
+        }
+        if (search && String(search).trim() !== '') {
+            const sRegex = new RegExp(String(search).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+            match.$or = [
+                { customerName: { $regex: sRegex } },
+                { policyNumber: { $regex: sRegex } }
+            ];
+        }
 
         const selectedFields = String(fields || '')
             .split(',')
@@ -5921,6 +5991,8 @@ app.get('/api/finance/export/excel', async (req, res) => {
             actionType: { header: 'ประเภทรายการ', width: 18 },
             policyNumber: { header: 'เลขที่สัญญา', width: 16 },
             customerName: { header: 'ชื่อลูกค้า', width: 20 },
+            financeProvider: { header: 'บริษัทจัดไฟแนนซ์', width: 18 },
+            branch: { header: 'ร้านค้า/สาขา', width: 20 },
             paymentMethod: { header: 'วิธีชำระ', width: 16 },
             cashReceived: { header: 'รับเงินสด', width: 14 },
             transferAmount: { header: 'เงินโอน', width: 14 },
@@ -5935,6 +6007,8 @@ app.get('/api/finance/export/excel', async (req, res) => {
             'actionType',
             'policyNumber',
             'customerName',
+            'financeProvider',
+            'branch',
             'paymentMethod',
             'cashReceived',
             'transferAmount',
@@ -5947,7 +6021,35 @@ app.get('/api/finance/export/excel', async (req, res) => {
         const finalFields = (selectedFields.length > 0 ? selectedFields : defaultFieldOrder)
             .filter(f => Object.prototype.hasOwnProperty.call(fieldMeta, f));
 
-        const transactions = await FinanceTransaction.find(match).sort({ transactionDate: -1 }).lean();
+        const pipeline = [
+            { $match: match },
+            { $sort: { transactionDate: -1 } },
+            {
+                $lookup: {
+                    from: 'warranties',
+                    localField: 'policyNumber',
+                    foreignField: 'policyNumber',
+                    as: 'warranty'
+                }
+            },
+            {
+                $addFields: {
+                    packagePaymentMethod: { $arrayElemAt: ['$warranty.payment.method', 0] },
+                    packagePlan: { $arrayElemAt: ['$warranty.package.plan', 0] }
+                }
+            }
+        ];
+
+        if (paymentType && String(paymentType) !== 'all') {
+            pipeline.push({
+                $match: {
+                    packagePaymentMethod: { $regex: new RegExp(`^${paymentType}$`, 'i') }
+                }
+            });
+        }
+        pipeline.push({ $project: { warranty: 0 } });
+
+        const transactions = await FinanceTransaction.aggregate(pipeline);
 
         const workbook = new ExcelJS.Workbook();
         workbook.creator = 'EasyCare';
@@ -5985,32 +6087,29 @@ app.get('/api/finance/export/excel', async (req, res) => {
         });
 
         if (String(includeSummary || '1') !== '0') {
-            const aggr = await FinanceTransaction.aggregate([
-                ...(Object.keys(match).length > 0 ? [{ $match: match }] : []),
-                {
-                    $group: {
-                        _id: null,
-                        totalCashReceived: { $sum: "$cashReceived" },
-                        totalChangeAmount: { $sum: "$changeAmount" },
-                        totalTransferAmount: { $sum: "$transferAmount" },
-                        totalRevenue: { $sum: { $ifNull: ["$fullRevenue", "$netTotal"] } }
-                    }
-                }
-            ]);
+            let totalCashReceived = 0;
+            let totalChangeAmount = 0;
+            let totalTransferAmount = 0;
+            let totalRevenue = 0;
 
-            const data = aggr && aggr.length > 0 ? aggr[0] : {};
-            const netCash = Number((data.totalCashReceived || 0) - (data.totalChangeAmount || 0));
-            const totalTransfer = Number(data.totalTransferAmount || 0);
-            const totalRevenue = Number(data.totalRevenue || 0);
+            for (const tx of (Array.isArray(transactions) ? transactions : [])) {
+                totalCashReceived += Number(tx.cashReceived || 0);
+                totalChangeAmount += Number(tx.changeAmount || 0);
+                totalTransferAmount += Number(tx.transferAmount || 0);
+                totalRevenue += Number(tx.fullRevenue || tx.netTotal || 0);
+            }
+
+            const netCash = totalCashReceived - totalChangeAmount;
 
             const wsSum = workbook.addWorksheet('Summary');
             wsSum.columns = [
-                { header: 'รายการ', key: 'label', width: 22 },
-                { header: 'ยอดรวม', key: 'value', width: 18 }
+                { header: 'รายการ', key: 'label', width: 25 },
+                { header: 'ยอดรวม (บาท)', key: 'value', width: 20 }
             ];
             wsSum.getRow(1).font = { bold: true };
             wsSum.addRow({ label: 'ยอดรวมเงินสด', value: netCash });
-            wsSum.addRow({ label: 'ยอดรวมเงินโอน', value: totalTransfer });
+            wsSum.addRow({ label: 'ยอดรวมเงินโอน', value: totalTransferAmount });
+            wsSum.addRow({ label: 'ยอดเงินทอน', value: totalChangeAmount });
             wsSum.addRow({ label: 'รายรับรวมทั้งหมด', value: totalRevenue });
             wsSum.getColumn('value').numFmt = '#,##0.00';
         }

@@ -6211,6 +6211,15 @@ document.addEventListener('DOMContentLoaded', () => {
             if (endDate) params.set('endDate', endDate);
             if (paymentMethod && paymentMethod !== 'all') params.set('paymentMethod', paymentMethod);
             if (financeProvider && financeProvider !== 'all') params.set('financeProvider', financeProvider);
+
+            const search = (document.getElementById('financeSearchInput') || {}).value?.trim() || '';
+            const shopName = (document.getElementById('financeShopFilter') || {}).value || 'all';
+            const paymentType = (document.getElementById('financePaymentTypeFilter') || {}).value || 'all';
+
+            if (search) params.set('search', search);
+            if (shopName && shopName !== 'all') params.set('shopName', shopName);
+            if (paymentType && paymentType !== 'all') params.set('paymentType', paymentType);
+
             params.set('fields', selectedFields.join(','));
             params.set('includeSummary', includeSummary);
 
@@ -6248,6 +6257,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     let allFinanceIncomeTransactions = [];
+    const selectedFinanceBatchMap = new Map(); // id -> { id, policyNumber, financeProvider, amount }
+    let isFinanceBatchMode = false;
 
     async function fetchFinanceData() {
         showLoader('กำลังโหลดข้อมูลการเงิน...');
@@ -6552,6 +6563,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         renderFinanceIncomeTable(filtered);
         updateFinanceSummaryCards(filtered);
+        updateFinanceBatchUI();
     }
 
     let currentFinanceRecords = [];
@@ -6653,7 +6665,16 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
 
                         if (!tx.financeReceived) {
-                            displayNetTotalText += ` ฿<br><span style="color: #dc2626; font-size: 0.85em;">รอการชำระเงินจากไฟแนนซ์</span><br><button class="btn btn-sm" style="margin-top: 5px; padding: 2px 8px; font-size: 12px; background-color: #3b82f6; color: white; border-radius: 4px;" onclick="receiveFinanceAmount('${tx._id}')">รับยอด</button>`;
+                            const planAmount = tx.financedAmount || (tx.packagePlan && FINANCE_TOTALS[tx.packagePlan]) || tx.netTotal || 0;
+                            const isChecked = selectedFinanceBatchMap.has(String(tx._id)) ? 'checked' : '';
+                            displayNetTotalText += ` ฿<br><span style="color: #dc2626; font-size: 0.85em; font-weight: 600;">รอการชำระเงินจากไฟแนนซ์</span><br>
+                                <div style="margin-top: 5px; display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                                    <button type="button" class="btn btn-sm" style="padding: 2px 8px; font-size: 12px; background-color: #3b82f6; color: white; border-radius: 4px; border: none; cursor: pointer;" onclick="receiveFinanceAmount('${tx._id}')">รับยอด</button>
+                                    <label class="finance-batch-select-label" style="display: ${isFinanceBatchMode ? 'inline-flex' : 'none'}; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; color: #475569; background: #f1f5f9; border: 1px solid #cbd5e1; padding: 2px 6px; border-radius: 4px; cursor: pointer; user-select: none;">
+                                        <input type="checkbox" class="finance-batch-checkbox" value="${tx._id}" data-policy="${tx.policyNumber || ''}" data-provider="${tx.financeProvider || 'Easy.Care'}" data-amount="${planAmount}" ${isChecked} onchange="toggleFinanceBatchItem(this)">
+                                        <span>เลือก</span>
+                                    </label>
+                                </div>`;
                         } else if (tx.financeReceivedDate) {
                             const receivedDateText = new Date(tx.financeReceivedDate).toLocaleDateString('th-TH');
                             const typeBadge = tx.receivedAsCash
@@ -6685,8 +6706,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }
 
+                const isRowSelected = selectedFinanceBatchMap.has(String(tx._id));
+                const rowBgStyle = isRowSelected ? 'style="background-color: #eff6ff;"' : '';
+
                 return `
-                    <tr>
+                    <tr ${rowBgStyle}>
                         <td>${index + 1}</td>
                         <td>${dateText}</td>
                         <td><span class="status-badge" style="background: #e0e7ff; color: #4338ca;">${tx.actionType}</span></td>
@@ -6717,23 +6741,29 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     const financeColumnsMap = {
-        'transactionDate': 0,
-        'actionType': 1,
-        'policyNumber': 2,
-        'customerName': 3,
-        'financeProvider': 4,
-        'branch': 5,
-        'paymentMethod': 6,
-        'cashReceived': 7,
-        'transferAmount': 8,
-        'changeAmount': 9,
-        'netTotal': 10,
-        'evidenceUrl': 11,
-        'recordedBy': 12
+        'transactionDate': 1,
+        'actionType': 2,
+        'policyNumber': 3,
+        'customerName': 4,
+        'financeProvider': 5,
+        'branch': 6,
+        'paymentMethod': 7,
+        'cashReceived': 8,
+        'transferAmount': 9,
+        'changeAmount': 10,
+        'netTotal': 11,
+        'evidenceUrl': 12,
+        'recordedBy': 13
     };
 
     function updateFinanceTableColumnVisibility() {
         const checkboxes = document.querySelectorAll('.finance-export-field');
+        const badge = document.getElementById('financeSelectedColumnsCount');
+        if (badge && checkboxes.length > 0) {
+            const checkedCount = Array.from(checkboxes).filter(cb => cb.checked).length;
+            badge.textContent = `${checkedCount}/${checkboxes.length}`;
+        }
+
         const table = document.getElementById('financeTable');
         if (!table) return;
 
@@ -6747,7 +6777,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const ths = table.querySelectorAll('thead th');
         ths.forEach((th, idx) => {
-            if (visibility[idx] !== undefined) {
+            if (idx === 0) {
+                th.style.display = ''; // Keep "ลำดับ" column always visible
+            } else if (visibility[idx] !== undefined) {
                 th.style.display = visibility[idx] ? '' : 'none';
             }
         });
@@ -6756,10 +6788,34 @@ document.addEventListener('DOMContentLoaded', () => {
         trs.forEach(tr => {
             const tds = tr.querySelectorAll('td');
             tds.forEach((td, idx) => {
-                if (visibility[idx] !== undefined && td) {
+                if (idx === 0 && td) {
+                    td.style.display = ''; // Keep "ลำดับ" column always visible
+                } else if (visibility[idx] !== undefined && td) {
                     td.style.display = visibility[idx] ? '' : 'none';
                 }
             });
+        });
+    }
+
+    // Toggle button for finance columns settings panel
+    const btnToggleFinanceColumns = document.getElementById('btnToggleFinanceColumns');
+    const financeColumnsCollapseContainer = document.getElementById('financeColumnsCollapseContainer');
+    const financeColumnsChevron = document.getElementById('financeColumnsChevron');
+
+    if (btnToggleFinanceColumns && financeColumnsCollapseContainer) {
+        btnToggleFinanceColumns.addEventListener('click', () => {
+            const isHidden = financeColumnsCollapseContainer.style.display === 'none' || !financeColumnsCollapseContainer.style.display;
+            if (isHidden) {
+                financeColumnsCollapseContainer.style.display = 'block';
+                if (financeColumnsChevron) financeColumnsChevron.style.transform = 'rotate(180deg)';
+                btnToggleFinanceColumns.style.background = '#e2e8f0';
+                btnToggleFinanceColumns.style.borderColor = '#94a3b8';
+            } else {
+                financeColumnsCollapseContainer.style.display = 'none';
+                if (financeColumnsChevron) financeColumnsChevron.style.transform = 'rotate(0deg)';
+                btnToggleFinanceColumns.style.background = '#ffffff';
+                btnToggleFinanceColumns.style.borderColor = '#cbd5e1';
+            }
         });
     }
 
@@ -6813,6 +6869,376 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (financeExportEndDate) {
         financeExportEndDate.addEventListener('change', applyFinanceIncomeFilter);
+    }
+
+    // Quick Date Preset Buttons
+    const btnFinanceDateToday = document.getElementById('btnFinanceDateToday');
+    if (btnFinanceDateToday) {
+        btnFinanceDateToday.addEventListener('click', () => {
+            const today = new Date().toISOString().split('T')[0];
+            if (financeExportStartDate) financeExportStartDate.value = today;
+            if (financeExportEndDate) financeExportEndDate.value = today;
+            applyFinanceIncomeFilter();
+        });
+    }
+
+    const btnFinanceDateThisMonth = document.getElementById('btnFinanceDateThisMonth');
+    if (btnFinanceDateThisMonth) {
+        btnFinanceDateThisMonth.addEventListener('click', () => {
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const lastDay = new Date(year, now.getMonth() + 1, 0).getDate();
+            if (financeExportStartDate) financeExportStartDate.value = `${year}-${month}-01`;
+            if (financeExportEndDate) financeExportEndDate.value = `${year}-${month}-${String(lastDay).padStart(2, '0')}`;
+            applyFinanceIncomeFilter();
+        });
+    }
+
+    const btnFinanceDateClear = document.getElementById('btnFinanceDateClear');
+    if (btnFinanceDateClear) {
+        btnFinanceDateClear.addEventListener('click', () => {
+            if (financeExportStartDate) financeExportStartDate.value = '';
+            if (financeExportEndDate) financeExportEndDate.value = '';
+            applyFinanceIncomeFilter();
+        });
+    }
+
+    // Reset All Finance Filters Button
+    const btnResetFinanceFilters = document.getElementById('btnResetFinanceFilters');
+    if (btnResetFinanceFilters) {
+        btnResetFinanceFilters.addEventListener('click', () => {
+            if (financeSearchInput) financeSearchInput.value = '';
+            if (financePaymentTypeFilter) financePaymentTypeFilter.value = 'all';
+            if (financeProviderFilter) financeProviderFilter.value = 'all';
+            if (financeShopFilter) financeShopFilter.value = 'all';
+            if (financeExportPaymentMethod) financeExportPaymentMethod.value = 'all';
+            if (financeExportStartDate) financeExportStartDate.value = '';
+            if (financeExportEndDate) financeExportEndDate.value = '';
+            selectedFinanceBatchMap.clear();
+            toggleFinanceBatchMode(false);
+            applyFinanceIncomeFilter();
+        });
+    }
+
+    // --- BATCH FINANCE RECEIVE LOGIC ---
+    window.toggleFinanceBatchItem = function(cb) {
+        const id = cb.value;
+        const policy = cb.getAttribute('data-policy') || '';
+        const provider = cb.getAttribute('data-provider') || '';
+        const amount = parseFloat(cb.getAttribute('data-amount')) || 0;
+
+        const tr = cb.closest('tr');
+        if (cb.checked) {
+            selectedFinanceBatchMap.set(id, { id, policyNumber: policy, financeProvider: provider, amount });
+            if (tr) tr.style.backgroundColor = '#eff6ff';
+        } else {
+            selectedFinanceBatchMap.delete(id);
+            if (tr) tr.style.backgroundColor = '';
+        }
+        updateFinanceBatchUI();
+    };
+
+    function updateFinanceBatchUI() {
+        const batchBtn = document.getElementById('btnBatchReceiveFinance');
+        const badgeEl = document.getElementById('batchSelectedBadge');
+        const clearBtn = document.getElementById('btnClearBatchSelection');
+        const selectAllCb = document.getElementById('selectAllPendingFinanceCheckbox');
+        const pendingCountEl = document.getElementById('pendingFinanceCountText');
+
+        const selectedCount = selectedFinanceBatchMap.size;
+        let selectedTotalAmount = 0;
+        selectedFinanceBatchMap.forEach(item => {
+            selectedTotalAmount += (Number(item.amount) || 0);
+        });
+
+        if (badgeEl) {
+            badgeEl.textContent = selectedCount.toLocaleString('th-TH');
+            badgeEl.style.display = selectedCount > 0 ? 'inline-block' : 'none';
+        }
+
+        if (clearBtn) {
+            clearBtn.style.display = selectedCount > 0 ? 'inline-block' : 'none';
+        }
+
+        if (batchBtn) {
+            if (selectedCount > 0) {
+                batchBtn.disabled = false;
+                batchBtn.style.background = '#2563eb';
+                batchBtn.style.cursor = 'pointer';
+                batchBtn.style.boxShadow = '0 3px 10px rgba(37, 99, 235, 0.3)';
+                batchBtn.innerHTML = `<i class="fas fa-check-double"></i> <span>รับยอดที่เลือก (${selectedCount.toLocaleString('th-TH')}) | ${formatNumber(selectedTotalAmount)} ฿</span>`;
+            } else {
+                batchBtn.disabled = true;
+                batchBtn.style.background = '#94a3b8';
+                batchBtn.style.cursor = 'not-allowed';
+                batchBtn.style.boxShadow = 'none';
+                batchBtn.innerHTML = `<i class="fas fa-layer-group"></i> <span>รับยอดที่เลือก <span id="batchSelectedBadge" style="display: none; background: #ffffff; color: #1e40af; padding: 1px 7px; border-radius: 10px; font-size: 0.75rem; font-weight: 700; margin-left: 4px;">0</span></span>`;
+            }
+        }
+
+        const currentPending = currentFinanceRecords.filter(tx => tx.actionType === 'ชำระงวดผ่อนด้วยไฟแนนซ์' && !tx.financeReceived);
+        if (pendingCountEl) {
+            pendingCountEl.textContent = currentPending.length.toLocaleString('th-TH');
+        }
+
+        const pendingBatchBadge = document.getElementById('pendingBatchCountBadge');
+        if (pendingBatchBadge) {
+            pendingBatchBadge.textContent = currentPending.length.toLocaleString('th-TH');
+        }
+
+        if (selectAllCb) {
+            if (currentPending.length > 0 && currentPending.every(tx => selectedFinanceBatchMap.has(String(tx._id)))) {
+                selectAllCb.checked = true;
+                selectAllCb.indeterminate = false;
+            } else if (currentPending.some(tx => selectedFinanceBatchMap.has(String(tx._id)))) {
+                selectAllCb.checked = false;
+                selectAllCb.indeterminate = true;
+            } else {
+                selectAllCb.checked = false;
+                selectAllCb.indeterminate = false;
+            }
+        }
+    }
+
+    function toggleFinanceBatchMode(forceState) {
+        if (typeof forceState === 'boolean') {
+            isFinanceBatchMode = forceState;
+        } else {
+            isFinanceBatchMode = !isFinanceBatchMode;
+        }
+
+        const toolbar = document.getElementById('financeBatchToolbar');
+        const toggleBtn = document.getElementById('btnToggleBatchMode');
+        const toggleText = document.getElementById('textToggleBatchMode');
+        const toggleIcon = document.getElementById('iconToggleBatchMode');
+
+        if (isFinanceBatchMode) {
+            if (toolbar) toolbar.style.display = 'flex';
+            if (toggleBtn) {
+                toggleBtn.style.background = '#fef2f2';
+                toggleBtn.style.borderColor = '#fca5a5';
+                toggleBtn.style.color = '#dc2626';
+            }
+            if (toggleText) toggleText.textContent = 'ปิดโหมดรับยอดแบบกลุ่ม';
+            if (toggleIcon) {
+                toggleIcon.className = 'fas fa-times';
+            }
+            document.querySelectorAll('.finance-batch-select-label').forEach(el => {
+                el.style.display = 'inline-flex';
+            });
+        } else {
+            if (toolbar) toolbar.style.display = 'none';
+            if (toggleBtn) {
+                toggleBtn.style.background = '#eff6ff';
+                toggleBtn.style.borderColor = '#bfdbfe';
+                toggleBtn.style.color = '#1e40af';
+            }
+            if (toggleText) toggleText.textContent = 'รับยอดแบบกลุ่ม';
+            if (toggleIcon) {
+                toggleIcon.className = 'fas fa-layer-group';
+            }
+            document.querySelectorAll('.finance-batch-select-label').forEach(el => {
+                el.style.display = 'none';
+            });
+
+            // Clear selections and row highlights when closing batch mode
+            selectedFinanceBatchMap.clear();
+            document.querySelectorAll('.finance-batch-checkbox').forEach(cb => {
+                cb.checked = false;
+                const tr = cb.closest('tr');
+                if (tr) tr.style.backgroundColor = '';
+            });
+            const selectAllCb = document.getElementById('selectAllPendingFinanceCheckbox');
+            if (selectAllCb) {
+                selectAllCb.checked = false;
+                selectAllCb.indeterminate = false;
+            }
+        }
+        updateFinanceBatchUI();
+    }
+
+    const btnToggleBatchMode = document.getElementById('btnToggleBatchMode');
+    if (btnToggleBatchMode) {
+        btnToggleBatchMode.addEventListener('click', () => {
+            toggleFinanceBatchMode();
+        });
+    }
+
+    const selectAllPendingFinanceCheckbox = document.getElementById('selectAllPendingFinanceCheckbox');
+    if (selectAllPendingFinanceCheckbox) {
+        selectAllPendingFinanceCheckbox.addEventListener('change', (e) => {
+            const checked = e.target.checked;
+            const currentPending = currentFinanceRecords.filter(tx => tx.actionType === 'ชำระงวดผ่อนด้วยไฟแนนซ์' && !tx.financeReceived);
+            const FINANCE_TOTALS = {
+                'Package 1': 699, 'Package 2': 899, 'Package 3': 1099, 'Package 4': 1299, 'Package 5': 1499,
+                'Package 6': 1699, 'Package 7': 1899, 'Package 8': 2099, 'Package 9': 2299, 'Package 10': 2499
+            };
+
+            if (checked) {
+                currentPending.forEach(tx => {
+                    const planAmount = tx.financedAmount || (tx.packagePlan && FINANCE_TOTALS[tx.packagePlan]) || tx.netTotal || 0;
+                    selectedFinanceBatchMap.set(String(tx._id), {
+                        id: String(tx._id),
+                        policyNumber: tx.policyNumber || '',
+                        financeProvider: tx.financeProvider || 'Easy.Care',
+                        amount: planAmount
+                    });
+                });
+            } else {
+                currentPending.forEach(tx => {
+                    selectedFinanceBatchMap.delete(String(tx._id));
+                });
+            }
+
+            document.querySelectorAll('.finance-batch-checkbox').forEach(cb => {
+                cb.checked = selectedFinanceBatchMap.has(cb.value);
+                const tr = cb.closest('tr');
+                if (tr) tr.style.backgroundColor = cb.checked ? '#eff6ff' : '';
+            });
+
+            updateFinanceBatchUI();
+        });
+    }
+
+    const btnClearBatchSelection = document.getElementById('btnClearBatchSelection');
+    if (btnClearBatchSelection) {
+        btnClearBatchSelection.addEventListener('click', () => {
+            selectedFinanceBatchMap.clear();
+            document.querySelectorAll('.finance-batch-checkbox').forEach(cb => {
+                cb.checked = false;
+                const tr = cb.closest('tr');
+                if (tr) tr.style.backgroundColor = '';
+            });
+            updateFinanceBatchUI();
+        });
+    }
+
+    const btnBatchReceiveFinance = document.getElementById('btnBatchReceiveFinance');
+    if (btnBatchReceiveFinance) {
+        btnBatchReceiveFinance.addEventListener('click', async () => {
+            const selectedCount = selectedFinanceBatchMap.size;
+            if (selectedCount === 0) {
+                showAlert('warning', 'กรุณาเลือกรายการที่ต้องการรับยอดอย่างน้อย 1 รายการ');
+                return;
+            }
+
+            let totalAmount = 0;
+            const providerMap = {};
+            const selectedItems = Array.from(selectedFinanceBatchMap.values());
+            selectedItems.forEach(item => {
+                totalAmount += (Number(item.amount) || 0);
+                const p = item.financeProvider || 'ไม่ระบุ';
+                providerMap[p] = (providerMap[p] || 0) + 1;
+            });
+
+            const providerSummaryText = Object.entries(providerMap)
+                .map(([prov, cnt]) => `<strong>${prov}</strong>: ${cnt} รายการ`)
+                .join(' | ');
+
+            const today = new Date().toISOString().split('T')[0];
+
+            const { value: formValues } = await Swal.fire({
+                title: '⚡ ยืนยันการรับยอดแบบกลุ่ม',
+                html: `
+                    <div style="text-align: left; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px; padding: 14px; margin-bottom: 14px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                            <span style="font-size: 13px; color: #1e40af; font-weight: 600;">จำนวนรายการที่เลือก:</span>
+                            <span style="font-size: 16px; font-weight: 700; color: #1e3a8a;">${formatNumber(selectedCount)} รายการ</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px dashed #bfdbfe;">
+                            <span style="font-size: 13px; color: #1e40af; font-weight: 600;">ยอดเงินรวมทั้งหมด:</span>
+                            <span style="font-size: 18px; font-weight: 800; color: #059669;">${formatNumber(totalAmount)} ฿</span>
+                        </div>
+                        <div style="font-size: 12px; color: #2563eb; line-height: 1.4;">
+                            แยกตามไฟแนนซ์: ${providerSummaryText}
+                        </div>
+                    </div>
+
+                    <div style="text-align: left; background: #f8fafc; padding: 14px; border-radius: 10px; border: 1px solid #e2e8f0;">
+                        <label for="batchReceivedDateInput" style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 5px; color: #475569;">ระบุวันที่รับยอด:</label>
+                        <input type="date" id="batchReceivedDateInput" class="swal2-input" value="${today}" style="margin: 0 0 14px 0; width: 100%; box-sizing: border-box; font-size: 14px; height: 38px;">
+                        
+                        <div style="border-top: 1px dashed #cbd5e1; padding-top: 12px;">
+                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px; font-weight: 700; color: #0f172a; user-select: none;">
+                                <input type="checkbox" id="batchReceivedAsCashCheckbox" style="width: 18px; height: 18px; accent-color: #10b981; cursor: pointer;">
+                                Easy.Care (รับเข้า Easy.Care โดยตรง)
+                            </label>
+                            <div style="font-size: 12px; color: #64748b; margin: 4px 0 0 26px; line-height: 1.45;">
+                                • <strong>ถ้าติ๊ก (Easy.Care):</strong> ยอดเงินสดในส่วน <em>"บันทึกให้ยืม (Easy.Care)"</em> จะเพิ่มขึ้นตามยอดรวม<br>
+                                • <strong>ถ้าไม่ติ๊ก (Silmin):</strong> ยอดจะไปรวมในส่วน <em>"รับชำระหนี้ (Silmin)"</em>
+                            </div>
+                        </div>
+                    </div>
+                `,
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonText: `✓ ยืนยันรับยอดทั้ง ${selectedCount} รายการ`,
+                cancelButtonText: 'ยกเลิก',
+                confirmButtonColor: '#2563eb',
+                preConfirm: () => {
+                    const receivedDate = document.getElementById('batchReceivedDateInput').value;
+                    if (!receivedDate) {
+                        Swal.showValidationMessage('กรุณาเลือกวันที่');
+                        return false;
+                    }
+                    const receivedAsCash = document.getElementById('batchReceivedAsCashCheckbox').checked;
+                    return { receivedDate, receivedAsCash };
+                }
+            });
+
+            if (!formValues) return;
+
+            try {
+                showLoader('กำลังบันทึกรับยอดแบบกลุ่ม...');
+                const staffName = (currentUser && currentUser.staffName) ? currentUser.staffName : 'Staff';
+                const transactionIds = Array.from(selectedFinanceBatchMap.keys());
+
+                const res = await fetch('/api/finance/transactions/batch-receive', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        transactionIds,
+                        receivedDate: formValues.receivedDate,
+                        receivedAsCash: formValues.receivedAsCash,
+                        staffName
+                    })
+                });
+
+                const data = await res.json();
+                if (data.success) {
+                    selectedFinanceBatchMap.clear();
+                    toggleFinanceBatchMode(false);
+                    const targetChannel = formValues.receivedAsCash
+                        ? 'Easy.Care (เพิ่มเข้ายอดเงินสดพร้อมให้ยืมแล้ว)'
+                        : 'Silmin (เพิ่มเข้ายอดรับชำระหนี้แล้ว)';
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'บันทึกรับยอดแบบกลุ่มสำเร็จ',
+                        html: `
+                            <p style="font-size: 14px; color: #334155; margin-bottom: 6px;">
+                                รับยอดสำเร็จทั้งหมด <strong>${formatNumber(data.receivedCount)}</strong> รายการ
+                            </p>
+                            <p style="font-size: 15px; font-weight: 700; color: #059669; margin-bottom: 6px;">
+                                ยอดเงินรวม: ${formatNumber(data.totalFinancedAmount)} บาท
+                            </p>
+                            <p style="font-size: 12px; color: #64748b;">
+                                เข้าบัญชี: ${targetChannel}
+                            </p>
+                        `,
+                        confirmButtonColor: '#2563eb'
+                    });
+                    fetchFinanceData(); // Reload table and KPIs
+                } else {
+                    showAlert('error', data.message || 'เกิดข้อผิดพลาดในการรับยอดแบบกลุ่ม');
+                }
+            } catch (err) {
+                console.error('Batch receive error:', err);
+                showAlert('error', 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้: ' + err.message);
+            } finally {
+                hideLoader();
+            }
+        });
     }
 
     // --- EXECUTIVE DASHBOARD LOGIC ---

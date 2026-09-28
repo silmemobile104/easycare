@@ -1211,26 +1211,32 @@
                             <div id="dynamicFinanceCardsContainer" style="display: contents;"></div>
                         </div>
 
-                        <div class="advanced-filter-bar" style="margin-top: 14px; padding: 20px; border-radius: 12px; background: #fff; border: 1px solid #f1f5f9;">
-                            <!-- Search Bar (Full Width) -->
-                            <div class="search-container" style="width: 100%; max-width: none; margin: 0 0 16px 0;">
-                                <input type="text" id="financeSearchInput" style="width: 100%; border: 1.5px solid #cbd5e1; border-radius: 8px; height: 40px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); padding-left: 2.75rem;" placeholder="ค้นหาชื่อลูกค้า, เลขกรมธรรม์...">
+                        <div class="advanced-filter-bar" style="margin-top: 14px; padding: 22px; border-radius: 14px; background: #ffffff; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
+                            <!-- Top: Search Bar with Icon -->
+                            <div style="position: relative; margin-bottom: 18px;">
+                                <div style="position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: #94a3b8; pointer-events: none; display: flex; align-items: center;">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <circle cx="11" cy="11" r="8"></circle>
+                                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                                    </svg>
+                                </div>
+                                <input type="text" id="financeSearchInput" style="width: 100%; border: 1.5px solid #cbd5e1; border-radius: 10px; height: 42px; padding-left: 42px; padding-right: 14px; font-size: 0.92rem; background: #f8fafc; transition: all 0.2s;" placeholder="ค้นหาชื่อลูกค้า, เลขกรมธรรม์ / สัญญา...">
                             </div>
 
-                            <!-- Filter Grid -->
-                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 20px;">
+                            <!-- Middle: Filter Grid -->
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-bottom: 16px;">
                                 <div class="filter-group" style="margin: 0; display: flex; flex-direction: column; gap: 6px;">
-                                    <label style="font-weight: 600; color: #475569; font-size: 0.85rem;">ประเภทชำระ (Payment):</label>
-                                    <select id="financePaymentTypeFilter" class="filter-select" style="width: 100%; height: 40px; border-radius: 8px;">
-                                        <option value="all">ประเภทการชำระทั้งหมด</option>
+                                    <label style="font-weight: 600; color: #475569; font-size: 0.85rem;">ประเภทการชำระ:</label>
+                                    <select id="financePaymentTypeFilter" class="filter-select" style="width: 100%; height: 38px; border-radius: 8px;">
+                                        <option value="all">ทั้งหมด (ทุกประเภท)</option>
                                         <option value="Full Payment">ชำระเต็มจำนวน</option>
                                         <option value="Installment">ชำระแบบแบ่งจ่าย</option>
                                         <option value="Finance">ชำระแบบผ่อนด้วยไฟแนนซ์</option>
                                     </select>
                                 </div>
                                 <div class="filter-group" style="margin: 0; display: flex; flex-direction: column; gap: 6px;">
-                                    <label style="font-weight: 600; color: #475569; font-size: 0.85rem;">บริษัทไฟแนนซ์:</label>
-                                    <select id="financeProviderFilter" class="filter-select" style="width: 100%; height: 40px; border-radius: 8px;">
+                                    <label style="font-weight: 600; color: #475569; font-size: 0.85rem;">บริษัทจัดไฟแนนซ์:</label>
+                                    <select id="financeProviderFilter" class="filter-select" style="width: 100%; height: 38px; border-radius: 8px;">
                                         <option value="all">ทั้งหมด</option>
                                         <option value="SG">SG</option>
                                         <option value="T-Plus">T-Plus</option>
@@ -1238,108 +1244,165 @@
                                     </select>
                                 </div>
                                 <div class="filter-group" style="margin: 0; display: flex; flex-direction: column; gap: 6px;">
-                                    <label style="font-weight: 600; color: #475569; font-size: 0.85rem;">ร้านค้า:</label>
-                                    <select id="financeShopFilter" class="filter-select" style="width: 100%; height: 40px; border-radius: 8px;">
-                                        <option value="all">ทั้งหมด</option>
+                                    <label style="font-weight: 600; color: #475569; font-size: 0.85rem;">ร้านค้า / สาขา:</label>
+                                    <select id="financeShopFilter" class="filter-select" style="width: 100%; height: 38px; border-radius: 8px;">
+                                        <option value="all">ทั้งหมด (ทุกสาขา)</option>
                                     </select>
                                 </div>
                                 <div class="filter-group" style="margin: 0; display: flex; flex-direction: column; gap: 6px;">
-                                    <label style="font-weight: 600; color: #475569; font-size: 0.85rem;">จากวันที่สมัคร:</label>
-                                    <input type="date" id="financeExportStartDate" class="filter-date-input" style="width: 100%; height: 40px; border-radius: 8px;">
-                                </div>
-                                <div class="filter-group" style="margin: 0; display: flex; flex-direction: column; gap: 6px;">
-                                    <label style="font-weight: 600; color: #475569; font-size: 0.85rem;">ถึงวันที่สมัคร:</label>
-                                    <input type="date" id="financeExportEndDate" class="filter-date-input" style="width: 100%; height: 40px; border-radius: 8px;">
-                                </div>
-                                <div class="filter-group" style="margin: 0; display: flex; flex-direction: column; gap: 6px;">
-                                    <label style="font-weight: 600; color: #475569; font-size: 0.85rem;">วิธีชำระ:</label>
-                                    <select id="financeExportPaymentMethod" class="filter-select" style="width: 100%; height: 40px; border-radius: 8px;">
-                                        <option value="all">ทั้งหมด</option>
+                                    <label style="font-weight: 600; color: #475569; font-size: 0.85rem;">วิธีชำระเงิน:</label>
+                                    <select id="financeExportPaymentMethod" class="filter-select" style="width: 100%; height: 38px; border-radius: 8px;">
+                                        <option value="all">ทั้งหมด (ทุกวิธี)</option>
                                         <option value="เงินสด">เงินสด</option>
                                         <option value="โอนเงิน">โอนเงิน</option>
                                         <option value="เงินสด+โอนเงิน">เงินสด+โอนเงิน</option>
                                     </select>
                                 </div>
+                                <div class="filter-group" style="margin: 0; display: flex; flex-direction: column; gap: 6px;">
+                                    <label style="font-weight: 600; color: #475569; font-size: 0.85rem;">จากวันที่ทำรายการ:</label>
+                                    <input type="date" id="financeExportStartDate" class="filter-date-input" style="width: 100%; height: 38px; border-radius: 8px;">
+                                </div>
+                                <div class="filter-group" style="margin: 0; display: flex; flex-direction: column; gap: 6px;">
+                                    <label style="font-weight: 600; color: #475569; font-size: 0.85rem;">ถึงวันที่ทำรายการ:</label>
+                                    <input type="date" id="financeExportEndDate" class="filter-date-input" style="width: 100%; height: 38px; border-radius: 8px;">
+                                </div>
                             </div>
 
-                            <!-- Export Columns Config Section -->
-                            <div style="border-top: 1px dashed #e2e8f0; padding-top: 16px; margin-top: 16px;">
-                                <p style="margin: 0 0 12px 0; font-weight: 600; color: #334155; font-size: 0.9rem; display: flex; align-items: center; gap: 6px;">
-                                    <span>📋</span> เลือกคอลัมน์ที่จะส่งออก (Columns to Export):
-                                </p>
-                                <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px;">
-                                    <label class="finance-export-label">
-                                        <input type="checkbox" class="finance-export-field" value="transactionDate" checked>
-                                        วันที่
-                                    </label>
-                                    <label class="finance-export-label">
-                                        <input type="checkbox" class="finance-export-field" value="actionType" checked>
-                                        ประเภทรายการ
-                                    </label>
-                                    <label class="finance-export-label">
-                                        <input type="checkbox" class="finance-export-field" value="policyNumber" checked>
-                                        เลขที่สัญญา
-                                    </label>
-                                    <label class="finance-export-label">
-                                        <input type="checkbox" class="finance-export-field" value="customerName" checked>
-                                        ชื่อลูกค้า
-                                    </label>
-                                    <label class="finance-export-label">
-                                        <input type="checkbox" class="finance-export-field" value="paymentMethod" checked>
-                                        วิธีชำระ
-                                    </label>
-                                    <label class="finance-export-label">
-                                        <input type="checkbox" class="finance-export-field" value="cashReceived" checked>
-                                        รับเงินสด
-                                    </label>
-                                    <label class="finance-export-label">
-                                        <input type="checkbox" class="finance-export-field" value="transferAmount" checked>
-                                        เงินโอน
-                                    </label>
-                                    <label class="finance-export-label">
-                                        <input type="checkbox" class="finance-export-field" value="changeAmount" checked>
-                                        เงินทอน
-                                    </label>
-                                    <label class="finance-export-label">
-                                        <input type="checkbox" class="finance-export-field" value="netTotal" checked>
-                                        ยอดสุทธิ
-                                    </label>
-                                    <label class="finance-export-label">
-                                        <input type="checkbox" class="finance-export-field" value="evidenceUrl" checked>
-                                        หลักฐาน
-                                    </label>
-                                    <label class="finance-export-label">
-                                        <input type="checkbox" class="finance-export-field" value="recordedBy" checked>
-                                        ผู้ทำรายการ
-                                    </label>
-                                    <div style="display: flex; gap: 12px; align-items: flex-end; justify-content: flex-start; margin-bottom: 2px;">
-                                        <label style="display: inline-flex; align-items: center; gap: 8px; font-size: 0.9rem; color: var(--text-muted); cursor: pointer; user-select: none; margin-bottom: 10px;">
-                                            <input type="checkbox" id="financeExportIncludeSummary" checked style="width: 16px; height: 16px; accent-color: #0d9488;">
-                                            รวม Summary
+                            <!-- Filter Shortcuts & Reset Row -->
+                            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; padding-bottom: 16px; border-bottom: 1px dashed #e2e8f0;">
+                                <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                                    <span style="font-size: 0.82rem; color: #64748b; font-weight: 600;">ช่วงเวลาด่วน:</span>
+                                    <button type="button" id="btnFinanceDateToday" class="filter-reset-btn" style="padding: 4px 12px; font-size: 0.8rem; margin: 0; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; cursor: pointer; color: #334155;">วันนี้</button>
+                                    <button type="button" id="btnFinanceDateThisMonth" class="filter-reset-btn" style="padding: 4px 12px; font-size: 0.8rem; margin: 0; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; cursor: pointer; color: #334155;">เดือนนี้</button>
+                                    <button type="button" id="btnFinanceDateClear" class="filter-reset-btn" style="padding: 4px 12px; font-size: 0.8rem; margin: 0; background: #fff; border: 1px solid #e2e8f0; border-radius: 6px; cursor: pointer; color: #94a3b8;">ล้างวันที่</button>
+                                </div>
+                                <div>
+                                    <button type="button" id="btnResetFinanceFilters" style="padding: 6px 14px; font-size: 0.82rem; font-weight: 600; color: #dc2626; background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: all 0.2s;">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+                                            <path d="M3 3v5h5"></path>
+                                        </svg>
+                                        ล้างตัวกรองทั้งหมด
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Bottom: Column Visibility Toggle & Action Toolbar -->
+                            <div style="padding-top: 14px;">
+                                <!-- Action Toolbar: Column Settings Toggle & Export Controls -->
+                                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; background: #f8fafc; padding: 10px 16px; border-radius: 10px; border: 1px solid #e2e8f0;">
+                                    <div>
+                                        <button type="button" id="btnToggleFinanceColumns" style="display: inline-flex; align-items: center; gap: 8px; padding: 7px 14px; font-size: 0.85rem; font-weight: 600; color: #334155; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; cursor: pointer; transition: all 0.2s; box-shadow: 0 1px 2px rgba(0,0,0,0.04);">
+                                            <i class="fas fa-columns" style="color: #64748b;"></i>
+                                            <span>เลือกคอลัมน์ที่จะแสดง</span>
+                                            <span id="financeSelectedColumnsCount" style="padding: 2px 7px; background: #e2e8f0; border-radius: 10px; font-size: 0.75rem; color: #334155; font-weight: 700;">13/13</span>
+                                            <i class="fas fa-chevron-down" id="financeColumnsChevron" style="font-size: 0.75rem; color: #94a3b8; transition: transform 0.2s;"></i>
+                                        </button>
+                                    </div>
+                                    <div style="display: flex; align-items: center; gap: 16px; flex-wrap: wrap;">
+                                        <label style="display: inline-flex; align-items: center; gap: 8px; font-size: 0.88rem; font-weight: 600; color: #334155; cursor: pointer; user-select: none;">
+                                            <input type="checkbox" id="financeExportIncludeSummary" checked style="width: 17px; height: 17px; accent-color: #0d9488; cursor: pointer;">
+                                            รวมแถวสรุปยอด (Summary)
                                         </label>
-                                        <button type="button" class="add-btn" id="financeExportExcelBtn" style="white-space: nowrap; height: 40px; margin-bottom: 0; padding: 0 24px; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 4px 12px rgba(13, 148, 136, 0.2);">
+                                        <button type="button" class="add-btn" id="financeExportExcelBtn" style="white-space: nowrap; height: 38px; margin: 0; padding: 0 22px; display: inline-flex; align-items: center; gap: 8px; font-size: 0.9rem; font-weight: 600; box-shadow: 0 4px 12px rgba(13, 148, 136, 0.25); border-radius: 8px; cursor: pointer;">
                                             <i class="fas fa-file-excel"></i> Export Excel
                                         </button>
                                     </div>
                                 </div>
-                                <div style="display: flex; gap: 8px;">
-                                    <button type="button" id="selectAllFinanceColumns" class="filter-reset-btn" style="padding: 6px 14px; font-size: 0.8rem; margin: 0; background: #f1f5f9; border: 1px solid #e2e8f0; height: 32px;">เลือกทั้งหมด</button>
-                                    <button type="button" id="clearAllFinanceColumns" class="filter-reset-btn" style="padding: 6px 14px; font-size: 0.8rem; margin: 0; background: #fff; border: 1px solid #e2e8f0; color: #64748b; height: 32px;">ล้างตัวเลือก</button>
+
+                                <!-- Collapsible Column Selection Container (Hidden by default) -->
+                                <div id="financeColumnsCollapseContainer" style="display: none; margin-top: 10px; padding: 14px 16px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.04);">
+                                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px dashed #e2e8f0;">
+                                        <p style="margin: 0; font-weight: 700; color: #1e293b; font-size: 0.88rem; display: flex; align-items: center; gap: 6px;">
+                                            <span>👁️</span> เลือกคอลัมน์ที่จะแสดงในตารางและส่งออก Excel:
+                                        </p>
+                                        <div style="display: flex; gap: 8px;">
+                                            <button type="button" id="selectAllFinanceColumns" style="padding: 4px 10px; font-size: 0.78rem; font-weight: 600; background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 6px; cursor: pointer; color: #334155;">เลือกทั้งหมด</button>
+                                            <button type="button" id="clearAllFinanceColumns" style="padding: 4px 10px; font-size: 0.78rem; font-weight: 600; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 6px; cursor: pointer; color: #64748b;">ล้างตัวเลือก</button>
+                                        </div>
+                                    </div>
+
+                                    <!-- Checkbox Badges Grid (13 columns matching the table) -->
+                                    <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                                        <label class="finance-export-label">
+                                            <input type="checkbox" class="finance-export-field" value="transactionDate" checked> วันที่
+                                        </label>
+                                        <label class="finance-export-label">
+                                            <input type="checkbox" class="finance-export-field" value="actionType" checked> ประเภทรายการ
+                                        </label>
+                                        <label class="finance-export-label">
+                                            <input type="checkbox" class="finance-export-field" value="policyNumber" checked> เลขที่สัญญา
+                                        </label>
+                                        <label class="finance-export-label">
+                                            <input type="checkbox" class="finance-export-field" value="customerName" checked> ชื่อลูกค้า
+                                        </label>
+                                        <label class="finance-export-label">
+                                            <input type="checkbox" class="finance-export-field" value="financeProvider" checked> บริษัทจัดไฟแนนซ์
+                                        </label>
+                                        <label class="finance-export-label">
+                                            <input type="checkbox" class="finance-export-field" value="branch" checked> ร้านค้า / สาขา
+                                        </label>
+                                        <label class="finance-export-label">
+                                            <input type="checkbox" class="finance-export-field" value="paymentMethod" checked> วิธีชำระ
+                                        </label>
+                                        <label class="finance-export-label">
+                                            <input type="checkbox" class="finance-export-field" value="cashReceived" checked> รับเงินสด
+                                        </label>
+                                        <label class="finance-export-label">
+                                            <input type="checkbox" class="finance-export-field" value="transferAmount" checked> เงินโอน
+                                        </label>
+                                        <label class="finance-export-label">
+                                            <input type="checkbox" class="finance-export-field" value="changeAmount" checked> เงินทอน
+                                        </label>
+                                        <label class="finance-export-label">
+                                            <input type="checkbox" class="finance-export-field" value="netTotal" checked> ยอดสุทธิ
+                                        </label>
+                                        <label class="finance-export-label">
+                                            <input type="checkbox" class="finance-export-field" value="evidenceUrl" checked> หลักฐาน
+                                        </label>
+                                        <label class="finance-export-label">
+                                            <input type="checkbox" class="finance-export-field" value="recordedBy" checked> ผู้ทำรายการ
+                                        </label>
+                                    </div>
                                 </div>
                             </div>
                         </div>
 
                         <div class="table-container">
-                            <div class="finance-count-banner">
-                                <div class="finance-count-main">
-                                    <div class="finance-count-icon">
-                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                            <path d="M3 3h18v18H3z"></path>
-                                            <path d="M3 9h18"></path>
-                                            <path d="M9 3v18"></path>
-                                        </svg>
+                            <div class="finance-count-banner" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 12px;">
+                                <div class="finance-count-main" style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+                                    <div style="display: flex; align-items: center; gap: 8px;">
+                                        <div class="finance-count-icon">
+                                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                <path d="M3 3h18v18H3z"></path>
+                                                <path d="M3 9h18"></path>
+                                                <path d="M9 3v18"></path>
+                                            </svg>
+                                        </div>
+                                        <span class="finance-count-label">รายการทั้งหมด <span id="financeIncomeCount" class="finance-count-value">0</span> <span class="finance-count-suffix">รายการ</span></span>
                                     </div>
-                                    <span class="finance-count-label">รายการทั้งหมด <span id="financeIncomeCount" class="finance-count-value">0</span> <span class="finance-count-suffix">รายการ</span></span>
+
+                                    <!-- Button to Toggle Batch Receive Mode -->
+                                    <button type="button" id="btnToggleBatchMode" style="display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px; font-size: 0.82rem; font-weight: 600; color: #1e40af; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; cursor: pointer; transition: all 0.2s; box-shadow: 0 1px 2px rgba(37,99,235,0.08);">
+                                        <i class="fas fa-layer-group" id="iconToggleBatchMode"></i>
+                                        <span id="textToggleBatchMode">รับยอดแบบกลุ่ม</span>
+                                        <span id="pendingBatchCountBadge" style="background: #2563eb; color: #ffffff; padding: 1px 7px; border-radius: 10px; font-size: 0.72rem; font-weight: 700;">0</span>
+                                    </button>
+                                </div>
+
+                                <!-- Batch Receive Toolbar (Hidden by default) -->
+                                <div id="financeBatchToolbar" style="display: none; align-items: center; gap: 10px; flex-wrap: wrap;">
+                                    <label id="lblSelectAllPendingFinance" style="display: inline-flex; align-items: center; gap: 8px; font-size: 0.82rem; font-weight: 600; color: #334155; background: #ffffff; border: 1px solid #cbd5e1; padding: 6px 12px; border-radius: 8px; cursor: pointer; user-select: none; box-shadow: 0 1px 2px rgba(0,0,0,0.03);">
+                                        <input type="checkbox" id="selectAllPendingFinanceCheckbox" style="width: 16px; height: 16px; accent-color: #2563eb; cursor: pointer;">
+                                        <span>เลือกรายการรอรับยอดทั้งหมด (<span id="pendingFinanceCountText">0</span>)</span>
+                                    </label>
+                                    <button type="button" id="btnBatchReceiveFinance" disabled style="padding: 7px 16px; font-size: 0.84rem; font-weight: 600; color: #ffffff; background: #94a3b8; border: none; border-radius: 8px; cursor: not-allowed; display: inline-flex; align-items: center; gap: 8px; transition: all 0.2s;">
+                                        <i class="fas fa-layer-group"></i>
+                                        <span>รับยอดที่เลือก <span id="batchSelectedBadge" style="display: none; background: #ffffff; color: #1e40af; padding: 1px 7px; border-radius: 10px; font-size: 0.75rem; font-weight: 700; margin-left: 4px;">0</span></span>
+                                    </button>
+                                    <button type="button" id="btnClearBatchSelection" style="display: none; padding: 6px 10px; font-size: 0.8rem; font-weight: 600; color: #64748b; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; cursor: pointer;">
+                                        ล้างตัวเลือก
+                                    </button>
                                 </div>
                             </div>
                             <div class="table-responsive">
