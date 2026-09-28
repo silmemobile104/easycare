@@ -1389,20 +1389,80 @@
                                         <span id="pendingBatchCountBadge" style="background: #2563eb; color: #ffffff; padding: 1px 7px; border-radius: 10px; font-size: 0.72rem; font-weight: 700;">0</span>
                                     </button>
                                 </div>
+                            </div>
 
-                                <!-- Batch Receive Toolbar (Hidden by default) -->
-                                <div id="financeBatchToolbar" style="display: none; align-items: center; gap: 10px; flex-wrap: wrap;">
-                                    <label id="lblSelectAllPendingFinance" style="display: inline-flex; align-items: center; gap: 8px; font-size: 0.82rem; font-weight: 600; color: #334155; background: #ffffff; border: 1px solid #cbd5e1; padding: 6px 12px; border-radius: 8px; cursor: pointer; user-select: none; box-shadow: 0 1px 2px rgba(0,0,0,0.03);">
-                                        <input type="checkbox" id="selectAllPendingFinanceCheckbox" style="width: 16px; height: 16px; accent-color: #2563eb; cursor: pointer;">
-                                        <span>เลือกรายการรอรับยอดทั้งหมด (<span id="pendingFinanceCountText">0</span>)</span>
-                                    </label>
-                                    <button type="button" id="btnBatchReceiveFinance" disabled style="padding: 7px 16px; font-size: 0.84rem; font-weight: 600; color: #ffffff; background: #94a3b8; border: none; border-radius: 8px; cursor: not-allowed; display: inline-flex; align-items: center; gap: 8px; transition: all 0.2s;">
-                                        <i class="fas fa-layer-group"></i>
-                                        <span>รับยอดที่เลือก <span id="batchSelectedBadge" style="display: none; background: #ffffff; color: #1e40af; padding: 1px 7px; border-radius: 10px; font-size: 0.75rem; font-weight: 700; margin-left: 4px;">0</span></span>
+                            <!-- Smart Batch Receive Control Panel (Hidden by default) -->
+                            <div id="financeBatchControlPanel" style="display: none; background: #f8fafc; border: 1.5px solid #bfdbfe; border-radius: 12px; padding: 16px; margin-bottom: 16px; box-shadow: 0 4px 12px rgba(37,99,235,0.06); animation: fadeIn 0.2s ease;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px dashed #cbd5e1; flex-wrap: wrap; gap: 8px;">
+                                    <div style="display: flex; align-items: center; gap: 8px;">
+                                        <span style="display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; background: #dbeafe; color: #1e40af; border-radius: 6px; font-size: 13px;">
+                                            <i class="fas fa-bolt"></i>
+                                        </span>
+                                        <div>
+                                            <span style="font-weight: 700; color: #1e3a8a; font-size: 0.92rem;">แผงควบคุมการรับยอดแบบกลุ่มตามเงื่อนไข (Smart Batch Receive)</span>
+                                            <span style="display: block; font-size: 0.78rem; color: #64748b;">ระบุบริษัทไฟแนนซ์และช่วงวันที่เพื่อตัดยอดพร้อมกันหลายรายการในคลิกเดียว</span>
+                                        </div>
+                                    </div>
+                                    <button type="button" id="btnCloseBatchPanel" style="display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; font-size: 0.8rem; font-weight: 600; color: #dc2626; background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px; cursor: pointer; transition: all 0.2s;">
+                                        <i class="fas fa-times"></i> ปิดแผงรับยอด
                                     </button>
-                                    <button type="button" id="btnClearBatchSelection" style="display: none; padding: 6px 10px; font-size: 0.8rem; font-weight: 600; color: #64748b; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; cursor: pointer;">
-                                        ล้างตัวเลือก
-                                    </button>
+                                </div>
+
+                                <!-- Filter Criteria Grid -->
+                                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; margin-bottom: 12px;">
+                                    <div class="filter-group" style="margin: 0; display: flex; flex-direction: column; gap: 4px;">
+                                        <label style="font-size: 0.82rem; font-weight: 600; color: #475569;">🏢 บริษัทจัดไฟแนนซ์:</label>
+                                        <select id="batchFilterProvider" style="width: 100%; height: 38px; border-radius: 8px; border: 1px solid #cbd5e1; padding: 0 10px; font-size: 0.88rem; background: #ffffff; color: #1e293b; font-weight: 600;">
+                                            <option value="all">ทุกไฟแนนซ์ (ทั้งหมด)</option>
+                                            <option value="SG">SG</option>
+                                            <option value="T-Plus">T-Plus</option>
+                                            <option value="Thunder">Thunder</option>
+                                        </select>
+                                    </div>
+                                    <div class="filter-group" style="margin: 0; display: flex; flex-direction: column; gap: 4px;">
+                                        <label style="font-size: 0.82rem; font-weight: 600; color: #475569;">📅 จากวันที่ทำรายการ:</label>
+                                        <input type="date" id="batchFilterStartDate" style="width: 100%; height: 38px; border-radius: 8px; border: 1px solid #cbd5e1; padding: 0 10px; font-size: 0.88rem; background: #ffffff; color: #1e293b;">
+                                    </div>
+                                    <div class="filter-group" style="margin: 0; display: flex; flex-direction: column; gap: 4px;">
+                                        <label style="font-size: 0.82rem; font-weight: 600; color: #475569;">📅 ถึงวันที่ทำรายการ:</label>
+                                        <input type="date" id="batchFilterEndDate" style="width: 100%; height: 38px; border-radius: 8px; border: 1px solid #cbd5e1; padding: 0 10px; font-size: 0.88rem; background: #ffffff; color: #1e293b;">
+                                    </div>
+                                </div>
+
+                                <!-- Quick Presets Row -->
+                                <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 14px;">
+                                    <span style="font-size: 0.8rem; color: #64748b; font-weight: 600;">ช่วงเวลาด่วน:</span>
+                                    <button type="button" id="btnBatchDateToday" style="padding: 3px 10px; font-size: 0.78rem; font-weight: 600; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 6px; cursor: pointer; color: #334155;">วันนี้</button>
+                                    <button type="button" id="btnBatchDateLast7Days" style="padding: 3px 10px; font-size: 0.78rem; font-weight: 600; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 6px; cursor: pointer; color: #334155;">7 วันล่าสุด</button>
+                                    <button type="button" id="btnBatchDateThisMonth" style="padding: 3px 10px; font-size: 0.78rem; font-weight: 600; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 6px; cursor: pointer; color: #334155;">เดือนนี้</button>
+                                    <button type="button" id="btnBatchDateLastMonth" style="padding: 3px 10px; font-size: 0.78rem; font-weight: 600; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 6px; cursor: pointer; color: #334155;">เดือนที่แล้ว</button>
+                                    <button type="button" id="btnBatchDateClear" style="padding: 3px 10px; font-size: 0.78rem; font-weight: 600; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; cursor: pointer; color: #94a3b8;">ล้างวันที่</button>
+                                </div>
+
+                                <!-- Summary & Action Bar -->
+                                <div style="display: flex; justify-content: space-between; align-items: center; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px 16px; flex-wrap: wrap; gap: 12px;">
+                                    <div style="display: flex; align-items: center; gap: 14px; flex-wrap: wrap;">
+                                        <div style="font-size: 0.88rem; color: #334155;">
+                                            <span>พบรายการรอรับยอดตามเงื่อนไข:</span>
+                                            <strong id="batchMatchingCount" style="color: #2563eb; font-size: 1.1rem; margin: 0 4px;">0</strong> รายการ
+                                        </div>
+                                        <div style="width: 1px; height: 18px; background: #cbd5e1;"></div>
+                                        <div style="font-size: 0.88rem; color: #334155;">
+                                            <span>ยอดเงินรวม:</span>
+                                            <strong id="batchMatchingAmount" style="color: #059669; font-size: 1.1rem; margin: 0 4px;">0</strong> ฿
+                                        </div>
+                                    </div>
+
+                                    <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                                        <button type="button" id="btnDirectBatchReceive" disabled style="padding: 8px 18px; font-size: 0.88rem; font-weight: 700; color: #ffffff; background: #94a3b8; border: none; border-radius: 8px; cursor: not-allowed; display: inline-flex; align-items: center; gap: 8px; transition: all 0.2s; box-shadow: 0 2px 6px rgba(0,0,0,0.06);">
+                                            <i class="fas fa-bolt"></i>
+                                            <span id="btnDirectBatchReceiveText">รับยอดรายการที่เลือก</span>
+                                        </button>
+                                        <button type="button" id="btnApplyBatchCriteriaToTable" style="padding: 7px 14px; font-size: 0.84rem; font-weight: 600; color: #1e40af; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: all 0.2s;" title="เลือกทั้งหมด หรือ ยกเลิกการเลือก">
+                                            <i class="fas fa-check-double" id="iconApplyBatchCriteria"></i>
+                                            <span id="textApplyBatchCriteria">เลือกทั้งหมด</span>
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                             <div class="table-responsive">
