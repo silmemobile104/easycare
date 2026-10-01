@@ -9757,6 +9757,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const imgInput = row.querySelector(`#reg_img_${item.key}`);
 
             btnNormal.addEventListener('click', () => {
+                row.classList.remove('is-unselected-warning');
                 btnNormal.classList.add('normal-active');
                 btnAbnormal.classList.remove('abnormal-active');
                 row.classList.add('is-normal');
@@ -9768,6 +9769,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
 
             btnAbnormal.addEventListener('click', () => {
+                row.classList.remove('is-unselected-warning');
                 btnAbnormal.classList.add('abnormal-active');
                 btnNormal.classList.remove('normal-active');
                 row.classList.add('is-abnormal');
@@ -10424,6 +10426,65 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
+        // Validate Second-hand Checklist before uploading images
+        if (deviceCondition === 'Second-hand') {
+            const rows = document.querySelectorAll('#regDeviceConditionChecklist .condition-row');
+            let firstUnselectedRow = null;
+            let firstUnselectedLabel = '';
+
+            // ล้างสถานะเตือนเก่าทั้งหมด
+            rows.forEach(r => r.classList.remove('is-unselected-warning'));
+
+            // ตรวจสอบว่ามีรายการใดที่ยังไม่ได้กดเลือก "ปกติ" หรือ "ไม่ปกติ" หรือไม่
+            for (const row of rows) {
+                const status = row.dataset.status;
+                const label = row.dataset.label;
+
+                if (!status) {
+                    row.classList.add('is-unselected-warning');
+                    if (!firstUnselectedRow) {
+                        firstUnselectedRow = row;
+                        firstUnselectedLabel = label;
+                    }
+                }
+            }
+
+            // หากมีรายการที่ยังไม่กดประเมิน ไม่อนุญาตให้บันทึก และเด้งกลับไปยังรายการนั้นทันที
+            if (firstUnselectedRow) {
+                firstUnselectedRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                const btnNormal = firstUnselectedRow.querySelector('.cond-btn');
+                if (btnNormal) btnNormal.focus();
+
+                showAlert('warning', `กรุณาประเมินสภาพเครื่อง: ${firstUnselectedLabel} (เลือกปกติ หรือ ไม่ปกติ)`);
+                return;
+            }
+
+            // ตรวจสอบความครบถ้วนของรายการที่ไม่ปกติ (Abnormal)
+            for (const row of rows) {
+                const key = row.dataset.key;
+                const status = row.dataset.status;
+                const label = row.dataset.label;
+                const descVal = (document.getElementById(`reg_desc_${key}`)?.value || '').trim();
+                const imgInput = document.getElementById(`reg_img_${key}`);
+                const hasExistingImg = isEditMode && currentEditData?.device?.inspectionResult?.find(r => r.item === label)?.imageUrl;
+
+                if (status === 'Abnormal') {
+                    if (!descVal) {
+                        row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        document.getElementById(`reg_desc_${key}`)?.focus();
+                        showAlert('warning', `กรุณาระบุอาการผิดปกติสำหรับ: ${label}`);
+                        return;
+                    }
+                    if (!imgInput || (imgInput.files.length === 0 && !hasExistingImg)) {
+                        row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        imgInput?.focus();
+                        showAlert('warning', `กรุณาอัปโหลดรูปภาพสำหรับจุดที่ไม่ปกติ: ${label}`);
+                        return;
+                    }
+                }
+            }
+        }
+
         if (deviceImagesInput && deviceImagesInput.files.length > 0) {
             showLoader('กำลังอัปโหลดรูปภาพอุปกรณ์...');
             const formData = new FormData();
@@ -10460,24 +10521,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 const key = row.dataset.key;
                 const status = row.dataset.status;
                 const label = row.dataset.label;
-                const description = status === 'Abnormal' ? document.getElementById(`reg_desc_${key}`).value : '';
+                const description = status === 'Abnormal' ? (document.getElementById(`reg_desc_${key}`)?.value || '').trim() : '';
                 const imgInput = document.getElementById(`reg_img_${key}`);
-
-                if (!status) {
-                    showAlert('warning', `กรุณาประเมินสภาพเครื่อง: ${label}`);
-                    return;
-                }
-
-                if (status === 'Abnormal' && (!imgInput || imgInput.files.length === 0)) {
-                    showAlert('warning', `กรุณาอัปโหลดรูปภาพสำหรับจุดที่ไม่ปกติ: ${label}`);
-                    return;
-                }
+                const hasExistingImg = isEditMode && currentEditData?.device?.inspectionResult?.find(r => r.item === label)?.imageUrl;
 
                 inspectionResult.push({
                     item: label,
                     status: status,
                     description: description,
-                    file: status === 'Abnormal' && imgInput && imgInput.files.length > 0 ? imgInput.files[0] : null
+                    file: status === 'Abnormal' && imgInput && imgInput.files.length > 0 ? imgInput.files[0] : null,
+                    existingImageUrl: hasExistingImg || ''
                 });
             }
 
@@ -10513,7 +10566,7 @@ document.addEventListener('DOMContentLoaded', () => {
             item: res.item,
             status: res.status,
             description: res.description,
-            imageUrl: res.imageUrl || ''
+            imageUrl: res.imageUrl || res.existingImageUrl || ''
         }));
 
         const payload = {
@@ -11131,7 +11184,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 return (m.memberId && m.memberId.toLowerCase().includes(search)) ||
                     fullName.includes(search) ||
                     (m.phone && m.phone.includes(search)) ||
-                    (m.citizenId && m.citizenId.includes(search));
+                    (m.citizenId && m.citizenId.includes(search)) ||
+                    (m.createdBy && m.createdBy.toLowerCase().includes(search));
             });
         }
 
@@ -11209,6 +11263,12 @@ document.addEventListener('DOMContentLoaded', () => {
         if (body && !body.dataset.listenerBound) {
             body.dataset.listenerBound = 'true';
             body.addEventListener('click', (e) => {
+                const historyBtn = e.target.closest('.history-member-btn');
+                if (historyBtn) {
+                    showMemberHistory(historyBtn.dataset.id);
+                    return;
+                }
+
                 const editBtn = e.target.closest('.edit-member-btn');
                 if (editBtn) {
                     editMember(editBtn.dataset.id);
@@ -11277,9 +11337,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     <td data-label="เบอร์โทรศัพท์">${m.phone}</td>
                     <td data-label="เลขบัตรประชาชน">${m.citizenId || '-'}</td>
                     <td data-label="ที่อยู่ตามบัตร">${m.idCardAddress || '-'}${m.postalCode ? ` (${m.postalCode})` : ''}</td>
+                    <td data-label="พนักงานที่เพิ่ม"><span style="font-weight: 500; color: #334155;">${m.createdBy || '-'}</span></td>
                     <td data-label="สถานะ">${m.memberStatus === 'ไม่ปกติ' ? '<span class="status-badge status-expired">ไม่ปกติ</span>' : '<span class="status-badge status-active">ปกติ</span>'}</td>
                     <td data-label="จัดการ">
                         <div style="display: flex; gap: 0.5rem; justify-content: center;">
+                            <button class="history-member-btn view-btn" data-id="${m._id}" title="ดูประวัติการแก้ไข" style="color: #0284c7; background: #f0f9ff; border-color: #bae6fd;">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <circle cx="12" cy="12" r="10"></circle>
+                                    <polyline points="12 6 12 12 16 14"></polyline>
+                                </svg>
+                            </button>
                             <button class="edit-member-btn edit-btn" data-id="${m._id}" title="แก้ไข">
                                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
                             </button>
@@ -11456,6 +11523,183 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    async function showMemberHistory(id) {
+        if (!id) return;
+
+        const modal = document.getElementById('memberHistoryModal');
+        const timeline = document.getElementById('memberHistoryTimeline');
+        const emptyState = document.getElementById('memberHistoryEmptyState');
+        const subtitle = document.getElementById('memberHistorySubtitle');
+        const codeEl = document.getElementById('memberHistoryCode');
+        const nameEl = document.getElementById('memberHistoryName');
+        const phoneEl = document.getElementById('memberHistoryPhone');
+        const createdByEl = document.getElementById('memberHistoryCreatedBy');
+        const badgeCountEl = document.getElementById('memberHistoryBadgeCount');
+
+        if (!modal) return;
+
+        // Reset to initial loading state
+        modal.style.display = 'flex';
+        if (subtitle) subtitle.textContent = 'กำลังโหลดข้อมูลประวัติการแก้ไข...';
+        if (codeEl) codeEl.textContent = '-';
+        if (nameEl) nameEl.textContent = '-';
+        if (phoneEl) phoneEl.textContent = '-';
+        if (createdByEl) createdByEl.textContent = '-';
+        if (badgeCountEl) badgeCountEl.textContent = 'กำลังโหลด...';
+        if (timeline) timeline.innerHTML = '<div style="padding: 24px; text-align: center; color: #64748b;">⏳ กำลังโหลดประวัติการแก้ไข...</div>';
+        if (emptyState) emptyState.style.display = 'none';
+
+        try {
+            const res = await fetch(`/api/members/${id}/history`);
+            const data = await res.json();
+
+            if (!res.ok || !data.success) {
+                showAlert('error', data.message || 'ไม่สามารถโหลดประวัติการแก้ไขได้');
+                modal.style.display = 'none';
+                return;
+            }
+
+            const member = data.member || {};
+            const history = Array.isArray(data.history) ? data.history : [];
+
+            if (codeEl) codeEl.textContent = member.memberId || '-';
+            if (nameEl) nameEl.textContent = member.name || '-';
+            if (phoneEl) phoneEl.textContent = member.phone || '-';
+            if (createdByEl) createdByEl.textContent = member.createdBy || '-';
+            if (subtitle) subtitle.textContent = `ประวัติบันทึกการแก้ไขข้อมูลสำหรับ ${member.name || member.memberId || ''}`;
+            if (badgeCountEl) {
+                badgeCountEl.textContent = `${history.length} รายการแก้ไข`;
+                badgeCountEl.style.background = history.length > 0 ? '#e0f2fe' : '#f1f5f9';
+                badgeCountEl.style.color = history.length > 0 ? '#0369a1' : '#64748b';
+            }
+
+            if (history.length === 0) {
+                if (timeline) timeline.innerHTML = '';
+                if (emptyState) {
+                    emptyState.style.display = 'block';
+                    const regDate = member.createdAt ? new Date(member.createdAt).toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' }) : '-';
+                    const emptySub = emptyState.querySelector('div:last-child');
+                    if (emptySub) emptySub.textContent = `ข้อมูลปัจจุบันยังคงเป็นข้อมูลเดิมตั้งแต่เริ่มลงทะเบียนสมาชิก (${regDate})`;
+                }
+                return;
+            }
+
+            if (emptyState) emptyState.style.display = 'none';
+
+            const escape = (str) => {
+                if (str === null || str === undefined) return '-';
+                return String(str)
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/'/g, '&#039;');
+            };
+
+            const timelineHtml = history.map((item) => {
+                const dateObj = new Date(item.changedAt);
+                const dateText = isNaN(dateObj.getTime()) ? '-' : dateObj.toLocaleDateString('th-TH', {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric'
+                });
+                const timeText = isNaN(dateObj.getTime()) ? '' : dateObj.toLocaleTimeString('th-TH', {
+                    hour: '2-digit',
+                    minute: '2-digit'
+                }) + ' น.';
+
+                const changes = Array.isArray(item.changes) ? item.changes : [];
+
+                const changesRows = changes.map(c => `
+                    <tr style="border-bottom: 1px solid #f1f5f9;">
+                        <td style="padding: 10px 12px; font-weight: 600; color: #334155; vertical-align: top; background: #f8fafc; width: 30%;">
+                            ${escape(c.label || c.field)}
+                        </td>
+                        <td style="padding: 10px 12px; vertical-align: top; width: 35%;">
+                            <span style="display: inline-block; padding: 4px 10px; border-radius: 6px; background: #fef2f2; color: #991b1b; border: 1px solid #fee2e2; font-size: 0.85rem; word-break: break-word;">
+                                <del style="color: #b91c1c;">${escape(c.before)}</del>
+                            </span>
+                        </td>
+                        <td style="padding: 10px 12px; vertical-align: top; width: 35%;">
+                            <span style="display: inline-block; padding: 4px 10px; border-radius: 6px; background: #f0fdf4; color: #166534; border: 1px solid #dcfce7; font-weight: 600; font-size: 0.85rem; word-break: break-word;">
+                                ${escape(c.after)}
+                            </span>
+                        </td>
+                    </tr>
+                `).join('');
+
+                const roleBadge = item.role && item.role !== '-' ? `
+                    <span style="display: inline-block; padding: 2px 8px; border-radius: 9999px; background: #e2e8f0; color: #334155; font-size: 0.72rem; font-weight: 600;">
+                        ${escape(item.role)}
+                    </span>
+                ` : '';
+
+                return `
+                    <div style="position: relative; margin-bottom: 24px;">
+                        <!-- Timeline Dot -->
+                        <div style="position: absolute; left: -31px; top: 6px; width: 14px; height: 14px; border-radius: 50%; background: #0284c7; border: 3px solid #fff; box-shadow: 0 0 0 2px #38bdf8;"></div>
+
+                        <!-- Card Container -->
+                        <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; box-shadow: 0 2px 6px rgba(0,0,0,0.03);">
+                            <!-- Header: Staff & Time -->
+                            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px dashed #e2e8f0;">
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <div style="width: 30px; height: 30px; border-radius: 50%; background: #e0f2fe; color: #0284c7; display: flex; align-items: center; justify-content: center; font-size: 0.9rem;">
+                                        👤
+                                    </div>
+                                    <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                                        <span style="font-weight: 700; color: #1e293b; font-size: 0.95rem;">${escape(item.changedBy || 'ไม่ระบุ')}</span>
+                                        ${roleBadge}
+                                    </div>
+                                </div>
+                                <div style="font-size: 0.82rem; color: #64748b; font-weight: 500; display: flex; align-items: center; gap: 6px;">
+                                    <span>🗓️ ${dateText}</span>
+                                    <span>•</span>
+                                    <span>⏰ ${timeText}</span>
+                                </div>
+                            </div>
+
+                            ${item.detail && (!changes || changes.length === 0) ? `
+                                <div style="font-size: 0.85rem; color: #475569; margin-bottom: 8px; padding: 8px 12px; background: #f8fafc; border-radius: 6px;">
+                                    ${escape(item.detail)}
+                                </div>
+                            ` : ''}
+
+                            <!-- Changes Table -->
+                            ${changes.length > 0 ? `
+                                <div style="overflow-x: auto; border: 1px solid #e2e8f0; border-radius: 8px;">
+                                    <table style="width: 100%; border-collapse: collapse; font-size: 0.85rem; text-align: left;">
+                                        <thead>
+                                            <tr style="background: #f1f5f9; color: #475569;">
+                                                <th style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; width: 30%;">หัวข้อข้อมูล</th>
+                                                <th style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; width: 35%; color: #dc2626;">ข้อมูลเดิม (Before)</th>
+                                                <th style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; width: 35%; color: #16a34a;">ข้อมูลใหม่ (After)</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            ${changesRows}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            ` : `
+                                <div style="padding: 8px 12px; background: #f8fafc; border-radius: 6px; font-size: 0.82rem; color: #64748b;">
+                                    บันทึกการแก้ไขข้อมูลเรียบร้อย
+                                </div>
+                            `}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            if (timeline) timeline.innerHTML = timelineHtml;
+
+        } catch (err) {
+            console.error('showMemberHistory error:', err);
+            showAlert('error', 'เกิดข้อผิดพลาดในการดึงข้อมูลประวัติการแก้ไข');
+            modal.style.display = 'none';
+        }
+    }
+
     async function editMember(id) {
         try {
             const res = await fetch(`/api/members/${id}`);
@@ -11481,8 +11725,15 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             document.getElementById('memberModalTitle').textContent = 'แก้ไขข้อมูลสมาชิก';
+            const viewHistBtn = document.getElementById('viewMemberHistoryFromModalBtn');
+            if (viewHistBtn) {
+                viewHistBtn.style.display = 'inline-flex';
+                viewHistBtn.dataset.id = member._id;
+            }
             document.getElementById('editMemberId').value = member._id;
             document.getElementById('memberIdDisplay').value = member.memberId;
+            const memberCreatedByEl = document.getElementById('memberCreatedBy');
+            if (memberCreatedByEl) memberCreatedByEl.value = member.createdBy || '-';
             document.getElementById('memberFirstName').value = member.firstName;
             document.getElementById('memberLastName').value = member.lastName;
             const memberPhoneDirectEl = document.getElementById('memberPhone');
@@ -11570,9 +11821,16 @@ document.addEventListener('DOMContentLoaded', () => {
     if (addMemberBtn) {
         addMemberBtn.addEventListener('click', () => {
             document.getElementById('memberModalTitle').textContent = 'เพิ่มข้อมูลสมาชิก';
+            const viewHistBtn = document.getElementById('viewMemberHistoryFromModalBtn');
+            if (viewHistBtn) {
+                viewHistBtn.style.display = 'none';
+                viewHistBtn.dataset.id = '';
+            }
             document.getElementById('memberForm').reset();
             document.getElementById('editMemberId').value = '';
             document.getElementById('memberIdDisplay').value = ''; // Clear display
+            const memberCreatedByEl = document.getElementById('memberCreatedBy');
+            if (memberCreatedByEl) memberCreatedByEl.value = currentUser ? (currentUser.staffName || currentUser.username || 'Admin') : 'Admin';
 
             const reasonsWrap = document.getElementById('memberBlacklistReasonsWrap');
             const reasonsList = document.getElementById('memberBlacklistReasonsList');
@@ -11749,6 +12007,39 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    const viewMemberHistoryFromModalBtn = document.getElementById('viewMemberHistoryFromModalBtn');
+    if (viewMemberHistoryFromModalBtn) {
+        viewMemberHistoryFromModalBtn.addEventListener('click', () => {
+            const memId = viewMemberHistoryFromModalBtn.dataset.id || document.getElementById('editMemberId')?.value;
+            if (memId) {
+                showMemberHistory(memId);
+            }
+        });
+    }
+
+    const closeMemberHistoryModal = document.getElementById('closeMemberHistoryModal');
+    if (closeMemberHistoryModal) {
+        closeMemberHistoryModal.addEventListener('click', () => {
+            document.getElementById('memberHistoryModal').style.display = 'none';
+        });
+    }
+
+    const btnCloseMemberHistoryBottom = document.getElementById('btnCloseMemberHistoryBottom');
+    if (btnCloseMemberHistoryBottom) {
+        btnCloseMemberHistoryBottom.addEventListener('click', () => {
+            document.getElementById('memberHistoryModal').style.display = 'none';
+        });
+    }
+
+    const memberHistoryModal = document.getElementById('memberHistoryModal');
+    if (memberHistoryModal) {
+        memberHistoryModal.addEventListener('click', (e) => {
+            if (e.target === memberHistoryModal) {
+                memberHistoryModal.style.display = 'none';
+            }
+        });
+    }
+
     const copyAddressBtn = document.getElementById('copyAddressBtn');
     if (copyAddressBtn) {
         copyAddressBtn.addEventListener('click', () => {
@@ -11896,7 +12187,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 facebookLink: document.getElementById('memberFacebookLink') ? document.getElementById('memberFacebookLink').value : undefined,
                 photo: document.getElementById('smartCardPhoto').src.startsWith('data:image') ? document.getElementById('smartCardPhoto').src : undefined,
                 knowFrom: document.getElementById('memberKnowFrom') ? document.getElementById('memberKnowFrom').value : undefined,
-                knowFromOther: document.getElementById('memberKnowFromOther') ? document.getElementById('memberKnowFromOther').value : undefined
+                knowFromOther: document.getElementById('memberKnowFromOther') ? document.getElementById('memberKnowFromOther').value : undefined,
+                createdBy: editId ? undefined : (currentUser ? (currentUser.staffName || currentUser.username || 'Admin') : 'Admin')
             };
 
             try {
@@ -11918,7 +12210,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     method: method,
                     headers: { 
                         'Content-Type': 'application/json',
-                        'x-user-role': currentUser.role
+                        'x-user-role': (currentUser && currentUser.role) || 'sales',
+                        'x-staff-name': encodeURIComponent((currentUser && currentUser.staffName) || 'Admin'),
+                        'x-staff-id': (currentUser && currentUser.staffId) || '',
+                        'x-staff-username': (currentUser && currentUser.username) || ''
                     },
                     body: JSON.stringify(payload)
                 });
@@ -16197,6 +16492,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const calcResultArea = document.getElementById('calcResultArea');
 
     if (btnCalculatePrice) {
+        if (calcDevicePriceInput) {
+            calcDevicePriceInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    btnCalculatePrice.click();
+                }
+            });
+        }
+
         btnCalculatePrice.addEventListener('click', async () => {
             const price = parseFloat(calcDevicePriceInput.value);
             if (isNaN(price) || price <= 0) {
@@ -16204,11 +16508,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            // Calculate 70% of the full device price
+            // Calculate 70% of the full device price (วงเงินคุ้มครอง)
             const targetAmount = Math.floor(price * 0.70);
-
-            calcTargetAmount.textContent = targetAmount.toLocaleString();
-            calcLimitDisplay.style.display = 'block';
 
             calcResultArea.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; padding: 2rem;"><p>กำลังค้นหาแพ็กเกจที่เหมาะสม...</p></div>';
 
@@ -16216,27 +16517,52 @@ document.addEventListener('DOMContentLoaded', () => {
                 const res = await fetchWithTimeout('/api/finance-rates');
                 const data = await res.json();
 
-                if (data.success) {
+                if (data.success && data.rates && data.rates.length > 0) {
+                    // หาแพ็กเกจที่ลูกค้ามีสิทธิ์เลือก (วงเงินขั้นต่ำไม่เกิน 70%)
                     const eligibleRates = data.rates.filter(rate => rate.minDeviceValue <= targetAmount);
 
                     if (eligibleRates.length === 0) {
+                        calcLimitDisplay.style.display = 'block';
+                        calcLimitDisplay.innerHTML = `วงเงินคุ้มครองสูงสุด (70%) : <span id="calcTargetAmount" style="color: #0d9488; font-weight: 700; font-size: 1.05rem;">${targetAmount.toLocaleString()}</span> บาท`;
                         calcResultArea.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; padding: 2rem; color: #64748b;"><p>ไม่พบแพ็กเกจที่เหมาะสมกับราคาเครื่องนี้ (ยอด 70% ไม่ถึงเกณฑ์ขั้นต่ำ)</p></div>';
                         return;
                     }
 
-                    calcResultArea.innerHTML = '';
-                    eligibleRates.forEach(rate => {
+                    // หาแพ็กเกจแนะนำ: แพ็กเกจที่ช่วงของวงเงิน (minDeviceValue - maxDeviceValue) ตรงกับ targetAmount
+                    let recommendedRate = data.rates.find(rate => targetAmount >= rate.minDeviceValue && targetAmount <= rate.maxDeviceValue);
+                    if (!recommendedRate) {
+                        if (targetAmount > data.rates[data.rates.length - 1].maxDeviceValue) {
+                            recommendedRate = data.rates[data.rates.length - 1]; // สูงสุดคือ Package 10
+                        } else if (targetAmount < data.rates[0].minDeviceValue) {
+                            recommendedRate = data.rates[0]; // ต่ำสุดคือ Package 1
+                        } else {
+                            recommendedRate = eligibleRates[eligibleRates.length - 1];
+                        }
+                    }
+
+                    // แสดงวงเงินและแพ็กเกจแนะนำ
+                    calcLimitDisplay.style.display = 'block';
+                    calcLimitDisplay.innerHTML = `
+                        วงเงินคุ้มครองสูงสุด (70%) : <span id="calcTargetAmount" style="color: #0d9488; font-weight: 700; font-size: 1.05rem;">${targetAmount.toLocaleString()}</span> บาท
+                        <span style="margin: 0 8px; color: #cbd5e1;">|</span>
+                        แพ็กเกจที่แนะนำ : <span style="color: #0d9488; font-weight: 700; font-size: 1.05rem;">${recommendedRate.tierName || 'แพ็กเกจ'}</span>
+                        <span style="font-size: 0.85rem; color: #64748b;">(ช่วงวงเงิน ${recommendedRate.minDeviceValue.toLocaleString()} - ${recommendedRate.maxDeviceValue.toLocaleString()} บาท)</span>
+                    `;
+
+                    // ฟังก์ชันสร้างการ์ดแพ็กเกจ
+                    const createPackageCard = (rate, isRecommended = false) => {
                         const card = document.createElement('div');
                         card.className = 'stat-card';
                         card.style.flexDirection = 'column';
                         card.style.alignItems = 'flex-start';
                         card.style.padding = '24px';
                         card.style.gap = '20px';
-                        card.style.height = 'auto'; // ensure it expands based on content
+                        card.style.height = 'auto';
                         card.style.borderRadius = '16px';
-                        card.style.border = '1px solid #e2e8f0';
-                        card.style.boxShadow = '0 10px 30px rgba(0,0,0,0.02)';
-                        card.style.background = '#ffffff';
+                        card.style.border = isRecommended ? '2px solid #0d9488' : '1px solid #e2e8f0';
+                        card.style.boxShadow = isRecommended ? '0 12px 30px rgba(13, 148, 136, 0.15)' : '0 10px 30px rgba(0,0,0,0.02)';
+                        card.style.background = isRecommended ? '#f0fdfa' : '#ffffff';
+                        card.style.position = 'relative';
 
                         // Calculate 3 installments
                         const base3 = Math.floor(rate.packagePrice / 3);
@@ -16245,12 +16571,19 @@ document.addEventListener('DOMContentLoaded', () => {
                         const inst2 = base3;
                         const inst3 = base3;
 
+                        // วงเงินที่จะได้รับ (หากเป็นแพ็กเกจแนะนำจะได้รับ 70% จริง หากเป็นแพ็กเกจที่ต่ำกว่าจะได้รับตามเพดานสูงสุดของแพ็กเกจนั้น)
+                        const coverageReceived = Math.min(targetAmount, rate.maxDeviceValue);
+
                         card.innerHTML = `
-                            <div style="width: 100%; display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 1px solid #f1f5f9; padding-bottom: 15px;">
+                            <div style="width: 100%; display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 1px solid ${isRecommended ? '#ccfbf1' : '#f1f5f9'}; padding-bottom: 15px;">
                                 <div>
-                                    <h3 style="margin: 0; color: #0f172a; font-size: 1.2rem; font-weight: 700;">${rate.tierName ? rate.tierName : 'ช่วงราคา'}</h3>
-                                    <p style="margin: 6px 0 0 0; color: #64748b; font-size: 0.9rem;">ราคาแพ็กเกจ: <span style="color: #0d9488; font-weight: bold; font-size: 1.05rem;">${rate.packagePrice.toLocaleString()}</span> บาท</p>
-                                    <p style="margin: 4px 0 0 0; color: #94a3b8; font-size: 0.8rem; font-weight: 500;">ช่วงราคาเครื่อง (70%): ${rate.minDeviceValue.toLocaleString()} - ${rate.maxDeviceValue.toLocaleString()}</p>
+                                    <div style="display: flex; align-items: center; gap: 8px;">
+                                        <h3 style="margin: 0; color: #0f172a; font-size: 1.25rem; font-weight: 700;">${rate.tierName ? rate.tierName : 'ช่วงราคา'}</h3>
+                                        ${isRecommended ? '<span style="background: #0d9488; color: white; font-size: 0.72rem; padding: 2px 8px; border-radius: 10px; font-weight: 600;">แนะนำ</span>' : ''}
+                                    </div>
+                                    <p style="margin: 6px 0 0 0; color: #64748b; font-size: 0.9rem;">ราคาแพ็กเกจ: <span style="color: #0d9488; font-weight: bold; font-size: 1.1rem;">${rate.packagePrice.toLocaleString()}</span> บาท</p>
+                                    <p style="margin: 5px 0 0 0; color: #1e293b; font-size: 0.95rem; font-weight: 600;">วงเงินที่จะได้รับ: <span style="color: #0d9488; font-weight: 700; font-size: 1.05rem;">${coverageReceived.toLocaleString()}</span> บาท</p>
+                                    <p style="margin: 4px 0 0 0; color: #94a3b8; font-size: 0.8rem; font-weight: 500;">ช่วงราคาเครื่อง (70%): ${rate.minDeviceValue.toLocaleString()} - ${rate.maxDeviceValue.toLocaleString()} บาท</p>
                                 </div>
                                 <div style="background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%); color: white; padding: 8px 16px; border-radius: 10px; font-weight: 700; font-size: 0.9rem; box-shadow: 0 4px 12px rgba(13, 148, 136, 0.2);">
                                     ดาวน์ ${rate.downPayment.toLocaleString()} ฿
@@ -16262,14 +16595,14 @@ document.addEventListener('DOMContentLoaded', () => {
                                 </p>
                                 <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;">
                                     ${(rate.installmentPlans || []).map(plan => `
-                                        <div style="display: flex; justify-content: space-between; align-items: center; background: #f8fafc; padding: 8px 12px; border-radius: 8px; border: 1px solid #e2e8f0;">
+                                        <div style="display: flex; justify-content: space-between; align-items: center; background: ${isRecommended ? '#ffffff' : '#f8fafc'}; padding: 8px 12px; border-radius: 8px; border: 1px solid ${isRecommended ? '#e6fffa' : '#e2e8f0'};">
                                             <span style="color: #64748b; font-size: 0.85rem; font-weight: 500;">${plan.months} งวด</span>
                                             <span style="font-weight: 700; color: #0f172a; font-size: 0.9rem;">${plan.monthlyAmount.toLocaleString()} ฿</span>
                                         </div>
                                     `).join('')}
                                 </div>
                             </div>
-                            <div style="width: 100%; border-top: 1px dashed #e2e8f0; margin-top: 5px; padding-top: 15px;">
+                            <div style="width: 100%; border-top: 1px dashed ${isRecommended ? '#99f6e4' : '#e2e8f0'}; margin-top: 5px; padding-top: 15px;">
                                 <p style="margin: 0 0 12px 0; font-weight: 600; color: #334155; font-size: 0.9rem; display: flex; align-items: center; gap: 6px;">
                                     <span style="font-size: 1rem;">💳</span> ชำระแบบแบ่งจ่าย 3 งวด (บาท/งวด):
                                 </p>
@@ -16289,12 +16622,24 @@ document.addEventListener('DOMContentLoaded', () => {
                                 </div>
                             </div>
                         `;
-                        calcResultArea.appendChild(card);
+                        return card;
+                    };
+
+                    // เรียงลำดับแพ็กเกจจากมากไปหาน้อย (Descending)
+                    const sortedRates = [...eligibleRates].sort((a, b) => (b.minDeviceValue || 0) - (a.minDeviceValue || 0));
+
+                    // แสดงการ์ดแพ็กเกจทั้งหมดอยู่ตลอด โดยไฮไลต์แพ็กเกจแนะนำ
+                    calcResultArea.innerHTML = '';
+                    sortedRates.forEach(rate => {
+                        const isRecommended = rate.tierName === recommendedRate.tierName;
+                        calcResultArea.appendChild(createPackageCard(rate, isRecommended));
                     });
+
                 } else {
                     showAlert('error', data.message || 'ไม่สามารถดึงข้อมูลได้');
                 }
             } catch (err) {
+                console.error('Calculator error:', err);
                 showAlert('error', 'เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์');
             }
         });

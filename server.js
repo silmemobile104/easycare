@@ -319,7 +319,20 @@ const MemberSchema = new mongoose.Schema({
     photo: { type: String }, // Base64 encoded image string from Smart Card
     idCardImage: { type: String }, // URL of uploaded ID card image (Cloudinary)
     knowFrom: { type: String },
-    knowFromOther: { type: String }
+    knowFromOther: { type: String },
+    createdBy: { type: String, default: '-' },
+    editHistory: [{
+        changedAt: { type: Date, default: Date.now },
+        changedBy: { type: String, default: 'ไม่ระบุ' },
+        username: { type: String, default: '' },
+        role: { type: String, default: '-' },
+        changes: [{
+            field: String,
+            label: String,
+            before: mongoose.Schema.Types.Mixed,
+            after: mongoose.Schema.Types.Mixed
+        }]
+    }]
 }, { timestamps: true });
 
 const Member = mongoose.model('Member', MemberSchema);
@@ -1682,7 +1695,8 @@ app.get('/api/members/export/excel', checkAdminRole, async (req, res) => {
                 { citizenId: regex },
                 { firstName: regex },
                 { lastName: regex },
-                { phone: regex }
+                { phone: regex },
+                { createdBy: regex }
             ];
         }
 
@@ -1727,6 +1741,7 @@ app.get('/api/members/export/excel', checkAdminRole, async (req, res) => {
             { header: 'ช่องทางรูปภาพ (Base64)', key: 'photo', width: 15 },
             { header: 'รู้จัก Easy.Care จากไหน', key: 'knowFrom', width: 22 },
             { header: 'ระบุเพิ่มเติม (ถ้ามี)', key: 'knowFromOther', width: 25 },
+            { header: 'พนักงานที่เพิ่ม', key: 'createdBy', width: 20 },
             { header: 'วันที่แก้ไข (UpdatedAt)', key: 'updatedAt', width: 22 }
         ];
         ws.getRow(1).font = { bold: true };
@@ -1756,6 +1771,7 @@ app.get('/api/members/export/excel', checkAdminRole, async (req, res) => {
                 photo: r.photo ? 'มีข้อมูลรูปภาพ' : 'ไม่มี',
                 knowFrom: r.knowFrom || '-',
                 knowFromOther: r.knowFromOther || '-',
+                createdBy: r.createdBy || '-',
                 updatedAt: r.updatedAt ? new Date(r.updatedAt) : null
             });
         }
@@ -7965,11 +7981,28 @@ app.post('/api/members', async (req, res) => {
             if (!existingId) isUnique = true;
         }
 
+        // Determine staff who created the member
+        let creatorStaffName = req.body.createdBy;
+        if (!creatorStaffName && req.headers['x-staff-name']) {
+            try {
+                creatorStaffName = decodeURIComponent(req.headers['x-staff-name']);
+            } catch (_) {
+                creatorStaffName = req.headers['x-staff-name'];
+            }
+        }
+        if (!creatorStaffName && req.body.staffName) {
+            creatorStaffName = req.body.staffName;
+        }
+        if (!creatorStaffName) {
+            creatorStaffName = 'Admin';
+        }
+
         const newMember = new Member({
             ...req.body,
             phone: phoneDigits,
             postalCode: postalDigits || req.body.postalCode,
-            memberId
+            memberId,
+            createdBy: creatorStaffName
         });
         await newMember.save();
 
@@ -8057,11 +8090,83 @@ app.get('/api/members/:id', async (req, res) => {
     }
 });
 
+// Member fields mapping for edit history and diff auditing
+const MEMBER_FIELD_CONFIG = [
+    { field: 'prefix', label: 'คำนำหน้า' },
+    { field: 'firstName', label: 'ชื่อ (TH)' },
+    { field: 'lastName', label: 'นามสกุล (TH)' },
+    { field: 'firstNameEn', label: 'First Name (EN)' },
+    { field: 'lastNameEn', label: 'Last Name (EN)' },
+    { field: 'gender', label: 'เพศ' },
+    { field: 'phone', label: 'เบอร์โทรศัพท์' },
+    { field: 'citizenId', label: 'เลขบัตรประชาชน' },
+    { field: 'birthdate', label: 'วันเกิด', type: 'date' },
+    { field: 'expiryDate', label: 'วันหมดอายุบัตรประชาชน', type: 'date' },
+    { field: 'idCardAddress', label: 'ที่อยู่ตามบัตร' },
+    { field: 'shippingAddress', label: 'ที่อยู่จัดส่ง' },
+    { field: 'postalCode', label: 'รหัสไปรษณีย์' },
+    { field: 'facebook', label: 'ชื่อ Facebook' },
+    { field: 'facebookLink', label: 'ลิงก์ Facebook' },
+    { field: 'knowFrom', label: 'รู้จัก Easy.Care จากไหน' },
+    { field: 'knowFromOther', label: 'ข้อมูลเพิ่มเติม (รู้จักจากไหน)' },
+    { field: 'memberStatus', label: 'สถานะสมาชิก' }
+];
+
+const MEMBER_FIELD_LABEL_MAP = MEMBER_FIELD_CONFIG.reduce((acc, cur) => {
+    acc[cur.field] = cur.label;
+    return acc;
+}, {});
+
+function computeMemberDiff(oldMember, updateData) {
+    const changes = [];
+    if (!oldMember) return changes;
+
+    for (const item of MEMBER_FIELD_CONFIG) {
+        const { field, label, type } = item;
+        if (updateData[field] === undefined) continue;
+
+        const oldVal = oldMember[field];
+        const newVal = updateData[field];
+
+        if (type === 'date') {
+            const oldDateStr = oldVal ? new Date(oldVal).toISOString().split('T')[0] : '';
+            const newDateStr = newVal ? new Date(newVal).toISOString().split('T')[0] : '';
+            if (oldDateStr !== newDateStr) {
+                const formatD = (d) => {
+                    if (!d) return '-';
+                    const dt = new Date(d);
+                    return isNaN(dt.getTime()) ? '-' : dt.toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' });
+                };
+                changes.push({
+                    field,
+                    label,
+                    before: formatD(oldVal),
+                    after: formatD(newVal)
+                });
+            }
+        } else {
+            const oldStr = String(oldVal ?? '').trim();
+            const newStr = String(newVal ?? '').trim();
+            if (oldStr !== newStr) {
+                changes.push({
+                    field,
+                    label,
+                    before: oldStr || '-',
+                    after: newStr || '-'
+                });
+            }
+        }
+    }
+    return changes;
+}
+
 // Update member
 app.put('/api/members/:id', async (req, res) => {
     try {
-        const { phone, citizenId, postalCode } = req.body;
         const oldMember = await Member.findById(req.params.id);
+        if (!oldMember) return res.status(404).json({ success: false, message: 'ไม่พบข้อมูลสมาชิก' });
+
+        const { phone, citizenId, postalCode } = req.body;
 
         const normalizeDigits = (v) => String(v || '').replace(/\D/g, '');
         const phoneDigits = normalizeDigits(phone);
@@ -8090,25 +8195,82 @@ app.put('/api/members/:id', async (req, res) => {
         if (req.body.birthdate) req.body.birthdate = sanitizeDateToAD(req.body.birthdate);
         if (req.body.expiryDate) req.body.expiryDate = sanitizeDateToAD(req.body.expiryDate);
 
+        const updateData = { ...req.body, phone: phoneDigits, postalCode: postalDigits || req.body.postalCode };
+        if (oldMember && oldMember.createdBy && !req.body.createdBy) {
+            updateData.createdBy = oldMember.createdBy;
+        }
+
+        delete updateData._id;
+        delete updateData.editHistory;
+
+        // Compute changes diff
+        const changes = computeMemberDiff(oldMember, updateData);
+
+        // Resolve staff identity
+        let staffName = 'ไม่ระบุ';
+        if (req.headers['x-staff-name']) {
+            try {
+                staffName = decodeURIComponent(req.headers['x-staff-name']);
+            } catch (_) {
+                staffName = req.headers['x-staff-name'];
+            }
+        } else if (req.body.staffName || req.body.recordedBy) {
+            staffName = req.body.staffName || req.body.recordedBy;
+        }
+
+        const role = req.headers['x-user-role'] || req.body.role || '-';
+        const username = req.headers['x-staff-username'] || req.body.username || '';
+
+        const updateOps = { $set: updateData };
+
+        if (changes.length > 0) {
+            const historyEntry = {
+                changedAt: new Date(),
+                changedBy: staffName,
+                username: username,
+                role: role,
+                changes: changes.map(c => ({
+                    field: c.field,
+                    label: c.label,
+                    before: c.before,
+                    after: c.after
+                }))
+            };
+            updateOps.$push = {
+                editHistory: {
+                    $each: [historyEntry],
+                    $position: 0
+                }
+            };
+        }
+
         const updatedMember = await Member.findByIdAndUpdate(
             req.params.id,
-            { ...req.body, phone: phoneDigits, postalCode: postalDigits || req.body.postalCode },
+            updateOps,
             { new: true }
         );
         if (!updatedMember) return res.status(404).json({ success: false, message: 'ไม่พบข้อมูลสมาชิก' });
 
-        await recordAuditLog(req, {
-            module: 'MEMBERS',
-            actionType: 'UPDATE',
-            action: 'แก้ไขข้อมูลสมาชิก',
-            detail: `แก้ไขข้อมูลสมาชิก: ${updatedMember.firstName || ''} ${updatedMember.lastName || ''} (รหัส: ${updatedMember.memberId})`,
-            targetId: updatedMember.memberId || req.params.id,
-            targetType: 'Member',
-            changes: {
-                before: { firstName: oldMember?.firstName, lastName: oldMember?.lastName, phone: oldMember?.phone },
-                after: { firstName: updatedMember.firstName, lastName: updatedMember.lastName, phone: updatedMember.phone }
-            }
-        });
+        if (changes.length > 0) {
+            const changedFieldsSummary = changes.map(c => c.label).join(', ');
+            await recordAuditLog(req, {
+                module: 'MEMBERS',
+                actionType: 'UPDATE',
+                action: 'แก้ไขข้อมูลสมาชิก',
+                detail: `แก้ไขข้อมูลสมาชิก: ${updatedMember.firstName || ''} ${updatedMember.lastName || ''} (รหัส: ${updatedMember.memberId}) [แก้ไข: ${changedFieldsSummary}]`,
+                targetId: updatedMember.memberId || req.params.id,
+                targetType: 'Member',
+                metadata: {
+                    memberId: updatedMember.memberId,
+                    memberName: `${updatedMember.firstName || ''} ${updatedMember.lastName || ''}`,
+                    changedFields: changes.map(c => c.field)
+                },
+                changes: {
+                    before: changes.reduce((acc, c) => ({ ...acc, [c.label]: c.before }), {}),
+                    after: changes.reduce((acc, c) => ({ ...acc, [c.label]: c.after }), {})
+                }
+            });
+        }
 
         res.json({ success: true, member: updatedMember });
     } catch (err) {
@@ -8145,16 +8307,142 @@ app.post('/api/members/:id/upload-id-card', memberUpload.single('idCardImage'), 
             return res.status(400).json({ success: false, message: 'ไม่พบไฟล์รูปภาพ' });
         }
         const imageUrl = req.file.path;
-        const updatedMember = await Member.findByIdAndUpdate(
-            req.params.id,
-            { idCardImage: imageUrl },
-            { new: true }
-        );
-        if (!updatedMember) {
+        const oldMember = await Member.findById(req.params.id);
+        if (!oldMember) {
             return res.status(404).json({ success: false, message: 'ไม่พบข้อมูลสมาชิก' });
         }
+
+        let staffName = 'ไม่ระบุ';
+        if (req.headers['x-staff-name']) {
+            try {
+                staffName = decodeURIComponent(req.headers['x-staff-name']);
+            } catch (_) {
+                staffName = req.headers['x-staff-name'];
+            }
+        }
+        const role = req.headers['x-user-role'] || '-';
+        const username = req.headers['x-staff-username'] || '';
+
+        const historyEntry = {
+            changedAt: new Date(),
+            changedBy: staffName,
+            username: username,
+            role: role,
+            changes: [{
+                field: 'idCardImage',
+                label: 'รูปถ่ายบัตรประชาชน',
+                before: oldMember.idCardImage ? 'รูปเดิม' : 'ไม่มีรูป',
+                after: 'อัปโหลดรูปใหม่แล้ว'
+            }]
+        };
+
+        const updatedMember = await Member.findByIdAndUpdate(
+            req.params.id,
+            {
+                $set: { idCardImage: imageUrl },
+                $push: {
+                    editHistory: {
+                        $each: [historyEntry],
+                        $position: 0
+                    }
+                }
+            },
+            { new: true }
+        );
+
+        await recordAuditLog(req, {
+            module: 'MEMBERS',
+            actionType: 'UPDATE',
+            action: 'อัปโหลดรูปบัตรประชาชน',
+            detail: `อัปโหลดรูปบัตรประชาชนสมาชิก: ${updatedMember.firstName || ''} ${updatedMember.lastName || ''} (รหัส: ${updatedMember.memberId})`,
+            targetId: updatedMember.memberId || req.params.id,
+            targetType: 'Member',
+            changes: {
+                before: { 'รูปถ่ายบัตรประชาชน': oldMember.idCardImage ? 'มีรูปภาพเดิม' : 'ไม่มีรูป' },
+                after: { 'รูปถ่ายบัตรประชาชน': 'อัปโหลดรูปใหม่' }
+            }
+        });
+
         res.json({ success: true, idCardImage: imageUrl });
     } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// Get member edit history
+app.get('/api/members/:id/history', async (req, res) => {
+    try {
+        let member = null;
+        if (mongoose.Types.ObjectId.isValid(req.params.id)) {
+            member = await Member.findById(req.params.id).lean();
+        }
+        if (!member) {
+            member = await Member.findOne({ memberId: req.params.id }).lean();
+        }
+        if (!member) {
+            return res.status(404).json({ success: false, message: 'ไม่พบข้อมูลสมาชิก' });
+        }
+
+        // 1. Embedded edit history from member record
+        const directHistory = Array.isArray(member.editHistory) ? [...member.editHistory] : [];
+
+        // 2. Query any historical AuditLog records for this member
+        const auditLogs = await AuditLog.find({
+            module: 'MEMBERS',
+            targetId: { $in: [member.memberId, String(member._id)] }
+        }).sort({ timestamp: -1 }).limit(100).lean();
+
+        // 3. Merge AuditLogs if not already recorded in directHistory
+        const unifiedHistory = [...directHistory];
+
+        for (const log of auditLogs) {
+            const logTime = new Date(log.timestamp || log.createdAt).getTime();
+            const exists = directHistory.some(dh => Math.abs(new Date(dh.changedAt).getTime() - logTime) < 3000);
+            if (!exists && log.changes) {
+                const changes = [];
+                const before = log.changes.before || {};
+                const after = log.changes.after || {};
+                const allKeys = Array.from(new Set([...Object.keys(before), ...Object.keys(after)]));
+                for (const k of allKeys) {
+                    changes.push({
+                        field: k,
+                        label: MEMBER_FIELD_LABEL_MAP[k] || k,
+                        before: before[k] ?? '-',
+                        after: after[k] ?? '-'
+                    });
+                }
+                if (changes.length > 0 || log.action) {
+                    unifiedHistory.push({
+                        changedAt: log.timestamp || log.createdAt,
+                        changedBy: log.staffName || 'System',
+                        username: log.username || '',
+                        role: log.role || '-',
+                        action: log.action || 'แก้ไขข้อมูลสมาชิก',
+                        detail: log.detail || '',
+                        changes: changes
+                    });
+                }
+            }
+        }
+
+        // Sort descending by changedAt
+        unifiedHistory.sort((a, b) => new Date(b.changedAt) - new Date(a.changedAt));
+
+        res.json({
+            success: true,
+            member: {
+                _id: member._id,
+                memberId: member.memberId,
+                name: `${member.prefix || ''} ${member.firstName} ${member.lastName}`.trim(),
+                phone: member.phone,
+                citizenId: member.citizenId,
+                createdAt: member.createdAt,
+                createdBy: member.createdBy || '-'
+            },
+            history: unifiedHistory
+        });
+    } catch (err) {
+        console.error('Get member history error:', err);
         res.status(500).json({ success: false, message: err.message });
     }
 });

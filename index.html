@@ -2949,6 +2949,7 @@
                                         <th>เบอร์โทร</th>
                                         <th>เลขบัตรประชาชน</th>
                                         <th>ที่อยู่ตามบัตร</th>
+                                        <th>พนักงานที่เพิ่ม</th>
                                         <th>สถานะ</th>
                                         <th>จัดการ</th>
                                     </tr>
@@ -4800,7 +4801,16 @@
     <!-- Member Form Modal -->
     <div id="memberModal" class="modal">
         <div class="modal-content" style="max-width: 600px;">
-            <h2 id="memberModalTitle">เพิ่มข้อมูลสมาชิก</h2>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem;">
+                <h2 id="memberModalTitle" style="margin: 0;">เพิ่มข้อมูลสมาชิก</h2>
+                <button type="button" id="viewMemberHistoryFromModalBtn" class="secondary-btn" style="display: none; padding: 6px 14px; font-size: 0.85rem; border-radius: 8px; align-items: center; gap: 6px; background: #e0f2fe; color: #0284c7; border: 1px solid #bae6fd; cursor: pointer; font-weight: 600;">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <polyline points="12 6 12 12 16 14"></polyline>
+                    </svg>
+                    ประวัติการแก้ไข
+                </button>
+            </div>
             <div style="margin-bottom: 1.5rem;">
                 <button type="button" id="readSmartCardBtn" class="submit-btn full-width"
                     style="background: linear-gradient(135deg, #4f46e5 0%, #3730a3 100%); margin-bottom: 0.75rem;">
@@ -4844,6 +4854,8 @@
                 <div class="grid-row">
                     <div class="form-group"><label>รหัสสมาชิก</label><input type="text" id="memberIdDisplay" readonly
                             class="readonly-field" placeholder="ออกโดยระบบอัตโนมัติ"></div>
+                    <div class="form-group"><label>พนักงานที่เพิ่ม</label><input type="text" id="memberCreatedBy" readonly
+                            class="readonly-field" placeholder="บันทึกอัตโนมัติตามผู้ใช้งาน"></div>
                     <div class="form-group"><label>เลขบัตรประชาชน</label><input type="text" id="memberCitizenId"
                             readonly class="readonly-field" placeholder="จากการเสียบบัตร"></div>
                     <div class="form-group"><label>คำนำหน้า</label><input type="text" id="memberPrefix" readonly
@@ -4944,6 +4956,70 @@
                     <button type="submit" class="submit-btn">บันทึกข้อมูล</button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <!-- Member History Modal (ประวัติการแก้ไขข้อมูลสมาชิก) -->
+    <div id="memberHistoryModal" class="modal" style="display: none; z-index: 9999;">
+        <div class="modal-content" style="max-width: 780px; width: 95%; max-height: 90vh; overflow-y: auto; border-radius: 16px;">
+            <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0; padding-bottom: 14px;">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <div style="width: 42px; height: 42px; border-radius: 10px; background: #e0f2fe; color: #0284c7; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <polyline points="12 6 12 12 16 14"></polyline>
+                        </svg>
+                    </div>
+                    <div>
+                        <h2 style="font-size: 1.25rem; font-weight: 700; color: #1e293b; margin: 0;">ประวัติการแก้ไขข้อมูลสมาชิก</h2>
+                        <p id="memberHistorySubtitle" style="font-size: 0.82rem; color: #64748b; margin: 2px 0 0 0;">
+                            กำลังโหลดข้อมูล...
+                        </p>
+                    </div>
+                </div>
+                <button type="button" class="modal-close-btn" id="closeMemberHistoryModal" style="background: none; border: none; font-size: 1.6rem; cursor: pointer; color: #64748b; line-height: 1;">&times;</button>
+            </div>
+
+            <!-- Member Summary Banner -->
+            <div id="memberHistorySummaryBanner" style="margin: 16px 0; padding: 14px 18px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; display: flex; flex-wrap: wrap; gap: 15px; justify-content: space-between; align-items: center;">
+                <div style="display: flex; gap: 20px; flex-wrap: wrap;">
+                    <div>
+                        <div style="font-size: 0.75rem; color: #64748b; font-weight: 500;">รหัสสมาชิก</div>
+                        <div id="memberHistoryCode" style="font-weight: 700; color: #0f766e; font-size: 0.95rem;">-</div>
+                    </div>
+                    <div>
+                        <div style="font-size: 0.75rem; color: #64748b; font-weight: 500;">ชื่อ-นามสกุล</div>
+                        <div id="memberHistoryName" style="font-weight: 700; color: #1e293b; font-size: 0.95rem;">-</div>
+                    </div>
+                    <div>
+                        <div style="font-size: 0.75rem; color: #64748b; font-weight: 500;">เบอร์โทรศัพท์</div>
+                        <div id="memberHistoryPhone" style="font-weight: 600; color: #334155; font-size: 0.9rem;">-</div>
+                    </div>
+                    <div>
+                        <div style="font-size: 0.75rem; color: #64748b; font-weight: 500;">ผู้เพิ่มสมาชิก</div>
+                        <div id="memberHistoryCreatedBy" style="font-weight: 600; color: #334155; font-size: 0.9rem;">-</div>
+                    </div>
+                </div>
+                <div id="memberHistoryBadgeCount" style="padding: 4px 12px; background: #e0f2fe; color: #0369a1; border-radius: 9999px; font-size: 0.8rem; font-weight: 600;">
+                    0 รายการแก้ไข
+                </div>
+            </div>
+
+            <!-- Timeline Content -->
+            <div class="modal-body" style="padding: 0 0 10px 0;">
+                <div id="memberHistoryTimeline" style="position: relative; padding-left: 24px; border-left: 2px solid #e2e8f0; margin-left: 14px; margin-right: 6px;">
+                    <!-- Dynamically populated edit history cards -->
+                </div>
+                <div id="memberHistoryEmptyState" style="display: none; text-align: center; padding: 40px 20px; color: #94a3b8;">
+                    <div style="font-size: 3rem; margin-bottom: 10px;">📋</div>
+                    <div style="font-size: 1.05rem; font-weight: 600; color: #475569; margin-bottom: 4px;">ยังไม่มีประวัติการแก้ไขข้อมูล</div>
+                    <div style="font-size: 0.85rem; color: #64748b;">ข้อมูลปัจจุบันยังคงเป็นข้อมูลเดิมตั้งแต่เริ่มลงทะเบียนสมาชิก</div>
+                </div>
+            </div>
+
+            <div class="modal-footer" style="border-top: 1px solid #e2e8f0; padding-top: 14px; margin-top: 14px; display: flex; justify-content: flex-end;">
+                <button type="button" class="filter-reset-btn" id="btnCloseMemberHistoryBottom" style="height: 38px; padding: 0 20px; font-weight: 600; border-radius: 8px;">ปิดหน้าต่าง</button>
+            </div>
         </div>
     </div>
 
@@ -5216,8 +5292,15 @@
                             }
 
                             .condition-row.is-abnormal {
-                                border-color: #ef4444;
-                                background: #fef2f2;
+                                border-color: #f97316;
+                                background: #fff7ed;
+                            }
+
+                            .condition-row.is-unselected-warning {
+                                border-color: #ef4444 !important;
+                                background: #fff1f2 !important;
+                                box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.35) !important;
+                                animation: shakeError 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
                             }
 
                             .condition-row-top {
@@ -5262,8 +5345,8 @@
                             }
 
                             .cond-btn.abnormal-active {
-                                background: #ef4444;
-                                border-color: #dc2626;
+                                background: #f97316;
+                                border-color: #ea580c;
                                 color: white;
                             }
 
