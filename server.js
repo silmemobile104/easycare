@@ -230,9 +230,12 @@ const WarrantySchema = new mongoose.Schema({
         }]
     },
     financeDetails: {
-        financeDueDay: Number,
-        financeMonths: Number,
-        provider: { type: String }
+        type: new mongoose.Schema({
+            financeDueDay: Number,
+            financeMonths: Number,
+            provider: { type: String }
+        }, { _id: false }),
+        default: undefined
     },
     approvalStatus: {
         type: String,
@@ -4034,11 +4037,20 @@ app.post('/api/warranties', async (req, res) => {
             if (existingImei) return res.status(400).json({ message: 'IMEI นี้ถูกลงทะเบียนแล้วและไม่ได้อยู่ในสถานะไม่อนุมัติ' });
         }
 
+        if (!req.body.payment || req.body.payment.method !== 'finance') {
+            delete req.body.financeDetails;
+        }
+
         const newWarranty = new Warranty({
             ...req.body,
             policyNumber,
             approvalStatus: 'pending'
         });
+
+        if (newWarranty.payment && newWarranty.payment.method !== 'finance') {
+            newWarranty.financeDetails = undefined;
+            newWarranty.set('financeDetails', undefined);
+        }
 
         // Enforce installmentsPaid from payment data in DB (do not trust client input)
         try {
@@ -4824,9 +4836,15 @@ app.put('/api/warranties/:id', async (req, res) => {
             updateData.approvalStatus = 'pending';
         }
 
+        let updateOps = { ...updateData };
+        if (updateData.payment && updateData.payment.method !== 'finance') {
+            delete updateOps.financeDetails;
+            updateOps.$unset = { ...(updateOps.$unset || {}), financeDetails: 1 };
+        }
+
         const updated = await Warranty.findByIdAndUpdate(
             req.params.id,
-            updateData,
+            updateOps,
             { new: true, runValidators: true }
         );
 

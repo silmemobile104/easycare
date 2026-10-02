@@ -9090,6 +9090,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (fDueDay) fDueDay.value = data.financeDetails.financeDueDay || '';
                 if (fMonths) fMonths.value = data.financeDetails.financeMonths || '';
                 if (fProvider) fProvider.value = data.financeDetails.provider || '';
+            } else {
+                clearFinanceInputs();
             }
 
             updateRemainingDays();
@@ -9315,7 +9317,8 @@ document.addEventListener('DOMContentLoaded', () => {
             // Only show active ones for selecting in registration
             const activeCompanies = Array.isArray(companies) ? companies.filter(c => c.status === 'active') : [];
 
-            providerSelect.innerHTML = '<option value="">-- เลือกบริษัทไฟแนนซ์ --</option>';
+            const isDefault = !selectedProvider;
+            providerSelect.innerHTML = `<option value=""${isDefault ? ' selected' : ''}>-- เลือกบริษัทไฟแนนซ์ --</option>`;
             activeCompanies.forEach(comp => {
                 const option = document.createElement('option');
                 option.value = comp.name;
@@ -9325,6 +9328,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 providerSelect.appendChild(option);
             });
+            if (isDefault) {
+                providerSelect.selectedIndex = 0;
+                providerSelect.value = '';
+            }
         } catch (err) {
             console.error('Populate finance providers error:', err);
             providerSelect.innerHTML = '<option value="" disabled selected>ไม่สามารถโหลดข้อมูลบริษัทไฟแนนซ์ได้</option>';
@@ -9477,20 +9484,35 @@ document.addEventListener('DOMContentLoaded', () => {
         if (fProvider) {
             fProvider.value = '';
             fProvider.selectedIndex = 0;
+            if (fProvider.options && fProvider.options.length > 0) {
+                for (let i = 0; i < fProvider.options.length; i++) {
+                    fProvider.options[i].selected = (i === 0);
+                }
+            }
             fProvider.style.borderColor = '';
+            fProvider.classList.remove('is-invalid', 'error');
+            fProvider.dispatchEvent(new Event('change'));
         }
 
         const fDueDay = document.getElementById('financeDueDay');
         if (fDueDay) {
             fDueDay.value = '';
             fDueDay.style.borderColor = '';
+            fDueDay.classList.remove('is-invalid', 'error');
         }
 
         const fMonths = document.getElementById('financeMonths');
         if (fMonths) {
             fMonths.value = '';
             fMonths.selectedIndex = 0;
+            if (fMonths.options && fMonths.options.length > 0) {
+                for (let i = 0; i < fMonths.options.length; i++) {
+                    fMonths.options[i].selected = (i === 0);
+                }
+            }
             fMonths.style.borderColor = '';
+            fMonths.classList.remove('is-invalid', 'error');
+            fMonths.dispatchEvent(new Event('change'));
         }
 
         const financeContainer = document.getElementById('financeContainer');
@@ -9498,6 +9520,16 @@ document.addEventListener('DOMContentLoaded', () => {
             financeContainer.querySelectorAll('input, select, textarea').forEach(el => {
                 if (el.type === 'checkbox' || el.type === 'radio') {
                     el.checked = false;
+                } else if (el.tagName === 'SELECT') {
+                    el.selectedIndex = 0;
+                    if (el.options && el.options.length > 0) {
+                        for (let i = 0; i < el.options.length; i++) {
+                            el.options[i].selected = (i === 0);
+                        }
+                        el.value = el.options[0].value;
+                    } else {
+                        el.value = '';
+                    }
                 } else {
                     el.value = '';
                 }
@@ -9512,6 +9544,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const checkedRadio = document.querySelector('input[name="paymentMethod"]:checked');
         const method = checkedRadio ? checkedRadio.value : '';
         const price = PACKAGE_PRICES[plan] || 0;
+
+        // หากวิธีการชำระเงินไม่ใช่ผ่อนด้วยไฟแนนซ์ ให้ล้างค่าที่เคยกรอกในส่วนผ่อนด้วยไฟแนนซ์ทันที
+        if (method !== 'finance') {
+            clearFinanceInputs();
+        }
 
         let depositVal = 0;
         const depositEl = document.getElementById('deposit');
@@ -9530,7 +9567,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (method === 'Installment' && netPrice > 0) {
             instContainer.style.display = 'block';
             if (financeContainer) financeContainer.style.display = 'none';
-            clearFinanceInputs();
             const perMonth = Math.floor(netPrice / 3);
             const remainder = netPrice % 3;
             const start = new Date(document.getElementById('startDate').value);
@@ -9549,7 +9585,6 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             instContainer.style.display = 'none';
             if (financeContainer) financeContainer.style.display = 'none';
-            clearFinanceInputs();
         }
     }
 
@@ -9930,8 +9965,17 @@ document.addEventListener('DOMContentLoaded', () => {
     updateModelOptions();
     document.getElementById('package').addEventListener('change', updatePaymentUI);
     document.getElementById('protectionType').addEventListener('change', updatePaymentUI);
-    document.getElementById('deposit').addEventListener('change', updatePaymentUI);
-    document.getElementsByName('paymentMethod').forEach(r => r.addEventListener('change', updatePaymentUI));
+    document.getElementsByName('paymentMethod').forEach(r => {
+        r.addEventListener('change', updatePaymentUI);
+        r.addEventListener('click', updatePaymentUI);
+        r.addEventListener('input', updatePaymentUI);
+    });
+    const radioOptionsContainer = document.querySelector('.radio-options');
+    if (radioOptionsContainer) {
+        radioOptionsContainer.addEventListener('click', () => {
+            setTimeout(updatePaymentUI, 10);
+        });
+    }
 
     // --- Member Search & Autocomplete in Registration Form ---
     let allMembersLookupCache = null;
@@ -10460,6 +10504,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 financeMonths: parseInt(fMonths, 10),
                 provider: fProvider
             };
+        } else {
+            clearFinanceInputs();
+            financeDetails = undefined;
         }
 
         if (isEditMode && currentEditData) {
@@ -10683,9 +10730,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 start: start.toISOString(),
                 end: end.toISOString()
             },
-            payment: payment,
-            financeDetails: financeDetails
+            payment: payment
         };
+
+        if (method === 'finance' && financeDetails) {
+            payload.financeDetails = financeDetails;
+        }
 
         try {
             showLoader('กำลังบันทึกข้อมูล...');
