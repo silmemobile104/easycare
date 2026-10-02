@@ -4163,6 +4163,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const easyCareCashEl = document.getElementById('loanEasyCareCashDisplay');
                 const availableFundsEl = document.getElementById('loanAvailableFundsDisplay');
+                const cashDateBadge = document.getElementById('loanCashDateFilterBadge');
+                if (cashDateBadge) {
+                    if (startDate || endDate) {
+                        cashDateBadge.style.display = 'inline-block';
+                    } else {
+                        cashDateBadge.style.display = 'none';
+                    }
+                }
                 const totalLoanEl = document.getElementById('loanTotalAmountDisplay');
                 const remEl = document.getElementById('loanRemainingAmountDisplay');
                 const repaidEl = document.getElementById('loanRepaidAmountDisplay');
@@ -5155,11 +5163,20 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     window.showCashBalanceBreakdownModal = async function() {
+        const sDate = (document.getElementById('loanStartDate') || {}).value || '';
+        const eDate = (document.getElementById('loanEndDate') || {}).value || '';
+
         let sum = latestLoanSummary;
-        if (!sum || !sum.claimExpenseBreakdown) {
+        // หากไม่มีข้อมูลสรุป หรือไม่มี breakdown หรือช่วงวันที่ไม่ตรงกับตัวกรองที่เลือก ให้ fetch ใหม่ตามช่วงวันที่
+        if (!sum || !sum.claimExpenseBreakdown || sum.startDate !== (sDate || null) || sum.endDate !== (eDate || null)) {
             try {
                 showLoader('กำลังโหลดรายละเอียดที่มายอดเงินสด...');
-                const res = await fetch('/api/finance/loans/summary');
+                const params = new URLSearchParams();
+                if (sDate) params.set('startDate', sDate);
+                if (eDate) params.set('endDate', eDate);
+                const qs = params.toString() ? `?${params.toString()}` : '';
+
+                const res = await fetch(`/api/finance/loans/summary${qs}`);
                 const data = await res.json();
                 if (data.success && data.summary) {
                     sum = data.summary;
@@ -5175,6 +5192,19 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!sum) {
             showAlert('error', 'ไม่สามารถโหลดข้อมูลรายละเอียดได้');
             return;
+        }
+
+        let dateFilterLabel = 'ทั้งหมด (All Time)';
+        if (sDate && eDate) {
+            const sFormatted = new Date(sDate).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' });
+            const eFormatted = new Date(eDate).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' });
+            dateFilterLabel = `${sFormatted} - ${eFormatted}`;
+        } else if (sDate) {
+            const sFormatted = new Date(sDate).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' });
+            dateFilterLabel = `ตั้งแต่ ${sFormatted}`;
+        } else if (eDate) {
+            const eFormatted = new Date(eDate).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' });
+            dateFilterLabel = `ถึง ${eFormatted}`;
         }
 
         const totalHqReceived = Number(sum.totalHqReceived || 0);
@@ -5205,22 +5235,27 @@ document.addEventListener('DOMContentLoaded', () => {
             html: `
                 <div style="text-align: left; font-family: var(--font-family, sans-serif); color: #1e293b;">
                     <!-- Header -->
-                    <div style="display: flex; align-items: center; gap: 12px; padding-bottom: 14px; border-bottom: 1px solid #f1f5f9; margin-bottom: 16px;">
-                        <div style="width: 44px; height: 44px; border-radius: 12px; background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: #ffffff; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.28); flex-shrink: 0;">
-                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <rect x="2" y="6" width="20" height="12" rx="2"></rect>
-                                <circle cx="12" cy="12" r="2"></circle>
-                                <path d="M6 12h.01M18 12h.01"></path>
-                            </svg>
-                        </div>
-                        <div>
-                            <div style="font-size: 1.15rem; font-weight: 800; color: #0f172a; line-height: 1.3;">
-                                ที่มาของยอดเงินสดที่มีทั้งหมด
+                    <div style="display: flex; align-items: center; justify-content: space-between; padding-bottom: 14px; border-bottom: 1px solid #f1f5f9; margin-bottom: 16px; flex-wrap: wrap; gap: 8px;">
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <div style="width: 44px; height: 44px; border-radius: 12px; background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: #ffffff; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.28); flex-shrink: 0;">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <rect x="2" y="6" width="20" height="12" rx="2"></rect>
+                                    <circle cx="12" cy="12" r="2"></circle>
+                                    <path d="M6 12h.01M18 12h.01"></path>
+                                </svg>
                             </div>
-                            <div style="font-size: 0.78rem; color: #64748b; margin-top: 2px;">
-                                รายละเอียดแหล่งที่มารายรับเงินสด และยอดหักรายจ่ายเคลมสุทธิ
+                            <div>
+                                <div style="font-size: 1.15rem; font-weight: 800; color: #0f172a; line-height: 1.3;">
+                                    ที่มาของยอดเงินสดที่มีทั้งหมด
+                                </div>
+                                <div style="font-size: 0.78rem; color: #64748b; margin-top: 2px;">
+                                    รายละเอียดแหล่งที่มารายรับเงินสด และยอดหักรายจ่ายเคลมสุทธิ
+                                </div>
                             </div>
                         </div>
+                        <span style="font-size: 0.74rem; color: #047857; background: #d1fae5; border: 1px solid #a7f3d0; padding: 4px 10px; border-radius: 20px; font-weight: 700; white-space: nowrap;">
+                            📅 ${dateFilterLabel}
+                        </span>
                     </div>
 
                     <!-- 1. รายรับเงินสดสะสม (Inflow) -->
@@ -5345,7 +5380,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                     💰 ยอดเงินสดที่มีทั้งหมด (สุทธิ)
                                 </div>
                                 <div style="font-size: 0.72rem; color: #64748b; margin-top: 2px;">
-                                    สูตร: (รายรับ ${formatNumber(totalCashInflow)} ฿) - (รายจ่ายเคลม ${formatNumber(totalClaimExpense)} ฿)
+                                    สูตร: (รายรับ ${formatNumber(totalCashInflow)} ฿) - (รายจ่ายเคลม ${formatNumber(totalClaimExpense)} ฿) • [${dateFilterLabel}]
                                 </div>
                             </div>
                             <div style="text-align: right;">
@@ -9145,6 +9180,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const form = document.getElementById('warrantyForm');
         form.reset();
+        clearFinanceInputs();
 
         document.getElementById('regFormTitle').textContent = 'ลงทะเบียนประกันภัย';
         document.getElementById('regFormSubtitle').textContent = 'ประกันคุ้มครองมือถือ iPhone & iPad';
@@ -9436,6 +9472,41 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('remainingDays').value = diff > 0 ? diff : 0;
     }
 
+    function clearFinanceInputs() {
+        const fProvider = document.getElementById('financeProvider');
+        if (fProvider) {
+            fProvider.value = '';
+            fProvider.selectedIndex = 0;
+            fProvider.style.borderColor = '';
+        }
+
+        const fDueDay = document.getElementById('financeDueDay');
+        if (fDueDay) {
+            fDueDay.value = '';
+            fDueDay.style.borderColor = '';
+        }
+
+        const fMonths = document.getElementById('financeMonths');
+        if (fMonths) {
+            fMonths.value = '';
+            fMonths.selectedIndex = 0;
+            fMonths.style.borderColor = '';
+        }
+
+        const financeContainer = document.getElementById('financeContainer');
+        if (financeContainer) {
+            financeContainer.querySelectorAll('input, select, textarea').forEach(el => {
+                if (el.type === 'checkbox' || el.type === 'radio') {
+                    el.checked = false;
+                } else {
+                    el.value = '';
+                }
+                el.style.borderColor = '';
+                el.classList.remove('is-invalid', 'error');
+            });
+        }
+    }
+
     function updatePaymentUI() {
         const plan = document.getElementById('package').value;
         const checkedRadio = document.querySelector('input[name="paymentMethod"]:checked');
@@ -9459,6 +9530,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (method === 'Installment' && netPrice > 0) {
             instContainer.style.display = 'block';
             if (financeContainer) financeContainer.style.display = 'none';
+            clearFinanceInputs();
             const perMonth = Math.floor(netPrice / 3);
             const remainder = netPrice % 3;
             const start = new Date(document.getElementById('startDate').value);
@@ -9477,6 +9549,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             instContainer.style.display = 'none';
             if (financeContainer) financeContainer.style.display = 'none';
+            clearFinanceInputs();
         }
     }
 

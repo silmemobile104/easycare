@@ -6709,8 +6709,17 @@ app.get('/api/finance/loans/summary', async (req, res) => {
             dueDate: { $lt: now }
         });
 
-        // คำนวณยอดเงินที่ได้รับแล้ว (โอนเข้าบัญชีสำเร็จ จาก HqSettlement)
+        // คำนวณยอดเงินที่ได้รับแล้ว (โอนเข้าบัญชีสำเร็จ จาก HqSettlement ตามช่วงวันที่)
+        const matchHq = {};
+        if (startDate) {
+            matchHq.transferDate = { ...(matchHq.transferDate || {}), $gte: new Date(String(startDate)) };
+        }
+        if (endDate) {
+            matchHq.transferDate = { ...(matchHq.transferDate || {}), $lte: new Date(String(endDate) + 'T23:59:59.999Z') };
+        }
+
         const hqAgg = await HqSettlement.aggregate([
+            ...(Object.keys(matchHq).length > 0 ? [{ $match: matchHq }] : []),
             {
                 $group: {
                     _id: null,
@@ -6722,16 +6731,22 @@ app.get('/api/finance/loans/summary', async (req, res) => {
         const totalHqReceived = Number(hqAgg?.[0]?.totalReceived || 0);
         const totalHqCount = Number(hqAgg?.[0]?.count || 0);
 
-        // รวมยอดเงินสดที่รับจากไฟแนนซ์ (financeReceived = true และ receivedAsCash = true)
+        // รวมยอดเงินสดที่รับจากไฟแนนซ์ (financeReceived = true และ receivedAsCash = true ตามช่วงวันที่)
+        const matchCashFinance = {
+            actionType: { $ne: 'คืนเงินชดเชยสละสิทธิ์เครื่อง' },
+            policyNumber: { $not: /^LN-/ },
+            financeReceived: true,
+            receivedAsCash: true
+        };
+        if (startDate) {
+            matchCashFinance.transactionDate = { ...(matchCashFinance.transactionDate || {}), $gte: new Date(String(startDate)) };
+        }
+        if (endDate) {
+            matchCashFinance.transactionDate = { ...(matchCashFinance.transactionDate || {}), $lte: new Date(String(endDate) + 'T23:59:59.999Z') };
+        }
+
         const cashFinanceAgg = await FinanceTransaction.aggregate([
-            {
-                $match: {
-                    actionType: { $ne: 'คืนเงินชดเชยสละสิทธิ์เครื่อง' },
-                    policyNumber: { $not: /^LN-/ },
-                    financeReceived: true,
-                    receivedAsCash: true
-                }
-            },
+            { $match: matchCashFinance },
             {
                 $group: {
                     _id: null,
@@ -6745,10 +6760,7 @@ app.get('/api/finance/loans/summary', async (req, res) => {
 
         // Fallback สำหรับรายการประวัติเดิมที่ไม่มี financedAmount
         const oldCashFinanceRecords = await FinanceTransaction.find({
-            actionType: { $ne: 'คืนเงินชดเชยสละสิทธิ์เครื่อง' },
-            policyNumber: { $not: /^LN-/ },
-            financeReceived: true,
-            receivedAsCash: true,
+            ...matchCashFinance,
             financedAmount: { $exists: false },
             financeDisplay: { $exists: true, $ne: null }
         }).lean();
@@ -6765,8 +6777,8 @@ app.get('/api/finance/loans/summary', async (req, res) => {
         });
         totalCashFinanceCount += oldCashFinanceRecords.length;
 
-        // คำนวณรายจ่ายเคลมรวมและแจกแจงที่มา (เคลม + เงินชดเชย + บันทึกเอง)
-        const claimExpenseBreakdown = await calculateTotalClaimExpense();
+        // คำนวณรายจ่ายเคลมรวมและแจกแจงที่มา (เคลม + เงินชดเชย + บันทึกเอง) ตามช่วงวันที่กรอง
+        const claimExpenseBreakdown = await calculateTotalClaimExpense({ startDate, endDate });
         const totalClaimExpense = claimExpenseBreakdown.totalClaimExpense;
 
         // ยอดเงินสดทั้งหมดของ EasyCare = (เงินโอนจาก สนง.ใหญ่ + เงินสดที่รับจากไฟแนนซ์) - รายจ่ายเคลมรวม
@@ -6779,6 +6791,8 @@ app.get('/api/finance/loans/summary', async (req, res) => {
             success: true,
             summary: {
                 ...summary,
+                startDate: startDate || null,
+                endDate: endDate || null,
                 overdueCount,
                 totalHqReceived,
                 totalHqCount,
