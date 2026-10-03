@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Easy | Care</title>
     <link rel="icon" type="image/png" href="icon_easycare.png">
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css?v=20261003_approval_counts_spinner">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
@@ -4177,7 +4177,7 @@
                                 </svg>
                             </div>
                             <div class="stat-content">
-                                <h3 id="badgePending">0</h3>
+                                <h3 id="badgePending" class="approval-count-loading" aria-busy="true" aria-label="กำลังโหลดจำนวนรายการ"></h3>
                                 <p>รออนุมัติ (Pending)</p>
                             </div>
                         </div>
@@ -4192,7 +4192,7 @@
                                 </svg>
                             </div>
                             <div class="stat-content">
-                                <h3 id="badgeApprovedUnpaid">0</h3>
+                                <h3 id="badgeApprovedUnpaid" class="approval-count-loading" aria-busy="true" aria-label="กำลังโหลดจำนวนรายการ"></h3>
                                 <p>รอการชำระเงิน</p>
                             </div>
                         </div>
@@ -4206,7 +4206,7 @@
                                 </svg>
                             </div>
                             <div class="stat-content">
-                                <h3 id="badgeApprovedPaid">0</h3>
+                                <h3 id="badgeApprovedPaid" class="approval-count-loading" aria-busy="true" aria-label="กำลังโหลดจำนวนรายการ"></h3>
                                 <p>เสร็จสมบูรณ์</p>
                             </div>
                         </div>
@@ -4221,7 +4221,7 @@
                                 </svg>
                             </div>
                             <div class="stat-content">
-                                <h3 id="badgeRejected">0</h3>
+                                <h3 id="badgeRejected" class="approval-count-loading" aria-busy="true" aria-label="กำลังโหลดจำนวนรายการ"></h3>
                                 <p>ไม่อนุมัติ (Rejected)</p>
                             </div>
                         </div>
@@ -4235,7 +4235,7 @@
                                 </svg>
                             </div>
                             <div class="stat-content">
-                                <h3 id="badgeNeedsCorrection">0</h3>
+                                <h3 id="badgeNeedsCorrection" class="approval-count-loading" aria-busy="true" aria-label="กำลังโหลดจำนวนรายการ"></h3>
                                 <p>รอแก้ไข (Correction)</p>
                             </div>
                         </div>
@@ -6171,7 +6171,7 @@
     </div>
 
     <script src="permissions.js"></script>
-    <script src="script.js?v=20261003_approval_payment_finance_filters"></script>
+    <script src="script.js?v=20261003_approval_counts_silent_refresh"></script>
 
     <!-- =================== CLAIM RECEIPT LOGIC (inline, replaces claim_receipt.html script) =================== -->
     <script>

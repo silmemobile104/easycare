@@ -14601,33 +14601,72 @@ document.addEventListener('DOMContentLoaded', () => {
         return warranties.map(w => w._id).sort().join(',');
     }
 
-    // --- Fetch Stats Counts (silent) ---
-        async function fetchApprovalCounts() {
+    // --- Fetch Stats Counts ---
+    let approvalCountsRequestId = 0;
+    let approvalCountsIsFetching = false;
+    async function fetchApprovalCounts({ silent = false } = {}) {
+        // Background refresh must not interrupt an active count request.
+        if (silent && approvalCountsIsFetching) return;
+        approvalCountsIsFetching = true;
+        const requestId = ++approvalCountsRequestId;
+        const badgeIds = ['badgePending', 'badgeApprovedUnpaid', 'badgeApprovedPaid', 'badgeRejected', 'badgeNeedsCorrection'];
+        badgeIds.forEach(id => {
+            if (silent) return;
+            const badge = document.getElementById(id);
+            if (!badge) return;
+            badge.textContent = '';
+            badge.classList.add('approval-count-loading');
+            badge.setAttribute('aria-busy', 'true');
+            badge.setAttribute('aria-label', 'กำลังโหลดจำนวนรายการ');
+            badge.removeAttribute('title');
+        });
         try {
             const qs = buildFilterQueryString('approval');
             const separator = qs ? '&' : '';
             const suffix = qs ? `${separator}${qs.substring(1)}` : '';
 
-            const [pendingRes, unpaidRes, paidRes, rejectedRes, needsCorrectionRes] = await Promise.all([
+            const responses = await Promise.all([
                 fetch(`/api/warranties/pending?status=pending${suffix}`),
                 fetch(`/api/warranties/pending?status=Approved_Unpaid${suffix}`),
                 fetch(`/api/warranties/pending?status=Approved_Paid${suffix}`),
                 fetch(`/api/warranties/pending?status=rejected${suffix}`),
                 fetch(`/api/warranties/pending?status=needs_correction${suffix}`)
             ]);
-            const pending = await pendingRes.json();
-            const unpaid = await unpaidRes.json();
-            const paid = await paidRes.json();
-            const rejected = await rejectedRes.json();
-            const needsCorrection = await needsCorrectionRes.json();
-
-            if (document.getElementById('badgePending')) document.getElementById('badgePending').textContent = pending.length;
-            if (document.getElementById('badgeApprovedUnpaid')) document.getElementById('badgeApprovedUnpaid').textContent = unpaid.length;
-            if (document.getElementById('badgeApprovedPaid')) document.getElementById('badgeApprovedPaid').textContent = paid.length;
-            if (document.getElementById('badgeRejected')) document.getElementById('badgeRejected').textContent = rejected.length;
-            if (document.getElementById('badgeNeedsCorrection')) document.getElementById('badgeNeedsCorrection').textContent = needsCorrection.length;
+            const counts = await Promise.all(responses.map(async response => {
+                if (!response.ok) throw new Error('Unable to load approval counts');
+                const records = await response.json();
+                if (!Array.isArray(records)) throw new Error('Invalid approval count response');
+                return records.length;
+            }));
+            if (requestId !== approvalCountsRequestId) return;
+            badgeIds.forEach((id, index) => {
+                const badge = document.getElementById(id);
+                if (!badge) return;
+                badge.textContent = counts[index];
+                badge.removeAttribute('aria-label');
+            });
         } catch (err) {
+            if (requestId !== approvalCountsRequestId) return;
             console.error('Error fetching approval counts:', err);
+            // Keep the last successful numbers if a background refresh fails.
+            if (silent) return;
+            badgeIds.forEach(id => {
+                const badge = document.getElementById(id);
+                if (!badge) return;
+                badge.textContent = '—';
+                badge.setAttribute('aria-label', 'โหลดจำนวนรายการไม่สำเร็จ');
+                badge.setAttribute('title', 'โหลดจำนวนรายการไม่สำเร็จ กรุณาลองค้นหาอีกครั้ง');
+            });
+        } finally {
+            if (requestId === approvalCountsRequestId) {
+                approvalCountsIsFetching = false;
+                badgeIds.forEach(id => {
+                    const badge = document.getElementById(id);
+                    if (!badge) return;
+                    badge.classList.remove('approval-count-loading');
+                    badge.setAttribute('aria-busy', 'false');
+                });
+            }
         }
     }
 
@@ -14635,6 +14674,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Full Fetch (with loader) ---
     async function fetchApprovalWarranties(status) {
         showLoader();
+        fetchApprovalCounts();
         try {
             const qs = buildFilterQueryString('approval');
             const separator = qs ? '&' : '';
@@ -14642,7 +14682,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const res = await fetch(url);
             approvalAllWarranties = await res.json();
             renderApprovalTable(approvalAllWarranties);
-            fetchApprovalCounts();
         } catch (err) {
             console.error('Error fetching approval warranties:', err);
         } finally {
@@ -14680,7 +14719,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             // Always silently refresh counts
-            fetchApprovalCounts();
+            await fetchApprovalCounts({ silent: true });
         } catch (err) {
             console.error('Silent refresh error:', err);
         } finally {

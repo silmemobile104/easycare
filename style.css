@@ -377,6 +377,18 @@
     left: 30%;
 }
 
+.approval-count-loading::after {
+    content: '';
+    display: inline-block;
+    width: 18px;
+    height: 18px;
+    border: 2px solid rgba(13, 148, 136, 0.2);
+    border-top-color: var(--primary);
+    border-radius: 50%;
+    vertical-align: middle;
+    animation: spinnerRotate 0.8s linear infinite;
+}
+
 @keyframes spinnerRotate {
     0% {
         transform: rotate(0deg);
