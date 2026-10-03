@@ -4263,6 +4263,28 @@
                                     placeholder="ค้นหาชื่อ, เบอร์, IMEI, เลขกรมธรรม์...">
                             </div>
                             <div class="filter-group">
+                                <label for="approvalShopFilter">ร้านค้า:</label>
+                                <select id="approvalShopFilter" class="filter-select">
+                                    <option value="all">ทุกร้านค้า</option>
+                                </select>
+                            </div>
+                            <div class="filter-group">
+                                <label for="approvalPaymentMethodFilter">วิธีชำระเงิน:</label>
+                                <select id="approvalPaymentMethodFilter" class="filter-select">
+                                    <option value="all">เลือกทั้งหมด</option>
+                                    <option value="Full Payment">เต็มจำนวน</option>
+                                    <option value="Installment">แบ่งจ่าย</option>
+                                    <option value="finance">ผ่อนไฟแนนซ์</option>
+                                </select>
+                            </div>
+                            <div class="filter-group">
+                                <label for="approvalFinanceProviderFilter">ไฟแนนซ์:</label>
+                                <select id="approvalFinanceProviderFilter" class="filter-select">
+                                    <option value="all">เลือกทั้งหมด</option>
+                                    <option value="__easycare__">EasyCare</option>
+                                </select>
+                            </div>
+                            <div class="filter-group">
                                 <label>จากวันที่:</label>
                                 <input type="date" id="approvalStartDate" class="filter-date-input">
                             </div>
@@ -6149,7 +6171,7 @@
     </div>
 
     <script src="permissions.js"></script>
-    <script src="script.js?v=20261002_finance_db_clean"></script>
+    <script src="script.js?v=20261003_approval_payment_finance_filters"></script>
 
     <!-- =================== CLAIM RECEIPT LOGIC (inline, replaces claim_receipt.html script) =================== -->
     <script>

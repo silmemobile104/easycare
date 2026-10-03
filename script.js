@@ -498,6 +498,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (approvalNavLinkEl) approvalNavLinkEl.classList.add('active');
 
                 // Initialize approval view
+                populateApprovalShopFilter();
+                populateApprovalFinanceFilter();
                 fetchApprovalWarranties('pending');
                 startApprovalAutoRefresh();
             } else if (viewName === 'staff') {
@@ -6202,6 +6204,12 @@ document.addEventListener('DOMContentLoaded', () => {
         if (endDate) params.set('endDate', endDate);
         if (status && status !== 'all') params.set('status', status);
         if (shopName && shopName !== 'all') params.set('shopName', shopName);
+        if (prefix === 'approval') {
+            const paymentMethod = document.getElementById('approvalPaymentMethodFilter')?.value || 'all';
+            const financeProvider = document.getElementById('approvalFinanceProviderFilter')?.value || 'all';
+            if (paymentMethod !== 'all') params.set('paymentMethod', paymentMethod);
+            if (financeProvider !== 'all') params.set('financeProvider', financeProvider);
+        }
         const qs = params.toString();
         return qs ? `?${qs}` : '';
     }
@@ -15719,6 +15727,88 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- Approval Filter ---
+    async function populateApprovalShopFilter() {
+        const shopFilter = document.getElementById('approvalShopFilter');
+        if (!shopFilter) return;
+
+        try {
+            const res = await fetch('/api/shops');
+            if (!res.ok) throw new Error('Unable to load approval shops');
+            const shops = await res.json();
+            if (!Array.isArray(shops)) throw new Error('Invalid approval shop list');
+
+            const selectedShop = shopFilter.value || 'all';
+            const shopNames = [...new Set(shops
+                .filter(shop => shop && typeof shop.shopName === 'string' && shop.shopName.trim())
+                .map(shop => shop.shopName))];
+            // Keep an existing selection usable if its shop was removed from the master list.
+            if (selectedShop !== 'all' && !shopNames.includes(selectedShop)) {
+                shopNames.push(selectedShop);
+            }
+
+            const allOption = document.createElement('option');
+            allOption.value = 'all';
+            allOption.textContent = 'ทุกร้านค้า';
+            const options = shopNames.map(shopName => {
+                const option = document.createElement('option');
+                option.value = shopName;
+                option.textContent = shopName;
+                return option;
+            });
+            shopFilter.replaceChildren(allOption, ...options);
+            shopFilter.value = selectedShop;
+        } catch (err) {
+            console.error('Populate approval shop filter error:', err);
+            showToast('warning', 'โหลดรายชื่อร้านค้าไม่สำเร็จ กรุณาเปิดเมนูอนุมัติสัญญาอีกครั้ง');
+        }
+    }
+
+    async function populateApprovalFinanceFilter() {
+        const financeFilter = document.getElementById('approvalFinanceProviderFilter');
+        if (!financeFilter) return;
+
+        try {
+            const res = await fetch('/api/finance-companies');
+            if (!res.ok) throw new Error('Unable to load approval finance companies');
+            const companies = await res.json();
+            if (!Array.isArray(companies)) throw new Error('Invalid approval finance company list');
+
+            const selectedProvider = financeFilter.value || 'all';
+            // Include suspended companies so their existing contracts remain searchable.
+            const names = [...new Set(companies
+                .filter(company => company && typeof company.name === 'string' && company.name.trim())
+                .map(company => company.name))];
+            if (selectedProvider !== 'all' && selectedProvider !== '__easycare__' && !names.includes(selectedProvider)) {
+                names.push(selectedProvider);
+            }
+
+            const options = [
+                { value: 'all', label: 'เลือกทั้งหมด' },
+                { value: '__easycare__', label: 'EasyCare' },
+                ...names.map(name => ({ value: name, label: name }))
+            ].map(item => {
+                const option = document.createElement('option');
+                option.value = item.value;
+                option.textContent = item.label;
+                return option;
+            });
+            financeFilter.replaceChildren(...options);
+            financeFilter.value = selectedProvider;
+        } catch (err) {
+            console.error('Populate approval finance filter error:', err);
+            showToast('warning', 'โหลดรายชื่อไฟแนนซ์ไม่สำเร็จ กรุณาเปิดเมนูอนุมัติสัญญาอีกครั้ง');
+        }
+    }
+
+    ['approvalPaymentMethodFilter', 'approvalFinanceProviderFilter'].forEach(id => {
+        const filter = document.getElementById(id);
+        if (filter) filter.addEventListener('change', () => fetchApprovalWarranties(approvalCurrentFilter));
+    });
+
+    const approvalShopFilter = document.getElementById('approvalShopFilter');
+    if (approvalShopFilter) {
+        approvalShopFilter.addEventListener('change', () => fetchApprovalWarranties(approvalCurrentFilter));
+    }
     const approvalFilterBtn = document.getElementById('approvalFilterBtn');
     const approvalResetBtn = document.getElementById('approvalResetBtn');
     if (approvalFilterBtn) {
@@ -15728,6 +15818,10 @@ document.addEventListener('DOMContentLoaded', () => {
         approvalResetBtn.addEventListener('click', () => {
             ['approvalSearchInput', 'approvalStartDate', 'approvalEndDate'].forEach(id => {
                 const el = document.getElementById(id); if (el) el.value = '';
+            });
+            if (approvalShopFilter) approvalShopFilter.value = 'all';
+            ['approvalPaymentMethodFilter', 'approvalFinanceProviderFilter'].forEach(id => {
+                const filter = document.getElementById(id); if (filter) filter.value = 'all';
             });
             fetchApprovalWarranties(approvalCurrentFilter);
         });

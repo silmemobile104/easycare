@@ -934,6 +934,30 @@ function buildWarrantyFilterMatch(query, baseMatch = {}) {
     return match;
 }
 
+// Approval-only filters; other warranty screens keep their existing query behavior.
+function buildApprovalWarrantyFilterMatch(query, baseMatch = {}) {
+    const match = buildWarrantyFilterMatch(query, baseMatch);
+    const { paymentMethod, financeProvider } = query;
+    const financeMethods = ['finance', 'Finance'];
+
+    if (paymentMethod === 'Full Payment' || paymentMethod === 'Installment') {
+        match['payment.method'] = paymentMethod;
+    } else if (paymentMethod === 'finance') {
+        match['payment.method'] = { $in: financeMethods };
+    }
+
+    if (typeof financeProvider === 'string' && financeProvider && financeProvider !== 'all') {
+        const providerConditions = financeProvider === '__easycare__'
+            ? [{ 'payment.method': { $nin: financeMethods } }]
+            : [
+                { 'payment.method': { $in: financeMethods } },
+                { 'financeDetails.provider': financeProvider }
+            ];
+        match.$and = [...(match.$and || []), ...providerConditions];
+    }
+    return match;
+}
+
 // Apply status filter logic for warranty dashboard view
 function applyDashStatusFilter(match, dashStatus) {
     if (dashStatus && dashStatus !== 'all') {
@@ -4156,7 +4180,7 @@ app.get('/api/warranties/pending', async (req, res) => {
         }
 
         // Merge with search/date filters
-        const matchQuery = buildWarrantyFilterMatch(req.query, baseMatch);
+        const matchQuery = buildApprovalWarrantyFilterMatch(req.query, baseMatch);
 
         const warranties = await Warranty.aggregate([
             { $match: matchQuery },
