@@ -353,6 +353,7 @@ const StaffSchema = new mongoose.Schema({
     staffId: { type: String, unique: true },
     staffName: String,
     staffPosition: String,
+    shopName: { type: String, default: '' },
     username: { type: String, unique: true, index: true },
     password: { type: String, required: true },
     role: { type: String, enum: ['sales', 'approver', 'finance', 'admin'], default: 'sales' },
@@ -2312,7 +2313,7 @@ app.post('/api/login', async (req, res) => {
                     detail: `พยายามเข้าสู่ระบบด้วยบัญชีที่ถูกระงับการใช้งาน: ${username}`,
                     targetId: staff.staffId,
                     targetType: 'Staff',
-                    staffOverride: { staffId: staff.staffId, username, staffName: staff.staffName, role: staff.role, shopName: staff.shopName || '' }
+                    staffOverride: { staffId: staff.staffId, username, staffName: staff.staffName, role: staff.role, shopName: staff.role === 'sales' ? (staff.shopName || '') : 'EasyCare' }
                 });
                 return res.status(403).json({ success: false, message: 'บัญชีผู้ใช้นี้ถูกระงับการใช้งาน กรุณาติดต่อผู้ดูแลระบบ' });
             }
@@ -2324,7 +2325,7 @@ app.post('/api/login', async (req, res) => {
                 detail: `พนักงาน ${staff.staffName} (${staff.staffPosition || staff.role}) เข้าสู่ระบบสำเร็จ`,
                 targetId: staff.staffId,
                 targetType: 'Staff',
-                staffOverride: { staffId: staff.staffId, username: staff.username, staffName: staff.staffName, role: staff.role, shopName: staff.shopName || '' }
+                staffOverride: { staffId: staff.staffId, username: staff.username, staffName: staff.staffName, role: staff.role, shopName: staff.role === 'sales' ? (staff.shopName || '') : 'EasyCare' }
             });
 
             res.json({
@@ -2335,7 +2336,7 @@ app.post('/api/login', async (req, res) => {
                     staffPosition: staff.staffPosition, 
                     role: staff.role,
                     username: staff.username,
-                    shopName: staff.shopName || ''
+                    shopName: staff.role === 'sales' ? (staff.shopName || '') : 'EasyCare'
                 }
             });
         } else {
@@ -2348,11 +2349,11 @@ app.post('/api/login', async (req, res) => {
                     detail: 'ผู้ดูแลระบบสำรอง (admin fallback) เข้าสู่ระบบสำเร็จ',
                     targetId: 'STF000',
                     targetType: 'Staff',
-                    staffOverride: { staffId: 'STF000', username: 'admin', staffName: 'Admin', role: 'admin', shopName: 'สำนักงานใหญ่' }
+                    staffOverride: { staffId: 'STF000', username: 'admin', staffName: 'Admin', role: 'admin', shopName: 'EasyCare' }
                 });
                 return res.json({
                     success: true,
-                    user: { staffName: 'Admin', staffId: 'STF000', role: 'admin', username: 'admin', shopName: 'สำนักงานใหญ่' }
+                    user: { staffName: 'Admin', staffId: 'STF000', role: 'admin', username: 'admin', shopName: 'EasyCare' }
                 });
             }
 
@@ -2965,6 +2966,19 @@ app.get('/api/dashboard/stats', checkAdminRole, async (req, res) => {
             ])
         ]);
 
+        const dashboardShops = await Shop.find(shop ? { shopName: String(shop) } : {})
+            .select('shopName -_id').lean();
+        const shopsSummaryMap = new Map(
+            (Array.isArray(shopsSummaryAgg) ? shopsSummaryAgg : []).map(row => [row.shopName, row])
+        );
+        dashboardShops.forEach(({ shopName }) => {
+            if (shopName && !shopsSummaryMap.has(shopName)) {
+                shopsSummaryMap.set(shopName, { shopName, contracts: 0, revenue: 0 });
+            }
+        });
+        const shopsSummary = Array.from(shopsSummaryMap.values())
+            .sort((a, b) => b.revenue - a.revenue || String(a.shopName).localeCompare(String(b.shopName), 'th'));
+
         const totalRevenue = Number(revenueAgg?.[0]?.totalRevenue || 0);
         let totalClaimCost = Number(claimCostAgg?.[0]?.totalClaimCost || 0);
 
@@ -3010,7 +3024,7 @@ app.get('/api/dashboard/stats', checkAdminRole, async (req, res) => {
                 packages: Array.isArray(packagesAgg) ? packagesAgg : [],
                 claimStatus: Array.isArray(claimStatusAgg) ? claimStatusAgg : []
             },
-            shopsSummary: Array.isArray(shopsSummaryAgg) ? shopsSummaryAgg : [],
+            shopsSummary,
             staffSummary: Array.isArray(staffSummaryAgg) ? staffSummaryAgg : [],
             productsSummary: Array.isArray(productsSummaryAgg) ? productsSummaryAgg : []
         });
@@ -3735,6 +3749,15 @@ app.get('/api/staff', checkAdminRole, async (req, res) => {
 });
 
 // Create new staff
+async function resolveStaffShopName(role, shopName) {
+    if (role !== 'sales') return 'EasyCare';
+    const name = String(shopName || '').trim();
+    if (!name || !await Shop.exists({ shopName: name })) {
+        throw new Error('กรุณาเลือกร้านค้าสำหรับพนักงานขายจากรายชื่อร้านค้า');
+    }
+    return name;
+}
+
 app.post('/api/staff', checkAdminRole, async (req, res) => {
     try {
         const { username, password, staffName, role, status } = req.body;
@@ -3744,6 +3767,8 @@ app.post('/api/staff', checkAdminRole, async (req, res) => {
             return res.status(400).json({ success: false, message: 'Username already exists' });
         }
 
+        const shopName = await resolveStaffShopName(role || 'sales', req.body.shopName);
+
         const staffId = 'STF' + Math.floor(Math.random() * 1000).toString().padStart(3, '0');
         // Derive staffPosition from role for backward compatibility
         let staffPosition = 'เจ้าหน้าที่';
@@ -3751,7 +3776,7 @@ app.post('/api/staff', checkAdminRole, async (req, res) => {
         else if (role === 'approver') staffPosition = 'ผู้อนุมัติ';
         else staffPosition = 'พนักงานขาย';
 
-        const newStaff = new Staff({ staffId, staffName, staffPosition, username, password, role, status: status || 'active' });
+        const newStaff = new Staff({ staffId, staffName, staffPosition, username, password, role, shopName, status: status || 'active' });
         await newStaff.save();
 
         const insertedStaff = await Staff.findById(newStaff._id, { password: 0 });
@@ -3763,7 +3788,7 @@ app.post('/api/staff', checkAdminRole, async (req, res) => {
             detail: `สร้างบัญชีพนักงานใหม่: ${staffName} (User: ${username}, ตำแหน่ง: ${staffPosition}, สิทธิ์: ${role})`,
             targetId: staffId,
             targetType: 'Staff',
-            metadata: { username, staffName, role, staffPosition, status: status || 'active' }
+            metadata: { username, staffName, role, staffPosition, shopName, status: status || 'active' }
         });
 
         res.status(201).json({ success: true, staff: insertedStaff });
@@ -3777,6 +3802,9 @@ app.put('/api/staff/:id', checkAdminRole, async (req, res) => {
     try {
         const { staffName, role, password, status } = req.body;
         const targetStaff = await Staff.findById(req.params.id);
+        if (!targetStaff) return res.status(404).json({ success: false, message: 'Staff not found' });
+        const shopName = await resolveStaffShopName(role || targetStaff.role,
+            req.body.shopName === undefined ? targetStaff.shopName : req.body.shopName);
 
         // Safety check: Prevent suspending the last active administrator
         if (status === 'suspended') {
@@ -3789,7 +3817,7 @@ app.put('/api/staff/:id', checkAdminRole, async (req, res) => {
         }
 
         // Build update object
-        const updateData = { staffName, role };
+        const updateData = { staffName, role, shopName };
         if (status) {
             updateData.status = status;
         }
@@ -3818,8 +3846,8 @@ app.put('/api/staff/:id', checkAdminRole, async (req, res) => {
             targetId: updatedStaff.staffId || req.params.id,
             targetType: 'Staff',
             changes: {
-                before: { staffName: targetStaff?.staffName, role: targetStaff?.role, status: targetStaff?.status },
-                after: { staffName: updatedStaff.staffName, role: updatedStaff.role, status: updatedStaff.status }
+                before: { staffName: targetStaff?.staffName, role: targetStaff?.role, status: targetStaff?.status, shopName: targetStaff?.shopName },
+                after: { staffName: updatedStaff.staffName, role: updatedStaff.role, status: updatedStaff.status, shopName: updatedStaff.shopName }
             }
         });
 

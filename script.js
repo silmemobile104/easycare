@@ -472,8 +472,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (viewName === 'dashboard') {
                 dashMain.style.display = 'block';
                 if (dashNavLink) dashNavLink.classList.add('active');
-                populateDashShopFilter();
-                fetchWarranties();
+                populateDashShopFilter().then(() => fetchWarranties());
             } else if (viewName === 'members') {
                 membersMain.style.display = 'block';
                 if (membersNavLink) membersNavLink.classList.add('active');
@@ -9237,7 +9236,7 @@ document.addEventListener('DOMContentLoaded', () => {
         toggleIMEIField();
         updateRemainingDays();
         updatePaymentUI();
-        populateShopsDropdown();
+        populateShopsDropdown(currentUser?.role === 'sales' ? (currentUser.shopName || '') : '');
         populateFinanceProvidersDropdown();
         populateDepositOptionsForPackage();
         populateCatalogDropdowns();
@@ -9377,29 +9376,25 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function populateDashShopFilter() {
-        const dashShopFilter = document.getElementById('dashShopFilter');
-        if (!dashShopFilter) return;
-
+        const select = document.getElementById('dashShopFilter');
+        if (!select) return;
         try {
             const res = await fetch('/api/shops');
             const shops = await res.json();
-
-            // Preserve current selection if possible
-            const currentVal = dashShopFilter.value;
-            dashShopFilter.innerHTML = '<option value="all">ทุกร้านค้า</option>';
-
-            shops.forEach(shop => {
-                if (shop && shop.shopName) {
-                    const opt = document.createElement('option');
-                    opt.value = shop.shopName;
-                    opt.textContent = shop.shopName;
-                    dashShopFilter.appendChild(opt);
-                }
-            });
-
-            if (currentVal && Array.from(dashShopFilter.options).some(o => o.value === currentVal)) {
-                dashShopFilter.value = currentVal;
-            }
+            if (!res.ok || !Array.isArray(shops)) throw new Error('โหลดรายชื่อร้านค้าไม่สำเร็จ');
+            const previous = select.value;
+            const ownShop = currentUser?.role === 'sales' ? (currentUser.shopName || '') : '';
+            const defaultKey = JSON.stringify([currentUser?.username || '', currentUser?.role || '', ownShop]);
+            const applyDefault = select.dataset.shopDefaultKey !== defaultKey;
+            const names = [...new Set(shops.filter(s => s && s.shopName).map(s => s.shopName))];
+            select.replaceChildren();
+            if (ownShop && names.includes(ownShop)) select.appendChild(new Option(ownShop, ownShop));
+            select.appendChild(new Option('ทุกร้านค้า', 'all'));
+            names.filter(name => name !== ownShop).forEach(name => select.appendChild(new Option(name, name)));
+            select.value = applyDefault
+                ? (ownShop && names.includes(ownShop) ? ownShop : 'all')
+                : (previous && Array.from(select.options).some(o => o.value === previous) ? previous : 'all');
+            select.dataset.shopDefaultKey = defaultKey;
         } catch (err) {
             console.error('Populate dash shop filter error:', err);
         }
@@ -15939,6 +15934,51 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnAddStaff = document.getElementById('addStaffBtn');
     let isEditStaffMode = false;
     let allStaffData = []; // Global state for staff filtering
+    let staffShopLoadId = 0;
+
+    async function populateStaffShopOptions(selectedShop = '') {
+        const requestId = ++staffShopLoadId;
+        const select = document.getElementById('staffShopName');
+        if (!select) return;
+        select.replaceChildren(new Option('กำลังโหลดร้านค้า...', ''));
+        try {
+            const res = await fetch('/api/shops');
+            const shops = await res.json();
+            if (!res.ok || !Array.isArray(shops)) throw new Error('โหลดรายชื่อร้านค้าไม่สำเร็จ');
+            if (requestId !== staffShopLoadId) return;
+            select.replaceChildren(new Option('เลือกร้านค้า', ''));
+            const names = [...new Set(shops.map(s => s.shopName).filter(Boolean))];
+            names.forEach(name => select.add(new Option(name, name)));
+            select.value = names.includes(selectedShop) ? selectedShop : '';
+            updateStaffShopRole();
+        } catch (err) {
+            if (requestId !== staffShopLoadId) return;
+            select.replaceChildren(new Option('โหลดร้านค้าไม่สำเร็จ กรุณาเปิดฟอร์มใหม่', ''));
+            updateStaffShopRole();
+            showToast('error', err.message);
+        }
+    }
+
+    function updateStaffShopRole() {
+        const select = document.getElementById('staffShopName');
+        if (!select) return;
+        const isSales = document.getElementById('staffRole').value === 'sales';
+        let easyCareOption = Array.from(select.options).find(o => o.dataset.easycare === 'true');
+        if (!isSales) {
+            if (!easyCareOption) {
+                easyCareOption = new Option('EasyCare', 'EasyCare');
+                easyCareOption.dataset.easycare = 'true';
+                select.add(easyCareOption);
+            }
+            select.value = 'EasyCare';
+        } else if (easyCareOption) {
+            easyCareOption.remove();
+            select.value = '';
+        }
+        select.disabled = !isSales;
+        select.required = isSales;
+    }
+    document.getElementById('staffRole')?.addEventListener('change', updateStaffShopRole);
 
     if (btnAddStaff) {
         btnAddStaff.addEventListener('click', () => openStaffModal());
@@ -15955,6 +15995,30 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- STAFF SEARCH & FILTER EVENT LISTENERS ---
     const staffSearchInput = document.getElementById('staffSearchInput');
     const staffRoleFilter = document.getElementById('staffRoleFilter');
+    const staffShopFilter = document.getElementById('staffShopFilter');
+    async function populateStaffShopFilter() {
+        if (!staffShopFilter) return;
+        let shops = [];
+        try {
+            const res = await fetch('/api/shops');
+            shops = await res.json();
+            if (!res.ok || !Array.isArray(shops)) throw new Error('โหลดตัวกรองร้านค้าไม่สำเร็จ');
+        } catch (err) {
+            shops = [];
+            console.error('Staff shop filter:', err);
+        }
+        const previous = staffShopFilter.value;
+        const names = new Set(['EasyCare']);
+        shops.forEach(s => { if (s.shopName) names.add(s.shopName); });
+        allStaffData.forEach(s => { if (s.role === 'sales' && s.shopName) names.add(s.shopName); });
+        if (previous && previous !== '__unassigned__') names.add(previous);
+        staffShopFilter.replaceChildren(new Option('ทั้งหมด', ''));
+        [...names].sort((a, b) => a.localeCompare(b, 'th'))
+            .forEach(name => staffShopFilter.add(new Option(name, name)));
+        staffShopFilter.add(new Option('ยังไม่ได้กำหนดร้านค้า', '__unassigned__'));
+        staffShopFilter.value = previous;
+    }
+    staffShopFilter?.addEventListener('change', applyStaffFilter);
     const staffFilterBtn = document.getElementById('staffFilterBtn');
     const staffResetBtn = document.getElementById('staffResetBtn');
 
@@ -15975,6 +16039,7 @@ document.addEventListener('DOMContentLoaded', () => {
         staffResetBtn.addEventListener('click', () => {
             if (staffSearchInput) staffSearchInput.value = '';
             if (staffRoleFilter) staffRoleFilter.value = 'all';
+            if (staffShopFilter) staffShopFilter.value = '';
             staffStatusFilterVal = 'all';
             applyStaffFilter();
         });
@@ -16008,6 +16073,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function applyStaffFilter() {
         const searchTerm = (staffSearchInput?.value || '').trim().toLowerCase();
         const roleFilter = staffRoleFilter?.value || 'all';
+        const shopFilter = staffShopFilter?.value || '';
 
         let filtered = allStaffData;
 
@@ -16023,7 +16089,14 @@ document.addEventListener('DOMContentLoaded', () => {
             filtered = filtered.filter(s => s.role === roleFilter);
         }
 
-        // Render stats counters based on the matched search/role pool
+        if (shopFilter) {
+            filtered = filtered.filter(s => {
+                const name = s.role === 'sales' ? (s.shopName || '') : 'EasyCare';
+                return shopFilter === '__unassigned__' ? !name : name === shopFilter;
+            });
+        }
+
+        // Render stats counters based on the matched search/role/shop pool
         const total = filtered.length;
         const active = filtered.filter(s => s.status !== 'suspended').length;
         const suspended = filtered.filter(s => s.status === 'suspended').length;
@@ -16074,6 +16147,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!res.ok) throw new Error(data.message || 'Failed to fetch staff');
 
             allStaffData = data; // Store for filtering
+            await populateStaffShopFilter();
             applyStaffFilter(); // Render with current filter applied
 
         } catch (err) {
@@ -16122,6 +16196,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <td data-label="Username"><strong>${staff.username}</strong></td>
                     <td data-label="ชื่อ-นามสกุล">${staff.staffName}</td>
                     <td data-label="Role">${roleBadgeStr}</td>
+                    <td data-label="ร้านค้า">${escapeHtml(staff.role === 'sales' ? (staff.shopName || 'ยังไม่ได้กำหนดร้านค้า') : 'EasyCare')}</td>
                     <td data-label="สถานะ">${statusBadge}</td>
                     <td data-label="จัดการ">
                         <div style="display: flex; gap: 0.5rem; justify-content: center;">
@@ -16190,6 +16265,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         staffModal.style.display = 'flex';
+        populateStaffShopOptions(staffData?.shopName || '');
+        updateStaffShopRole();
     }
 
     window.editStaffData = function (staffData) {
@@ -16206,8 +16283,15 @@ document.addEventListener('DOMContentLoaded', () => {
             staffName: document.getElementById('staffName').value.trim(),
             role: document.getElementById('staffRole').value,
             password: document.getElementById('staffPassword').value,
-            status: document.getElementById('staffStatus')?.value || 'active'
+            status: document.getElementById('staffStatus')?.value || 'active',
+            shopName: document.getElementById('staffRole').value === 'sales'
+                ? document.getElementById('staffShopName').value : 'EasyCare'
         };
+
+        if (payload.role === 'sales' && !payload.shopName) {
+            showAlert('error', 'กรุณาเลือกร้านค้าสำหรับพนักงานขาย');
+            return;
+        }
 
         const url = isEditStaffMode ? `/api/staff/${id}` : '/api/staff';
         const method = isEditStaffMode ? 'PUT' : 'POST';

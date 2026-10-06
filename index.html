@@ -3103,6 +3103,14 @@
                                     <option value="admin">ผู้ดูแลระบบ</option>
                                 </select>
                             </div>
+                            <div class="filter-group">
+                                <label for="staffShopFilter">ร้านค้า:</label>
+                                <select id="staffShopFilter" class="filter-select">
+                                    <option value="">ทั้งหมด</option>
+                                    <option value="EasyCare">EasyCare</option>
+                                    <option value="__unassigned__">ยังไม่ได้กำหนดร้านค้า</option>
+                                </select>
+                            </div>
                             <div class="filter-actions">
                                 <button type="button" class="filter-search-btn" id="staffFilterBtn"> ค้นหา</button>
                                 <button type="button" class="filter-reset-btn" id="staffResetBtn"> ล้างค่า</button>
@@ -3118,6 +3126,7 @@
                                         <th>ชื่อผู้ใช้งาน (Username)</th>
                                         <th>ชื่อ-นามสกุล</th>
                                         <th>สิทธิ์การใช้งาน (Role)</th>
+                                        <th>ร้านค้า</th>
                                         <th>สถานะ</th>
                                         <th>จัดการ</th>
                                     </tr>
@@ -3169,6 +3178,12 @@
                                 <select id="staffStatus">
                                     <option value="active">ใช้งานปกติ (Active)</option>
                                     <option value="suspended">ระงับการใช้งาน (Suspended)</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="staffShopName">ร้านค้า</label>
+                                <select id="staffShopName" required>
+                                    <option value="">เลือกร้านค้า</option>
                                 </select>
                             </div>
                             <div style="display: flex; gap: 0.75rem; justify-content: flex-end; margin-top: 1.5rem;">
@@ -5126,45 +5141,6 @@
         </div>
     </div>
 
-    <!-- Staff Form Modal -->
-    <div id="staffModal" class="modal" style="display: none;">
-        <div class="modal-content" style="max-width: 500px;">
-            <h2 id="staffModalTitle">เพิ่มพนักงานใหม่</h2>
-            <form id="staffForm">
-                <input type="hidden" id="editStaffId">
-                <div class="form-group">
-                    <label>ชื่อผู้ใช้งาน (Username) <span style="color: #ef4444;">*</span></label>
-                    <input type="text" id="staffUsername" required placeholder="ใช้สำหรับเข้าสู่ระบบ">
-                </div>
-                <div class="form-group">
-                    <label>รหัสผ่าน (Password) <span style="color: #ef4444;" id="staffPasswordRequired">*</span></label>
-                    <input type="password" id="staffPassword" required placeholder="รหัสผ่านเข้าสู่ระบบ">
-                    <small id="staffPasswordHelp"
-                        style="color: #64748b; font-size: 0.8rem; display: none;">ปล่อยว่างไว้หากไม่ต้องการเปลี่ยนรหัสผ่านใหม่</small>
-                </div>
-                <div class="form-group">
-                    <label>ชื่อ-นามสกุลพนักงาน <span style="color: #ef4444;">*</span></label>
-                    <input type="text" id="staffName" required placeholder="เช่น นายสมชาย สมมติ">
-                </div>
-                <div class="form-group">
-                    <label>สิทธิ์การใช้งาน (Role) <span style="color: #ef4444;">*</span></label>
-                    <select id="staffRole" required>
-                        <option value="sales">พนักงานขาย</option>
-                        <option value="approver">ฝ่ายอนุมัติสัญญา</option>
-                        <option value="admin">ผู้ดูแลระบบ</option>
-                    </select>
-                </div>
-
-                <div class="form-actions" style="margin-top: 1.5rem;">
-                    <button type="button" id="closeStaffModal" class="submit-btn"
-                        style="background: var(--text-muted);">ยกเลิก</button>
-                    <button type="submit" class="submit-btn" id="saveStaffBtn">บันทึกข้อมูล</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-
     <!-- Shop Modal -->
     <div id="shopModal" class="modal">
         <div class="modal-content" style="max-width: 500px;">
@@ -6171,7 +6147,7 @@
     </div>
 
     <script src="permissions.js"></script>
-    <script src="script.js?v=20261003_approval_counts_silent_refresh"></script>
+    <script src="script.js?v=20261005_new_contract_own_shop"></script>
 
     <!-- =================== CLAIM RECEIPT LOGIC (inline, replaces claim_receipt.html script) =================== -->
     <script>
