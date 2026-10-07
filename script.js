@@ -6458,6 +6458,150 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
+    window.editFinanceReceived = async function (txId) {
+        let tx = (allFinanceIncomeTransactions || []).find(t => String(t._id) === String(txId));
+        if (!tx) {
+            try {
+                const res = await fetch('/api/finance/transactions');
+                const list = await res.json();
+                if (Array.isArray(list)) {
+                    tx = list.find(t => String(t._id) === String(txId));
+                }
+            } catch (e) {
+                console.error('Fetch transaction fallback error:', e);
+            }
+        }
+
+        if (!tx) {
+            showAlert('error', 'ไม่พบข้อมูลรายการที่ต้องการแก้ไข');
+            return;
+        }
+
+        const currentDate = tx.financeReceivedDate
+            ? new Date(tx.financeReceivedDate).toISOString().split('T')[0]
+            : new Date().toISOString().split('T')[0];
+        const isCurrentCash = Boolean(tx.receivedAsCash);
+        const provider = tx.financeProvider || 'ไม่ระบุ';
+        const planAmount = tx.financedAmount || (tx.packagePlan && FINANCE_TOTALS[tx.packagePlan]) || tx.netTotal || 0;
+        const policyNumber = tx.policyNumber || '-';
+
+        const result = await Swal.fire({
+            title: '✏️ แก้ไขข้อมูลการรับยอด',
+            html: `
+                <div style="text-align: left; background: #f8fafc; padding: 12px 14px; border-radius: 10px; border: 1px solid #e2e8f0; margin-bottom: 14px;">
+                    <div style="font-size: 13px; color: #475569; margin-bottom: 4px;"><strong>เลขที่สัญญา:</strong> ${policyNumber}</div>
+                    <div style="font-size: 13px; color: #475569; margin-bottom: 4px;"><strong>บริษัทไฟแนนซ์:</strong> ${provider}</div>
+                    <div style="font-size: 13px; color: #0284c7; font-weight: 700;"><strong>ยอดเงิน:</strong> ${formatNumber(planAmount)} บาท</div>
+                </div>
+
+                <div style="text-align: left; background: #fff; padding: 14px; border-radius: 10px; border: 1px solid #cbd5e1;">
+                    <label for="editReceivedDateInput" style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 5px; color: #334155;">แก้วันที่รับยอด:</label>
+                    <input type="date" id="editReceivedDateInput" class="swal2-input" value="${currentDate}" style="margin: 0 0 14px 0; width: 100%; box-sizing: border-box; font-size: 14px; height: 38px;">
+                    
+                    <div style="border-top: 1px dashed #cbd5e1; padding-top: 12px;">
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px; font-weight: 700; color: #0f172a; user-select: none;">
+                            <input type="checkbox" id="editReceivedAsCashCheckbox" ${isCurrentCash ? 'checked' : ''} style="width: 18px; height: 18px; accent-color: #10b981; cursor: pointer;">
+                            Easy.Care (รับเข้า Easy.Care โดยตรง)
+                        </label>
+                        <div style="font-size: 12px; color: #64748b; margin: 4px 0 0 26px; line-height: 1.45;">
+                            • <strong>ถ้าติ๊ก (Easy.Care):</strong> ยอดเงินสดในส่วน <em>"บันทึกให้ยืม (Easy.Care)"</em> จะเพิ่มขึ้น<br>
+                            • <strong>ถ้าไม่ติ๊ก (Silmin):</strong> ยอดหนี้คงค้างจะเพิ่มในส่วน <em>"รับชำระหนี้ (Silmin)"</em> จะเพิ่มขึ้น
+                        </div>
+                    </div>
+                </div>
+            `,
+            icon: 'info',
+            showCancelButton: true,
+            showDenyButton: true,
+            confirmButtonText: '💾 บันทึกการแก้ไข',
+            denyButtonText: '↩️ ยกเลิกการรับยอด',
+            cancelButtonText: 'ปิด',
+            confirmButtonColor: '#3b82f6',
+            denyButtonColor: '#ef4444',
+            cancelButtonColor: '#64748b',
+            preConfirm: () => {
+                const receivedDate = document.getElementById('editReceivedDateInput').value;
+                if (!receivedDate) {
+                    Swal.showValidationMessage('กรุณาระบุวันที่รับยอด');
+                    return false;
+                }
+                const receivedAsCash = document.getElementById('editReceivedAsCashCheckbox').checked;
+                return { receivedDate, receivedAsCash };
+            }
+        });
+
+        if (result.isDenied) {
+            const confirmCancel = await Swal.fire({
+                title: 'ยืนยันยกเลิกการรับยอด?',
+                html: `
+                    <div style="font-size: 14px; color: #475569; text-align: left; background: #fef2f2; padding: 12px; border-radius: 8px; border: 1px solid #fecaca; margin-bottom: 12px;">
+                        <p style="margin: 0 0 6px 0;"><strong>สัญญา:</strong> ${policyNumber}</p>
+                        <p style="margin: 0 0 6px 0;"><strong>ไฟแนนซ์:</strong> ${provider}</p>
+                        <p style="margin: 0; color: #b91c1c; font-weight: 700;"><strong>ยอดเงิน:</strong> ${formatNumber(planAmount)} บาท</p>
+                    </div>
+                    <p style="font-size: 13px; color: #64748b; margin: 0;">หากยืนยัน รายการนี้จะเปลี่ยนสถานะกลับเป็น <strong>"รอการชำระเงินจากไฟแนนซ์"</strong> และยอดเงินจะถูกคำนวณคืนสู่ยอดค้างรับ</p>
+                `,
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'ยืนยันยกเลิกการรับยอด',
+                cancelButtonText: 'ไม่ยกเลิก',
+                confirmButtonColor: '#ef4444',
+                cancelButtonColor: '#64748b'
+            });
+
+            if (confirmCancel.isConfirmed) {
+                showLoader();
+                try {
+                    const staffName = (currentUser && currentUser.staffName) ? currentUser.staffName : 'Staff';
+                    const res = await fetch(`/api/finance/transactions/${txId}/cancel-receive`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ staffName })
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                        showAlert('success', 'ยกเลิกการรับยอดเรียบร้อยแล้ว รายการกลับสู่สถานะรอชำระเงินจากไฟแนนซ์');
+                        fetchFinanceData();
+                    } else {
+                        showAlert('error', data.message || 'เกิดข้อผิดพลาดในการยกเลิกการรับยอด');
+                    }
+                } catch (err) {
+                    console.error('Cancel finance receive error:', err);
+                    showAlert('error', 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้');
+                } finally {
+                    hideLoader();
+                }
+            }
+        } else if (result.isConfirmed && result.value) {
+            showLoader();
+            try {
+                const staffName = (currentUser && currentUser.staffName) ? currentUser.staffName : 'Staff';
+                const res = await fetch(`/api/finance/transactions/${txId}/receive`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        receivedDate: result.value.receivedDate,
+                        receivedAsCash: result.value.receivedAsCash,
+                        staffName
+                    })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    const channelName = result.value.receivedAsCash ? 'Easy.Care (เงินสดยืม)' : 'Silmin (รับชำระหนี้)';
+                    showAlert('success', `แก้ไขข้อมูลการรับยอดสำเร็จ (${channelName})`);
+                    fetchFinanceData();
+                } else {
+                    showAlert('error', data.message || 'เกิดข้อผิดพลาดในการบันทึกการแก้ไข');
+                }
+            } catch (err) {
+                console.error('Edit finance receive error:', err);
+                showAlert('error', 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้');
+            } finally {
+                hideLoader();
+            }
+        }
+    };
+
     // --- คำนวณ KPI Cards จากข้อมูลที่ผ่านการกรอง ---
     function updateFinanceSummaryCards(filteredData) {
         let totalCashReceived = 0;
@@ -6746,12 +6890,18 @@ document.addEventListener('DOMContentLoaded', () => {
                             const typeBadge = tx.receivedAsCash
                                 ? '<span style="display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 0.75em; background: #ecfdf5; color: #059669; border: 1px solid #a7f3d0; margin-left: 2px;">Easy.Care</span>'
                                 : '<span style="display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 0.75em; background: #f0f9ff; color: #0284c7; border: 1px solid #bae6fd; margin-left: 2px;" title="Silmin (บริษัทแม่)">Silmin</span>';
-                            displayNetTotalText += ` ฿<br><span style="color: #0d9488; font-size: 0.85em;">รับยอดเมื่อ: ${receivedDateText} ${typeBadge}</span>`;
+                            displayNetTotalText += ` ฿<br><div style="margin-top: 4px; display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                                <span style="color: #0d9488; font-size: 0.85em;">รับยอดเมื่อ: ${receivedDateText} ${typeBadge}</span>
+                                <button type="button" class="btn btn-sm" style="padding: 1px 7px; font-size: 11px; font-weight: 500; background-color: #f8fafc; color: #475569; border: 1px solid #cbd5e1; border-radius: 4px; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='#f1f5f9'; this.style.borderColor='#94a3b8'" onmouseout="this.style.background='#f8fafc'; this.style.borderColor='#cbd5e1'" onclick="editFinanceReceived('${tx._id}')" title="แก้ไขหรือยกเลิกการรับยอด">✏️ แก้ไข</button>
+                            </div>`;
                         } else {
                             const typeBadge = tx.receivedAsCash
                                 ? '<span style="display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 0.75em; background: #ecfdf5; color: #059669; border: 1px solid #a7f3d0; margin-left: 2px;">Easy.Care</span>'
                                 : '<span style="display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 0.75em; background: #f0f9ff; color: #0284c7; border: 1px solid #bae6fd; margin-left: 2px;" title="Silmin (บริษัทแม่)">Silmin</span>';
-                            displayNetTotalText += ` ฿<br><span style="color: #0d9488; font-size: 0.85em;">รับยอดแล้ว ${typeBadge}</span>`;
+                            displayNetTotalText += ` ฿<br><div style="margin-top: 4px; display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                                <span style="color: #0d9488; font-size: 0.85em;">รับยอดแล้ว ${typeBadge}</span>
+                                <button type="button" class="btn btn-sm" style="padding: 1px 7px; font-size: 11px; font-weight: 500; background-color: #f8fafc; color: #475569; border: 1px solid #cbd5e1; border-radius: 4px; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='#f1f5f9'; this.style.borderColor='#94a3b8'" onmouseout="this.style.background='#f8fafc'; this.style.borderColor='#cbd5e1'" onclick="editFinanceReceived('${tx._id}')" title="แก้ไขหรือยกเลิกการรับยอด">✏️ แก้ไข</button>
+                            </div>`;
                         }
                     } else if (tx.actionType === 'ชำระค่าซ่อมส่วนต่าง' || tx.actionType.includes('ส่วนต่าง')) {
                         const actualReceived = (tx.cashReceived || 0) + (tx.transferAmount || 0) - (tx.changeAmount || 0);

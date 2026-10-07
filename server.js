@@ -5409,23 +5409,45 @@ app.put('/api/finance/transactions/:id/receive', async (req, res) => {
     try {
         const { receivedDate, receivedAsCash, staffName } = req.body;
         const isCash = Boolean(receivedAsCash);
-        const tx = await FinanceTransaction.findByIdAndUpdate(
-            req.params.id,
-            {
-                financeReceived: true,
-                financeReceivedDate: receivedDate ? new Date(receivedDate) : new Date(),
-                receivedAsCash: isCash
-            },
-            { new: true }
-        );
-        if (!tx) return res.status(404).json({ message: 'Transaction not found' });
+        const existingTx = await FinanceTransaction.findById(req.params.id);
+        if (!existingTx) return res.status(404).json({ success: false, message: 'Transaction not found' });
+
+        const wasReceived = existingTx.financeReceived;
+
+        existingTx.financeReceived = true;
+        existingTx.financeReceivedDate = receivedDate ? new Date(receivedDate) : new Date();
+        existingTx.receivedAsCash = isCash;
+        await existingTx.save();
 
         const channelLabel = isCash ? 'Easy.Care (เข้าเงินสดยืม)' : 'Silmin (บริษัทแม่/รับชำระหนี้)';
-        await logAction('Receive Finance Amount', `บันทึกรับยอดจากไฟแนนซ์ ${tx.financeProvider || ''} สำหรับสัญญา ${tx.policyNumber} จำนวน ${tx.financedAmount || 0} บาท (${channelLabel})`, staffName || 'System');
+        const actionName = wasReceived ? 'Edit Received Finance Amount' : 'Receive Finance Amount';
+        const actionDesc = wasReceived 
+            ? `แก้ไขข้อมูลการรับยอดจากไฟแนนซ์ ${existingTx.financeProvider || ''} สำหรับสัญญา ${existingTx.policyNumber} จำนวน ${existingTx.financedAmount || 0} บาท (${channelLabel}) วันที่: ${receivedDate || new Date().toISOString().split('T')[0]}`
+            : `บันทึกรับยอดจากไฟแนนซ์ ${existingTx.financeProvider || ''} สำหรับสัญญา ${existingTx.policyNumber} จำนวน ${existingTx.financedAmount || 0} บาท (${channelLabel})`;
+        await logAction(actionName, actionDesc, staffName || 'System');
+
+        res.json({ success: true, transaction: existingTx });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+app.put('/api/finance/transactions/:id/cancel-receive', async (req, res) => {
+    try {
+        const { staffName } = req.body;
+        const tx = await FinanceTransaction.findById(req.params.id);
+        if (!tx) return res.status(404).json({ success: false, message: 'Transaction not found' });
+
+        tx.financeReceived = false;
+        tx.financeReceivedDate = null;
+        tx.receivedAsCash = false;
+        await tx.save();
+
+        await logAction('Cancel Received Finance Amount', `ยกเลิกการรับยอดจากไฟแนนซ์ ${tx.financeProvider || ''} สำหรับสัญญา ${tx.policyNumber} จำนวน ${tx.financedAmount || 0} บาท (เปลี่ยนสถานะกลับเป็นรอรับยอด)`, staffName || 'System');
 
         res.json({ success: true, transaction: tx });
     } catch (err) {
-        res.status(500).json({ message: err.message });
+        res.status(500).json({ success: false, message: err.message });
     }
 });
 
