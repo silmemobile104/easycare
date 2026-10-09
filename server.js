@@ -7576,9 +7576,7 @@ app.post('/api/claims/:id/updates', claimUpload.fields([
         const technicianPhone = String(req.body.technicianPhone || '').trim();
         const nextStep = (claim.updates ? claim.updates.length : 0) + 2; // +2 because step 1 = "รับเครื่อง" (auto)
 
-        if (cost > 0 && evidenceImages.length === 0) {
-            return res.status(400).json({ success: false, message: 'หากมีค่าใช้จ่าย กรุณาแนบรูปหลักฐานอย่างน้อย 1 รูป' });
-        }
+
 
         let shouldApplyCost = true;
         let currentCoverageLeft = null;
@@ -7653,6 +7651,109 @@ app.post('/api/claims/:id/updates', claimUpload.fields([
         res.json({ success: true, claim });
     } catch (err) {
         res.status(400).json({ success: false, message: err.message });
+    }
+});
+
+// Edit status update in a claim
+app.put('/api/claims/:id/updates/:updateId', claimUpload.fields([
+    { name: 'images', maxCount: 10 },
+    { name: 'evidenceImages', maxCount: 10 }
+]), async (req, res) => {
+    try {
+        const claim = await Claim.findById(req.params.id);
+        if (!claim) return res.status(404).json({ success: false, message: 'ไม่พบข้อมูลการเคลม' });
+
+        // Find the update subdocument
+        let update = claim.updates ? claim.updates.id(req.params.updateId) : null;
+        if (!update && Array.isArray(claim.updates)) {
+            update = claim.updates.find(u => String(u._id) === req.params.updateId || String(u.step) === req.params.updateId);
+        }
+        if (!update) {
+            return res.status(404).json({ success: false, message: 'ไม่พบข้อมูลขั้นตอนที่ต้องการแก้ไข' });
+        }
+
+        const oldCost = Number(update.cost || 0);
+        const newCost = Math.max(0, parseFloat(req.body.cost) || 0);
+
+        // Kept images from frontend
+        let keptImages = [];
+        let keptEvidenceImages = [];
+        try {
+            if (req.body.keptImages) keptImages = JSON.parse(req.body.keptImages);
+            if (req.body.keptEvidenceImages) keptEvidenceImages = JSON.parse(req.body.keptEvidenceImages);
+        } catch (e) {
+            console.error('Error parsing kept images:', e);
+        }
+
+        const newImages = (req.files && req.files.images) ? req.files.images.map(f => f.path) : [];
+        const newEvidenceImages = (req.files && req.files.evidenceImages) ? req.files.evidenceImages.map(f => f.path) : [];
+
+        const combinedImages = [...keptImages, ...newImages];
+        const combinedEvidenceImages = [...keptEvidenceImages, ...newEvidenceImages];
+
+
+
+        // Check warranty coverage if cost increased
+        const costDiff = newCost - oldCost;
+        if (costDiff > 0 && claim.warrantyId) {
+            const warranty = await Warranty.findById(claim.warrantyId);
+            if (warranty) {
+                const remaining = Number(warranty.remainingLimit ?? (warranty.coverageLimit - warranty.usedCoverage));
+                if (Number.isFinite(remaining) && costDiff > remaining) {
+                    return res.status(400).json({
+                        success: false,
+                        message: `ค่าใช้จ่ายที่เพิ่มขึ้น (${costDiff.toLocaleString()} บาท) เกินวงเงินประกันคงเหลือ (${remaining.toLocaleString()} บาท)`
+                    });
+                }
+            }
+        }
+
+        // Update fields
+        update.title = String(req.body.title || update.title).trim();
+        update.cost = newCost;
+        update.centerName = String(req.body.centerName !== undefined ? req.body.centerName : update.centerName).trim();
+        update.centerLocation = String(req.body.centerLocation !== undefined ? req.body.centerLocation : update.centerLocation).trim();
+        update.centerPhone = String(req.body.centerPhone !== undefined ? req.body.centerPhone : update.centerPhone).trim();
+        update.technicianName = String(req.body.technicianName !== undefined ? req.body.technicianName : update.technicianName).trim();
+        update.technicianPhone = String(req.body.technicianPhone !== undefined ? req.body.technicianPhone : update.technicianPhone).trim();
+        update.images = combinedImages;
+        update.evidenceImages = combinedEvidenceImages;
+
+        // Recalculate claim.totalCost
+        claim.totalCost = (claim.updates || []).reduce((sum, u) => sum + (Number(u.cost) || 0), 0);
+        await claim.save();
+
+        // Sync warranty usedCoverage
+        if (claim.warrantyId) {
+            try {
+                const agg = await Claim.aggregate([
+                    { $match: { warrantyId: claim.warrantyId } },
+                    { $group: { _id: '$warrantyId', totalUsed: { $sum: { $ifNull: ['$totalCost', 0] } } } }
+                ]);
+                const totalUsed = agg && agg[0] ? Number(agg[0].totalUsed || 0) : 0;
+                await Warranty.findByIdAndUpdate(claim.warrantyId, { usedCoverage: totalUsed });
+                await expireWarrantyIfNoRemaining(claim.warrantyId);
+            } catch (e) {
+                console.error('Failed to sync usedCoverage from claim edit:', e);
+            }
+        }
+
+        if (io) io.emit('claimUpdate', { claimId: claim.claimId, id: claim._id.toString(), warrantyId: claim.warrantyId?.toString() });
+
+        await recordAuditLog(req, {
+            module: 'TRACKING',
+            actionType: 'STATUS_CHANGE',
+            action: 'แก้ไขขั้นตอนงานเคลม',
+            detail: `แก้ไขงานเคลม ${claim.claimId} ขั้นตอนที่ ${update.step}: "${update.title}" (ค่าใช้จ่าย: ${newCost} บาท)`,
+            targetId: claim.claimId,
+            targetType: 'Claim',
+            metadata: { claimId: claim.claimId, step: update.step, title: update.title, oldCost, newCost }
+        });
+
+        res.json({ success: true, claim, update });
+    } catch (err) {
+        console.error('Edit claim update error:', err);
+        res.status(500).json({ success: false, message: err.message });
     }
 });
 

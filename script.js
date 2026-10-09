@@ -14249,9 +14249,17 @@ document.addEventListener('DOMContentLoaded', () => {
                             <div class="timeline-line"></div>
                         </div>
                         <div class="timeline-content">
-                            <div class="timeline-header">
-                                <h4>${u.title || '-'}</h4>
-                                <span class="timeline-date">${dateStr}</span>
+                            <div class="timeline-header" style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
+                                <div>
+                                    <h4 style="margin: 0;">${u.title || '-'}</h4>
+                                    <span class="timeline-date">${dateStr}</span>
+                                </div>
+                                <button type="button" class="btn btn-sm btn-edit-timeline-step" 
+                                    onclick="openEditClaimUpdateModal('${claim._id}', '${u._id ? String(u._id) : String(u.step)}')"
+                                    style="padding: 2px 8px; font-size: 11px; font-weight: 600; color: #1e40af; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; transition: all 0.2s;"
+                                    onmouseover="this.style.background='#dbeafe'" onmouseout="this.style.background='#eff6ff'" title="แก้ไขข้อมูลขั้นตอนนี้">
+                                    ✏️ แก้ไข
+                                </button>
                             </div>
                             <p class="timeline-cost">ค่าใช้จ่าย: <strong>${(u.cost || 0).toLocaleString()} บาท</strong></p>
                             ${(u.centerName || u.centerLocation || u.centerPhone || u.technicianName || u.technicianPhone) ? `
@@ -14424,10 +14432,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            if (costNumber > 0 && (!evidenceInput || evidenceInput.files.length === 0)) {
-                showAlert('warning', 'หากมีค่าใช้จ่าย กรุณาแนบรูปหลักฐานอย่างน้อย 1 รูป');
-                return;
-            }
+
 
             const formData = new FormData();
             formData.append('title', title);
@@ -14478,7 +14483,225 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Complete claim (ลูกค้ามารับเครื่องแล้ว หรือ จัดส่ง)
+    // ═══════════════════════════════════════════════════════════════════
+    // EDIT CLAIM UPDATE LOGIC
+    // ═══════════════════════════════════════════════════════════════════
+
+    let currentEditKeptImages = [];
+    let currentEditKeptEvidence = [];
+
+    window.openEditClaimUpdateModal = async function(claimId, updateId) {
+        showLoader('กำลังโหลดข้อมูลขั้นตอน...');
+        try {
+            const res = await fetch(`/api/claims/${claimId}`);
+            const claim = await res.json();
+            if (!res.ok) throw new Error(claim.message || 'ไม่สามารถโหลดข้อมูลเคลมได้');
+
+            const updates = Array.isArray(claim.updates) ? claim.updates : [];
+            let u = updates.find(x => String(x._id) === String(updateId));
+            if (!u) {
+                u = updates.find(x => String(x.step) === String(updateId));
+            }
+            if (!u && !isNaN(Number(updateId))) {
+                u = updates[Number(updateId)];
+            }
+            if (!u) {
+                showAlert('error', 'ไม่พบข้อมูลขั้นตอนที่ต้องการแก้ไข');
+                return;
+            }
+
+            document.getElementById('editUpdateClaimId').value = claimId;
+            document.getElementById('editUpdateSubId').value = u._id ? String(u._id) : String(u.step || updateId);
+
+            document.getElementById('editUpdateTitle').value = u.title || '';
+            document.getElementById('editUpdateCenterName').value = u.centerName || '';
+            document.getElementById('editUpdateCenterLocation').value = u.centerLocation || '';
+            document.getElementById('editUpdateCenterPhone').value = u.centerPhone || '';
+            document.getElementById('editUpdateTechnicianName').value = u.technicianName || '';
+            document.getElementById('editUpdateTechnicianPhone').value = u.technicianPhone || '';
+            document.getElementById('editUpdateCost').value = u.cost || 0;
+
+            const newEvidenceInput = document.getElementById('editNewEvidenceImages');
+            if (newEvidenceInput) newEvidenceInput.value = '';
+            const newEvidencePreview = document.getElementById('editNewEvidencePreview');
+            if (newEvidencePreview) newEvidencePreview.innerHTML = '';
+
+            const newImagesInput = document.getElementById('editNewImages');
+            if (newImagesInput) newImagesInput.value = '';
+            const newImagesPreview = document.getElementById('editNewImagesPreview');
+            if (newImagesPreview) newImagesPreview.innerHTML = '';
+
+            currentEditKeptEvidence = Array.isArray(u.evidenceImages) ? [...u.evidenceImages] : [];
+            currentEditKeptImages = Array.isArray(u.images) ? [...u.images] : [];
+
+            renderKeptEvidenceUI();
+            renderKeptImagesUI();
+
+            document.getElementById('editClaimUpdateModal').style.display = 'flex';
+        } catch (err) {
+            console.error('Open edit claim update error:', err);
+            showAlert('error', err.message || 'เกิดข้อผิดพลาดในการโหลดข้อมูล');
+        } finally {
+            hideLoader();
+        }
+    };
+
+    function renderKeptEvidenceUI() {
+        const container = document.getElementById('editExistingEvidenceContainer');
+        if (!container) return;
+        if (currentEditKeptEvidence.length === 0) {
+            container.innerHTML = '<span style="font-size: 12px; color: #9ca3af; font-style: italic;">ไม่มีรูปหลักฐานเดิม</span>';
+            return;
+        }
+        container.innerHTML = currentEditKeptEvidence.map((url, idx) => `
+            <div style="position: relative; display: inline-block;">
+                <img src="${url}" style="width: 70px; height: 70px; object-fit: cover; border-radius: 6px; border: 2px solid #f59e0b;" onclick="window.open('${url}', '_blank')">
+                <button type="button" onclick="removeKeptEvidence(${idx})" style="position: absolute; top: -5px; right: -5px; background: #ef4444; color: white; border: none; border-radius: 50%; width: 20px; height: 20px; font-size: 11px; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 1px 3px rgba(0,0,0,0.3);" title="ลบรูปนี้">✕</button>
+            </div>
+        `).join('');
+    }
+
+    function renderKeptImagesUI() {
+        const container = document.getElementById('editExistingImagesContainer');
+        if (!container) return;
+        if (currentEditKeptImages.length === 0) {
+            container.innerHTML = '<span style="font-size: 12px; color: #9ca3af; font-style: italic;">ไม่มีรูปประกอบเดิม</span>';
+            return;
+        }
+        container.innerHTML = currentEditKeptImages.map((url, idx) => `
+            <div style="position: relative; display: inline-block;">
+                <img src="${url}" style="width: 70px; height: 70px; object-fit: cover; border-radius: 6px; border: 2px solid #3b82f6;" onclick="window.open('${url}', '_blank')">
+                <button type="button" onclick="removeKeptImage(${idx})" style="position: absolute; top: -5px; right: -5px; background: #ef4444; color: white; border: none; border-radius: 50%; width: 20px; height: 20px; font-size: 11px; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 1px 3px rgba(0,0,0,0.3);" title="ลบรูปนี้">✕</button>
+            </div>
+        `).join('');
+    }
+
+    window.removeKeptEvidence = function(idx) {
+        currentEditKeptEvidence.splice(idx, 1);
+        renderKeptEvidenceUI();
+    };
+
+    window.removeKeptImage = function(idx) {
+        currentEditKeptImages.splice(idx, 1);
+        renderKeptImagesUI();
+    };
+
+    const saveEditClaimUpdateBtn = document.getElementById('saveEditClaimUpdateBtn');
+    if (saveEditClaimUpdateBtn) {
+        saveEditClaimUpdateBtn.addEventListener('click', async () => {
+            const claimId = document.getElementById('editUpdateClaimId').value;
+            const subId = document.getElementById('editUpdateSubId').value;
+            const title = document.getElementById('editUpdateTitle').value.trim();
+            const cost = Math.max(0, parseFloat(document.getElementById('editUpdateCost').value) || 0);
+
+            if (!title) {
+                showAlert('warning', 'กรุณาระบุรายละเอียดการอัปเดต');
+                return;
+            }
+
+            const newEvidenceInput = document.getElementById('editNewEvidenceImages');
+            const totalEvidenceCount = currentEditKeptEvidence.length + (newEvidenceInput && newEvidenceInput.files ? newEvidenceInput.files.length : 0);
+
+
+
+            const formData = new FormData();
+            formData.append('title', title);
+            formData.append('cost', String(cost));
+            formData.append('centerName', (document.getElementById('editUpdateCenterName')?.value || '').trim());
+            formData.append('centerLocation', (document.getElementById('editUpdateCenterLocation')?.value || '').trim());
+            formData.append('centerPhone', (document.getElementById('editUpdateCenterPhone')?.value || '').trim());
+            formData.append('technicianName', (document.getElementById('editUpdateTechnicianName')?.value || '').trim());
+            formData.append('technicianPhone', (document.getElementById('editUpdateTechnicianPhone')?.value || '').trim());
+
+            formData.append('keptImages', JSON.stringify(currentEditKeptImages));
+            formData.append('keptEvidenceImages', JSON.stringify(currentEditKeptEvidence));
+
+            if (newEvidenceInput && newEvidenceInput.files.length > 0) {
+                Array.from(newEvidenceInput.files).forEach(f => formData.append('evidenceImages', f));
+            }
+            const newImagesInput = document.getElementById('editNewImages');
+            if (newImagesInput && newImagesInput.files.length > 0) {
+                Array.from(newImagesInput.files).forEach(f => formData.append('images', f));
+            }
+
+            showLoader('กำลังบันทึกการแก้ไข...');
+            try {
+                const res = await fetch(`/api/claims/${claimId}/updates/${subId}`, {
+                    method: 'PUT',
+                    body: formData
+                });
+                const data = await res.json();
+                if (data.success) {
+                    showToast('success', 'บันทึกการแก้ไขขั้นตอนสำเร็จ');
+                    document.getElementById('editClaimUpdateModal').style.display = 'none';
+                    await openStatusUpdateModal(claimId);
+                } else {
+                    showAlert('error', data.message || 'ไม่สามารถบันทึกการแก้ไขได้');
+                }
+            } catch (err) {
+                console.error('Submit edit update error:', err);
+                showAlert('error', 'เกิดข้อผิดพลาดในการบันทึก');
+            } finally {
+                hideLoader();
+            }
+        });
+    }
+
+    const closeEditClaimUpdateModalBtn = document.getElementById('closeEditClaimUpdateModalBtn');
+    if (closeEditClaimUpdateModalBtn) {
+        closeEditClaimUpdateModalBtn.addEventListener('click', () => {
+            document.getElementById('editClaimUpdateModal').style.display = 'none';
+        });
+    }
+    const cancelEditClaimUpdateBtn = document.getElementById('cancelEditClaimUpdateBtn');
+    if (cancelEditClaimUpdateBtn) {
+        cancelEditClaimUpdateBtn.addEventListener('click', () => {
+            document.getElementById('editClaimUpdateModal').style.display = 'none';
+        });
+    }
+
+    const editClaimUpdateModalEl = document.getElementById('editClaimUpdateModal');
+    if (editClaimUpdateModalEl) {
+        editClaimUpdateModalEl.addEventListener('click', (e) => {
+            if (e.target === editClaimUpdateModalEl) {
+                editClaimUpdateModalEl.style.display = 'none';
+            }
+        });
+    }
+
+    const editNewImagesInput = document.getElementById('editNewImages');
+    if (editNewImagesInput) {
+        editNewImagesInput.addEventListener('change', function() {
+            const preview = document.getElementById('editNewImagesPreview');
+            if (!preview) return;
+            preview.innerHTML = '';
+            Array.from(this.files).forEach(file => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    preview.innerHTML += `<img src="${e.target.result}" style="width: 50px; height: 50px; object-fit: cover; border-radius: 6px; border: 1px solid #3b82f6;">`;
+                };
+                reader.readAsDataURL(file);
+            });
+        });
+    }
+
+    const editNewEvidenceImagesInput = document.getElementById('editNewEvidenceImages');
+    if (editNewEvidenceImagesInput) {
+        editNewEvidenceImagesInput.addEventListener('change', function() {
+            const preview = document.getElementById('editNewEvidencePreview');
+            if (!preview) return;
+            preview.innerHTML = '';
+            Array.from(this.files).forEach(file => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    preview.innerHTML += `<img src="${e.target.result}" style="width: 50px; height: 50px; object-fit: cover; border-radius: 6px; border: 1px solid #f59e0b;">`;
+                };
+                reader.readAsDataURL(file);
+            });
+        });
+    }
+
+        // Complete claim (ลูกค้ามารับเครื่องแล้ว หรือ จัดส่ง)
     const completeClaimBtn = document.getElementById('completeClaimBtn');
     if (completeClaimBtn) {
         completeClaimBtn.addEventListener('click', async () => {
