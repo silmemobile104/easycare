@@ -417,7 +417,8 @@ const ClaimSchema = new mongoose.Schema({
         technicianName: { type: String, default: '' },
         technicianPhone: { type: String, default: '' },
         images: [String],
-        evidenceImages: [String]
+        evidenceImages: [String],
+        recordedBy: { type: String, default: '' }
     }],
     deviceCondition: {
         exterior: { status: { type: String, default: '' }, reason: { type: String, default: '' } },
@@ -891,7 +892,9 @@ function buildExpenseFilterMatch(query) {
             { customerName: regex },
             { customerPhone: regex },
             { policyNumber: regex },
-            { deviceModel: regex }
+            { deviceModel: regex },
+            { 'updates.recordedBy': regex },
+            { staffName: regex }
         ];
     }
 
@@ -1064,6 +1067,7 @@ app.get('/api/finance/expenses', async (req, res) => {
                     claimDate: 1,
                     totalCost: 1,
                     status: 1,
+                    staffName: 1,
                     updates: 1
                 }
             },
@@ -1092,7 +1096,20 @@ app.get('/api/finance/expenses', async (req, res) => {
                                 claimShopName: 1,
                                 expenseTitle: { $ifNull: ['$updates.title', 'ค่าใช้จ่าย'] },
                                 amount: '$__expenseAmount',
-                                centerName: { $ifNull: ['$updates.centerName', ''] }
+                                centerName: { $ifNull: ['$updates.centerName', ''] },
+                                recordedBy: {
+                                    $cond: {
+                                        if: { $gt: [{ $strLenCP: { $ifNull: ['$updates.recordedBy', ''] } }, 0] },
+                                        then: '$updates.recordedBy',
+                                        else: {
+                                            $cond: {
+                                                if: { $gt: [{ $strLenCP: { $ifNull: ['$staffName', ''] } }, 0] },
+                                                then: '$staffName',
+                                                else: '-'
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
                     ]
@@ -1119,6 +1136,15 @@ app.get('/api/finance/expenses', async (req, res) => {
         if (req.query.endDate) {
             refundTxQuery.transactionDate = { ...(refundTxQuery.transactionDate || {}), $lte: new Date(String(req.query.endDate) + 'T23:59:59.999Z') };
         }
+        if (req.query.search) {
+            const regex = { $regex: String(req.query.search), $options: 'i' };
+            refundTxQuery.$or = [
+                { policyNumber: regex },
+                { customerName: regex },
+                { actionType: regex },
+                { recordedBy: regex }
+            ];
+        }
         // Simplified mapping for refund transactions
         const refundRows = await FinanceTransaction.find(refundTxQuery).lean();
         const formattedRefunds = refundRows.map(tx => ({
@@ -1130,7 +1156,8 @@ app.get('/api/finance/expenses', async (req, res) => {
             claimShopName: '-',
             expenseTitle: tx.actionType,
             amount: Math.abs(tx.netTotal),
-            centerName: '-'
+            centerName: '-',
+            recordedBy: tx.recordedBy || '-'
         }));
 
         rows = [...rows, ...formattedRefunds];
@@ -1328,6 +1355,7 @@ app.get('/api/finance/expenses/export/excel', async (req, res) => {
                     claimDate: 1,
                     totalCost: 1,
                     status: 1,
+                    staffName: 1,
                     updates: 1
                 }
             },
@@ -1356,7 +1384,20 @@ app.get('/api/finance/expenses/export/excel', async (req, res) => {
                                 claimShopName: 1,
                                 expenseTitle: { $ifNull: ['$updates.title', 'ค่าใช้จ่าย'] },
                                 amount: '$__expenseAmount',
-                                centerName: { $ifNull: ['$updates.centerName', ''] }
+                                centerName: { $ifNull: ['$updates.centerName', ''] },
+                                recordedBy: {
+                                    $cond: {
+                                        if: { $gt: [{ $strLenCP: { $ifNull: ['$updates.recordedBy', ''] } }, 0] },
+                                        then: '$updates.recordedBy',
+                                        else: {
+                                            $cond: {
+                                                if: { $gt: [{ $strLenCP: { $ifNull: ['$staffName', ''] } }, 0] },
+                                                then: '$staffName',
+                                                else: '-'
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
                     ]
@@ -1383,6 +1424,15 @@ app.get('/api/finance/expenses/export/excel', async (req, res) => {
         if (endDate) {
             refundTxQuery.transactionDate = { ...(refundTxQuery.transactionDate || {}), $lte: new Date(String(endDate) + 'T23:59:59.999Z') };
         }
+        if (req.query && req.query.search) {
+            const regex = { $regex: String(req.query.search), $options: 'i' };
+            refundTxQuery.$or = [
+                { policyNumber: regex },
+                { customerName: regex },
+                { actionType: regex },
+                { recordedBy: regex }
+            ];
+        }
         const refundRows = await FinanceTransaction.find(refundTxQuery).lean();
         const formattedRefunds = refundRows.map(tx => ({
             expenseDate: tx.transactionDate,
@@ -1394,7 +1444,8 @@ app.get('/api/finance/expenses/export/excel', async (req, res) => {
             claimShopName: '-',
             expenseTitle: tx.actionType,
             amount: Math.abs(tx.netTotal),
-            centerName: '-'
+            centerName: '-',
+            recordedBy: tx.recordedBy || '-'
         }));
 
         rows = [...rows, ...formattedRefunds];
@@ -7576,6 +7627,20 @@ app.post('/api/claims/:id/updates', claimUpload.fields([
         const technicianPhone = String(req.body.technicianPhone || '').trim();
         const nextStep = (claim.updates ? claim.updates.length : 0) + 2; // +2 because step 1 = "รับเครื่อง" (auto)
 
+        let recordedBy = String(req.body.recordedBy || req.body.staffName || '').trim();
+        if (!recordedBy) {
+            try {
+                if (req.headers['x-staff-name']) {
+                    recordedBy = decodeURIComponent(req.headers['x-staff-name']);
+                }
+            } catch (_) {
+                recordedBy = req.headers['x-staff-name'] || '';
+            }
+        }
+        if (!recordedBy) {
+            recordedBy = claim.staffName || 'System';
+        }
+
 
 
         let shouldApplyCost = true;
@@ -7613,7 +7678,8 @@ app.post('/api/claims/:id/updates', claimUpload.fields([
             technicianName,
             technicianPhone,
             images: images,
-            evidenceImages: evidenceImages
+            evidenceImages: evidenceImages,
+            recordedBy: recordedBy
         });
 
         if (shouldApplyCost) {
@@ -7718,6 +7784,22 @@ app.put('/api/claims/:id/updates/:updateId', claimUpload.fields([
         update.technicianPhone = String(req.body.technicianPhone !== undefined ? req.body.technicianPhone : update.technicianPhone).trim();
         update.images = combinedImages;
         update.evidenceImages = combinedEvidenceImages;
+
+        let editRecordedBy = String(req.body.recordedBy || req.body.staffName || '').trim();
+        if (!editRecordedBy) {
+            try {
+                if (req.headers['x-staff-name']) {
+                    editRecordedBy = decodeURIComponent(req.headers['x-staff-name']);
+                }
+            } catch (_) {
+                editRecordedBy = req.headers['x-staff-name'] || '';
+            }
+        }
+        if (editRecordedBy) {
+            update.recordedBy = editRecordedBy;
+        } else if (!update.recordedBy) {
+            update.recordedBy = claim.staffName || 'System';
+        }
 
         // Recalculate claim.totalCost
         claim.totalCost = (claim.updates || []).reduce((sum, u) => sum + (Number(u.cost) || 0), 0);

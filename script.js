@@ -14226,7 +14226,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="timeline-content">
                     <div class="timeline-header">
                         <h4>รับเครื่อง</h4>
-                        <span class="timeline-date">${claimDateStr}</span>
+                        <span class="timeline-date">${claimDateStr}${claim.staffName ? ` • โดย ${claim.staffName}` : ''}</span>
                     </div>
                     <p class="timeline-cost">ค่าใช้จ่าย: <strong>0 บาท</strong></p>
                     ${claim.images && claim.images.length > 0 ? `
@@ -14252,7 +14252,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             <div class="timeline-header" style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
                                 <div>
                                     <h4 style="margin: 0;">${u.title || '-'}</h4>
-                                    <span class="timeline-date">${dateStr}</span>
+                                    <span class="timeline-date">${dateStr}${u.recordedBy ? ` • โดย ${u.recordedBy}` : (claim.staffName ? ` • โดย ${claim.staffName}` : '')}</span>
                                 </div>
                                 <button type="button" class="btn btn-sm btn-edit-timeline-step" 
                                     onclick="openEditClaimUpdateModal('${claim._id}', '${u._id ? String(u._id) : String(u.step)}')"
@@ -14448,6 +14448,11 @@ document.addEventListener('DOMContentLoaded', () => {
             formData.append('centerPhone', centerPhone);
             formData.append('technicianName', technicianName);
             formData.append('technicianPhone', technicianPhone);
+            const currentStaffName = (currentUser && currentUser.staffName) ? currentUser.staffName : (localStorage.getItem('staffName') || '');
+            if (currentStaffName) {
+                formData.append('staffName', currentStaffName);
+                formData.append('recordedBy', currentStaffName);
+            }
             if (imagesInput && imagesInput.files.length > 0) {
                 Array.from(imagesInput.files).forEach(file => {
                     formData.append('images', file);
@@ -14464,6 +14469,7 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 const res = await fetch(`/api/claims/${claimId}/updates`, {
                     method: 'POST',
+                    headers: getAuditAuthHeaders(),
                     body: formData
                 });
                 const data = await res.json();
@@ -14612,6 +14618,11 @@ document.addEventListener('DOMContentLoaded', () => {
             formData.append('centerPhone', (document.getElementById('editUpdateCenterPhone')?.value || '').trim());
             formData.append('technicianName', (document.getElementById('editUpdateTechnicianName')?.value || '').trim());
             formData.append('technicianPhone', (document.getElementById('editUpdateTechnicianPhone')?.value || '').trim());
+            const currentStaffName = (currentUser && currentUser.staffName) ? currentUser.staffName : (localStorage.getItem('staffName') || '');
+            if (currentStaffName) {
+                formData.append('staffName', currentStaffName);
+                formData.append('recordedBy', currentStaffName);
+            }
 
             formData.append('keptImages', JSON.stringify(currentEditKeptImages));
             formData.append('keptEvidenceImages', JSON.stringify(currentEditKeptEvidence));
@@ -14628,6 +14639,7 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 const res = await fetch(`/api/claims/${claimId}/updates/${subId}`, {
                     method: 'PUT',
+                    headers: getAuditAuthHeaders(),
                     body: formData
                 });
                 const data = await res.json();
