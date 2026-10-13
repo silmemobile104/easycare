@@ -10203,6 +10203,24 @@ document.addEventListener('DOMContentLoaded', () => {
             instContainer.style.display = 'none';
             if (financeContainer) financeContainer.style.display = 'none';
         }
+
+        if (isEditMode && currentEditData) {
+            const pmSection = document.getElementById('paymentManagementSection');
+            let pmNotice = document.getElementById('pmMethodChangeNotice');
+            if (pmSection) {
+                if (method && currentEditData.payment?.method && method !== currentEditData.payment.method) {
+                    if (!pmNotice) {
+                        pmNotice = document.createElement('div');
+                        pmNotice.id = 'pmMethodChangeNotice';
+                        pmNotice.style.cssText = 'background: #fffbeb; border: 1px solid #fde68a; color: #92400e; padding: 10px 14px; border-radius: 8px; margin-bottom: 12px; font-size: 0.85rem; font-weight: 500; display: flex; align-items: center; gap: 8px;';
+                        pmNotice.innerHTML = '<span>⚠️ มีการเปลี่ยนแปลงวิธีการชำระเงิน กรุณากด <strong>"บันทึกข้อมูล"</strong> ด้านล่างเพื่ออัปเดตสัญญาก่อนทำรายการชำระเงิน</span>';
+                        pmSection.insertBefore(pmNotice, pmSection.firstChild);
+                    }
+                } else if (pmNotice) {
+                    pmNotice.remove();
+                }
+            }
+        }
     }
 
     function renderPaymentManagement(data) {
@@ -11130,6 +11148,9 @@ document.addEventListener('DOMContentLoaded', () => {
             if ((method === 'Full Payment' || method === 'finance') && currentEditData.payment.method === method) {
                 payment.status = currentEditData.payment.status;
                 payment.paidDate = currentEditData.payment.paidDate;
+                payment.paidCash = currentEditData.payment.paidCash;
+                payment.paidTransfer = currentEditData.payment.paidTransfer;
+                payment.refId = currentEditData.payment.refId;
             }
         } else {
             // New Registration - Check for "Mark as Paid"

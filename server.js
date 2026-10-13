@@ -5038,6 +5038,141 @@ app.put('/api/warranties/:id', async (req, res) => {
             }
         }
 
+        // -------------------------------------------------------------
+        // Sync FinanceTransaction with Warranty changes
+        // -------------------------------------------------------------
+        try {
+            const customerFullName = `${updated.customer?.firstName || ''} ${updated.customer?.lastName || ''}`.trim() || '-';
+            const isNowFinance = updated.payment && (updated.payment.method === 'finance' || updated.payment.method === 'Finance');
+            const wasFinance = currentWarranty.payment && (currentWarranty.payment.method === 'finance' || currentWarranty.payment.method === 'Finance');
+            const newProvider = (updated.financeDetails && updated.financeDetails.provider) ? String(updated.financeDetails.provider).trim() : null;
+            const newBranch = updated.shopName || null;
+
+            const FINANCE_TOTALS = {
+                'Package 1': 699, 'Package 2': 899, 'Package 3': 1099, 'Package 4': 1299, 'Package 5': 1499,
+                'Package 6': 1699, 'Package 7': 1899, 'Package 8': 2099, 'Package 9': 2299, 'Package 10': 2499
+            };
+            const planName = updated.package && updated.package.plan ? updated.package.plan : null;
+            const planFullRevenue = (planName && FINANCE_TOTALS[planName]) ? FINANCE_TOTALS[planName] : (Number(updated.package?.price) || 0);
+
+            const oldMethod = currentWarranty.payment?.method;
+            const newMethod = updated.payment?.method;
+            const isMethodChanged = Boolean(oldMethod && newMethod && oldMethod !== newMethod);
+
+            // เมื่อมีการเปลี่ยนวิธีการชำระเงิน ให้ล้างรายการธุรกรรมเดิมที่ยังไม่ได้รับเงิน เพื่อป้องกันยอดเงินซ้ำซ้อน
+            if (isMethodChanged) {
+                await FinanceTransaction.deleteMany({
+                    policyNumber: updated.policyNumber,
+                    financeReceived: { $ne: true }
+                });
+            }
+
+            // Find all finance transactions for this policy
+            const existingTxs = await FinanceTransaction.find({ policyNumber: updated.policyNumber });
+
+            if (isNowFinance) {
+                if (existingTxs.length > 0) {
+                    for (const tx of existingTxs) {
+                        const updateFields = {
+                            customerName: customerFullName,
+                            branch: newBranch,
+                            financeProvider: newProvider
+                        };
+
+                        // If transaction is not yet received, keep amounts and display updated
+                        if (!tx.financeReceived) {
+                            const cash = Number(tx.cashReceived || 0);
+                            const transfer = Number(tx.transferAmount || 0);
+                            const change = Number(tx.changeAmount || 0);
+                            const net = (cash - change) + transfer;
+                            const updatedFinancedAmount = Math.max(0, planFullRevenue - net);
+
+                            updateFields.fullRevenue = planFullRevenue;
+                            updateFields.financedAmount = updatedFinancedAmount;
+                            updateFields.financeDisplay = planFullRevenue.toString();
+                            updateFields.actionType = 'ชำระงวดผ่อนด้วยไฟแนนซ์';
+                            if (net === 0) {
+                                updateFields.paymentMethod = 'ผ่อนดาวน์ 0 บาท';
+                            }
+                        }
+
+                        await FinanceTransaction.findByIdAndUpdate(tx._id, { $set: updateFields });
+                    }
+                } else {
+                    // Create finance transaction if none existed
+                    const cash = Number(updated.payment?.paidCash || 0);
+                    const transfer = Number(updated.payment?.paidTransfer || 0);
+                    const net = cash + transfer;
+                    const finAmount = Math.max(0, planFullRevenue - net);
+
+                    let pMethod = 'ผ่อนดาวน์ 0 บาท';
+                    if (cash > 0 && transfer > 0) pMethod = 'เงินสด+โอนเงิน';
+                    else if (cash > 0) pMethod = 'เงินสด';
+                    else if (transfer > 0) pMethod = 'โอนเงิน';
+
+                    await FinanceTransaction.create({
+                        policyNumber: updated.policyNumber,
+                        customerName: customerFullName,
+                        actionType: 'ชำระงวดผ่อนด้วยไฟแนนซ์',
+                        paymentMethod: pMethod,
+                        cashReceived: cash,
+                        transferAmount: transfer,
+                        changeAmount: 0,
+                        netTotal: net,
+                        fullRevenue: planFullRevenue,
+                        financedAmount: finAmount,
+                        financeDisplay: planFullRevenue.toString(),
+                        financeProvider: newProvider,
+                        financeReceived: false,
+                        branch: newBranch,
+                        recordedBy: req.body.editorName || req.body.staffName || 'System'
+                    });
+                }
+            } else if (wasFinance && !isNowFinance) {
+                // Switched from finance to non-finance
+                for (const tx of existingTxs) {
+                    if (!tx.financeReceived) {
+                        if (tx.netTotal === 0 && (tx.cashReceived || 0) === 0 && (tx.transferAmount || 0) === 0) {
+                            await FinanceTransaction.findByIdAndDelete(tx._id);
+                        } else {
+                            await FinanceTransaction.findByIdAndUpdate(tx._id, {
+                                $set: {
+                                    customerName: customerFullName,
+                                    branch: newBranch,
+                                    actionType: updated.payment?.method === 'Full Payment' ? 'ชำระเต็มจำนวน' : 'แบ่งชำระ',
+                                    financedAmount: 0,
+                                    financeDisplay: null,
+                                    financeProvider: null
+                                }
+                            });
+                        }
+                    } else {
+                        await FinanceTransaction.findByIdAndUpdate(tx._id, {
+                            $set: {
+                                customerName: customerFullName,
+                                branch: newBranch
+                            }
+                        });
+                    }
+                }
+            } else {
+                // Non-finance warranty updated
+                if (existingTxs.length > 0) {
+                    await FinanceTransaction.updateMany(
+                        { policyNumber: updated.policyNumber },
+                        {
+                            $set: {
+                                customerName: customerFullName,
+                                branch: newBranch
+                            }
+                        }
+                    );
+                }
+            }
+        } catch (syncErr) {
+            console.error('⚠️ [Finance Sync] Error syncing FinanceTransaction on warranty update:', syncErr);
+        }
+
         await recordAuditLog(req, {
             module: 'PACKAGES',
             actionType: 'UPDATE',
@@ -5173,7 +5308,40 @@ app.patch('/api/warranties/:id/payment', async (req, res) => {
                 actType = `ชำระค่างวดที่ ${installmentNo}`;
             }
 
+            // ป้องกันรายการธุรกรรมซ้ำซ้อนในกรมธรรม์เดียวกัน
             try {
+                if (actType === 'ชำระเต็มจำนวน') {
+                    await FinanceTransaction.deleteMany({
+                        policyNumber: warranty.policyNumber,
+                        actionType: { $in: ['ชำระเต็มจำนวน', 'ชำระค่างวดที่ 1', 'ชำระค่างวดที่ 2', 'ชำระค่างวดที่ 3', 'ชำระปิดยอด/จ่ายเต็ม', 'ชำระงวดผ่อนด้วยไฟแนนซ์'] },
+                        financeReceived: { $ne: true }
+                    });
+                } else if (installmentNo === 1) {
+                    await FinanceTransaction.deleteMany({
+                        policyNumber: warranty.policyNumber,
+                        actionType: { $in: ['ชำระเต็มจำนวน', 'ชำระค่างวดที่ 1', 'ชำระงวดผ่อนด้วยไฟแนนซ์'] },
+                        financeReceived: { $ne: true }
+                    });
+                } else if (installmentNo) {
+                    await FinanceTransaction.deleteMany({
+                        policyNumber: warranty.policyNumber,
+                        actionType: `ชำระค่างวดที่ ${installmentNo}`,
+                        financeReceived: { $ne: true }
+                    });
+                } else if (payAllRemaining) {
+                    await FinanceTransaction.deleteMany({
+                        policyNumber: warranty.policyNumber,
+                        actionType: { $in: ['ชำระปิดยอด/จ่ายเต็ม', 'ชำระเต็มจำนวน'] },
+                        financeReceived: { $ne: true }
+                    });
+                } else if (isFinance) {
+                    await FinanceTransaction.deleteMany({
+                        policyNumber: warranty.policyNumber,
+                        actionType: { $in: ['ชำระงวดผ่อนด้วยไฟแนนซ์', 'ชำระเต็มจำนวน'] },
+                        financeReceived: { $ne: true }
+                    });
+                }
+
                 await FinanceTransaction.create({
                     policyNumber: warranty.policyNumber,
                     customerName: `${firstName} ${lastName}`.trim() || '-',
@@ -5281,6 +5449,12 @@ app.delete('/api/warranties/:id', async (req, res) => {
     try {
         const deleted = await Warranty.findByIdAndDelete(req.params.id);
         if (!deleted) return res.status(404).json({ message: 'Record not found' });
+
+        // Clean up unpaid finance transactions for deleted warranty
+        await FinanceTransaction.deleteMany({
+            policyNumber: deleted.policyNumber,
+            financeReceived: { $ne: true }
+        });
 
         await recordAuditLog(req, {
             module: 'PACKAGES',
@@ -5449,7 +5623,13 @@ app.get('/api/finance/transactions', async (req, res) => {
             {
                 $addFields: {
                     packagePaymentMethod: { $arrayElemAt: ['$warranty.payment.method', 0] },
-                    packagePlan: { $arrayElemAt: ['$warranty.package.plan', 0] }
+                    packagePlan: { $arrayElemAt: ['$warranty.package.plan', 0] },
+                    financeProvider: {
+                        $ifNull: [
+                            '$financeProvider',
+                            { $arrayElemAt: ['$warranty.financeDetails.provider', 0] }
+                        ]
+                    }
                 }
             },
             { $project: { warranty: 0 } }
@@ -9233,6 +9413,13 @@ app.put('/api/warranties/:id/approver-edit', async (req, res) => {
         await w.save();
 
         if (customer) {
+            const customerFullName = `${w.customer?.firstName || ''} ${w.customer?.lastName || ''}`.trim();
+            if (customerFullName) {
+                await FinanceTransaction.updateMany(
+                    { policyNumber: w.policyNumber },
+                    { $set: { customerName: customerFullName } }
+                );
+            }
             // Also update Member schema to sync changes permanently
             const member = await Member.findOne({ memberId: w.memberId });
             if (member) {
@@ -10060,6 +10247,39 @@ const startServer = () => {
             );
             // Seed default Product Catalog if empty
             await seedDefaultProductCatalog();
+
+            // Sync any legacy finance transactions with missing/mismatched financeProvider
+            try {
+                const financeWarranties = await Warranty.find({
+                    'payment.method': 'finance',
+                    'financeDetails.provider': { $exists: true, $ne: '' }
+                }).select('policyNumber financeDetails customer shopName').lean();
+
+                for (const fw of financeWarranties) {
+                    const provider = fw.financeDetails?.provider;
+                    if (!provider) continue;
+                    await FinanceTransaction.updateMany(
+                        {
+                            policyNumber: fw.policyNumber,
+                            $or: [
+                                { financeProvider: { $exists: false } },
+                                { financeProvider: null },
+                                { financeProvider: '' },
+                                { financeProvider: { $ne: provider } }
+                            ]
+                        },
+                        {
+                            $set: {
+                                financeProvider: provider,
+                                customerName: `${fw.customer?.firstName || ''} ${fw.customer?.lastName || ''}`.trim() || '-',
+                                branch: fw.shopName || null
+                            }
+                        }
+                    );
+                }
+            } catch (legacySyncErr) {
+                console.error('⚠️ [Finance Sync] Startup legacy sync error:', legacySyncErr.message);
+            }
 
             // Load and init LINE notification setting
             const lineSetting = await SystemSetting.findOne({ key: 'line_notifications_enabled' });
