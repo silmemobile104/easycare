@@ -5954,6 +5954,45 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    window.showFullExpenseTitle = function(index) {
+        const list = window._lastFinanceExpenseRows || [];
+        const r = list[index];
+        if (!r) return;
+
+        const fullTitle = r.expenseTitle || '-';
+        const claimInfo = (r.claimId && r.claimId !== '-') 
+            ? `เลขที่เคลม: <span style="font-weight: 600; color: #0284c7;">${escapeHtml(r.claimId)}</span>`
+            : ((r.policyNumber && r.policyNumber !== '-') ? `เลขกรมธรรม์: <span style="font-weight: 600;">${escapeHtml(r.policyNumber)}</span>` : '');
+        const customerInfo = (r.customerName && r.customerName !== '-') ? `<span style="color: #64748b; font-size: 0.85rem;">ลูกค้า: ${escapeHtml(r.customerName)}</span>` : '';
+        const dateStr = r.expenseDate ? new Date(r.expenseDate).toLocaleString('th-TH') : '-';
+        const amountStr = formatNumber(r.amount || 0) + ' บาท';
+
+        if (typeof Swal !== 'undefined') {
+            Swal.fire({
+                title: '<div style="font-size: 1.15rem; font-weight: 700; color: #1e293b; display: flex; align-items: center; justify-content: center; gap: 8px;"><span>📝</span> รายละเอียดรายการ</div>',
+                html: `
+                    <div style="text-align: left; font-size: 0.9rem; margin-top: 10px;">
+                        ${(claimInfo || customerInfo) ? `
+                            <div style="margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 4px;">
+                                <div>${claimInfo}</div>
+                                <div>${customerInfo}</div>
+                            </div>
+                        ` : ''}
+                        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 14px; font-size: 0.95rem; line-height: 1.6; color: #1e293b; max-height: 250px; overflow-y: auto; white-space: pre-wrap; word-break: break-word;">${escapeHtml(fullTitle)}</div>
+                        <div style="margin-top: 10px; display: flex; justify-content: space-between; align-items: center; font-size: 0.82rem; color: #64748b;">
+                            <span>วันที่: ${dateStr}</span>
+                            <span style="font-weight: 700; color: #ef4444;">ยอดเงิน: -${amountStr}</span>
+                        </div>
+                    </div>
+                `,
+                confirmButtonText: 'ปิด',
+                confirmButtonColor: '#0284c7'
+            });
+        } else {
+            alert('รายละเอียดรายการ:\n\n' + fullTitle);
+        }
+    };
+
     function renderFinanceExpenses(rows) {
         const list = Array.isArray(rows) ? rows : [];
         window._lastFinanceExpenseRows = list;
@@ -6006,6 +6045,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 `;
             }
 
+            const rawTitle = r.expenseTitle || '-';
+            let expenseTitleHtml = escapeHtml(rawTitle);
+            if (rawTitle !== '-' && rawTitle.length > 20) {
+                const shortTitle = rawTitle.substring(0, 20) + '...';
+                expenseTitleHtml = `
+                    <span style="cursor: pointer; color: #0284c7; font-weight: 500; display: inline-flex; align-items: center; gap: 4px; transition: all 0.15s ease;"
+                          onclick="window.showFullExpenseTitle(${index})" 
+                          title="คลิกเพื่อดูข้อความเต็ม"
+                          onmouseover="this.style.color='#0369a1'; const t=this.querySelector('.title-text'); if(t) t.style.textDecoration='underline';" 
+                          onmouseout="this.style.color='#0284c7'; const t=this.querySelector('.title-text'); if(t) t.style.textDecoration='none';">
+                        <span class="title-text">${escapeHtml(shortTitle)}</span>
+                        <span style="background: #eff6ff; border: 1px solid #bfdbfe; color: #1d4ed8; font-size: 0.68rem; padding: 1px 5px; border-radius: 4px; font-weight: 600; line-height: 1.2;">ดูเต็ม</span>
+                    </span>
+                `;
+            }
+
             tr.innerHTML = `
                 <td>${index + 1}</td>
                 <td>${dateText}</td>
@@ -6014,7 +6069,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td>${r.customerName || '-'}</td>
                 <td>${r.deviceModel || '-'}</td>
                 <td>${r.claimShopName || '-'}</td>
-                <td>${r.expenseTitle || '-'}</td>
+                <td>${expenseTitleHtml}</td>
                 <td>${r.centerName || '-'}</td>
                 <td style="color:#ef4444; font-weight: 700;">${amountText}</td>
                 <td>${sourceBadge}</td>
@@ -6692,8 +6747,13 @@ document.addEventListener('DOMContentLoaded', () => {
         if (container) {
             container.innerHTML = Object.keys(unpaidMap).map(provider => {
                 const amount = unpaidMap[provider];
+                const safeProvider = String(provider || '').replace(/'/g, "\\'");
                 return `
-                    <div class="stat-card">
+                    <div class="stat-card" style="cursor: pointer; transition: transform 0.2s ease, box-shadow 0.2s ease; position: relative;"
+                         onclick="window.openFinanceProviderDetailModal('${safeProvider}')"
+                         onmouseover="this.style.transform='translateY(-3px)'; this.style.boxShadow='0 8px 18px rgba(245, 158, 11, 0.22)';"
+                         onmouseout="this.style.transform='none'; this.style.boxShadow='';"
+                         title="คลิกเพื่อดูรายละเอียดรายการยอดขายของไฟแนนซ์ ${escapeHtml(provider)}">
                         <div class="stat-icon orange">
                             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -6709,6 +6769,409 @@ document.addEventListener('DOMContentLoaded', () => {
                 `;
             }).join('');
         }
+    }
+
+
+    // ==========================================
+    // POP-UP รายละเอียดรายการยอดขายของไฟแนนซ์ (Finance Provider Detail Modal)
+    // ==========================================
+    let currentFpdProvider = '';
+    let currentFpdTabStatus = 'unpaid';
+
+    window.openFinanceProviderDetailModal = function (provider) {
+        if (!provider) return;
+        initFinanceProviderDetailModalEvents();
+        currentFpdProvider = provider;
+        currentFpdTabStatus = 'unpaid';
+
+        const modal = document.getElementById('financeProviderDetailModal');
+        if (!modal) return;
+
+        const providerNameEl = document.getElementById('fpdModalProviderName');
+        if (providerNameEl) providerNameEl.textContent = provider;
+
+        const searchInput = document.getElementById('fpdSearchInput');
+        if (searchInput) searchInput.value = '';
+
+        const startDateInput = document.getElementById('fpdStartDate');
+        const endDateInput = document.getElementById('fpdEndDate');
+        const mainStart = (document.getElementById('financeExportStartDate') || {}).value || '';
+        const mainEnd = (document.getElementById('financeExportEndDate') || {}).value || '';
+        if (startDateInput) startDateInput.value = mainStart;
+        if (endDateInput) endDateInput.value = mainEnd;
+
+        if (!allFinanceIncomeTransactions || allFinanceIncomeTransactions.length === 0) {
+            showLoader('กำลังโหลดข้อมูล...');
+            fetch('/api/finance/transactions')
+                .then(res => res.json())
+                .then(data => {
+                    hideLoader();
+                    allFinanceIncomeTransactions = Array.isArray(data) ? data : [];
+                    renderFpdModalData();
+                    modal.style.display = 'flex';
+                })
+                .catch(err => {
+                    hideLoader();
+                    console.error('Failed to load finance transactions:', err);
+                    showAlert('error', 'ไม่สามารถโหลดข้อมูลรายการได้');
+                });
+        } else {
+            renderFpdModalData();
+            modal.style.display = 'flex';
+        }
+    };
+
+    function getFpdProviderTransactions() {
+        if (!Array.isArray(allFinanceIncomeTransactions)) return [];
+        const normTarget = (currentFpdProvider === 'Tunder' ? 'Thunder' : currentFpdProvider).toLowerCase();
+
+        const startDateStr = (document.getElementById('fpdStartDate') || {}).value;
+        const endDateStr = (document.getElementById('fpdEndDate') || {}).value;
+        const startDate = startDateStr ? new Date(startDateStr) : null;
+        if (startDate) startDate.setHours(0, 0, 0, 0);
+        const endDate = endDateStr ? new Date(endDateStr) : null;
+        if (endDate) endDate.setHours(23, 59, 59, 999);
+
+        return allFinanceIncomeTransactions.filter(tx => {
+            const p = (tx.financeProvider || 'Easy.Care').trim();
+            const normP = (p === 'Tunder' ? 'Thunder' : p).toLowerCase();
+            if (normP !== normTarget) return false;
+
+            if (startDate || endDate) {
+                if (!tx.transactionDate) return false;
+                const d = new Date(tx.transactionDate);
+                if (isNaN(d.getTime())) return false;
+                if (startDate && d < startDate) return false;
+                if (endDate && d > endDate) return false;
+            }
+
+            return true;
+        });
+    }
+
+    function renderFpdModalData() {
+        const list = getFpdProviderTransactions();
+
+        // 1. Calculate Summary Cards
+        let totalSalesCount = list.length;
+        let totalSalesAmount = 0;
+        let paidCount = 0;
+        let paidAmount = 0;
+        let unpaidCount = 0;
+        let unpaidAmount = 0;
+
+        list.forEach(tx => {
+            const amt = getFinanceTxAmount(tx);
+            const fullRev = Number(tx.fullRevenue || amt || tx.netTotal || 0);
+            totalSalesAmount += fullRev;
+
+            if (tx.financeReceived === true) {
+                paidCount++;
+                paidAmount += amt;
+            } else if (tx.actionType === 'ชำระงวดผ่อนด้วยไฟแนนซ์' || Number(tx.financedAmount) > 0) {
+                unpaidCount++;
+                unpaidAmount += amt;
+            }
+        });
+
+        const totalSalesAmountEl = document.getElementById('fpdTotalSalesAmount');
+        if (totalSalesAmountEl) totalSalesAmountEl.textContent = formatNumber(totalSalesAmount) + ' ฿';
+        const totalSalesCountEl = document.getElementById('fpdTotalSalesCount');
+        if (totalSalesCountEl) totalSalesCountEl.textContent = totalSalesCount.toLocaleString('th-TH') + ' รายการ';
+
+        const unpaidAmountEl = document.getElementById('fpdUnpaidAmount');
+        if (unpaidAmountEl) unpaidAmountEl.textContent = formatNumber(unpaidAmount) + ' ฿';
+        const unpaidCountEl = document.getElementById('fpdUnpaidCount');
+        if (unpaidCountEl) unpaidCountEl.textContent = unpaidCount.toLocaleString('th-TH') + ' รายการ';
+
+        const paidAmountEl = document.getElementById('fpdPaidAmount');
+        if (paidAmountEl) paidAmountEl.textContent = formatNumber(paidAmount) + ' ฿';
+        const paidCountEl = document.getElementById('fpdPaidCount');
+        if (paidCountEl) paidCountEl.textContent = paidCount.toLocaleString('th-TH') + ' รายการ';
+
+        // 2. Update Tab Badges
+        const bUnpaid = document.getElementById('fpdTabUnpaidBadge');
+        if (bUnpaid) bUnpaid.textContent = unpaidCount;
+        const bPaid = document.getElementById('fpdTabPaidBadge');
+        if (bPaid) bPaid.textContent = paidCount;
+        const bAll = document.getElementById('fpdTabAllBadge');
+        if (bAll) bAll.textContent = totalSalesCount;
+
+        // Auto select tab if unpaid is 0
+        if (currentFpdTabStatus === 'unpaid' && unpaidCount === 0 && paidCount > 0) {
+            currentFpdTabStatus = 'all';
+        }
+
+        updateFpdTabStyles();
+        renderFpdTableRows();
+    }
+
+    function updateFpdTabStyles() {
+        const tabs = document.querySelectorAll('.fpd-status-tab');
+        tabs.forEach(tab => {
+            const st = tab.getAttribute('data-status');
+            if (st === currentFpdTabStatus) {
+                if (st === 'unpaid') {
+                    tab.style.background = '#fee2e2';
+                    tab.style.borderColor = '#fca5a5';
+                    tab.style.color = '#dc2626';
+                    tab.style.fontWeight = '700';
+                } else if (st === 'paid') {
+                    tab.style.background = '#d1fae5';
+                    tab.style.borderColor = '#86efac';
+                    tab.style.color = '#059669';
+                    tab.style.fontWeight = '700';
+                } else {
+                    tab.style.background = '#e0f2fe';
+                    tab.style.borderColor = '#93c5fd';
+                    tab.style.color = '#0284c7';
+                    tab.style.fontWeight = '700';
+                }
+            } else {
+                tab.style.background = '#ffffff';
+                tab.style.borderColor = '#cbd5e1';
+                tab.style.color = '#475569';
+                tab.style.fontWeight = '600';
+            }
+        });
+    }
+
+    function renderFpdTableRows() {
+        const list = getFpdProviderTransactions();
+        const searchVal = (document.getElementById('fpdSearchInput') || {}).value?.toLowerCase().trim() || '';
+        const tbody = document.getElementById('fpdTableBody');
+        const emptyState = document.getElementById('fpdEmptyState');
+
+        // Filter by Tab Status
+        let filtered = list.filter(tx => {
+            if (currentFpdTabStatus === 'unpaid') {
+                return !tx.financeReceived && (tx.actionType === 'ชำระงวดผ่อนด้วยไฟแนนซ์' || Number(tx.financedAmount) > 0);
+            }
+            if (currentFpdTabStatus === 'paid') {
+                return tx.financeReceived === true;
+            }
+            return true; // 'all'
+        });
+
+        // Filter by Search Input
+        if (searchVal) {
+            filtered = filtered.filter(tx => {
+                const name = (tx.customerName || '').toLowerCase();
+                const policy = (tx.policyNumber || '').toLowerCase();
+                const branch = (tx.branch || '').toLowerCase();
+                const plan = (tx.packagePlan || '').toLowerCase();
+                const staff = (tx.recordedBy || '').toLowerCase();
+                return name.includes(searchVal) || policy.includes(searchVal) || branch.includes(searchVal) || plan.includes(searchVal) || staff.includes(searchVal);
+            });
+        }
+
+        // Summary footer count and amount
+        let showingAmount = 0;
+        filtered.forEach(tx => {
+            showingAmount += getFinanceTxAmount(tx);
+        });
+
+        const showingCountEl = document.getElementById('fpdShowingCount');
+        if (showingCountEl) showingCountEl.textContent = filtered.length.toLocaleString('th-TH');
+        const showingAmountEl = document.getElementById('fpdShowingAmount');
+        if (showingAmountEl) showingAmountEl.textContent = formatNumber(showingAmount);
+
+        if (!tbody) return;
+        tbody.innerHTML = '';
+
+        if (filtered.length === 0) {
+            if (emptyState) emptyState.style.display = 'block';
+            return;
+        }
+        if (emptyState) emptyState.style.display = 'none';
+
+        const rowsHtml = filtered.map((tx, idx) => {
+            const dateStr = tx.transactionDate ? new Date(tx.transactionDate).toLocaleDateString('th-TH') : '-';
+            const amt = getFinanceTxAmount(tx);
+
+            // Status Badge & Action Buttons
+            let statusHtml = '';
+            if (!tx.financeReceived) {
+                statusHtml = `
+                    <div style="display: inline-flex; align-items: center; justify-content: center; gap: 6px; flex-wrap: wrap;">
+                        <span style="display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 0.75rem; font-weight: 700; background: #fee2e2; color: #dc2626; border: 1px solid #fecaca;">
+                            รอชำระเงิน
+                        </span>
+                        <button type="button" class="btn btn-sm" 
+                                style="padding: 2px 8px; font-size: 11px; font-weight: 600; background: #2563eb; color: #ffffff; border: none; border-radius: 5px; cursor: pointer; transition: background 0.15s;" 
+                                onmouseover="this.style.background='#1d4ed8'" onmouseout="this.style.background='#2563eb'" 
+                                onclick="window.receiveFinanceFromFpdModal('${tx._id}')" title="กดเพื่อรับยอดรายการนี้">
+                            รับยอด
+                        </button>
+                    </div>
+                `;
+            } else {
+                const recDateStr = tx.financeReceivedDate ? new Date(tx.financeReceivedDate).toLocaleDateString('th-TH') : '';
+                const channelBadge = tx.receivedAsCash
+                    ? '<span style="display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 0.72rem; font-weight: 600; background: #ecfdf5; color: #059669; border: 1px solid #a7f3d0;">Easy.Care</span>'
+                    : '<span style="display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 0.72rem; font-weight: 600; background: #f0f9ff; color: #0284c7; border: 1px solid #bae6fd;">Silmin</span>';
+                statusHtml = `
+                    <div style="display: inline-flex; align-items: center; justify-content: center; gap: 4px; flex-wrap: wrap;">
+                        <span style="font-size: 0.78rem; color: #059669; font-weight: 600;">รับแล้ว ${recDateStr}</span>
+                        ${channelBadge}
+                        <button type="button" class="btn btn-sm" 
+                                style="padding: 1px 6px; font-size: 10px; font-weight: 500; background: #f8fafc; color: #475569; border: 1px solid #cbd5e1; border-radius: 4px; cursor: pointer; margin-left: 2px;" 
+                                onclick="window.editFinanceFromFpdModal('${tx._id}')" title="แก้ไขหรือยกเลิกการรับยอด">
+                            ✏️
+                        </button>
+                    </div>
+                `;
+            }
+
+            // Evidence link
+            const urls = tx.evidenceUrls && tx.evidenceUrls.length > 0 ? tx.evidenceUrls : (tx.evidenceUrl ? [tx.evidenceUrl] : []);
+            let evidenceHtml = '<span style="color: #94a3b8;">-</span>';
+            if (urls.length > 0) {
+                evidenceHtml = `<a href="${urls[0]}" target="_blank" style="color: #0284c7; text-decoration: underline; font-weight: 500; font-size: 0.8rem;">รูป (${urls.length})</a>`;
+            }
+
+            return `
+                <tr style="border-bottom: 1px solid #f1f5f9;">
+                    <td style="padding: 9px 10px;">${idx + 1}</td>
+                    <td style="padding: 9px 10px; white-space: nowrap;">${dateStr}</td>
+                    <td style="padding: 9px 10px; font-weight: 600; color: #0284c7;">${escapeHtml(tx.policyNumber || '-')}</td>
+                    <td style="padding: 9px 10px;">${escapeHtml(tx.customerName || '-')}</td>
+                    <td style="padding: 9px 10px;">${escapeHtml(tx.branch || '-')}</td>
+                    <td style="padding: 9px 10px;"><span style="display: inline-block; padding: 2px 7px; background: #f1f5f9; border-radius: 4px; font-size: 0.78rem; font-weight: 500;">${escapeHtml(tx.packagePlan || tx.actionType || '-')}</span></td>
+                    <td style="padding: 9px 10px; text-align: right; font-weight: 700; color: #0f172a;">${formatNumber(amt)} ฿</td>
+                    <td style="padding: 9px 10px; text-align: center;">${statusHtml}</td>
+                    <td style="padding: 9px 10px; text-align: center;">${evidenceHtml}</td>
+                </tr>
+            `;
+        }).join('');
+
+        tbody.innerHTML = rowsHtml;
+    }
+
+    // Modal Actions Wrappers
+    window.receiveFinanceFromFpdModal = async function(txId) {
+        if (typeof window.receiveFinanceAmount === 'function') {
+            await window.receiveFinanceAmount(txId);
+            renderFpdModalData();
+        }
+    };
+
+    window.editFinanceFromFpdModal = async function(txId) {
+        if (typeof window.editFinanceReceived === 'function') {
+            await window.editFinanceReceived(txId);
+            renderFpdModalData();
+        }
+    };
+
+    let fpdEventsBound = false;
+    function initFinanceProviderDetailModalEvents() {
+        if (fpdEventsBound) return;
+        fpdEventsBound = true;
+
+        // Bind Tab click events inside FPD modal using event delegation
+        const tabsContainer = document.getElementById('fpdTabsContainer');
+        if (tabsContainer) {
+            tabsContainer.addEventListener('click', (e) => {
+                const btn = e.target.closest('.fpd-status-tab');
+                if (!btn) return;
+                currentFpdTabStatus = btn.getAttribute('data-status') || 'unpaid';
+                updateFpdTabStyles();
+                renderFpdTableRows();
+            });
+        }
+
+        // Search input inside FPD modal
+        const fpdSearchInput = document.getElementById('fpdSearchInput');
+        if (fpdSearchInput) {
+            fpdSearchInput.addEventListener('input', () => {
+                renderFpdTableRows();
+            });
+        }
+
+        // Date range filter inside FPD modal
+        const fpdStartDate = document.getElementById('fpdStartDate');
+        if (fpdStartDate) {
+            fpdStartDate.addEventListener('change', () => {
+                renderFpdModalData();
+            });
+        }
+        const fpdEndDate = document.getElementById('fpdEndDate');
+        if (fpdEndDate) {
+            fpdEndDate.addEventListener('change', () => {
+                renderFpdModalData();
+            });
+        }
+        const btnFpdDateToday = document.getElementById('btnFpdDateToday');
+        if (btnFpdDateToday) {
+            btnFpdDateToday.addEventListener('click', () => {
+                const today = new Date().toISOString().split('T')[0];
+                if (fpdStartDate) fpdStartDate.value = today;
+                if (fpdEndDate) fpdEndDate.value = today;
+                renderFpdModalData();
+            });
+        }
+        const btnFpdDateThisMonth = document.getElementById('btnFpdDateThisMonth');
+        if (btnFpdDateThisMonth) {
+            btnFpdDateThisMonth.addEventListener('click', () => {
+                const now = new Date();
+                const year = now.getFullYear();
+                const month = String(now.getMonth() + 1).padStart(2, '0');
+                const lastDay = new Date(year, now.getMonth() + 1, 0).getDate();
+                if (fpdStartDate) fpdStartDate.value = `${year}-${month}-01`;
+                if (fpdEndDate) fpdEndDate.value = `${year}-${month}-${String(lastDay).padStart(2, '0')}`;
+                renderFpdModalData();
+            });
+        }
+        const btnFpdDateClear = document.getElementById('btnFpdDateClear');
+        if (btnFpdDateClear) {
+            btnFpdDateClear.addEventListener('click', () => {
+                if (fpdStartDate) fpdStartDate.value = '';
+                if (fpdEndDate) fpdEndDate.value = '';
+                renderFpdModalData();
+            });
+        }
+
+        // Export Excel inside FPD modal
+        const btnExportFpdExcel = document.getElementById('btnExportFpdExcel');
+        if (btnExportFpdExcel) {
+            btnExportFpdExcel.addEventListener('click', () => {
+                if (!currentFpdProvider) return;
+                const params = new URLSearchParams();
+                params.set('financeProvider', currentFpdProvider);
+                params.set('includeSummary', '1');
+                const sDate = (document.getElementById('fpdStartDate') || {}).value;
+                const eDate = (document.getElementById('fpdEndDate') || {}).value;
+                if (sDate) params.set('startDate', sDate);
+                if (eDate) params.set('endDate', eDate);
+                window.open(`/api/finance/export/excel?${params.toString()}`, '_blank');
+            });
+        }
+
+        // Close FPD modal
+        const closeFpdModal = () => {
+            const modal = document.getElementById('financeProviderDetailModal');
+            if (modal) modal.style.display = 'none';
+        };
+        const btnCloseFpd1 = document.getElementById('closeFinanceProviderDetailModal');
+        if (btnCloseFpd1) btnCloseFpd1.addEventListener('click', closeFpdModal);
+        const btnCloseFpd2 = document.getElementById('closeFinanceProviderDetailModalBtn');
+        if (btnCloseFpd2) btnCloseFpd2.addEventListener('click', closeFpdModal);
+
+        const fpdModalEl = document.getElementById('financeProviderDetailModal');
+        if (fpdModalEl) {
+            fpdModalEl.addEventListener('click', (e) => {
+                if (e.target === fpdModalEl) closeFpdModal();
+            });
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                const modal = document.getElementById('financeProviderDetailModal');
+                if (modal && modal.style.display === 'flex') {
+                    closeFpdModal();
+                }
+            }
+        });
     }
 
     function applyFinanceIncomeFilter() {
@@ -8711,7 +9174,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     minute: '2-digit'
                 });
                 // Format change detail so it is wrapped and nicely separated
-                const changesHtml = h.changes.split(' | ').map(c => `<div>• ${c}</div>`).join('');
+                const changesHtml = (h.changes || '').split(' | ').map(c => `<div>• ${c.replace(/;+$/, '')}</div>`).join('');
                 return `
                     <tr>
                         <td style="padding: 10px; border-bottom: 1px solid #f1f5f9; font-weight: 500; font-size: 0.85rem;">${index + 1}</td>
@@ -8921,7 +9384,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (data.payment?.method === 'finance' && data.financeDetails) {
                     const finMonthly = getFinanceMonthlyAmount(data);
                     const finMonthlyStr = finMonthly ? `${finMonthly.toLocaleString()} บาท/งวด` : '-';
-                    financeExtra = `<div><strong>ผ่อนชำระไฟแนนซ์:</strong> ${data.financeDetails.provider || '-'} (${data.financeDetails.financeMonths || '-'} เดือน / ค่างวด ${finMonthlyStr})</div>`;
+                    const dueDayStr = data.financeDetails.financeDueDay ? ` / วันครบกำหนดวันที่ ${data.financeDetails.financeDueDay}` : '';
+                    financeExtra = `<div><strong>ผ่อนชำระไฟแนนซ์:</strong> ${data.financeDetails.provider || '-'} (${data.financeDetails.financeMonths || '-'} เดือน${dueDayStr} / ค่างวด ${finMonthlyStr})</div>`;
                 }
 
                 paymentSectionHtml = `

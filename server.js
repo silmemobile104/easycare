@@ -4860,8 +4860,72 @@ function getWarrantyChanges(oldData, newData) {
         checkNumber(oldData.package?.price, newData.package.price, 'ราคาแพ็กเกจ');
     }
     
+    if (newData.warrantyDates) {
+        if (newData.warrantyDates.start) {
+            const oldStart = oldData.warrantyDates?.start ? new Date(oldData.warrantyDates.start).toLocaleDateString('th-TH') : '-';
+            const newStart = new Date(newData.warrantyDates.start).toLocaleDateString('th-TH');
+            if (oldStart !== newStart) {
+                changes.push(`วันเริ่มต้นคุ้มครอง (เปลี่ยนจาก "${oldStart}" เป็น "${newStart}");`);
+            }
+        }
+        if (newData.warrantyDates.end) {
+            const oldEnd = oldData.warrantyDates?.end ? new Date(oldData.warrantyDates.end).toLocaleDateString('th-TH') : '-';
+            const newEnd = new Date(newData.warrantyDates.end).toLocaleDateString('th-TH');
+            if (oldEnd !== newEnd) {
+                changes.push(`วันสิ้นสุดคุ้มครอง (เปลี่ยนจาก "${oldEnd}" เป็น "${newEnd}");`);
+            }
+        }
+    }
+
+    const formatPaymentMethod = (m) => {
+        if (!m) return '-';
+        if (m === 'finance') return 'ผ่อนด้วยไฟแนนซ์';
+        if (m === 'Full Payment') return 'ชำระเต็มจำนวน';
+        if (m === 'Installment') return 'แบ่งชำระ 3 งวด';
+        return m;
+    };
+
     if (newData.payment) {
-        checkField(oldData.payment?.method, newData.payment.method, 'วิธีการชำระเงิน');
+        const oldMethod = oldData.payment?.method;
+        const newMethod = newData.payment?.method;
+        if (newMethod !== undefined && oldMethod !== newMethod) {
+            changes.push(`วิธีการชำระเงิน (เปลี่ยนจาก "${formatPaymentMethod(oldMethod)}" เป็น "${formatPaymentMethod(newMethod)}");`);
+        }
+    }
+
+    // ตรวจสอบรายละเอียดสัญญาไฟแนนซ์
+    const oldMethod = oldData.payment?.method;
+    const newMethod = (newData.payment && newData.payment.method) ? newData.payment.method : oldMethod;
+
+    if (newMethod === 'finance') {
+        const oldFin = oldData.financeDetails || {};
+        const newFin = newData.financeDetails || {};
+
+        const oldProvider = oldFin.provider ? String(oldFin.provider).trim() : '';
+        const newProvider = newFin.provider ? String(newFin.provider).trim() : '';
+        if (newFin.provider !== undefined && oldProvider !== newProvider) {
+            changes.push(`บริษัทไฟแนนซ์ (เปลี่ยนจาก "${oldProvider || '-'}" เป็น "${newProvider || '-'}");`);
+        }
+
+        const oldMonths = (oldFin.financeMonths !== undefined && oldFin.financeMonths !== null) ? Number(oldFin.financeMonths) : null;
+        const newMonths = (newFin.financeMonths !== undefined && newFin.financeMonths !== null) ? Number(newFin.financeMonths) : null;
+        if (newMonths !== null && oldMonths !== newMonths) {
+            const oldStr = oldMonths ? `${oldMonths} เดือน` : '-';
+            const newStr = `${newMonths} เดือน`;
+            changes.push(`ระยะเวลาผ่อนไฟแนนซ์ (เปลี่ยนจาก "${oldStr}" เป็น "${newStr}");`);
+        }
+
+        const oldDueDay = (oldFin.financeDueDay !== undefined && oldFin.financeDueDay !== null) ? Number(oldFin.financeDueDay) : null;
+        const newDueDay = (newFin.financeDueDay !== undefined && newFin.financeDueDay !== null) ? Number(newFin.financeDueDay) : null;
+        if (newDueDay !== null && oldDueDay !== newDueDay) {
+            const oldStr = oldDueDay ? `วันที่ ${oldDueDay}` : '-';
+            const newStr = `วันที่ ${newDueDay}`;
+            changes.push(`วันที่ครบกำหนดชำระไฟแนนซ์ (เปลี่ยนจาก "${oldStr}" เป็น "${newStr}");`);
+        }
+    } else if (oldMethod === 'finance' && newMethod !== 'finance') {
+        const oldProvider = oldData.financeDetails?.provider || '-';
+        const oldMonths = oldData.financeDetails?.financeMonths ? `${oldData.financeDetails.financeMonths} เดือน` : '';
+        changes.push(`รายละเอียดสัญญาไฟแนนซ์ (ยกเลิกสัญญาไฟแนนซ์เดิม: ${oldProvider} ${oldMonths});`);
     }
     
     return changes.join(' | ');

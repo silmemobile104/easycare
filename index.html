@@ -5111,6 +5111,149 @@
         </div>
     </div>
 
+    <!-- Finance Provider Detail & Sales Modal -->
+    <div id="financeProviderDetailModal" class="modal" style="display: none; z-index: 2200;">
+        <div class="modal-content" style="max-width: 1100px; width: 95%; max-height: 90vh; overflow-y: auto; border-radius: 16px; padding: 22px;">
+            <!-- Header -->
+            <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0; padding-bottom: 14px; margin-bottom: 16px;">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <div style="width: 44px; height: 44px; border-radius: 10px; background: #e0f2fe; color: #0284c7; display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0;">
+                        <i class="fas fa-building"></i>
+                    </div>
+                    <div>
+                        <h2 style="font-size: 1.35rem; font-weight: 700; color: #1e293b; margin: 0; display: flex; align-items: center; gap: 8px;">
+                            รายละเอียดรายการยอดขาย - <span id="fpdModalProviderName" style="color: #0284c7;">-</span>
+                        </h2>
+                        <p style="margin: 3px 0 0 0; font-size: 0.82rem; color: #64748b;">
+                            รายการธุรกรรม ยอดขาย และสถานะการชำระเงินของบริษัทจัดไฟแนนซ์
+                        </p>
+                    </div>
+                </div>
+                <button type="button" id="closeFinanceProviderDetailModal" class="modal-close-btn" style="background: none; border: none; font-size: 1.8rem; cursor: pointer; color: #94a3b8; line-height: 1; padding: 0 5px;" title="ปิด">&times;</button>
+            </div>
+
+            <!-- Body -->
+            <div class="modal-body">
+                <!-- KPI Summary Cards Row -->
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 16px;">
+                    <div class="stat-card" style="padding: 14px; border-radius: 10px; background: #f8fafc; border: 1px solid #e2e8f0; display: flex; align-items: center; gap: 12px;">
+                        <div style="width: 40px; height: 40px; border-radius: 8px; background: #e0f2fe; color: #0284c7; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0;">
+                            <i class="fas fa-receipt"></i>
+                        </div>
+                        <div>
+                            <div style="font-size: 0.78rem; color: #64748b; font-weight: 600;">ยอดขายรวมทั้งหมด</div>
+                            <div id="fpdTotalSalesAmount" style="font-size: 1.2rem; font-weight: 700; color: #1e293b;">0 ฿</div>
+                            <div id="fpdTotalSalesCount" style="font-size: 0.72rem; color: #64748b;">0 รายการ</div>
+                        </div>
+                    </div>
+                    <div class="stat-card" style="padding: 14px; border-radius: 10px; background: #fef2f2; border: 1px solid #fecaca; display: flex; align-items: center; gap: 12px;">
+                        <div style="width: 40px; height: 40px; border-radius: 8px; background: #fee2e2; color: #dc2626; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0;">
+                            <i class="fas fa-clock"></i>
+                        </div>
+                        <div>
+                            <div style="font-size: 0.78rem; color: #991b1b; font-weight: 600;">รอการชำระเงิน (ค้างรับ)</div>
+                            <div id="fpdUnpaidAmount" style="font-size: 1.2rem; font-weight: 700; color: #dc2626;">0 ฿</div>
+                            <div id="fpdUnpaidCount" style="font-size: 0.72rem; color: #991b1b;">0 รายการ</div>
+                        </div>
+                    </div>
+                    <div class="stat-card" style="padding: 14px; border-radius: 10px; background: #ecfdf5; border: 1px solid #a7f3d0; display: flex; align-items: center; gap: 12px;">
+                        <div style="width: 40px; height: 40px; border-radius: 8px; background: #d1fae5; color: #059669; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0;">
+                            <i class="fas fa-check-circle"></i>
+                        </div>
+                        <div>
+                            <div style="font-size: 0.78rem; color: #065f46; font-weight: 600;">ได้รับเงินแล้ว</div>
+                            <div id="fpdPaidAmount" style="font-size: 1.2rem; font-weight: 700; color: #059669;">0 ฿</div>
+                            <div id="fpdPaidCount" style="font-size: 0.72rem; color: #065f46;">0 รายการ</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tabs & Controls Row -->
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 10px; background: #f8fafc; padding: 10px 14px; border-radius: 10px; border: 1px solid #e2e8f0;">
+                    <!-- Status Filter Tabs -->
+                    <div style="display: flex; gap: 6px; flex-wrap: wrap;" id="fpdTabsContainer">
+                        <button type="button" class="fpd-status-tab" data-status="unpaid" style="padding: 6px 14px; font-size: 0.82rem; font-weight: 700; border-radius: 6px; border: 1px solid #fecaca; background: #fee2e2; color: #dc2626; cursor: pointer; transition: all 0.15s;">
+                            รอชำระเงิน (<span id="fpdTabUnpaidBadge">0</span>)
+                        </button>
+                        <button type="button" class="fpd-status-tab" data-status="paid" style="padding: 6px 14px; font-size: 0.82rem; font-weight: 600; border-radius: 6px; border: 1px solid #cbd5e1; background: #ffffff; color: #475569; cursor: pointer; transition: all 0.15s;">
+                            ได้รับแล้ว (<span id="fpdTabPaidBadge">0</span>)
+                        </button>
+                        <button type="button" class="fpd-status-tab" data-status="all" style="padding: 6px 14px; font-size: 0.82rem; font-weight: 600; border-radius: 6px; border: 1px solid #cbd5e1; background: #ffffff; color: #475569; cursor: pointer; transition: all 0.15s;">
+                            ทั้งหมด (<span id="fpdTabAllBadge">0</span>)
+                        </button>
+                    </div>
+
+                    <!-- Search & Tools -->
+                    <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                        <div style="position: relative;">
+                            <input type="text" id="fpdSearchInput" placeholder="ค้นหาชื่อลูกค้า, เลขสัญญา, สาขา..." style="height: 34px; padding: 0 10px 0 32px; font-size: 0.84rem; border: 1px solid #cbd5e1; border-radius: 6px; width: 240px; background: #ffffff; outline: none;">
+                            <i class="fas fa-search" style="position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 0.78rem;"></i>
+                        </div>
+                        <button type="button" id="btnExportFpdExcel" style="height: 34px; padding: 0 12px; font-size: 0.82rem; font-weight: 600; color: #047857; background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: all 0.15s;" title="ส่งออกข้อมูลเฉพาะไฟแนนซ์นี้เป็น Excel">
+                            <i class="fas fa-file-excel"></i> Export Excel
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Date Range Filter Bar -->
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 14px; background: #ffffff; padding: 8px 14px; border-radius: 10px; border: 1px solid #e2e8f0; font-size: 0.84rem;">
+                    <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                        <span style="font-weight: 600; color: #475569; display: inline-flex; align-items: center; gap: 6px;">
+                            <i class="far fa-calendar-alt" style="color: #0284c7;"></i> ช่วงวันที่ทำรายการ:
+                        </span>
+                        <div style="display: flex; align-items: center; gap: 6px;">
+                            <input type="date" id="fpdStartDate" style="height: 32px; padding: 0 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.82rem; background: #f8fafc; color: #1e293b; outline: none;">
+                            <span style="color: #64748b;">ถึง</span>
+                            <input type="date" id="fpdEndDate" style="height: 32px; padding: 0 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.82rem; background: #f8fafc; color: #1e293b; outline: none;">
+                        </div>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                        <span style="font-size: 0.78rem; color: #94a3b8; font-weight: 600;">ช่วงเวลาด่วน:</span>
+                        <button type="button" id="btnFpdDateToday" style="padding: 3px 9px; font-size: 0.78rem; font-weight: 600; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 5px; cursor: pointer; color: #334155; transition: all 0.15s;" onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='#f8fafc'">วันนี้</button>
+                        <button type="button" id="btnFpdDateThisMonth" style="padding: 3px 9px; font-size: 0.78rem; font-weight: 600; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 5px; cursor: pointer; color: #334155; transition: all 0.15s;" onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='#f8fafc'">เดือนนี้</button>
+                        <button type="button" id="btnFpdDateClear" style="padding: 3px 9px; font-size: 0.78rem; font-weight: 600; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 5px; cursor: pointer; color: #dc2626; transition: all 0.15s;" onmouseover="this.style.background='#fef2f2'" onmouseout="this.style.background='#ffffff'">ล้างวันที่</button>
+                    </div>
+                </div>
+
+                <!-- Table Container -->
+                <div class="table-responsive" style="max-height: 480px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 10px;">
+                    <table class="custom-table" style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.86rem;">
+                        <thead style="position: sticky; top: 0; background: #f8fafc; z-index: 2; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
+                            <tr>
+                                <th style="padding: 10px;">ลำดับ</th>
+                                <th style="padding: 10px;">วันที่ทำรายการ</th>
+                                <th style="padding: 10px;">เลขที่สัญญา</th>
+                                <th style="padding: 10px;">ชื่อลูกค้า</th>
+                                <th style="padding: 10px;">ร้านค้า / สาขา</th>
+                                <th style="padding: 10px;">แพ็กเกจ</th>
+                                <th style="padding: 10px; text-align: right;">ยอดเงิน</th>
+                                <th style="padding: 10px; text-align: center;">สถานะการชำระเงิน</th>
+                                <th style="padding: 10px; text-align: center;">หลักฐาน</th>
+                            </tr>
+                        </thead>
+                        <tbody id="fpdTableBody">
+                            <!-- Injected by script.js -->
+                        </tbody>
+                    </table>
+                </div>
+                <div id="fpdEmptyState" class="empty-state" style="display: none; padding: 35px 20px; text-align: center;">
+                    <i class="fas fa-search" style="font-size: 2.2rem; color: #cbd5e1; margin-bottom: 10px; display: block;"></i>
+                    <p style="color: #64748b; font-size: 0.95rem; margin: 0;">ไม่พบรายการธุรกรรมตามเงื่อนไขที่เลือก</p>
+                </div>
+            </div>
+
+            <!-- Footer -->
+            <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center; margin-top: 16px; padding-top: 14px; border-top: 1px solid #e2e8f0;">
+                <div style="font-size: 0.85rem; color: #64748b;">
+                    แสดง <span id="fpdShowingCount" style="font-weight: 700; color: #1e293b;">0</span> รายการ | ยอดรวม <span id="fpdShowingAmount" style="font-weight: 700; color: #0284c7;">0</span> ฿
+                </div>
+                <button type="button" id="closeFinanceProviderDetailModalBtn" class="submit-btn" style="background: #64748b; color: white; padding: 7px 20px; font-size: 0.88rem; border-radius: 8px; cursor: pointer; border: none;">
+                    ปิดหน้าต่าง
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Call Details & Mark Action Modal -->
     <div id="callDetailsModal" class="modal" style="display: none; z-index: 2100;">
         <div class="modal-content" style="max-width: 500px; padding: 25px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.2);">
@@ -6229,7 +6372,7 @@
     </div>
 
     <script src="permissions.js"></script>
-    <script src="script.js?v=20261008_evidence_optional"></script>
+    <script src="script.js?v=20261013_warranty_edit_history"></script>
 
     <!-- =================== CLAIM RECEIPT LOGIC (inline, replaces claim_receipt.html script) =================== -->
     <script>
