@@ -250,6 +250,11 @@ const WarrantySchema = new mongoose.Schema({
     claimStatus: { type: String, default: 'normal', enum: ['normal', 'pending', 'completed'] },
     reChecked: { type: Boolean, default: false },
     reCheckedAt: Date,
+    forceExpired: { type: Boolean, default: false },
+    originalEndDate: { type: Date, default: null },
+    forceExpireReason: { type: String, default: '' },
+    forceExpiredBy: { type: String, default: '' },
+    forceExpiredAt: { type: Date, default: null },
     editHistory: [{
         editedBy: String,
         editedAt: { type: Date, default: Date.now },
@@ -4130,14 +4135,25 @@ app.post('/api/warranties', async (req, res) => {
             if (!existingPolicy) isUnique = true;
         }
 
+        const nowDupCheck = new Date();
+        const activeWarrantyDupFilter = {
+            approvalStatus: { $ne: 'rejected' },
+            forceExpired: { $ne: true },
+            $or: [
+                { 'warrantyDates.end': { $gte: nowDupCheck } },
+                { 'warrantyDates.end': { $exists: false } },
+                { 'warrantyDates.end': null }
+            ]
+        };
+
         if (device && device.serial) {
-            const existingSerial = await Warranty.findOne({ 'device.serial': device.serial, approvalStatus: { $ne: 'rejected' } });
-            if (existingSerial) return res.status(400).json({ message: 'Serial นี้ถูกลงทะเบียนแล้วและไม่ได้อยู่ในสถานะไม่อนุมัติ' });
+            const existingSerial = await Warranty.findOne({ 'device.serial': device.serial, ...activeWarrantyDupFilter });
+            if (existingSerial) return res.status(400).json({ message: 'Serial นี้ถูกลงทะเบียนแล้วในสัญญาที่ยังไม่หมดอายุ' });
         }
 
         if (device && device.imei) {
-            const existingImei = await Warranty.findOne({ 'device.imei': device.imei, approvalStatus: { $ne: 'rejected' } });
-            if (existingImei) return res.status(400).json({ message: 'IMEI นี้ถูกลงทะเบียนแล้วและไม่ได้อยู่ในสถานะไม่อนุมัติ' });
+            const existingImei = await Warranty.findOne({ 'device.imei': device.imei, ...activeWarrantyDupFilter });
+            if (existingImei) return res.status(400).json({ message: 'IMEI นี้ถูกลงทะเบียนแล้วในสัญญาที่ยังไม่หมดอายุ' });
         }
 
         if (!req.body.payment || req.body.payment.method !== 'finance') {
@@ -4591,13 +4607,23 @@ app.put('/api/warranties/:id/request-correction', async (req, res) => {
     }
 });
 
-// Check for duplicate Serial or IMEI
+// Check for duplicate Serial or IMEI (excluding rejected and expired contracts)
 app.get('/api/warranties/check-duplicate', async (req, res) => {
     try {
         const { type, value, excludeId } = req.query;
         if (!type || !value) return res.json({ exists: false });
 
-        const query = {};
+        const now = new Date();
+        const query = {
+            approvalStatus: { $ne: 'rejected' },
+            forceExpired: { $ne: true },
+            $or: [
+                { 'warrantyDates.end': { $gte: now } },
+                { 'warrantyDates.end': { $exists: false } },
+                { 'warrantyDates.end': null }
+            ]
+        };
+
         if (type === 'serial') {
             query['device.serial'] = value;
         } else if (type === 'imei') {
@@ -4605,9 +4631,6 @@ app.get('/api/warranties/check-duplicate', async (req, res) => {
         } else {
             return res.status(400).json({ message: 'Invalid type' });
         }
-
-        // Exclude rejected items from duplicates
-        query.approvalStatus = { $ne: 'rejected' };
 
         // If editing, exclude the current record
         if (excludeId && mongoose.Types.ObjectId.isValid(excludeId)) {
@@ -4965,13 +4988,25 @@ app.put('/api/warranties/:id', async (req, res) => {
             const catError = await validateProductCatalogFields(updateData.device);
             if (catError) return res.status(400).json({ message: catError });
 
+            const nowDupUpdate = new Date();
+            const activeWarrantyDupFilter = {
+                _id: { $ne: req.params.id },
+                approvalStatus: { $ne: 'rejected' },
+                forceExpired: { $ne: true },
+                $or: [
+                    { 'warrantyDates.end': { $gte: nowDupUpdate } },
+                    { 'warrantyDates.end': { $exists: false } },
+                    { 'warrantyDates.end': null }
+                ]
+            };
+
             if (updateData.device.serial) {
-                const existingSerial = await Warranty.findOne({ _id: { $ne: req.params.id }, 'device.serial': updateData.device.serial, approvalStatus: { $ne: 'rejected' } });
-                if (existingSerial) return res.status(400).json({ message: 'Serial นี้ถูกลงทะเบียนแล้วและไม่ได้อยู่ในสถานะไม่อนุมัติ' });
+                const existingSerial = await Warranty.findOne({ 'device.serial': updateData.device.serial, ...activeWarrantyDupFilter });
+                if (existingSerial) return res.status(400).json({ message: 'Serial นี้ถูกลงทะเบียนแล้วในสัญญาที่ยังไม่หมดอายุ' });
             }
             if (updateData.device.imei) {
-                const existingImei = await Warranty.findOne({ _id: { $ne: req.params.id }, 'device.imei': updateData.device.imei, approvalStatus: { $ne: 'rejected' } });
-                if (existingImei) return res.status(400).json({ message: 'IMEI นี้ถูกลงทะเบียนแล้วและไม่ได้อยู่ในสถานะไม่อนุมัติ' });
+                const existingImei = await Warranty.findOne({ 'device.imei': updateData.device.imei, ...activeWarrantyDupFilter });
+                if (existingImei) return res.status(400).json({ message: 'IMEI นี้ถูกลงทะเบียนแล้วในสัญญาที่ยังไม่หมดอายุ' });
             }
         }
 
@@ -5469,6 +5504,144 @@ app.delete('/api/warranties/:id', async (req, res) => {
         res.json({ success: true, message: 'Record deleted successfully' });
     } catch (err) {
         res.status(500).json({ message: err.message });
+    }
+});
+
+// Force expire warranty immediately (Admin Only)
+app.patch('/api/warranties/:id/force-expire', checkAdminRole, async (req, res) => {
+    try {
+        const { reason, staffName } = req.body || {};
+        const cleanReason = String(reason || '').trim();
+        if (!cleanReason) {
+            return res.status(400).json({ success: false, message: 'กรุณาระบุเหตุผลที่ต้องการให้แพ็กเกจหมดอายุทันที' });
+        }
+
+        const warranty = await Warranty.findById(req.params.id);
+        if (!warranty) {
+            return res.status(404).json({ success: false, message: 'ไม่พบข้อมูลกรมธรรม์' });
+        }
+
+        const now = new Date();
+        const currentEnd = warranty.warrantyDates?.end ? new Date(warranty.warrantyDates.end) : null;
+
+        // Save original end date if not already force-expired or if current end date is in the future
+        if (!warranty.originalEndDate || (currentEnd && currentEnd >= now)) {
+            warranty.originalEndDate = currentEnd || new Date(now.getFullYear() + 1, now.getMonth(), now.getDate());
+        }
+
+        const expiredAt = new Date(now.getTime() - 1000);
+        const actorName = staffName || (req.headers['x-staff-name'] ? decodeURIComponent(req.headers['x-staff-name']) : 'Admin');
+        const prevEndStr = currentEnd ? currentEnd.toLocaleDateString('th-TH') : '-';
+        const newEndStr = now.toLocaleDateString('th-TH');
+
+        if (!warranty.warrantyDates) {
+            warranty.warrantyDates = { start: warranty.createdAt || now, end: expiredAt };
+        } else {
+            warranty.warrantyDates.end = expiredAt;
+        }
+
+        warranty.forceExpired = true;
+        warranty.forceExpireReason = cleanReason;
+        warranty.forceExpiredBy = actorName;
+        warranty.forceExpiredAt = now;
+
+        warranty.editHistory.push({
+            editedBy: actorName,
+            editedAt: now,
+            changes: `บังคับให้แพ็กเกจหมดอายุทันที (วันสิ้นสุดเดิม: ${prevEndStr} -> ${newEndStr}) | เหตุผล: ${cleanReason}`
+        });
+
+        await warranty.save();
+
+        await recordAuditLog(req, {
+            module: 'PACKAGES',
+            actionType: 'STATUS_CHANGE',
+            action: 'บังคับแพ็กเกจหมดอายุทันที',
+            detail: `บังคับให้สัญญาเลขที่ ${warranty.policyNumber} (ลูกค้า: ${warranty.customer?.firstName || ''} ${warranty.customer?.lastName || ''}) หมดอายุทันที | เหตุผล: ${cleanReason}`,
+            targetId: warranty.policyNumber,
+            targetType: 'Warranty',
+            changes: {
+                before: { endDate: prevEndStr, status: 'ปกติ/กำลังคุ้มครอง', forceExpired: false },
+                after: { endDate: newEndStr, status: 'หมดอายุทันที (Force Expired)', forceExpired: true, reason: cleanReason }
+            }
+        });
+
+        res.json({
+            success: true,
+            message: 'ปรับสถานะแพ็กเกจเป็นหมดอายุทันทีเรียบร้อยแล้ว',
+            data: warranty
+        });
+    } catch (err) {
+        console.error('PATCH /api/warranties/:id/force-expire error:', err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// Restore original warranty expiry date (Admin Only)
+app.patch('/api/warranties/:id/restore-expiry', checkAdminRole, async (req, res) => {
+    try {
+        const { note, staffName } = req.body || {};
+        const cleanNote = String(note || '').trim();
+
+        const warranty = await Warranty.findById(req.params.id);
+        if (!warranty) {
+            return res.status(404).json({ success: false, message: 'ไม่พบข้อมูลกรมธรรม์' });
+        }
+
+        const now = new Date();
+        let restoredEnd = warranty.originalEndDate ? new Date(warranty.originalEndDate) : null;
+        if (!restoredEnd || isNaN(restoredEnd.getTime())) {
+            const baseStart = warranty.warrantyDates?.start ? new Date(warranty.warrantyDates.start) : new Date(warranty.createdAt || now);
+            restoredEnd = new Date(baseStart);
+            restoredEnd.setFullYear(restoredEnd.getFullYear() + 1);
+        }
+
+        const actorName = staffName || (req.headers['x-staff-name'] ? decodeURIComponent(req.headers['x-staff-name']) : 'Admin');
+        const prevReason = warranty.forceExpireReason || '-';
+        const restoredEndStr = restoredEnd.toLocaleDateString('th-TH');
+
+        if (!warranty.warrantyDates) {
+            warranty.warrantyDates = { start: warranty.createdAt || now, end: restoredEnd };
+        } else {
+            warranty.warrantyDates.end = restoredEnd;
+        }
+
+        warranty.forceExpired = false;
+        warranty.forceExpireReason = '';
+        warranty.forceExpiredBy = '';
+        warranty.forceExpiredAt = null;
+        warranty.originalEndDate = null;
+
+        const noteSuffix = cleanNote ? ` | หมายเหตุ: ${cleanNote}` : '';
+        warranty.editHistory.push({
+            editedBy: actorName,
+            editedAt: now,
+            changes: `คืนค่าวันหมดอายุเดิมของแพ็กเกจ (กลับมาสิ้นสุดวันที่: ${restoredEndStr})${noteSuffix}`
+        });
+
+        await warranty.save();
+
+        await recordAuditLog(req, {
+            module: 'PACKAGES',
+            actionType: 'STATUS_CHANGE',
+            action: 'คืนค่าวันหมดอายุแพ็กเกจ',
+            detail: `คืนค่าวันหมดอายุเดิมของสัญญาเลขที่ ${warranty.policyNumber} (กลับมาสิ้นสุดวันที่ ${restoredEndStr})${noteSuffix}`,
+            targetId: warranty.policyNumber,
+            targetType: 'Warranty',
+            changes: {
+                before: { status: 'หมดอายุทันที (Force Expired)', previousReason: prevReason, forceExpired: true },
+                after: { endDate: restoredEndStr, status: 'คืนค่าวันหมดอายุเดิม', forceExpired: false, note: cleanNote || '-' }
+            }
+        });
+
+        res.json({
+            success: true,
+            message: 'คืนค่าวันหมดอายุเดิมเรียบร้อยแล้ว',
+            data: warranty
+        });
+    } catch (err) {
+        console.error('PATCH /api/warranties/:id/restore-expiry error:', err);
+        res.status(500).json({ success: false, message: err.message });
     }
 });
 

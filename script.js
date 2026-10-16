@@ -8177,7 +8177,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (endDate) params.set('endDate', endDate);
         if (shop) params.set('shop', shop);
 
-        showLoader('กำลังวิเคราะห์ข้อมูล...');
+        showLoader('กำลังโหลดข้อมูลใหม่...');
         try {
             await populateExecutiveShopsDropdown();
 
@@ -8216,6 +8216,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Render products summary table
             renderExecutiveProductsTable(data.productsSummary || []);
+
+            // Update status indicator badge
+            updateExecutiveFilterStatusBadge();
         } catch (err) {
             console.error('Load executive dashboard error:', err);
             showAlert('error', err.message || 'เกิดข้อผิดพลาดในการโหลดแดชบอร์ด');
@@ -8486,6 +8489,126 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // ═══════════════════════════════════════════════════════════════════
+    // EXECUTIVE DASHBOARD QUICK DATE PRESETS & STATUS BADGE
+    // ═══════════════════════════════════════════════════════════════════
+    function updateExecutiveFilterStatusBadge() {
+        const sDate = (document.getElementById('execStartDate') || {}).value || '';
+        const eDate = (document.getElementById('execEndDate') || {}).value || '';
+        const shop = (document.getElementById('execShop') || {}).value || '';
+        const textEl = document.getElementById('execFilterStatusText');
+        if (!textEl) return;
+
+        const fmtDateTh = (dStr) => {
+            if (!dStr) return '';
+            const parts = dStr.split('-');
+            if (parts.length < 3) return dStr;
+            return parts[2] + '/' + parts[1] + '/' + parts[0];
+        };
+
+        let label = 'ข้อมูลทั้งหมด';
+        if (sDate && eDate) {
+            if (sDate === eDate) {
+                label = 'วันที่: ' + fmtDateTh(sDate);
+            } else {
+                label = fmtDateTh(sDate) + ' ถึง ' + fmtDateTh(eDate);
+            }
+        } else if (sDate) {
+            label = 'ตั้งแต่ ' + fmtDateTh(sDate);
+        } else if (eDate) {
+            label = 'ถึง ' + fmtDateTh(eDate);
+        }
+
+        if (shop) {
+            label += ' | สาขา: ' + shop;
+        }
+
+        textEl.textContent = label;
+    }
+    function getExecutivePresetDates(preset) {
+        const now = new Date();
+        const y = now.getFullYear();
+        const m = now.getMonth();
+        const d = now.getDate();
+
+        const fmt = (year, monthIdx, dayNum) => {
+            const mm = String(monthIdx + 1).padStart(2, '0');
+            const dd = String(dayNum).padStart(2, '0');
+            return `${year}-${mm}-${dd}`;
+        };
+
+        if (preset === 'today') {
+            const todayStr = fmt(y, m, d);
+            return { start: todayStr, end: todayStr };
+        } else if (preset === 'thisMonth') {
+            const startStr = fmt(y, m, 1);
+            const lastDay = new Date(y, m + 1, 0).getDate();
+            const endStr = fmt(y, m, lastDay);
+            return { start: startStr, end: endStr };
+        } else if (preset === 'lastMonth') {
+            const prevMonthDate = new Date(y, m - 1, 1);
+            const py = prevMonthDate.getFullYear();
+            const pm = prevMonthDate.getMonth();
+            const startStr = fmt(py, pm, 1);
+            const lastDay = new Date(py, pm + 1, 0).getDate();
+            const endStr = fmt(py, pm, lastDay);
+            return { start: startStr, end: endStr };
+        } else if (preset === 'thisYear') {
+            return { start: `${y}-01-01`, end: `${y}-12-31` };
+        }
+        return null;
+    }
+
+    function clearExecutiveDatePresetButtons() {
+        document.querySelectorAll('.exec-date-preset-btn').forEach(b => {
+            b.classList.remove('active');
+        });
+    }
+
+    document.querySelectorAll('.exec-date-preset-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.preventDefault();
+            const sDate = document.getElementById('execStartDate');
+            const eDate = document.getElementById('execEndDate');
+            if (!sDate || !eDate) return;
+
+            const isAlreadyActive = btn.classList.contains('active');
+            clearExecutiveDatePresetButtons();
+
+            // Toggle off if already active
+            if (isAlreadyActive) {
+                sDate.value = '';
+                eDate.value = '';
+                loadExecutiveDashboard();
+                return;
+            }
+
+            const preset = btn.getAttribute('data-preset');
+            const dates = getExecutivePresetDates(preset);
+            if (dates) {
+                btn.classList.add('active');
+                sDate.value = dates.start;
+                eDate.value = dates.end;
+                loadExecutiveDashboard();
+            }
+        });
+    });
+
+    const execResetBtn = document.getElementById('execResetBtn');
+    if (execResetBtn) {
+        execResetBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            const sDate = document.getElementById('execStartDate');
+            const eDate = document.getElementById('execEndDate');
+            const shopSelect = document.getElementById('execShop');
+            if (sDate) sDate.value = '';
+            if (eDate) eDate.value = '';
+            if (shopSelect) shopSelect.value = '';
+            clearExecutiveDatePresetButtons();
+            loadExecutiveDashboard();
+        });
+    }
+
     const execAnalyzeBtn = document.getElementById('execAnalyzeBtn');
     if (execAnalyzeBtn) execAnalyzeBtn.addEventListener('click', (e) => {
         e.preventDefault();
@@ -8496,8 +8619,20 @@ document.addEventListener('DOMContentLoaded', () => {
     const execEndDate = document.getElementById('execEndDate');
     const execShop = document.getElementById('execShop');
 
-    if (execStartDate) execStartDate.addEventListener('change', () => loadExecutiveDashboard());
-    if (execEndDate) execEndDate.addEventListener('change', () => loadExecutiveDashboard());
+    if (execStartDate) {
+        execStartDate.addEventListener('input', () => clearExecutiveDatePresetButtons());
+        execStartDate.addEventListener('change', () => {
+            clearExecutiveDatePresetButtons();
+            loadExecutiveDashboard();
+        });
+    }
+    if (execEndDate) {
+        execEndDate.addEventListener('input', () => clearExecutiveDatePresetButtons());
+        execEndDate.addEventListener('change', () => {
+            clearExecutiveDatePresetButtons();
+            loadExecutiveDashboard();
+        });
+    }
     if (execShop) execShop.addEventListener('change', () => loadExecutiveDashboard());
 
     // Executive Dashboard Report Listeners
@@ -9290,6 +9425,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const startDate = data.warrantyDates?.start ? new Date(data.warrantyDates.start).toLocaleDateString('th-TH') : '-';
             const endDate = data.warrantyDates?.end ? new Date(data.warrantyDates.end).toLocaleDateString('th-TH') : '-';
             const dob = data.customer?.dob ? new Date(data.customer.dob).toLocaleDateString('th-TH') : '-';
+            const isExpiredNow = Boolean(data.warrantyDates?.end && new Date(data.warrantyDates.end) < new Date());
             
             // Format status badges
             const statusLabels = {
@@ -9300,7 +9436,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 'rejected': '<span class="status-badge status-expired">ไม่อนุมัติ</span>',
                 'needs_correction': '<span class="status-badge status-expired" style="background-color: #f59e0b; color: white;">รอแก้ไขข้อมูล</span>'
             };
-            const statusBadge = statusLabels[data.approvalStatus] || `<span class="status-badge">${data.approvalStatus}</span>`;
+            let statusBadge = statusLabels[data.approvalStatus] || `<span class="status-badge">${data.approvalStatus}</span>`;
+            if (isExpiredNow && ['approved', 'Approved_Unpaid', 'Approved_Paid'].includes(data.approvalStatus)) {
+                statusBadge = `<div style="display: inline-flex; gap: 6px; align-items: center; flex-wrap: wrap; justify-content: flex-end;">${statusBadge}<span class="status-badge status-expired">หมดอายุ</span></div>`;
+            }
+
+            const forceExpiredBannerHtml = (isExpiredNow && data.forceExpired) ? `
+                <div style="grid-column: 1 / -1; background: #fff1f2; border: 1px solid #fecdd3; border-radius: 8px; padding: 10px 12px; margin-top: 4px; color: #9f1239; font-size: 0.82rem;">
+                    <div style="font-weight: 700; display: flex; align-items: center; gap: 6px; margin-bottom: 4px; color: #be123c;">
+                        <span>⛔ แพ็กเกจนี้ถูกสั่งให้หมดอายุก่อนกำหนด (โดยผู้ดูแลระบบ)</span>
+                    </div>
+                    <div><strong>เหตุผล:</strong> ${data.forceExpireReason || '-'}</div>
+                    <div style="color: #881337; font-size: 0.78rem; margin-top: 2px;">
+                        <strong>วันสิ้นสุดเดิม:</strong> ${data.originalEndDate ? new Date(data.originalEndDate).toLocaleDateString('th-TH') : '-'}
+                        &nbsp;|&nbsp; <strong>ผู้ดำเนินการ:</strong> ${data.forceExpiredBy || '-'} (${data.forceExpiredAt ? new Date(data.forceExpiredAt).toLocaleString('th-TH') : '-'})
+                    </div>
+                </div>
+            ` : '';
 
             // Payment status badge
             const payStatusLabels = {
@@ -9464,7 +9616,8 @@ document.addEventListener('DOMContentLoaded', () => {
                                 ${paymentSectionHtml}
 
                                 <div><strong>วันเริ่มต้นคุ้มครอง:</strong> ${startDate}</div>
-                                <div><strong>วันสิ้นสุดคุ้มครอง:</strong> ${endDate}</div>
+                                <div><strong>วันสิ้นสุดคุ้มครอง:</strong> <span style="${isExpiredNow ? 'color: #ef4444; font-weight: 700;' : ''}">${endDate}${isExpiredNow ? ' (หมดอายุแล้ว)' : ''}</span></div>
+                                ${forceExpiredBannerHtml}
                                 
                                 <div style="grid-column: 1 / -1; border-top: 1px dashed #cbd5e1; padding-top: 8px; margin-top: 4px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
                                     <div><strong>วงเงินคุ้มครองสูงสุด:</strong> <span style="color: #0ea5e9; font-weight: 600;">${(data.maxLimit || 0).toLocaleString()} บาท</span></div>
@@ -9478,6 +9631,9 @@ document.addEventListener('DOMContentLoaded', () => {
             `;
 
             const showPrintContract = data.approvalStatus !== 'pending' && data.approvalStatus !== 'needs_correction' && data.approvalStatus !== 'rejected';
+            const isAdminUser = Boolean(currentUser && currentUser.role === 'admin');
+            const showForceExpireBtn = isAdminUser && !isExpiredNow && data.approvalStatus !== 'rejected';
+            const showRestoreExpiryBtn = isAdminUser && isExpiredNow && Boolean(data.forceExpired);
 
             Swal.fire({
                 html: detailsHtml,
@@ -9486,7 +9642,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 showCloseButton: true,
                 focusConfirm: false,
                 footer: `
-                    <div style="display: flex; gap: 12px; width: 100%; justify-content: flex-end; padding: 10px 0 0 0; border-top: 1px solid #e2e8f0; flex-wrap: wrap;">
+                    <div style="display: flex; gap: 10px; width: 100%; justify-content: flex-end; padding: 10px 0 0 0; border-top: 1px solid #e2e8f0; flex-wrap: wrap;">
+                        ${showForceExpireBtn ? `
+                            <button id="modalForceExpireBtn" class="submit-btn" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%) !important; border: none !important; margin: 0; padding: 8px 14px; font-size: 0.85rem; display: flex; align-items: center; gap: 6px; box-shadow: 0 4px 12px rgba(245, 158, 11, 0.25); margin-right: auto;" title="เฉพาะผู้ดูแลระบบ: สั่งให้แพ็กเกจนี้หมดอายุทันที">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                                ให้หมดอายุทันที
+                            </button>
+                        ` : ''}
+                        ${showRestoreExpiryBtn ? `
+                            <button id="modalRestoreExpiryBtn" class="submit-btn" style="background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%) !important; border: none !important; margin: 0; padding: 8px 14px; font-size: 0.85rem; display: flex; align-items: center; gap: 6px; box-shadow: 0 4px 12px rgba(139, 92, 246, 0.25); margin-right: auto;" title="เฉพาะผู้ดูแลระบบ: กู้คืนวันสิ้นสุดสัญญาเดิม">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>
+                                คืนค่าวันหมดอายุเดิม
+                            </button>
+                        ` : ''}
                         ${showPrintContract ? `
                             <button id="modalPrintContractBtn" class="submit-btn" style="background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%) !important; border: none !important; margin: 0; padding: 8px 16px; font-size: 0.85rem; display: flex; align-items: center; gap: 6px; box-shadow: 0 4px 12px rgba(13, 148, 136, 0.2);">
                                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
@@ -9508,6 +9676,20 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                 `,
                 didOpen: () => {
+                    const forceExpireBtn = document.getElementById('modalForceExpireBtn');
+                    if (forceExpireBtn) {
+                        forceExpireBtn.addEventListener('click', () => {
+                            Swal.close();
+                            forceExpireWarranty(data);
+                        });
+                    }
+                    const restoreExpiryBtn = document.getElementById('modalRestoreExpiryBtn');
+                    if (restoreExpiryBtn) {
+                        restoreExpiryBtn.addEventListener('click', () => {
+                            Swal.close();
+                            restoreWarrantyExpiry(data);
+                        });
+                    }
                     const printContractBtn = document.getElementById('modalPrintContractBtn');
                     if (printContractBtn) {
                         printContractBtn.addEventListener('click', () => {
@@ -9532,6 +9714,168 @@ document.addEventListener('DOMContentLoaded', () => {
             hideLoader();
             console.error('Fetch details error:', err);
             showAlert('error', 'ไม่สามารถโหลดรายละเอียดได้: ' + err.message);
+        }
+    }
+
+    async function forceExpireWarranty(data) {
+        if (!currentUser || currentUser.role !== 'admin') {
+            showAlert('warning', 'ฟังก์ชันนี้สงวนสิทธิ์เฉพาะผู้ดูแลระบบ (Admin) เท่านั้น');
+            return;
+        }
+
+        const currentEndStr = data.warrantyDates?.end ? new Date(data.warrantyDates.end).toLocaleDateString('th-TH') : '-';
+        const customerName = `${data.customer?.firstName || ''} ${data.customer?.lastName || ''}`.trim() || '-';
+
+        const result = await SwalTheme.fire({
+            title: 'ยืนยันให้แพ็กเกจหมดอายุทันที?',
+            width: '540px',
+            icon: 'warning',
+            html: `
+                <div style="text-align: left; font-size: 0.9rem; color: #334155;">
+                    <div style="background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 12px; margin-bottom: 14px;">
+                        <div style="margin-bottom: 4px;"><strong>เลขกรมธรรม์:</strong> <span style="color: #0d9488; font-weight: 700;">${data.policyNumber || '-'}</span></div>
+                        <div style="margin-bottom: 4px;"><strong>ลูกค้า:</strong> ${customerName} (${data.device?.model || '-'})</div>
+                        <div><strong>วันสิ้นสุดสัญญาเดิม:</strong> <span style="color: #dc2626; font-weight: 600;">${currentEndStr}</span> ➡️ <strong style="color: #b91c1c;">หมดอายุทันที</strong></div>
+                    </div>
+                    <label style="display: block; font-weight: 600; color: #0f172a; margin-bottom: 6px;">
+                        ระบุเหตุผลที่สั่งให้หมดอายุทันที <span style="color: #ef4444;">* (บังคับกรอก)</span>
+                    </label>
+                    <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px;">
+                        <button type="button" class="quick-expire-reason-chip" data-reason="ลูกค้าขอยกเลิกสัญญา" style="background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 999px; padding: 4px 10px; font-size: 0.75rem; color: #334155; cursor: pointer;">ลูกค้าขอยกเลิกสัญญา</button>
+                        <button type="button" class="quick-expire-reason-chip" data-reason="ผิดเงื่อนไขการรับประกัน" style="background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 999px; padding: 4px 10px; font-size: 0.75rem; color: #334155; cursor: pointer;">ผิดเงื่อนไขการรับประกัน</button>
+                        <button type="button" class="quick-expire-reason-chip" data-reason="เคลมครบสิทธิ์ / สละสิทธิ์เครื่อง" style="background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 999px; padding: 4px 10px; font-size: 0.75rem; color: #334155; cursor: pointer;">เคลมครบสิทธิ์ / สละสิทธิ์เครื่อง</button>
+                        <button type="button" class="quick-expire-reason-chip" data-reason="ทำรายการลงทะเบียนผิดพลาด" style="background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 999px; padding: 4px 10px; font-size: 0.75rem; color: #334155; cursor: pointer;">ทำรายการลงทะเบียนผิดพลาด</button>
+                    </div>
+                    <textarea id="swalForceExpireReasonInput" rows="3" placeholder="พิมพ์เหตุผลที่ต้องการให้แพ็กเกจนี้หมดอายุทันที..." style="width: 100%; padding: 10px; border: 1.5px solid #cbd5e1; border-radius: 8px; font-family: inherit; font-size: 0.88rem; resize: vertical; box-sizing: border-box;"></textarea>
+                </div>
+            `,
+            showCancelButton: true,
+            confirmButtonText: '⏳ ยืนยันให้หมดอายุทันที',
+            cancelButtonText: 'ยกเลิก',
+            reverseButtons: true,
+            didOpen: () => {
+                const textarea = document.getElementById('swalForceExpireReasonInput');
+                document.querySelectorAll('.quick-expire-reason-chip').forEach(chip => {
+                    chip.addEventListener('click', () => {
+                        if (textarea) {
+                            textarea.value = chip.dataset.reason || '';
+                            textarea.focus();
+                        }
+                    });
+                });
+                if (textarea) textarea.focus();
+            },
+            preConfirm: () => {
+                const val = (document.getElementById('swalForceExpireReasonInput')?.value || '').trim();
+                if (!val) {
+                    Swal.showValidationMessage('กรุณาระบุเหตุผลทุกครั้งก่อนกดยืนยัน');
+                    return false;
+                }
+                return val;
+            }
+        });
+
+        if (!result.isConfirmed) {
+            showWarrantyDetails(data._id);
+            return;
+        }
+
+        const reason = result.value;
+        showLoader('กำลังปรับสถานะแพ็กเกจเป็นหมดอายุทันที...');
+        try {
+            const res = await fetch(`/api/warranties/${data._id}/force-expire`, {
+                method: 'PATCH',
+                headers: getAuditAuthHeaders({ 'Content-Type': 'application/json' }),
+                body: JSON.stringify({
+                    reason,
+                    staffName: currentUser?.staffName || 'Admin'
+                })
+            });
+            const resData = await res.json();
+            hideLoader();
+
+            if (!res.ok || !resData.success) {
+                throw new Error(resData.message || 'ไม่สามารถปรับสถานะแพ็กเกจได้');
+            }
+
+            await showAlert('success', 'ปรับสถานะแพ็กเกจเป็น "หมดอายุ" ทันทีเรียบร้อยแล้ว');
+            fetchWarranties();
+            showWarrantyDetails(data._id);
+        } catch (err) {
+            hideLoader();
+            console.error('forceExpireWarranty error:', err);
+            showAlert('error', err.message || 'เกิดข้อผิดพลาดในการเชื่อมต่อ');
+        }
+    }
+
+    async function restoreWarrantyExpiry(data) {
+        if (!currentUser || currentUser.role !== 'admin') {
+            showAlert('warning', 'ฟังก์ชันนี้สงวนสิทธิ์เฉพาะผู้ดูแลระบบ (Admin) เท่านั้น');
+            return;
+        }
+
+        const origEndStr = data.originalEndDate
+            ? new Date(data.originalEndDate).toLocaleDateString('th-TH')
+            : 'ตามอายุสัญญาเดิม (+1 ปี)';
+        const customerName = `${data.customer?.firstName || ''} ${data.customer?.lastName || ''}`.trim() || '-';
+
+        const result = await SwalTheme.fire({
+            title: 'ยืนยันคืนค่าวันหมดอายุเดิม?',
+            width: '520px',
+            icon: 'question',
+            html: `
+                <div style="text-align: left; font-size: 0.9rem; color: #334155;">
+                    <div style="background: #f5f3ff; border: 1px solid #ddd6fe; border-radius: 8px; padding: 12px; margin-bottom: 14px;">
+                        <div style="margin-bottom: 4px;"><strong>เลขกรมธรรม์:</strong> <span style="color: #6d28d9; font-weight: 700;">${data.policyNumber || '-'}</span></div>
+                        <div style="margin-bottom: 4px;"><strong>ลูกค้า:</strong> ${customerName} (${data.device?.model || '-'})</div>
+                        <div style="margin-bottom: 4px;"><strong>เหตุผลที่เคยสั่งหมดอายุ:</strong> ${data.forceExpireReason || '-'}</div>
+                        <div><strong>วันสิ้นสุดที่จะกู้คืน:</strong> <span style="color: #10b981; font-weight: 700;">${origEndStr}</span></div>
+                    </div>
+                    <label style="display: block; font-weight: 600; color: #0f172a; margin-bottom: 6px;">
+                        หมายเหตุการคืนค่า (ถ้ามี)
+                    </label>
+                    <input type="text" id="swalRestoreExpiryNoteInput" placeholder="ระบุหมายเหตุ เช่น กดผิดรายการ / ลูกค้าขอกลับมาใช้สิทธิ์..." style="width: 100%; padding: 10px; border: 1.5px solid #cbd5e1; border-radius: 8px; font-family: inherit; font-size: 0.88rem; box-sizing: border-box;">
+                </div>
+            `,
+            showCancelButton: true,
+            confirmButtonText: '🔄 ยืนยันคืนค่าวันหมดอายุเดิม',
+            cancelButtonText: 'ยกเลิก',
+            reverseButtons: true,
+            preConfirm: () => {
+                return (document.getElementById('swalRestoreExpiryNoteInput')?.value || '').trim();
+            }
+        });
+
+        if (!result.isConfirmed) {
+            showWarrantyDetails(data._id);
+            return;
+        }
+
+        const note = result.value || '';
+        showLoader('กำลังคืนค่าวันหมดอายุเดิม...');
+        try {
+            const res = await fetch(`/api/warranties/${data._id}/restore-expiry`, {
+                method: 'PATCH',
+                headers: getAuditAuthHeaders({ 'Content-Type': 'application/json' }),
+                body: JSON.stringify({
+                    note,
+                    staffName: currentUser?.staffName || 'Admin'
+                })
+            });
+            const resData = await res.json();
+            hideLoader();
+
+            if (!res.ok || !resData.success) {
+                throw new Error(resData.message || 'ไม่สามารถคืนค่าวันหมดอายุเดิมได้');
+            }
+
+            await showAlert('success', 'คืนค่าวันหมดอายุเดิมของแพ็กเกจเรียบร้อยแล้ว');
+            fetchWarranties();
+            showWarrantyDetails(data._id);
+        } catch (err) {
+            hideLoader();
+            console.error('restoreWarrantyExpiry error:', err);
+            showAlert('error', err.message || 'เกิดข้อผิดพลาดในการเชื่อมต่อ');
         }
     }
 
@@ -9612,6 +9956,7 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('capacity').value = data.device.capacity;
             document.getElementById('serialNumber').value = data.device.serial;
             document.getElementById('imei').value = data.device.imei || '';
+            resetDuplicateValidationUI();
 
             // วันสิ้นสุดประกันศูนย์ (แยก วัน/เดือน/ปี พ.ศ.)
             if (data.device.officialWarrantyEnd) {
@@ -9847,6 +10192,7 @@ document.addEventListener('DOMContentLoaded', () => {
             deviceCondEl.dispatchEvent(new Event('change'));
         }
 
+        resetDuplicateValidationUI();
         toggleIMEIField();
         updateRemainingDays();
         updatePaymentUI();
@@ -10022,6 +10368,7 @@ document.addEventListener('DOMContentLoaded', () => {
             imeiGroup.style.display = 'none';
             imeiInput.required = false;
             imeiInput.value = '';
+            checkDuplicate('imei', '');
         } else {
             imeiGroup.style.display = 'block';
             imeiInput.required = true;
@@ -10853,8 +11200,24 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    function resetDuplicateValidationUI() {
+        ['serialNumber', 'imei'].forEach(field => {
+            const input = document.getElementById(field);
+            if (!input) return;
+            const label = input.parentNode ? input.parentNode.querySelector('label') : null;
+            const baseLabel = field === 'serialNumber' ? 'เลขซีเรียล (Serial Number)' : 'เลข IMEI';
+            input.classList.remove('input-error');
+            if (label) {
+                label.innerHTML = baseLabel;
+                label.style.color = '';
+            }
+        });
+        updateSubmitButtonState();
+    }
+
     async function checkDuplicate(field, value) {
         const input = document.getElementById(field === 'serialNumber' ? 'serialNumber' : 'imei');
+        if (!input) return false;
         const label = input.parentNode.querySelector('label');
         const baseLabel = field === 'serialNumber' ? 'เลขซีเรียล (Serial Number)' : 'เลข IMEI';
 
@@ -10895,6 +11258,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function updateSubmitButtonState() {
         const submitBtn = document.querySelector('#warrantyForm button[type="submit"]');
+        if (!submitBtn) return;
         const hasErrors = document.querySelectorAll('#warrantyForm .input-error').length > 0;
 
         if (hasErrors) {
@@ -10909,17 +11273,33 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Duplicate Check Event Listeners
+    let serialDupTimer = null;
     const serialInput = document.getElementById('serialNumber');
     if (serialInput) {
         serialInput.addEventListener('blur', () => {
+            clearTimeout(serialDupTimer);
             checkDuplicate('serialNumber', serialInput.value.trim());
+        });
+        serialInput.addEventListener('input', () => {
+            clearTimeout(serialDupTimer);
+            serialDupTimer = setTimeout(() => {
+                checkDuplicate('serialNumber', serialInput.value.trim());
+            }, 300);
         });
     }
 
+    let imeiDupTimer = null;
     const imeiInputReg = document.getElementById('imei');
     if (imeiInputReg) {
         imeiInputReg.addEventListener('blur', () => {
+            clearTimeout(imeiDupTimer);
             checkDuplicate('imei', imeiInputReg.value.trim());
+        });
+        imeiInputReg.addEventListener('input', () => {
+            clearTimeout(imeiDupTimer);
+            imeiDupTimer = setTimeout(() => {
+                checkDuplicate('imei', imeiInputReg.value.trim());
+            }, 300);
         });
     }
 

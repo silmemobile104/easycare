@@ -889,25 +889,68 @@
                         </div>
                     </header>
 
-                    <div class="advanced-filter-bar">
-                        <div class="filter-bar-row">
-                            <div class="filter-group">
-                                <label>จากวันที่:</label>
-                                <input type="date" id="execStartDate" class="filter-date-input">
+                    <div class="advanced-filter-bar" style="padding: 16px 20px; border-radius: 16px;">
+                        <!-- Top Row: Quick Presets & Status Indicator -->
+                        <div class="exec-filter-top-row" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding-bottom: 14px; margin-bottom: 14px; border-bottom: 1px dashed rgba(203, 213, 225, 0.8);">
+                            <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                                <span style="font-size: 0.82rem; font-weight: 600; color: #475569; display: inline-flex; align-items: center; gap: 6px;">
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: #0d9488;">
+                                        <circle cx="12" cy="12" r="10"></circle>
+                                        <polyline points="12 6 12 12 16 14"></polyline>
+                                    </svg>
+                                    ช่วงเวลาด่วน:
+                                </span>
+                                <div class="exec-date-presets-pill-group">
+                                    <button type="button" class="exec-date-preset-btn" data-preset="today">วันนี้</button>
+                                    <button type="button" class="exec-date-preset-btn" data-preset="thisMonth">เดือนนี้</button>
+                                    <button type="button" class="exec-date-preset-btn" data-preset="lastMonth">เดือนที่แล้ว</button>
+                                    <button type="button" class="exec-date-preset-btn" data-preset="thisYear">ปีนี้</button>
+                                </div>
                             </div>
-                            <div class="filter-group">
-                                <label>ถึงวันที่:</label>
-                                <input type="date" id="execEndDate" class="filter-date-input">
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <span id="execFilterStatusBadge" style="display: inline-flex; align-items: center; gap: 6px; padding: 5px 14px; background: #f0fdfa; border: 1px solid #ccfbf1; color: #0d9488; border-radius: 20px; font-size: 0.8rem; font-weight: 600;">
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                                        <line x1="16" y1="2" x2="16" y2="6"></line>
+                                        <line x1="8" y1="2" x2="8" y2="6"></line>
+                                        <line x1="3" y1="10" x2="21" y2="10"></line>
+                                    </svg>
+                                    <span id="execFilterStatusText">ข้อมูลทั้งหมด</span>
+                                </span>
                             </div>
-                            <div class="filter-group">
-                                <label>ร้านค้า:</label>
-                                <select id="execShop" class="filter-select">
-                                    <option value="">ทั้งหมด</option>
+                        </div>
+
+                        <!-- Bottom Row: Detailed Custom Filter Controls -->
+                        <div class="filter-bar-row" style="display: flex; align-items: flex-end; gap: 14px; flex-wrap: wrap;">
+                            <div class="filter-group" style="flex: 1 1 180px; min-width: 150px;">
+                                <label style="font-size: 0.78rem; font-weight: 600; color: #64748b; margin-bottom: 4px; display: block;">จากวันที่:</label>
+                                <input type="date" id="execStartDate" class="filter-date-input" style="width: 100%; height: 38px; border-radius: 8px; box-sizing: border-box;">
+                            </div>
+                            <div class="filter-group" style="flex: 1 1 180px; min-width: 150px;">
+                                <label style="font-size: 0.78rem; font-weight: 600; color: #64748b; margin-bottom: 4px; display: block;">ถึงวันที่:</label>
+                                <input type="date" id="execEndDate" class="filter-date-input" style="width: 100%; height: 38px; border-radius: 8px; box-sizing: border-box;">
+                            </div>
+                            <div class="filter-group" style="flex: 1.6 1 240px; min-width: 180px;">
+                                <label style="font-size: 0.78rem; font-weight: 600; color: #64748b; margin-bottom: 4px; display: block;">ร้านค้า / สาขา:</label>
+                                <select id="execShop" class="filter-select" style="width: 100%; height: 38px; border-radius: 8px; box-sizing: border-box;">
+                                    <option value="">ทั้งหมด (ทุกสาขา)</option>
                                 </select>
                             </div>
-                            <div class="filter-actions">
-                                <button type="button" class="filter-search-btn"
-                                    id="execAnalyzeBtn">วิเคราะห์ข้อมูล</button>
+                            <div class="filter-actions" style="margin-left: auto; display: flex; gap: 10px; align-items: center;">
+                                <button type="button" class="filter-reset-btn" id="execResetBtn" style="height: 38px; padding: 0 16px; border-radius: 8px; display: inline-flex; align-items: center; gap: 6px; font-weight: 500;" title="ล้างตัวกรองทั้งหมด">
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <polyline points="1 4 1 10 7 10"></polyline>
+                                        <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
+                                    </svg>
+                                    ล้างค่า
+                                </button>
+                                <button type="button" class="filter-search-btn" id="execAnalyzeBtn" style="height: 38px; padding: 0 20px; border-radius: 8px; display: inline-flex; align-items: center; gap: 6px; font-weight: 600;">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <polyline points="23 4 23 10 17 10"></polyline>
+                                        <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+                                    </svg>
+                                    โหลดข้อมูลใหม่
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -6372,7 +6415,7 @@
     </div>
 
     <script src="permissions.js"></script>
-    <script src="script.js?v=20261013_warranty_edit_history"></script>
+    <script src="script.js?v=20261015_reload_data_btn"></script>
 
     <!-- =================== CLAIM RECEIPT LOGIC (inline, replaces claim_receipt.html script) =================== -->
     <script>

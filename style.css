@@ -3948,6 +3948,52 @@ tr.new-row-highlight {
     transform: translateY(0) scale(0.97);
 }
 
+/* Executive Dashboard Date Presets Segmented Pill Group */
+.exec-date-presets-pill-group {
+    display: inline-flex;
+    align-items: center;
+    background: #f1f5f9;
+    padding: 3px;
+    border-radius: 10px;
+    border: 1px solid #e2e8f0;
+    gap: 3px;
+}
+
+.exec-date-preset-btn {
+    padding: 5px 14px;
+    height: 31px;
+    background: transparent;
+    color: var(--text-secondary, #475569);
+    border: none;
+    border-radius: 7px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--transition, all 0.2s ease);
+    font-family: inherit;
+    white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    user-select: none;
+}
+
+.exec-date-preset-btn:hover {
+    color: var(--primary, #0d9488);
+    background: rgba(255, 255, 255, 0.7);
+}
+
+.exec-date-preset-btn:active {
+    transform: scale(0.96);
+}
+
+.exec-date-preset-btn.active {
+    background: var(--primary-gradient, linear-gradient(135deg, #0d9488 0%, #0f766e 100%)) !important;
+    color: #ffffff !important;
+    font-weight: 600 !important;
+    box-shadow: 0 2px 8px rgba(13, 148, 136, 0.3) !important;
+}
+
 /* Responsive: Stack on small screens */
 @media (max-width: 768px) {
     .filter-bar-row {
