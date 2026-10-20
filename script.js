@@ -8657,13 +8657,34 @@ document.addEventListener('DOMContentLoaded', () => {
     async function fetchMembersList() {
         const modal = document.getElementById('memberListModal');
         const tbody = document.getElementById('memberListBody');
+        const countBadge = document.getElementById('memberListTotalCountBadge');
+        const filterSubtitle = document.getElementById('memberListFilterSubtitle');
         if (!modal || !tbody) return;
+
+        const startDate = (document.getElementById('execStartDate') || {}).value || '';
+        const endDate = (document.getElementById('execEndDate') || {}).value || '';
+        const shop = (document.getElementById('execShop') || {}).value || '';
+
+        const statusTextEl = document.getElementById('execFilterStatusText');
+        if (filterSubtitle) {
+            const currentFilterLabel = statusTextEl ? statusTextEl.textContent : 'ข้อมูลทั้งหมด';
+            filterSubtitle.textContent = `ตัวกรอง: ${currentFilterLabel}`;
+        }
+        if (countBadge) {
+            countBadge.textContent = '...';
+        }
+
+        const params = new URLSearchParams();
+        if (startDate) params.set('startDate', startDate);
+        if (endDate) params.set('endDate', endDate);
+        if (shop) params.set('shop', shop);
 
         tbody.innerHTML = '<tr><td colspan="6" class="empty-state">กำลังโหลดข้อมูล...</td></tr>';
         modal.style.display = 'flex';
 
         try {
-            const res = await fetch('/api/members-list');
+            const qs = params.toString();
+            const res = await fetch(qs ? `/api/members-list?${qs}` : '/api/members-list');
             const data = await res.json();
 
             if (!res.ok || !data.success) {
@@ -8671,8 +8692,12 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             const members = data.members || [];
+            if (countBadge) {
+                countBadge.textContent = `${formatNumber(members.length)} ราย`;
+            }
+
             if (members.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="6" class="empty-state">ไม่พบข้อมูลสมาชิก</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="6" class="empty-state">ไม่พบข้อมูลสมาชิกตามตัวกรองที่เลือก</td></tr>';
                 return;
             }
 
@@ -8695,6 +8720,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }).join('');
         } catch (err) {
             console.error('fetchMembersList error:', err);
+            if (countBadge) countBadge.textContent = '0 ราย';
             tbody.innerHTML = `<tr><td colspan="6" class="empty-state" style="color: var(--danger);">เกิดข้อผิดพลาด: ${err.message}</td></tr>`;
         }
     }
@@ -14564,7 +14590,10 @@ document.addEventListener('DOMContentLoaded', () => {
             return Number.isFinite(x) && x >= 0 ? x : 0;
         };
 
-        body.innerHTML = claims.map(c => `
+        body.innerHTML = claims.map(c => {
+            const shopDisplay = (c.shopName && String(c.shopName).trim()) ? c.shopName : (c.claimShopName || '-');
+            const staffDisplay = (c.staffName && String(c.staffName).trim()) ? c.staffName : '-';
+            return `
             <tr class="${c && c.isOverdue ? 'row-overdue' : ''}">
                 <td data-label="รหัสเคลม" style="font-weight: 600; color: var(--primary);">${c.claimId || '-'}</td>
                 <td data-label="เลขกรมธรรม์" style="font-weight: 600; color: #1e293b;">${c.policyNumber || '-'}</td>
@@ -14572,6 +14601,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td data-label="ชื่อลูกค้า">${c.customerName || '-'}</td>
                 <td data-label="เบอร์โทรศัพท์">${c.customerPhone || '-'}</td>
                 <td data-label="อุปกรณ์">${c.deviceModel || '-'}</td>
+                <td data-label="สาขา">${shopDisplay}</td>
+                <td data-label="พนักงานแจ้งเคลม">${staffDisplay}</td>
                 <td data-label="สถานะ">
                     ${c && c.isOverdue
                 ? `<span class="status-badge status-overdue">⚠️ เกินกำหนดอัปเดต (${safeDays(c.daysOverdue)} วัน)</span>`
@@ -14585,7 +14616,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                 </td>
             </tr>
-        `).join('');
+        `;
+        }).join('');
 
         // Wire up buttons
         document.querySelectorAll('.status-update-btn').forEach(btn => {
@@ -14980,6 +15012,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Reset form
             document.getElementById('updateTitle').value = '';
+            const updateDateEl = document.getElementById('updateDate');
+            if (updateDateEl) {
+                const now = new Date();
+                updateDateEl.value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+            }
             document.getElementById('updateCost').value = '0';
             const centerNameEl = document.getElementById('updateCenterName');
             if (centerNameEl) centerNameEl.value = '';
@@ -14992,10 +15029,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const techPhoneEl = document.getElementById('updateTechnicianPhone');
             if (techPhoneEl) techPhoneEl.value = '';
 
-            const costSection = document.getElementById('updateCostSection');
-            const toggleCostBtn = document.getElementById('toggleCostBtn');
-            if (costSection) costSection.style.display = 'none';
-            if (toggleCostBtn) toggleCostBtn.style.display = 'block';
+            resetCostUI();
 
             const updateImagesInput = document.getElementById('updateImages');
             if (updateImagesInput) updateImagesInput.value = '';
@@ -15126,7 +15160,21 @@ document.addEventListener('DOMContentLoaded', () => {
                                     ✏️ แก้ไข
                                 </button>
                             </div>
-                            <p class="timeline-cost">ค่าใช้จ่าย: <strong>${(u.cost || 0).toLocaleString()} บาท</strong></p>
+                            <p class="timeline-cost">ค่าใช้จ่ายรวม: <strong>${(u.cost || 0).toLocaleString()} บาท</strong></p>
+                            ${(Array.isArray(u.costItems) && u.costItems.length > 0) ? `
+                                <div style="margin: 6px 0 8px 0; padding: 8px 12px; background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; font-size: 0.84rem; color: #92400e;">
+                                    <div style="font-weight: 700; margin-bottom: 4px;">รายการค่าใช้จ่ายย่อย (${u.costItems.length} รายการ):</div>
+                                    ${u.costItems.map((ci, idx) => `
+                                        <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 4px 0; border-bottom: ${idx < u.costItems.length - 1 ? '1px dashed #fde68a' : 'none'};">
+                                            <span>${idx + 1}. ${escapeHtml(ci.label || 'ค่าใช้จ่าย')}</span>
+                                            <div style="display: flex; align-items: center; gap: 8px;">
+                                                <span style="font-weight: 700;">${Number(ci.amount || 0).toLocaleString()} บาท</span>
+                                                ${ci.evidenceUrl ? `<img src="${ci.evidenceUrl}" alt="หลักฐาน" onclick="window.open('${ci.evidenceUrl}', '_blank')" title="คลิกเพื่อดูรูปหลักฐาน" style="width: 34px; height: 34px; object-fit: cover; border-radius: 6px; border: 2px solid #f59e0b; cursor: pointer;">` : ''}
+                                            </div>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            ` : ''}
                             ${(u.centerName || u.centerLocation || u.centerPhone || u.technicianName || u.technicianPhone) ? `
                                 <div style="margin-top: 0.45rem; font-size: 0.85rem; color: #334155;">
                                     ${u.centerName ? `<div><strong>ศูนย์:</strong> ${u.centerName}</div>` : ''}
@@ -15141,12 +15189,17 @@ document.addEventListener('DOMContentLoaded', () => {
                                     ${u.images.map(img => `<img src="${img}" alt="ภาพประกอบ" onclick="window.open('${img}', '_blank')">`).join('')}
                                 </div>
                             ` : ''}
-                            ${u.evidenceImages && u.evidenceImages.length > 0 ? `
-                                <div style="margin-top: 0.6rem; font-size: 0.85rem; color: #b45309; font-weight: 700;">หลักฐานค่าใช้จ่าย</div>
-                                <div class="timeline-images">
-                                    ${u.evidenceImages.map(img => `<img src="${img}" alt="หลักฐานค่าใช้จ่าย" onclick="window.open('${img}', '_blank')" style="border: 2px solid #f59e0b;">`).join('')}
-                                </div>
-                            ` : ''}
+                            ${(() => {
+                                const itemUrls = new Set((Array.isArray(u.costItems) ? u.costItems : []).map(ci => ci.evidenceUrl).filter(Boolean));
+                                const extraEv = (Array.isArray(u.evidenceImages) ? u.evidenceImages : []).filter(img => !itemUrls.has(img));
+                                if (extraEv.length === 0) return '';
+                                return `
+                                    <div style="margin-top: 0.6rem; font-size: 0.85rem; color: #b45309; font-weight: 700;">หลักฐานค่าใช้จ่าย</div>
+                                    <div class="timeline-images">
+                                        ${extraEv.map(img => `<img src="${img}" alt="หลักฐานค่าใช้จ่าย" onclick="window.open('${img}', '_blank')" style="border: 2px solid #f59e0b;">`).join('')}
+                                    </div>
+                                `;
+                            })()}
                         </div>
                     </div>
                 `;
@@ -15178,22 +15231,197 @@ document.addEventListener('DOMContentLoaded', () => {
         return costSection.style.display !== 'none';
     }
 
-    function getUpdateCostNumber() {
+    function recalcUpdateCostTotal() {
+        const listEl = document.getElementById('updateCostItemsList');
         const costEl = document.getElementById('updateCost');
-        const raw = costEl ? costEl.value : '0';
-        const n = Number(raw);
-        if (!Number.isFinite(n) || n < 0) return 0;
-        return n;
+        const totalDisplayEl = document.getElementById('updateCostTotalDisplay');
+        const costSection = document.getElementById('updateCostSection');
+        const evidenceGroup = document.getElementById('updateEvidenceGroup');
+        if (!listEl) return 0;
+
+        const rows = Array.from(listEl.querySelectorAll('.update-cost-item-row'));
+        let sum = 0;
+        rows.forEach((row, idx) => {
+            const badge = row.querySelector('.cost-item-index');
+            if (badge) badge.textContent = `#${idx + 1}`;
+            const amtInput = row.querySelector('.update-cost-amount');
+            const val = parseFloat(amtInput ? amtInput.value : '0') || 0;
+            if (val > 0) sum += val;
+        });
+
+        if (costEl) costEl.value = String(sum);
+        if (totalDisplayEl) totalDisplayEl.textContent = sum.toLocaleString();
+
+        if (rows.length === 0) {
+            if (costSection) costSection.style.display = 'none';
+        } else {
+            if (costSection) costSection.style.display = 'block';
+        }
+        if (evidenceGroup) evidenceGroup.style.display = 'none';
+        return sum;
+    }
+
+    function attachCostRowImagePicker(row, initialUrl = '') {
+        const urlInput = document.createElement('input');
+        urlInput.type = 'hidden';
+        urlInput.className = 'cost-item-evidence-url';
+        urlInput.value = initialUrl || '';
+
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.accept = 'image/*';
+        fileInput.style.display = 'none';
+
+        const wrap = document.createElement('div');
+        wrap.style.cssText = 'display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0;';
+
+        const pickBtn = document.createElement('button');
+        pickBtn.type = 'button';
+        pickBtn.style.cssText = 'background: #fff7ed; color: #c2410c; border: 1px dashed #fb923c; border-radius: 6px; padding: 5px 8px; font-size: 0.78rem; font-weight: 600; cursor: pointer; white-space: nowrap;';
+        pickBtn.textContent = initialUrl ? '🔄 เปลี่ยนรูป' : '📷 แนบรูปหลักฐาน';
+        pickBtn.addEventListener('click', () => fileInput.click());
+
+        const thumbWrap = document.createElement('div');
+        thumbWrap.style.cssText = initialUrl ? 'position: relative; display: inline-flex; align-items: center;' : 'position: relative; display: none; align-items: center;';
+
+        const thumbImg = document.createElement('img');
+        thumbImg.src = initialUrl || '';
+        thumbImg.title = 'คลิกเพื่อดูรูปหลักฐาน';
+        thumbImg.style.cssText = 'width: 34px; height: 34px; object-fit: cover; border-radius: 6px; border: 2px solid #f59e0b; cursor: pointer;';
+        thumbImg.addEventListener('click', () => {
+            const targetUrl = urlInput.value || thumbImg.src;
+            if (targetUrl) window.open(targetUrl, '_blank');
+        });
+
+        const statusSpan = document.createElement('span');
+        statusSpan.style.cssText = 'font-size: 0.75rem; color: #64748b; display: none;';
+
+        thumbWrap.appendChild(thumbImg);
+
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files && e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                thumbImg.src = ev.target.result;
+                thumbWrap.style.display = 'inline-flex';
+            };
+            reader.readAsDataURL(file);
+
+            statusSpan.style.display = 'inline';
+            statusSpan.textContent = '⏳';
+            pickBtn.textContent = '🔄 เปลี่ยนรูป';
+
+            const fd = new FormData();
+            fd.append('file', file);
+            row._uploadPromise = fetch('/api/upload/single', {
+                method: 'POST',
+                body: fd
+            }).then(r => r.json()).then(data => {
+                if (data && data.url) {
+                    urlInput.value = data.url;
+                    statusSpan.textContent = '✅';
+                } else {
+                    throw new Error(data?.message || 'Upload failed');
+                }
+            }).catch(err => {
+                console.error('Cost item image upload error:', err);
+                statusSpan.textContent = '❌';
+                urlInput.value = '';
+            }).finally(() => {
+                row._uploadPromise = null;
+            });
+        });
+
+        wrap.appendChild(urlInput);
+        wrap.appendChild(fileInput);
+        wrap.appendChild(thumbWrap);
+        wrap.appendChild(statusSpan);
+        wrap.appendChild(pickBtn);
+        return wrap;
+    }
+
+    function addUpdateCostRow(label = '', amount = '', evidenceUrl = '') {
+        const listEl = document.getElementById('updateCostItemsList');
+        if (!listEl) return;
+
+        const row = document.createElement('div');
+        row.className = 'update-cost-item-row';
+        row.style.cssText = 'display: flex; gap: 8px; align-items: center; flex-wrap: wrap; background: #ffffff; padding: 8px 10px; border-radius: 8px; border: 1px solid #fde68a;';
+
+        const indexBadge = document.createElement('span');
+        indexBadge.className = 'cost-item-index';
+        indexBadge.style.cssText = 'font-weight: 700; font-size: 0.82rem; color: #b45309; min-width: 24px;';
+        indexBadge.textContent = `#${listEl.children.length + 1}`;
+
+        const labelInput = document.createElement('input');
+        labelInput.type = 'text';
+        labelInput.className = 'update-cost-label';
+        labelInput.placeholder = 'ชื่อรายการค่าใช้จ่าย (เช่น ค่าจอ, ค่าแรง)...';
+        labelInput.value = label;
+        labelInput.style.cssText = 'flex: 2; min-width: 140px; padding: 0.55rem 0.75rem; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.9rem;';
+
+        const amountInput = document.createElement('input');
+        amountInput.type = 'number';
+        amountInput.className = 'update-cost-amount';
+        amountInput.placeholder = 'จำนวนเงิน (บาท)';
+        amountInput.min = '0';
+        amountInput.value = amount !== '' ? amount : '';
+        amountInput.style.cssText = 'flex: 1; min-width: 105px; padding: 0.55rem 0.75rem; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.9rem; font-weight: 600;';
+        amountInput.addEventListener('input', recalcUpdateCostTotal);
+
+        const imagePickerWrap = attachCostRowImagePicker(row, evidenceUrl);
+
+        const removeBtn = document.createElement('button');
+        removeBtn.type = 'button';
+        removeBtn.title = 'ลบรายการนี้';
+        removeBtn.textContent = '✕';
+        removeBtn.style.cssText = 'background: #fee2e2; color: #dc2626; border: 1px solid #fecaca; border-radius: 6px; width: 32px; height: 32px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;';
+        removeBtn.addEventListener('click', () => {
+            row.remove();
+            recalcUpdateCostTotal();
+        });
+
+        row.appendChild(indexBadge);
+        row.appendChild(labelInput);
+        row.appendChild(amountInput);
+        row.appendChild(imagePickerWrap);
+        row.appendChild(removeBtn);
+        listEl.appendChild(row);
+
+        recalcUpdateCostTotal();
+        labelInput.focus();
+    }
+
+    function getUpdateCostItems() {
+        const listEl = document.getElementById('updateCostItemsList');
+        if (!listEl || !isCostEnabled()) return [];
+        const rows = Array.from(listEl.querySelectorAll('.update-cost-item-row'));
+        return rows.map(row => {
+            const label = (row.querySelector('.update-cost-label')?.value || '').trim();
+            const amount = Math.max(0, parseFloat(row.querySelector('.update-cost-amount')?.value || '0') || 0);
+            const evidenceUrl = (row.querySelector('.cost-item-evidence-url')?.value || '').trim();
+            return { label, amount, evidenceUrl };
+        }).filter(item => item.amount > 0 || item.label !== '' || item.evidenceUrl !== '');
+    }
+
+    function getUpdateCostNumber() {
+        return recalcUpdateCostTotal();
     }
 
     function resetCostUI() {
         const costSection = document.getElementById('updateCostSection');
         const toggleCostBtn = document.getElementById('toggleCostBtn');
         const costEl = document.getElementById('updateCost');
+        const totalDisplayEl = document.getElementById('updateCostTotalDisplay');
+        const listEl = document.getElementById('updateCostItemsList');
         const evidenceGroup = document.getElementById('updateEvidenceGroup');
         const evidenceInput = document.getElementById('updateEvidenceImages');
         const evidencePreview = document.getElementById('updateEvidencePreview');
+        if (listEl) listEl.innerHTML = '';
         if (costEl) costEl.value = '0';
+        if (totalDisplayEl) totalDisplayEl.textContent = '0';
         if (costSection) costSection.style.display = 'none';
         if (toggleCostBtn) toggleCostBtn.style.display = 'block';
         if (evidenceGroup) evidenceGroup.style.display = 'none';
@@ -15204,16 +15432,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const toggleCostBtn = document.getElementById('toggleCostBtn');
     if (toggleCostBtn) {
         toggleCostBtn.addEventListener('click', () => {
-            const costSection = document.getElementById('updateCostSection');
-            const costEl = document.getElementById('updateCost');
-            const evidenceGroup = document.getElementById('updateEvidenceGroup');
-            if (costSection) costSection.style.display = 'block';
-            toggleCostBtn.style.display = 'none';
-            if (evidenceGroup) evidenceGroup.style.display = 'block';
-            if (costEl) {
-                costEl.value = costEl.value || '0';
-                costEl.focus();
-            }
+            addUpdateCostRow('', '');
+        });
+    }
+
+    const addMoreCostItemBtn = document.getElementById('addMoreCostItemBtn');
+    if (addMoreCostItemBtn) {
+        addMoreCostItemBtn.addEventListener('click', () => {
+            addUpdateCostRow('', '');
         });
     }
 
@@ -15299,9 +15525,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
 
+            if (costEnabled) {
+                const pendingUploads = Array.from(document.querySelectorAll('#updateCostItemsList .update-cost-item-row'))
+                    .map(r => r._uploadPromise)
+                    .filter(Boolean);
+                if (pendingUploads.length > 0) {
+                    showLoader('กำลังอัปโหลดรูปหลักฐานค่าใช้จ่าย...');
+                    await Promise.all(pendingUploads);
+                }
+            }
+            const costItems = costEnabled ? getUpdateCostItems() : [];
             const formData = new FormData();
             formData.append('title', title);
             formData.append('cost', cost);
+            formData.append('costItems', JSON.stringify(costItems));
+            const updateDateVal = (document.getElementById('updateDate')?.value || '').trim();
+            if (updateDateVal) {
+                formData.append('updateDate', updateDateVal);
+            }
             const centerName = (document.getElementById('updateCenterName')?.value || '').trim();
             const centerLocation = (document.getElementById('updateCenterLocation')?.value || '').trim();
             const centerPhone = (document.getElementById('updateCenterPhone')?.value || '').trim();
@@ -15385,12 +15626,26 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('editUpdateSubId').value = u._id ? String(u._id) : String(u.step || updateId);
 
             document.getElementById('editUpdateTitle').value = u.title || '';
+            const editDateEl = document.getElementById('editUpdateDate');
+            if (editDateEl) {
+                const d = u.date ? new Date(u.date) : new Date();
+                const validDate = !isNaN(d.getTime()) ? d : new Date();
+                editDateEl.value = `${validDate.getFullYear()}-${String(validDate.getMonth() + 1).padStart(2, '0')}-${String(validDate.getDate()).padStart(2, '0')}`;
+            }
             document.getElementById('editUpdateCenterName').value = u.centerName || '';
             document.getElementById('editUpdateCenterLocation').value = u.centerLocation || '';
             document.getElementById('editUpdateCenterPhone').value = u.centerPhone || '';
             document.getElementById('editUpdateTechnicianName').value = u.technicianName || '';
             document.getElementById('editUpdateTechnicianPhone').value = u.technicianPhone || '';
-            document.getElementById('editUpdateCost').value = u.cost || 0;
+            const editCostListEl = document.getElementById('editCostItemsList');
+            if (editCostListEl) editCostListEl.innerHTML = '';
+            if (Array.isArray(u.costItems) && u.costItems.length > 0) {
+                u.costItems.forEach(ci => addEditCostRow(ci.label || '', ci.amount || 0, ci.evidenceUrl || ''));
+            } else if (Number(u.cost) > 0) {
+                const fallbackEv = (Array.isArray(u.evidenceImages) && u.evidenceImages.length > 0) ? u.evidenceImages[0] : '';
+                addEditCostRow(u.title || 'ค่าใช้จ่าย', Number(u.cost), fallbackEv);
+            }
+            recalcEditCostTotal();
 
             const newEvidenceInput = document.getElementById('editNewEvidenceImages');
             if (newEvidenceInput) newEvidenceInput.value = '';
@@ -15457,13 +15712,112 @@ document.addEventListener('DOMContentLoaded', () => {
         renderKeptImagesUI();
     };
 
+    function recalcEditCostTotal() {
+        const listEl = document.getElementById('editCostItemsList');
+        const costEl = document.getElementById('editUpdateCost');
+        const totalDisplayEl = document.getElementById('editUpdateCostTotalDisplay');
+        if (!listEl) return 0;
+
+        const rows = Array.from(listEl.querySelectorAll('.edit-cost-item-row'));
+        let sum = 0;
+        rows.forEach((row, idx) => {
+            const badge = row.querySelector('.edit-cost-item-index');
+            if (badge) badge.textContent = `#${idx + 1}`;
+            const amtInput = row.querySelector('.edit-cost-amount');
+            const val = parseFloat(amtInput ? amtInput.value : '0') || 0;
+            if (val > 0) sum += val;
+        });
+
+        if (costEl) costEl.value = String(sum);
+        if (totalDisplayEl) totalDisplayEl.textContent = sum.toLocaleString();
+        return sum;
+    }
+
+    function addEditCostRow(label = '', amount = '', evidenceUrl = '') {
+        const listEl = document.getElementById('editCostItemsList');
+        if (!listEl) return;
+
+        const row = document.createElement('div');
+        row.className = 'edit-cost-item-row';
+        row.style.cssText = 'display: flex; gap: 8px; align-items: center; flex-wrap: wrap; background: #ffffff; padding: 8px 10px; border-radius: 8px; border: 1px solid #fde68a;';
+
+        const indexBadge = document.createElement('span');
+        indexBadge.className = 'edit-cost-item-index';
+        indexBadge.style.cssText = 'font-weight: 700; font-size: 0.82rem; color: #b45309; min-width: 24px;';
+        indexBadge.textContent = `#${listEl.children.length + 1}`;
+
+        const labelInput = document.createElement('input');
+        labelInput.type = 'text';
+        labelInput.className = 'edit-cost-label';
+        labelInput.placeholder = 'ชื่อรายการค่าใช้จ่าย (เช่น ค่าจอ, ค่าแรง)...';
+        labelInput.value = label;
+        labelInput.style.cssText = 'flex: 2; min-width: 140px; padding: 0.5rem 0.7rem; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.88rem;';
+
+        const amountInput = document.createElement('input');
+        amountInput.type = 'number';
+        amountInput.className = 'edit-cost-amount';
+        amountInput.placeholder = 'จำนวนเงิน (บาท)';
+        amountInput.min = '0';
+        amountInput.value = amount !== '' ? amount : '';
+        amountInput.style.cssText = 'flex: 1; min-width: 100px; padding: 0.5rem 0.7rem; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.88rem; font-weight: 600;';
+        amountInput.addEventListener('input', recalcEditCostTotal);
+
+        const imagePickerWrap = attachCostRowImagePicker(row, evidenceUrl);
+
+        const removeBtn = document.createElement('button');
+        removeBtn.type = 'button';
+        removeBtn.title = 'ลบรายการนี้';
+        removeBtn.textContent = '✕';
+        removeBtn.style.cssText = 'background: #fee2e2; color: #dc2626; border: 1px solid #fecaca; border-radius: 6px; width: 30px; height: 30px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;';
+        removeBtn.addEventListener('click', () => {
+            row.remove();
+            recalcEditCostTotal();
+        });
+
+        row.appendChild(indexBadge);
+        row.appendChild(labelInput);
+        row.appendChild(amountInput);
+        row.appendChild(imagePickerWrap);
+        row.appendChild(removeBtn);
+        listEl.appendChild(row);
+
+        recalcEditCostTotal();
+    }
+
+    function getEditCostItems() {
+        const listEl = document.getElementById('editCostItemsList');
+        if (!listEl) return [];
+        const rows = Array.from(listEl.querySelectorAll('.edit-cost-item-row'));
+        return rows.map(row => {
+            const label = (row.querySelector('.edit-cost-label')?.value || '').trim();
+            const amount = Math.max(0, parseFloat(row.querySelector('.edit-cost-amount')?.value || '0') || 0);
+            const evidenceUrl = (row.querySelector('.cost-item-evidence-url')?.value || '').trim();
+            return { label, amount, evidenceUrl };
+        }).filter(item => item.amount > 0 || item.label !== '' || item.evidenceUrl !== '');
+    }
+
+    const editAddCostItemBtn = document.getElementById('editAddCostItemBtn');
+    if (editAddCostItemBtn) {
+        editAddCostItemBtn.addEventListener('click', () => {
+            addEditCostRow('', '');
+        });
+    }
+
     const saveEditClaimUpdateBtn = document.getElementById('saveEditClaimUpdateBtn');
     if (saveEditClaimUpdateBtn) {
         saveEditClaimUpdateBtn.addEventListener('click', async () => {
             const claimId = document.getElementById('editUpdateClaimId').value;
             const subId = document.getElementById('editUpdateSubId').value;
             const title = document.getElementById('editUpdateTitle').value.trim();
-            const cost = Math.max(0, parseFloat(document.getElementById('editUpdateCost').value) || 0);
+            const pendingEditUploads = Array.from(document.querySelectorAll('#editCostItemsList .edit-cost-item-row'))
+                .map(r => r._uploadPromise)
+                .filter(Boolean);
+            if (pendingEditUploads.length > 0) {
+                showLoader('กำลังอัปโหลดรูปหลักฐานค่าใช้จ่าย...');
+                await Promise.all(pendingEditUploads);
+            }
+            const editCostItems = getEditCostItems();
+            const cost = recalcEditCostTotal();
 
             if (!title) {
                 showAlert('warning', 'กรุณาระบุรายละเอียดการอัปเดต');
@@ -15478,6 +15832,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const formData = new FormData();
             formData.append('title', title);
             formData.append('cost', String(cost));
+            formData.append('costItems', JSON.stringify(editCostItems));
+            const editUpdateDateVal = (document.getElementById('editUpdateDate')?.value || '').trim();
+            if (editUpdateDateVal) {
+                formData.append('updateDate', editUpdateDateVal);
+            }
             formData.append('centerName', (document.getElementById('editUpdateCenterName')?.value || '').trim());
             formData.append('centerLocation', (document.getElementById('editUpdateCenterLocation')?.value || '').trim());
             formData.append('centerPhone', (document.getElementById('editUpdateCenterPhone')?.value || '').trim());

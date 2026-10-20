@@ -416,6 +416,11 @@ const ClaimSchema = new mongoose.Schema({
         title: String,
         date: { type: Date, default: Date.now },
         cost: { type: Number, default: 0 },
+        costItems: [{
+            label: { type: String, default: '' },
+            amount: { type: Number, default: 0 },
+            evidenceUrl: { type: String, default: '' }
+        }],
         centerName: { type: String, default: '' },
         centerLocation: { type: String, default: '' },
         centerPhone: { type: String, default: '' },
@@ -1009,7 +1014,9 @@ function buildClaimFilterMatch(query, baseMatch = {}) {
             { claimId: regex },
             { policyNumber: regex },
             { imei: regex },
-            { deviceModel: regex }
+            { deviceModel: regex },
+            { claimShopName: regex },
+            { staffName: regex }
         ];
     }
     if (startDate) {
@@ -1100,6 +1107,7 @@ app.get('/api/finance/expenses', async (req, res) => {
                                 deviceModel: 1,
                                 claimShopName: 1,
                                 expenseTitle: { $ifNull: ['$updates.title', 'ค่าใช้จ่าย'] },
+                                costItems: { $ifNull: ['$updates.costItems', []] },
                                 amount: '$__expenseAmount',
                                 centerName: { $ifNull: ['$updates.centerName', ''] },
                                 recordedBy: {
@@ -1131,7 +1139,13 @@ app.get('/api/finance/expenses', async (req, res) => {
         ];
 
         let rows = await Claim.aggregate(pipeline);
-        rows = Array.isArray(rows) ? rows : [];
+        rows = (Array.isArray(rows) ? rows : []).map(r => {
+            if (Array.isArray(r.costItems) && r.costItems.length > 0) {
+                const breakdown = r.costItems.map(ci => `${ci.label || 'ค่าใช้จ่าย'}: ${Number(ci.amount || 0).toLocaleString()}฿`).join(', ');
+                r.expenseTitle = `${r.expenseTitle || 'ค่าใช้จ่าย'} (${breakdown})`;
+            }
+            return r;
+        });
 
         // Fetch refund transactions and map them to match the expense schema
         const refundTxQuery = { actionType: 'คืนเงินชดเชยสละสิทธิ์เครื่อง' };
@@ -1388,6 +1402,7 @@ app.get('/api/finance/expenses/export/excel', async (req, res) => {
                                 deviceModel: 1,
                                 claimShopName: 1,
                                 expenseTitle: { $ifNull: ['$updates.title', 'ค่าใช้จ่าย'] },
+                                costItems: { $ifNull: ['$updates.costItems', []] },
                                 amount: '$__expenseAmount',
                                 centerName: { $ifNull: ['$updates.centerName', ''] },
                                 recordedBy: {
@@ -1419,7 +1434,13 @@ app.get('/api/finance/expenses/export/excel', async (req, res) => {
         ];
 
         let rows = await Claim.aggregate(pipeline);
-        rows = Array.isArray(rows) ? rows : [];
+        rows = (Array.isArray(rows) ? rows : []).map(r => {
+            if (Array.isArray(r.costItems) && r.costItems.length > 0) {
+                const breakdown = r.costItems.map(ci => `${ci.label || 'ค่าใช้จ่าย'}: ${Number(ci.amount || 0).toLocaleString()}฿`).join(', ');
+                r.expenseTitle = `${r.expenseTitle || 'ค่าใช้จ่าย'} (${breakdown})`;
+            }
+            return r;
+        });
 
         // Fetch refund transactions and map to export schema
         const refundTxQuery = { actionType: 'คืนเงินชดเชยสละสิทธิ์เครื่อง' };
@@ -2800,13 +2821,50 @@ app.get('/api/logs', checkAdminRole, async (req, res) => {
 // EXECUTIVE DASHBOARD (Admin Only)
 // ═══════════════════════════════════════════════════════════════════
 
+async function buildExecutiveMemberMatch({ startDate, endDate, shop } = {}) {
+    const memberMatch = {};
+
+    if (startDate) {
+        memberMatch.createdAt = { ...(memberMatch.createdAt || {}), $gte: new Date(startDate) };
+    }
+    if (endDate) {
+        const end = new Date(endDate + 'T23:59:59.999Z');
+        memberMatch.createdAt = { ...(memberMatch.createdAt || {}), $lte: end };
+    }
+
+    if (shop) {
+        const shopStr = String(shop);
+        const [warrantyMemberIds, shopStaffNames] = await Promise.all([
+            Warranty.distinct('memberId', { shopName: shopStr, approvalStatus: { $ne: 'rejected' } }),
+            Staff.distinct('staffName', { shopName: shopStr })
+        ]);
+        const validMemberIds = (warrantyMemberIds || []).filter(Boolean);
+        const validStaffNames = (shopStaffNames || []).filter(Boolean);
+
+        const orConditions = [];
+        if (validMemberIds.length > 0) {
+            orConditions.push({ memberId: { $in: validMemberIds } });
+        }
+        if (validStaffNames.length > 0) {
+            orConditions.push({ createdBy: { $in: validStaffNames } });
+        }
+
+        if (orConditions.length > 0) {
+            memberMatch.$or = orConditions;
+        } else {
+            memberMatch._id = null;
+        }
+    }
+
+    return memberMatch;
+}
+
 app.get('/api/dashboard/stats', checkAdminRole, async (req, res) => {
     try {
         const { startDate, endDate, shop } = req.query || {};
 
         const warrantyMatch = { approvalStatus: { $ne: 'rejected' } };
         const claimMatch = {};
-        const memberMatch = {};
 
         if (shop) {
             warrantyMatch.shopName = String(shop);
@@ -2816,14 +2874,14 @@ app.get('/api/dashboard/stats', checkAdminRole, async (req, res) => {
         if (startDate) {
             warrantyMatch.createdAt = { ...(warrantyMatch.createdAt || {}), $gte: new Date(startDate) };
             claimMatch.claimDate = { ...(claimMatch.claimDate || {}), $gte: new Date(startDate) };
-            memberMatch.createdAt = { ...(memberMatch.createdAt || {}), $gte: new Date(startDate) };
         }
         if (endDate) {
             const end = new Date(endDate + 'T23:59:59.999Z');
             warrantyMatch.createdAt = { ...(warrantyMatch.createdAt || {}), $lte: end };
             claimMatch.claimDate = { ...(claimMatch.claimDate || {}), $lte: end };
-            memberMatch.createdAt = { ...(memberMatch.createdAt || {}), $lte: end };
         }
+
+        const memberMatch = await buildExecutiveMemberMatch({ startDate, endDate, shop });
 
         const now = new Date();
         const activeExposureMatch = {
@@ -3098,7 +3156,6 @@ app.get('/api/dashboard/export/excel', checkAdminRole, async (req, res) => {
 
         const warrantyMatch = { approvalStatus: { $ne: 'rejected' } };
         const claimMatch = {};
-        const memberMatch = {};
 
         if (shop) {
             warrantyMatch.shopName = String(shop);
@@ -3108,14 +3165,14 @@ app.get('/api/dashboard/export/excel', checkAdminRole, async (req, res) => {
         if (startDate) {
             warrantyMatch.createdAt = { ...(warrantyMatch.createdAt || {}), $gte: new Date(startDate) };
             claimMatch.claimDate = { ...(claimMatch.claimDate || {}), $gte: new Date(startDate) };
-            memberMatch.createdAt = { ...(memberMatch.createdAt || {}), $gte: new Date(startDate) };
         }
         if (endDate) {
             const end = new Date(endDate + 'T23:59:59.999Z');
             warrantyMatch.createdAt = { ...(warrantyMatch.createdAt || {}), $lte: end };
             claimMatch.claimDate = { ...(claimMatch.claimDate || {}), $lte: end };
-            memberMatch.createdAt = { ...(memberMatch.createdAt || {}), $lte: end };
         }
+
+        const memberMatch = await buildExecutiveMemberMatch({ startDate, endDate, shop });
 
         const now = new Date();
         const activeExposureMatch = {
@@ -7942,11 +7999,12 @@ app.get('/api/claims/warranty/:warrantyId', async (req, res) => {
 // Get pending claims (status = 'รอเคลม')
 app.get('/api/claims/pending', async (req, res) => {
     try {
-        // Merge base status filter with search/date filters
-        const matchQuery = buildClaimFilterMatch(req.query, { status: { $in: ['รอเคลม', 'รอการตัดสินใจจากลูกค้า'] } });
+        // Base filter (status + date range); search is applied after lookup so package branch (shopName) is searchable
+        const { search, ...dateQuery } = req.query || {};
+        const baseMatchQuery = buildClaimFilterMatch(dateQuery, { status: { $in: ['รอเคลม', 'รอการตัดสินใจจากลูกค้า'] } });
 
-        const claims = await Claim.aggregate([
-            { $match: matchQuery },
+        const pipeline = [
+            { $match: baseMatchQuery },
             { $sort: { createdAt: -1 } },
             {
                 $lookup: {
@@ -7961,11 +8019,33 @@ app.get('/api/claims/pending', async (req, res) => {
                     'policyNumber': { $ifNull: ['$policyNumber', { $arrayElemAt: ['$warrantyInfo.policyNumber', 0] }] },
                     'imei': { $ifNull: ['$imei', { $arrayElemAt: ['$warrantyInfo.device.imei', 0] }] },
                     'serialNumber': { $ifNull: ['$serialNumber', { $arrayElemAt: ['$warrantyInfo.device.serial', 0] }] },
-                    'color': { $ifNull: ['$color', { $arrayElemAt: ['$warrantyInfo.device.color', 0] }] }
+                    'color': { $ifNull: ['$color', { $arrayElemAt: ['$warrantyInfo.device.color', 0] }] },
+                    'shopName': { $arrayElemAt: ['$warrantyInfo.shopName', 0] }
                 }
             },
             { $project: { warrantyInfo: 0 } }
-        ]);
+        ];
+
+        if (search && String(search).trim()) {
+            const regex = { $regex: String(search).trim(), $options: 'i' };
+            pipeline.push({
+                $match: {
+                    $or: [
+                        { customerName: regex },
+                        { customerPhone: regex },
+                        { claimId: regex },
+                        { policyNumber: regex },
+                        { imei: regex },
+                        { deviceModel: regex },
+                        { shopName: regex },
+                        { claimShopName: regex },
+                        { staffName: regex }
+                    ]
+                }
+            });
+        }
+
+        const claims = await Claim.aggregate(pipeline);
 
         const now = Date.now();
         const MS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -8036,7 +8116,26 @@ app.post('/api/claims/:id/updates', claimUpload.fields([
 
         const images = (req.files && req.files.images) ? req.files.images.map(f => f.path) : [];
         const evidenceImages = (req.files && req.files.evidenceImages) ? req.files.evidenceImages.map(f => f.path) : [];
-        const cost = parseFloat(req.body.cost) || 0;
+        let costItems = [];
+        if (req.body.costItems) {
+            try {
+                const parsed = JSON.parse(req.body.costItems);
+                if (Array.isArray(parsed)) {
+                    costItems = parsed
+                        .map(item => ({
+                            label: String(item?.label || '').trim(),
+                            amount: Math.max(0, parseFloat(item?.amount) || 0),
+                            evidenceUrl: String(item?.evidenceUrl || '').trim()
+                        }))
+                        .filter(item => item.amount > 0 || item.label !== '' || item.evidenceUrl !== '');
+                }
+            } catch (e) {
+                console.error('Error parsing costItems:', e);
+            }
+        }
+        const cost = costItems.length > 0
+            ? costItems.reduce((sum, item) => sum + item.amount, 0)
+            : (parseFloat(req.body.cost) || 0);
         const centerName = String(req.body.centerName || '').trim();
         const centerLocation = String(req.body.centerLocation || '').trim();
         const centerPhone = String(req.body.centerPhone || '').trim();
@@ -8084,18 +8183,30 @@ app.post('/api/claims/:id/updates', claimUpload.fields([
             }
         }
 
+        let stepDate = new Date();
+        if (req.body.updateDate) {
+            const parts = String(req.body.updateDate).trim().split('-').map(Number);
+            if (parts.length === 3 && parts[0] && parts[1] && parts[2]) {
+                const d = new Date(parts[0], parts[1] - 1, parts[2], stepDate.getHours(), stepDate.getMinutes(), stepDate.getSeconds(), stepDate.getMilliseconds());
+                if (!isNaN(d.getTime())) {
+                    stepDate = d;
+                }
+            }
+        }
+
         claim.updates.push({
             step: nextStep,
             title: req.body.title || '',
-            date: new Date(),
+            date: stepDate,
             cost: cost,
+            costItems: costItems,
             centerName,
             centerLocation,
             centerPhone,
             technicianName,
             technicianPhone,
             images: images,
-            evidenceImages: evidenceImages,
+            evidenceImages: [...new Set([...evidenceImages, ...costItems.map(i => i.evidenceUrl).filter(Boolean)])],
             recordedBy: recordedBy
         });
 
@@ -8156,7 +8267,26 @@ app.put('/api/claims/:id/updates/:updateId', claimUpload.fields([
         }
 
         const oldCost = Number(update.cost || 0);
-        const newCost = Math.max(0, parseFloat(req.body.cost) || 0);
+        let costItems = null;
+        if (req.body.costItems !== undefined) {
+            try {
+                const parsed = JSON.parse(req.body.costItems);
+                if (Array.isArray(parsed)) {
+                    costItems = parsed
+                        .map(item => ({
+                            label: String(item?.label || '').trim(),
+                            amount: Math.max(0, parseFloat(item?.amount) || 0),
+                            evidenceUrl: String(item?.evidenceUrl || '').trim()
+                        }))
+                        .filter(item => item.amount > 0 || item.label !== '' || item.evidenceUrl !== '');
+                }
+            } catch (e) {
+                console.error('Error parsing edit costItems:', e);
+            }
+        }
+        const newCost = Array.isArray(costItems)
+            ? costItems.reduce((sum, item) => sum + item.amount, 0)
+            : Math.max(0, parseFloat(req.body.cost) || 0);
 
         // Kept images from frontend
         let keptImages = [];
@@ -8194,13 +8324,27 @@ app.put('/api/claims/:id/updates/:updateId', claimUpload.fields([
         // Update fields
         update.title = String(req.body.title || update.title).trim();
         update.cost = newCost;
+        if (Array.isArray(costItems)) {
+            update.costItems = costItems;
+        }
+        if (req.body.updateDate) {
+            const parts = String(req.body.updateDate).trim().split('-').map(Number);
+            if (parts.length === 3 && parts[0] && parts[1] && parts[2]) {
+                const baseTime = (update.date && !isNaN(new Date(update.date).getTime())) ? new Date(update.date) : new Date();
+                const d = new Date(parts[0], parts[1] - 1, parts[2], baseTime.getHours(), baseTime.getMinutes(), baseTime.getSeconds(), baseTime.getMilliseconds());
+                if (!isNaN(d.getTime())) {
+                    update.date = d;
+                }
+            }
+        }
         update.centerName = String(req.body.centerName !== undefined ? req.body.centerName : update.centerName).trim();
         update.centerLocation = String(req.body.centerLocation !== undefined ? req.body.centerLocation : update.centerLocation).trim();
         update.centerPhone = String(req.body.centerPhone !== undefined ? req.body.centerPhone : update.centerPhone).trim();
         update.technicianName = String(req.body.technicianName !== undefined ? req.body.technicianName : update.technicianName).trim();
         update.technicianPhone = String(req.body.technicianPhone !== undefined ? req.body.technicianPhone : update.technicianPhone).trim();
         update.images = combinedImages;
-        update.evidenceImages = combinedEvidenceImages;
+        const itemEvUrls = Array.isArray(costItems) ? costItems.map(i => i.evidenceUrl).filter(Boolean) : [];
+        update.evidenceImages = [...new Set([...combinedEvidenceImages, ...itemEvUrls])];
 
         let editRecordedBy = String(req.body.recordedBy || req.body.staffName || '').trim();
         if (!editRecordedBy) {
@@ -9619,16 +9763,23 @@ app.put('/api/warranties/:id/approver-edit', async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════════════════
-// GET /api/members-list — รายชื่อสมาชิกทั้งหมด พร้อมจำนวนแพ็กเกจ
+// GET /api/members-list — รายชื่อสมาชิกทั้งหมด พร้อมจำนวนแพ็กเกจ (รองรับตัวกรอง startDate, endDate, shop)
 // ═══════════════════════════════════════════════════════════════════
 app.get('/api/members-list', async (req, res) => {
     try {
-        // 1) ดึงสมาชิกทั้งหมด
-        const members = await Member.find({}).sort({ createdAt: -1 }).lean();
+        const { startDate, endDate, shop } = req.query || {};
+
+        // 1) ดึงสมาชิกตามตัวกรอง (สอดคล้องกับ KPI จำนวนสมาชิกในแดชบอร์ดผู้บริหาร)
+        const memberMatch = await buildExecutiveMemberMatch({ startDate, endDate, shop });
+        const members = await Member.find(memberMatch).sort({ createdAt: -1 }).lean();
 
         // 2) นับจำนวน warranty (package) ต่อ memberId
+        const pkgMatch = { approvalStatus: { $nin: ['rejected'] } };
+        if (shop) {
+            pkgMatch.shopName = String(shop);
+        }
         const packageCounts = await Warranty.aggregate([
-            { $match: { approvalStatus: { $nin: ['rejected'] } } },
+            { $match: pkgMatch },
             { $group: { _id: '$memberId', count: { $sum: 1 } } }
         ]);
         const countMap = {};

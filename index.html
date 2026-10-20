@@ -4043,7 +4043,7 @@
                                     <circle cx="11" cy="11" r="8"></circle>
                                     <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                                 </svg>
-                                <input type="text" id="trackingSearchInput" placeholder="ค้นหาชื่อ, เบอร์, เลขเคลม, เลขกรมธรรม์...">
+                                <input type="text" id="trackingSearchInput" placeholder="ค้นหาชื่อ, เบอร์, เลขเคลม, เลขกรมธรรม์, สาขา, พนักงาน...">
                             </div>
                             <div class="filter-group">
                                 <label>จากวันที่:</label>
@@ -4071,6 +4071,8 @@
                                         <th>ชื่อลูกค้า</th>
                                         <th>เบอร์โทรศัพท์</th>
                                         <th>อุปกรณ์</th>
+                                        <th>สาขา</th>
+                                        <th>พนักงานแจ้งเคลม</th>
                                         <th>สถานะ</th>
                                         <th>จัดการ</th>
                                     </tr>
@@ -5851,6 +5853,10 @@
                             required>
                     </div>
                     <div class="form-group">
+                        <label>วันที่อัปเดต</label>
+                        <input type="date" id="updateDate">
+                    </div>
+                    <div class="form-group">
                         <label>ชื่อศูนย์</label>
                         <input type="text" id="updateCenterName"
                             placeholder="เช่น ศูนย์ Apple Authorized / ศูนย์ซ่อม...">
@@ -5877,15 +5883,25 @@
                             style="width: 100%; padding: 0.75rem; font-size: 0.95rem; background: linear-gradient(135deg, #f59e0b, #d97706);">
                             ➕ เพิ่มค่าใช้จ่าย
                         </button>
-                        <div id="updateCostSection" style="display:none; margin-top: 0.75rem;">
-                            <div style="display:flex; gap: 0.5rem; align-items: center;">
-                                <input type="number" id="updateCost" placeholder="0" min="0" value="0" style="flex: 1;">
-                                <button type="button" id="removeCostBtn" class="btn-cancel"
-                                    style="width: auto; min-width: 90px; padding: 0.75rem 0.9rem;">ลบ</button>
-                            </div>
-                            <div style="margin-top: 0.5rem; font-size: 0.85rem; color: #b45309;">หากมีค่าใช้จ่าย
-                                ต้องแนบรูปหลักฐานอย่างน้อย 1 รูป</div>
+                    </div>
+                    <div class="form-group full-width" id="updateCostSection" style="display:none; grid-column: 1 / -1; background: #fffbeb; border: 1px solid #fde68a; border-radius: 10px; padding: 12px; margin-top: 0.25rem;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 6px;">
+                            <span style="font-weight: 700; color: #92400e; font-size: 0.92rem;">💰 รายการค่าใช้จ่ายในการอัปเดตนี้</span>
+                            <button type="button" id="removeCostBtn" class="btn-cancel"
+                                style="width: auto; padding: 4px 10px; font-size: 0.8rem; min-height: auto;">🗑️ ล้างทั้งหมด</button>
                         </div>
+                        <div id="updateCostItemsList" style="display: flex; flex-direction: column; gap: 8px;"></div>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px; padding-top: 10px; border-top: 1px dashed #fcd34d; flex-wrap: wrap; gap: 8px;">
+                            <button type="button" id="addMoreCostItemBtn" class="submit-btn"
+                                style="width: auto; padding: 6px 14px; font-size: 0.85rem; background: linear-gradient(135deg, #f59e0b, #d97706);">
+                                ➕ เพิ่มรายการค่าใช้จ่าย
+                            </button>
+                            <div style="font-size: 0.95rem; font-weight: 700; color: #78350f;">
+                                รวมค่าใช้จ่ายรอบนี้: <span id="updateCostTotalDisplay" style="color: #d97706; font-size: 1.1rem;">0</span> บาท
+                            </div>
+                        </div>
+                        <input type="hidden" id="updateCost" value="0">
+                        <div style="margin-top: 6px; font-size: 0.82rem; color: #b45309;">* หากมีค่าใช้จ่าย ต้องแนบรูปหลักฐานอย่างน้อย 1 รูป</div>
                     </div>
                 </div>
                 <div class="form-group full-width" id="updateEvidenceGroup" style="margin-top: 0.75rem; display:none;">
@@ -6030,12 +6046,15 @@
                 <input type="hidden" id="editUpdateClaimId">
                 <input type="hidden" id="editUpdateSubId">
 
-                <div class="form-group full-width" style="margin-bottom: 1rem;">
-                    <label style="font-weight: 600; color: #1e293b; display: block; margin-bottom: 5px;">รายละเอียดการอัปเดต *</label>
-                    <input type="text" id="editUpdateTitle" required placeholder="เช่น ส่งเครื่องไปศูนย์, ซ่อมเครื่อง, ทดสอบ" style="width: 100%; border: 1px solid #cbd5e1; border-radius: 8px; padding: 0.6rem 0.8rem; font-size: 0.95rem;">
-                </div>
-
                 <div class="grid-row" style="gap: 0.75rem; margin-bottom: 1rem;">
+                    <div class="form-group">
+                        <label>รายละเอียดการอัปเดต *</label>
+                        <input type="text" id="editUpdateTitle" required placeholder="เช่น ส่งเครื่องไปศูนย์, ซ่อมเครื่อง, ทดสอบ">
+                    </div>
+                    <div class="form-group">
+                        <label>วันที่อัปเดต</label>
+                        <input type="date" id="editUpdateDate">
+                    </div>
                     <div class="form-group">
                         <label>ชื่อศูนย์</label>
                         <input type="text" id="editUpdateCenterName" placeholder="เช่น ศูนย์ Apple Authorized...">
@@ -6057,9 +6076,21 @@
                         <input type="text" id="editUpdateTechnicianPhone" placeholder="เช่น 08x-xxx-xxxx">
                     </div>
                     <div class="form-group">
-                        <label>ค่าใช้จ่าย (บาท)</label>
-                        <input type="number" id="editUpdateCost" min="0" placeholder="0" style="width: 100%;">
-                        <div style="font-size: 11px; color: #b45309; margin-top: 3px;">* หากมีค่าใช้จ่าย ต้องมีรูปหลักฐานอย่างน้อย 1 รูป</div>
+                        <label>ค่าใช้จ่าย</label>
+                        <button type="button" id="editAddCostItemBtn" class="submit-btn"
+                            style="width: 100%; padding: 0.65rem; font-size: 0.9rem; background: linear-gradient(135deg, #f59e0b, #d97706);">
+                            ➕ เพิ่มค่าใช้จ่าย
+                        </button>
+                    </div>
+                    <div class="form-group full-width" id="editCostItemsSection" style="grid-column: 1 / -1; background: #fffbeb; border: 1px solid #fde68a; border-radius: 10px; padding: 12px;">
+                        <div id="editCostItemsList" style="display: flex; flex-direction: column; gap: 8px;"></div>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px; padding-top: 8px; border-top: 1px dashed #fcd34d; flex-wrap: wrap; gap: 8px;">
+                            <span style="font-size: 11px; color: #b45309;">* หากมีค่าใช้จ่าย ต้องมีรูปหลักฐานอย่างน้อย 1 รูป</span>
+                            <div style="font-size: 0.92rem; font-weight: 700; color: #78350f;">
+                                รวมค่าใช้จ่ายขั้นตอนนี้: <span id="editUpdateCostTotalDisplay" style="color: #d97706; font-size: 1.05rem;">0</span> บาท
+                            </div>
+                        </div>
+                        <input type="hidden" id="editUpdateCost" value="0">
                     </div>
                 </div>
 
@@ -6375,17 +6406,21 @@
     <!-- =================== MEMBER LIST MODAL =================== -->
     <div id="memberListModal" class="modal">
         <div class="modal-content" style="max-width: 900px; max-height: 90vh; display: flex; flex-direction: column;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-shrink: 0;">
-                <h2 style="color: var(--primary); margin: 0; display: flex; align-items: center; gap: 10px;">
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-                        <circle cx="9" cy="7" r="4"></circle>
-                        <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
-                        <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-                    </svg>
-                    รายชื่อสมาชิกทั้งหมด
-                </h2>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-shrink: 0; flex-wrap: wrap; gap: 10px;">
+                <div style="display: flex; flex-direction: column; gap: 4px;">
+                    <h2 style="color: var(--primary); margin: 0; display: flex; align-items: center; gap: 10px;">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                            <circle cx="9" cy="7" r="4"></circle>
+                            <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                        </svg>
+                        <span>รายชื่อสมาชิกทั้งหมด</span>
+                        <span id="memberListTotalCountBadge" style="display: inline-block; padding: 2px 10px; border-radius: 14px; font-size: 0.72em; font-weight: 600; background: #e0f2fe; color: #0369a1;">0 ราย</span>
+                    </h2>
+                    <div id="memberListFilterSubtitle" style="font-size: 0.82rem; color: #64748b; font-weight: 500;">ตัวกรอง: ข้อมูลทั้งหมด</div>
+                </div>
                 <div class="modal-actions" style="margin: 0;">
                     <button type="button" class="btn-cancel"
                         onclick="document.getElementById('memberListModal').style.display='none'">ปิดหน้าต่าง</button>
