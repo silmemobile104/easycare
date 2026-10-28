@@ -759,7 +759,7 @@
                                     <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                                 </svg>
                                 <input type="text" id="dashSearchInput"
-                                    placeholder="ค้นหาชื่อ, เบอร์, IMEI, เลขกรมธรรม์...">
+                                    placeholder="ค้นหาชื่อ, เบอร์, IMEI, เลขกรมธรรม์, ร้านค้า...">
                             </div>
                             <div class="filter-group">
                                 <label>จากวันที่:</label>
@@ -1275,12 +1275,14 @@
                                         <option value="Full Payment">ชำระเต็มจำนวน</option>
                                         <option value="Installment">ชำระแบบแบ่งจ่าย</option>
                                         <option value="Finance">ชำระแบบผ่อนด้วยไฟแนนซ์</option>
+                                        <option value="ชำระค่าซ่อมส่วนต่าง">ชำระค่าซ่อมส่วนต่าง</option>
                                     </select>
                                 </div>
                                 <div class="filter-group" style="margin: 0; display: flex; flex-direction: column; gap: 6px;">
                                     <label style="font-weight: 600; color: #475569; font-size: 0.85rem;">บริษัทจัดไฟแนนซ์:</label>
                                     <select id="financeProviderFilter" class="filter-select" style="width: 100%; height: 38px; border-radius: 8px;">
                                         <option value="all">ทั้งหมด</option>
+                                        <option value="Easy.Care">Easy.Care</option>
                                         <option value="SG">SG</option>
                                         <option value="T-Plus">T-Plus</option>
                                         <option value="Thunder">Thunder</option>
@@ -1539,37 +1541,104 @@
 
                     <!-- ── Expense Section ── -->
                     <div id="financeExpenseSection" style="display: none;">
+                        <!-- แถวบน: 3 การ์ด (ภาพรวมหลัก) -->
                         <div class="stats-overview"
-                            style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));">
-                            <div class="stat-card" style="border-left: 4px solid var(--danger);">
-                                <div class="stat-icon orange">
-                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                        <path
-                                            d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z">
-                                        </path>
-                                        <polyline points="22,6 12,13 2,6"></polyline>
-                                    </svg>
-                                </div>
-                                <div class="stat-content">
-                                    <h3 id="financeTotalClaimCostDisplay">0</h3>
-                                    <p>ต้นทุนเคลมรวมทั่งหมด</p>
-                                </div>
-                            </div>
-                            <div class="stat-card" style="border-left: 4px solid #f59e0b;">
-                                <div class="stat-icon" style="color: #f59e0b; background-color: rgba(245,158,11,0.1);">
-                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-bottom: 14px;">
+                            <!-- 1. รายจ่ายรวมสุทธิที่จ่ายจริง (เคลมจ่ายแล้ว + บันทึกเอง) -->
+                            <div class="stat-card" style="border-left: 4px solid #e11d48; background: linear-gradient(135deg, #ffffff 0%, #fff1f2 100%); min-height: 92px; height: 100%; box-sizing: border-box; padding: 14px 18px; display: flex; align-items: center; gap: 14px; margin: 0;">
+                                <div class="stat-icon" style="color: #e11d48; background-color: rgba(225, 29, 72, 0.12); width: 44px; height: 44px; min-width: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                         stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
                                         <polyline points="14 2 14 8 20 8"></polyline>
                                         <line x1="16" y1="13" x2="8" y2="13"></line>
                                         <line x1="16" y1="17" x2="8" y2="17"></line>
-                                        <polyline points="10 9 9 9 8 9"></polyline>
                                     </svg>
                                 </div>
-                                <div class="stat-content">
-                                    <h3 id="totalExpenseDisplay">0</h3>
-                                    <p>รายจ่ายรวม (เคลม + บันทึกเอง)</p>
+                                <div class="stat-content" style="display: flex; flex-direction: column; justify-content: center; gap: 4px; min-width: 0; flex: 1;">
+                                    <h3 id="totalExpenseDisplay" style="color: #e11d48; margin: 0; font-size: 1.35rem; font-weight: 800; line-height: 1.2;">0 ฿</h3>
+                                    <p style="margin: 0; font-size: 0.86rem; font-weight: 600; color: #475569; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">รายจ่ายรวมสุทธิ (เคลมจ่ายแล้ว + บันทึกเอง)</p>
+                                </div>
+                            </div>
+
+                            <!-- 2. ต้นทุนเคลมรวม (ที่จ่ายแล้ว) -->
+                            <div class="stat-card" style="border-left: 4px solid #059669; min-height: 92px; height: 100%; box-sizing: border-box; padding: 14px 18px; display: flex; align-items: center; gap: 14px; margin: 0;">
+                                <div class="stat-icon" style="color: #059669; background-color: rgba(5, 150, 105, 0.12); width: 44px; height: 44px; min-width: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                                        <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                                    </svg>
+                                </div>
+                                <div class="stat-content" style="display: flex; flex-direction: column; justify-content: center; gap: 4px; min-width: 0; flex: 1;">
+                                    <h3 id="financeTotalClaimCostDisplay" style="color: #059669; margin: 0; font-size: 1.35rem; font-weight: 800; line-height: 1.2;">0 ฿</h3>
+                                    <p style="margin: 0; font-size: 0.86rem; font-weight: 600; color: #475569; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">ต้นทุนเคลมรวม (จ่ายแล้ว)</p>
+                                </div>
+                            </div>
+
+                            <!-- 3. ยอดเคลมรอจ่าย / ค้างจ่าย -->
+                            <div class="stat-card" style="border-left: 4px solid #dc2626; min-height: 92px; height: 100%; box-sizing: border-box; padding: 14px 18px; display: flex; align-items: center; gap: 14px; margin: 0;">
+                                <div class="stat-icon" style="color: #dc2626; background-color: rgba(220, 38, 38, 0.12); width: 44px; height: 44px; min-width: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <circle cx="12" cy="12" r="10"></circle>
+                                        <polyline points="12 6 12 12 16 14"></polyline>
+                                    </svg>
+                                </div>
+                                <div class="stat-content" style="display: flex; flex-direction: column; justify-content: center; gap: 4px; min-width: 0; flex: 1;">
+                                    <h3 id="financeUnpaidClaimCostDisplay" style="color: #dc2626; margin: 0; font-size: 1.35rem; font-weight: 800; line-height: 1.2;">0 ฿</h3>
+                                    <p style="margin: 0; font-size: 0.86rem; font-weight: 600; color: #475569; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">ยอดเคลมรอจ่าย / ค้างจ่าย</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- แถวล่าง: 3 การ์ด (รายละเอียดแยกตามประเภท) -->
+                        <div class="stats-overview"
+                            style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-bottom: 16px;">
+                            <!-- 4. ต้นทุนเคลมตั้งเบิกทั้งหมด (จ่ายแล้ว + รอจ่าย) -->
+                            <div class="stat-card" style="border-left: 4px solid #64748b; min-height: 92px; height: 100%; box-sizing: border-box; padding: 14px 18px; display: flex; align-items: center; gap: 14px; margin: 0;">
+                                <div class="stat-icon" style="color: #475569; background-color: rgba(100, 116, 139, 0.12); width: 44px; height: 44px; min-width: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <rect x="2" y="4" width="20" height="16" rx="2"></rect>
+                                        <line x1="6" y1="8" x2="18" y2="8"></line>
+                                        <line x1="6" y1="12" x2="18" y2="12"></line>
+                                        <line x1="6" y1="16" x2="12" y2="16"></line>
+                                    </svg>
+                                </div>
+                                <div class="stat-content" style="display: flex; flex-direction: column; justify-content: center; gap: 4px; min-width: 0; flex: 1;">
+                                    <h3 id="financeRecordedClaimCostDisplay" style="color: #334155; margin: 0; font-size: 1.35rem; font-weight: 800; line-height: 1.2;">0 ฿</h3>
+                                    <p style="margin: 0; font-size: 0.86rem; font-weight: 600; color: #475569; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">ยอดตั้งเบิกเคลมทั้งหมด (รวมรอจ่าย)</p>
+                                </div>
+                            </div>
+
+                            <!-- 5. คืนเงินชดเชยสละสิทธิ์เครื่อง (จ่ายแล้ว) -->
+                            <div class="stat-card" style="border-left: 4px solid #7c3aed; min-height: 92px; height: 100%; box-sizing: border-box; padding: 14px 18px; display: flex; align-items: center; gap: 14px; margin: 0;">
+                                <div class="stat-icon" style="color: #7c3aed; background-color: rgba(124, 58, 237, 0.12); width: 44px; height: 44px; min-width: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <polyline points="23 4 23 10 17 10"></polyline>
+                                        <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+                                    </svg>
+                                </div>
+                                <div class="stat-content" style="display: flex; flex-direction: column; justify-content: center; gap: 4px; min-width: 0; flex: 1;">
+                                    <h3 id="financeRefundPaidCostDisplay" style="color: #7c3aed; margin: 0; font-size: 1.35rem; font-weight: 800; line-height: 1.2;">0 ฿</h3>
+                                    <p style="margin: 0; font-size: 0.86rem; font-weight: 600; color: #475569; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">คืนเงินชดเชยสละสิทธิ์ (จ่ายแล้ว)</p>
+                                </div>
+                            </div>
+
+                            <!-- 6. รายจ่ายบันทึกเอง (เพิ่มรายการรายจ่าย) -->
+                            <div class="stat-card" style="border-left: 4px solid #f59e0b; min-height: 92px; height: 100%; box-sizing: border-box; padding: 14px 18px; display: flex; align-items: center; gap: 14px; margin: 0;">
+                                <div class="stat-icon" style="color: #d97706; background-color: rgba(245, 158, 11, 0.12); width: 44px; height: 44px; min-width: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                                    </svg>
+                                </div>
+                                <div class="stat-content" style="display: flex; flex-direction: column; justify-content: center; gap: 4px; min-width: 0; flex: 1;">
+                                    <h3 id="financeManualExpenseCostDisplay" style="color: #d97706; margin: 0; font-size: 1.35rem; font-weight: 800; line-height: 1.2;">0 ฿</h3>
+                                    <p style="margin: 0; font-size: 0.86rem; font-weight: 600; color: #475569; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">รายจ่ายบันทึกเอง (จ่ายแล้ว)</p>
                                 </div>
                             </div>
                         </div>
@@ -1638,6 +1707,7 @@
                                             <th>รายการ</th>
                                             <th>หมวดหมู่/สถานที่</th>
                                             <th>จำนวนเงิน</th>
+                                            <th style="text-align: center;">หลักฐาน</th>
                                             <th>ที่มา</th>
                                             <th>ผู้บันทึก</th>
                                             <th style="text-align: center;">จัดการ</th>
@@ -3976,7 +4046,7 @@
                                     <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                                 </svg>
                                 <input type="text" id="claimsSearchInput"
-                                    placeholder="ค้นหาชื่อ, เบอร์, IMEI, เลขกรมธรรม์...">
+                                    placeholder="ค้นหาชื่อ, เบอร์, IMEI, เลขกรมธรรม์, ร้านค้า...">
                             </div>
                             <div class="filter-group">
                                 <label>จากวันที่:</label>
@@ -3985,6 +4055,22 @@
                             <div class="filter-group">
                                 <label>ถึงวันที่:</label>
                                 <input type="date" id="claimsEndDate" class="filter-date-input">
+                            </div>
+                            <div class="filter-group">
+                                <label>ร้านค้า:</label>
+                                <select id="claimsShopFilter" class="filter-select">
+                                    <option value="all">ทุกร้านค้า</option>
+                                </select>
+                            </div>
+                            <div class="filter-group">
+                                <label>สถานะ:</label>
+                                <select id="claimsStatusFilter" class="filter-select">
+                                    <option value="all">ทุกสถานะ</option>
+                                    <option value="active">ปกติ</option>
+                                    <option value="pending">รอเคลม</option>
+                                    <option value="completed">เคลมสำเร็จ</option>
+                                    <option value="expired">หมดอายุ</option>
+                                </select>
                             </div>
                             <div class="filter-actions">
                                 <button type="button" class="filter-search-btn" id="claimsFilterBtn"> ค้นหา</button>
@@ -4011,6 +4097,8 @@
                                         <th>รุ่นอุปกรณ์</th>
                                         <th>แพ็กเกจ</th>
                                         <th>ประกันคงเหลือ</th>
+                                        <th>วงเงินคงเหลือ</th>
+                                        <th>ร้านค้า</th>
                                         <th>สถานะ</th>
                                         <th>ทำรายการ</th>
                                     </tr>
@@ -6450,7 +6538,7 @@
     </div>
 
     <script src="permissions.js"></script>
-    <script src="script.js?v=20261015_reload_data_btn"></script>
+    <script src="script.js?v=20261028_claims_infinite_scroll_v5"></script>
 
     <!-- =================== CLAIM RECEIPT LOGIC (inline, replaces claim_receipt.html script) =================== -->
     <script>

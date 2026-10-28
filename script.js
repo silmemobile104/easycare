@@ -486,7 +486,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (claimsMainEl) claimsMainEl.style.display = 'block';
                 const claimsNavLinkEl2 = document.getElementById('claimsNavLink');
                 if (claimsNavLinkEl2) claimsNavLinkEl2.classList.add('active');
-                fetchActivePolicies();
+                Promise.all([populateClaimsShopFilter(), fetchActivePolicies()]);
             } else if (viewName === 'statusTracking') {
                 if (statusTrackingMain) statusTrackingMain.style.display = 'block';
                 if (statusTrackingNavLinkEl) statusTrackingNavLinkEl.classList.add('active');
@@ -5940,11 +5940,68 @@ document.addEventListener('DOMContentLoaded', () => {
             const rows = await rowsRes.json();
             const summary = sumRes.ok ? await sumRes.json().catch(() => ({})) : {};
 
-            const totalExpenseEl = document.getElementById('totalExpenseDisplay');
-            if (totalExpenseEl) {
-                totalExpenseEl.textContent = formatNumber(summary.totalExpense || 0) + ' ฿';
-            }
+            const bd = (summary && summary.breakdown) || {};
+            const setTxt = (id, text) => {
+                const el = document.getElementById(id);
+                if (el) el.textContent = text;
+            };
 
+            const claimRepairPaid = Number(bd.claimRepairCost || 0);
+            const claimRepairPaidCnt = Number(bd.claimRepairCount || 0);
+            const claimRepairUnpaid = Number(bd.claimRepairUnpaidCost || 0);
+            const claimRepairUnpaidCnt = Number(bd.claimRepairUnpaidCount || 0);
+            const claimRepairRecorded = Number(bd.claimRepairRecordedCost !== undefined ? bd.claimRepairRecordedCost : (claimRepairPaid + claimRepairUnpaid));
+            const claimRepairRecordedCnt = Number(bd.claimRepairRecordedCount !== undefined ? bd.claimRepairRecordedCount : (claimRepairPaidCnt + claimRepairUnpaidCnt));
+
+            const claimRefundPaid = Number(bd.claimRefundCost || 0);
+            const claimRefundPaidCnt = Number(bd.claimRefundCount || 0);
+            const claimRefundUnpaid = Number(bd.claimRefundUnpaidCost || 0);
+            const claimRefundUnpaidCnt = Number(bd.claimRefundUnpaidCount || 0);
+            const claimRefundRecorded = Number(bd.claimRefundRecordedCost !== undefined ? bd.claimRefundRecordedCost : (claimRefundPaid + claimRefundUnpaid));
+            const claimRefundRecordedCnt = Number(bd.claimRefundRecordedCount !== undefined ? bd.claimRefundRecordedCount : (claimRefundPaidCnt + claimRefundUnpaidCnt));
+
+            const manualPaid = Number(bd.manualExpenseCost || 0);
+            const manualPaidCnt = Number(bd.manualExpenseCount || 0);
+
+            const totalClaimPaid = Number(bd.totalClaimPaidCost !== undefined ? bd.totalClaimPaidCost : (claimRepairPaid + claimRefundPaid));
+            const totalClaimPaidCnt = Number(bd.totalClaimPaidCount !== undefined ? bd.totalClaimPaidCount : (claimRepairPaidCnt + claimRefundPaidCnt));
+            const totalClaimUnpaid = Number(bd.totalClaimUnpaidCost !== undefined ? bd.totalClaimUnpaidCost : (claimRepairUnpaid + claimRefundUnpaid));
+            const totalClaimUnpaidCnt = Number(bd.totalClaimUnpaidCount !== undefined ? bd.totalClaimUnpaidCount : (claimRepairUnpaidCnt + claimRefundUnpaidCnt));
+            const totalClaimRecorded = Number(bd.totalClaimRecordedCost !== undefined ? bd.totalClaimRecordedCost : (claimRepairRecorded + claimRefundRecorded));
+            const totalClaimRecordedCnt = Number(bd.totalClaimRecordedCount !== undefined ? bd.totalClaimRecordedCount : (claimRepairRecordedCnt + claimRefundRecordedCnt));
+
+            const totalAllPaidExpense = Number(summary.totalExpense !== undefined ? summary.totalExpense : (totalClaimPaid + manualPaid));
+            const totalAllPaidCnt = Number(bd.totalClaimCount !== undefined ? bd.totalClaimCount : (totalClaimPaidCnt + manualPaidCnt));
+
+            // 1. รายจ่ายรวมสุทธิ (เคลมจ่ายแล้ว + บันทึกเอง)
+            setTxt('totalExpenseDisplay', formatNumber(totalAllPaidExpense) + ' ฿');
+            setTxt('totalExpenseSubDisplay', `นับเฉพาะยอดที่จ่ายจริงแล้ว ${totalAllPaidCnt} รายการ`);
+
+            // 2. ต้นทุนเคลมรวม (ที่จ่ายแล้ว)
+            setTxt('financeTotalClaimCostDisplay', formatNumber(totalClaimPaid) + ' ฿');
+            setTxt('financePaidClaimSubDisplay', `ซ่อมเคลม + คืนเงินสละสิทธิ์ (จ่ายแล้ว ${totalClaimPaidCnt} รายการ)`);
+
+            // 3. ยอดเคลมรอจ่าย / ค้างจ่าย
+            setTxt('financeUnpaidClaimCostDisplay', formatNumber(totalClaimUnpaid) + ' ฿');
+            setTxt('financeUnpaidClaimSubDisplay', `รอจ่าย/ค้างจ่าย ${totalClaimUnpaidCnt} รายการ (ยังไม่นับเป็นรายจ่าย)`);
+
+            // 4. ยอดตั้งเบิกเคลมทั้งหมด (จ่ายแล้ว + รอจ่าย)
+            setTxt('financeRecordedClaimCostDisplay', formatNumber(totalClaimRecorded) + ' ฿');
+            setTxt('financeRecordedClaimSubDisplay', `บันทึกในระบบเคลมทั้งหมด ${totalClaimRecordedCnt} รายการ`);
+
+            // 5. ค่าซ่อม/อะไหล่เคลม (จ่ายแล้ว)
+            setTxt('financeRepairPaidCostDisplay', formatNumber(claimRepairPaid) + ' ฿');
+            setTxt('financeRepairSubDisplay', `จ่ายแล้ว ${claimRepairPaidCnt} รายการ • ค้างจ่าย ${formatNumber(claimRepairUnpaid)} ฿ (${claimRepairUnpaidCnt} รายการ)`);
+
+            // 6. คืนเงินชดเชยสละสิทธิ์เครื่อง (จ่ายแล้ว)
+            setTxt('financeRefundPaidCostDisplay', formatNumber(claimRefundPaid) + ' ฿');
+            setTxt('financeRefundSubDisplay', `จ่ายแล้ว ${claimRefundPaidCnt} รายการ • ค้างจ่าย ${formatNumber(claimRefundUnpaid)} ฿ (${claimRefundUnpaidCnt} รายการ)`);
+
+            // 7. รายจ่ายบันทึกเอง (จ่ายแล้ว)
+            setTxt('financeManualExpenseCostDisplay', formatNumber(manualPaid) + ' ฿');
+            setTxt('financeManualExpenseSubDisplay', `บันทึกเอง ${manualPaidCnt} รายการ`);
+
+            window.financeSummaryData = null;
             renderFinanceExpenses(rows);
         } catch (err) {
             console.error('Fetch finance expense data error:', err);
@@ -6013,8 +6070,18 @@ document.addEventListener('DOMContentLoaded', () => {
         if (emptyState) emptyState.style.display = 'none';
         if (table) table.style.display = '';
 
+        const paidRowsCount = list.filter(r => {
+            if (r.source === 'manual') return true;
+            const pAmt = typeof r.paidAmount === 'number'
+                ? r.paidAmount
+                : (Array.isArray(r.payments) ? r.payments.reduce((s, p) => s + Number(p.amount || 0), 0) : 0);
+            return pAmt > 0;
+        }).length;
+        const unpaidRowsCount = Math.max(0, list.length - paidRowsCount);
         const countEl = document.getElementById('financeClaimExpenseCount');
-        if (countEl) countEl.textContent = list.length;
+        if (countEl) {
+            countEl.textContent = unpaidRowsCount > 0 ? `${paidRowsCount} (รอจ่าย ${unpaidRowsCount})` : paidRowsCount;
+        }
 
         list.forEach((r, index) => {
             const tr = document.createElement('tr');
@@ -6030,6 +6097,62 @@ document.addEventListener('DOMContentLoaded', () => {
                 tr.style.background = 'rgba(245, 158, 11, 0.04)';
             }
 
+            const totalAmt = Number(r.amount || 0);
+            const payments = Array.isArray(r.payments) ? r.payments : [];
+            const paidAmount = typeof r.paidAmount === 'number'
+                ? r.paidAmount
+                : payments.reduce((sum, p) => sum + Number(p.amount || 0), 0);
+            const remainingAmount = Math.max(0, totalAmt - paidAmount);
+            const paymentStatus = isManual
+                ? 'paid'
+                : (paidAmount >= totalAmt && totalAmt > 0 ? 'paid' : (paidAmount > 0 ? 'partial' : 'unpaid'));
+
+            let lastPaidDateStr = '-';
+            if (r.lastPaidDate) {
+                const dt = new Date(r.lastPaidDate);
+                if (!isNaN(dt.getTime())) lastPaidDateStr = dt.toLocaleDateString('th-TH');
+            } else if (payments.length > 0) {
+                const lastP = payments[payments.length - 1];
+                if (lastP && lastP.paidDate) {
+                    const dt = new Date(lastP.paidDate);
+                    if (!isNaN(dt.getTime())) lastPaidDateStr = dt.toLocaleDateString('th-TH');
+                }
+            }
+
+            let amountCellHtml = `<div style="color:#ef4444; font-weight: 700;">${amountText}</div>`;
+            if (!isManual) {
+                if (paymentStatus === 'unpaid') {
+                    amountCellHtml = `
+                        <div style="color: #94a3b8; font-weight: 600; font-size: 0.88rem;" title="ยังไม่ถูกนับเป็นรายจ่ายจนกว่าจะกดจ่าย">
+                        </div>
+                        <div style="margin-top: 4px;">
+                            <span style="display: inline-block; padding: 2px 7px; border-radius: 5px; font-size: 0.72rem; font-weight: 600; background: #fef2f2; color: #dc2626; border: 1px solid #fecaca;">
+                                ยอดตั้งเบิก ${formatNumber(remainingAmount)}
+                            </span>
+                        </div>
+                    `;
+                } else if (paymentStatus === 'partial') {
+                    amountCellHtml = `
+                        <div style="color:#ef4444; font-weight: 700;" title="นับเป็นรายจ่ายตามยอดที่จ่ายจริงแล้ว">-${formatNumber(paidAmount)}</div>
+                        <div style="font-size: 0.72rem; color: #64748b;">ยอดตั้งเบิก ${formatNumber(totalAmt)} ฿</div>
+                        <div style="margin-top: 4px;">
+                            <span style="display: inline-block; padding: 2px 7px; border-radius: 5px; font-size: 0.72rem; font-weight: 600; background: #fffbeb; color: #d97706; border: 1px solid #fde68a;">
+                                ค้าง ${formatNumber(remainingAmount)} ฿
+                            </span>
+                        </div>
+                    `;
+                } else {
+                    amountCellHtml = `
+                        <div style="color:#ef4444; font-weight: 700;">-${formatNumber(paidAmount)}</div>
+                        <div style="margin-top: 4px;">
+                            <span style="display: inline-block; padding: 2px 7px; border-radius: 5px; font-size: 0.72rem; font-weight: 600; background: #ecfdf5; color: #059669; border: 1px solid #a7f3d0;">
+                                ✅ จ่ายครบแล้ว
+                            </span>
+                        </div>
+                    `;
+                }
+            }
+
             let actionsHtml = '<span style="color: #94a3b8; font-size: 0.85rem;" title="รายการจากระบบเคลม">-</span>';
             const manualId = r._id || r.id;
             if (isManual && manualId) {
@@ -6043,6 +6166,32 @@ document.addEventListener('DOMContentLoaded', () => {
                         </button>
                     </div>
                 `;
+            } else if (!isManual) {
+                if (paymentStatus !== 'paid') {
+                    const btnLabel = paidAmount > 0 ? `💳 จ่ายเพิ่ม (${payments.length})` : '💳 กดจ่าย';
+                    const btnBg = paidAmount > 0 ? '#d97706' : '#2563eb';
+                    actionsHtml = `
+                        <button type="button"
+                                onclick="window.openClaimExpensePaymentModal(${index})"
+                                style="padding: 5px 11px; font-size: 0.78rem; font-weight: 600; background: ${btnBg}; color: #ffffff; border: none; border-radius: 6px; cursor: pointer; white-space: nowrap; box-shadow: 0 2px 5px rgba(0,0,0,0.1); transition: all 0.15s ease;"
+                                onmouseover="this.style.opacity='0.9'; this.style.transform='translateY(-1px)'"
+                                onmouseout="this.style.opacity='1'; this.style.transform='none'"
+                                title="คลิกเพื่อบันทึกการจ่ายเงิน (รองรับการแบ่งจ่ายหลายครั้ง)">
+                            ${btnLabel}
+                        </button>
+                    `;
+                } else {
+                    actionsHtml = `
+                        <button type="button"
+                                onclick="window.openClaimExpensePaymentModal(${index})"
+                                style="padding: 4px 10px; font-size: 0.75rem; font-weight: 600; background: #ecfdf5; color: #059669; border: 1px solid #a7f3d0; border-radius: 6px; cursor: pointer; white-space: nowrap; transition: all 0.15s ease;"
+                                onmouseover="this.style.background='#d1fae5'"
+                                onmouseout="this.style.background='#ecfdf5'"
+                                title="คลิกเพื่อดูหรือแก้ไขประวัติการจ่ายเงิน">
+                            ✅ ประวัติจ่าย
+                        </button>
+                    `;
+                }
             }
 
             const rawTitle = r.expenseTitle || '-';
@@ -6061,6 +6210,36 @@ document.addEventListener('DOMContentLoaded', () => {
                 `;
             }
 
+            // รวบรวมหลักฐานค่าใช้จ่ายทั้งหมดของแถวนี้
+            const evUrlSet = new Set();
+            if (Array.isArray(r.evidenceUrls)) {
+                r.evidenceUrls.forEach(u => { if (u) evUrlSet.add(String(u).trim()); });
+            }
+            if (Array.isArray(r.costItems)) {
+                r.costItems.forEach(ci => { if (ci && ci.evidenceUrl) evUrlSet.add(String(ci.evidenceUrl).trim()); });
+            }
+            if (Array.isArray(r.evidenceImages)) {
+                r.evidenceImages.forEach(u => { if (u) evUrlSet.add(String(u).trim()); });
+            }
+            if (r.receiptUrl) {
+                evUrlSet.add(String(r.receiptUrl).trim());
+            }
+            const allEvUrls = Array.from(evUrlSet).filter(Boolean);
+
+            let evidenceCellHtml = '<span style="color: #94a3b8; font-size: 0.85rem;">-</span>';
+            if (allEvUrls.length > 0) {
+                evidenceCellHtml = `
+                    <button type="button"
+                            onclick="window.viewFinanceExpenseEvidence(${index})"
+                            style="padding: 4px 10px; font-size: 0.76rem; font-weight: 600; color: #0369a1; background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 6px; cursor: pointer; white-space: nowrap; transition: all 0.15s ease;"
+                            onmouseover="this.style.background='#e0f2fe'"
+                            onmouseout="this.style.background='#f0f9ff'"
+                            title="คลิกเพื่อดูรูปหลักฐานค่าใช้จ่าย">
+                        หลักฐาน
+                    </button>
+                `;
+            }
+
             tr.innerHTML = `
                 <td>${index + 1}</td>
                 <td>${dateText}</td>
@@ -6071,7 +6250,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td>${r.claimShopName || '-'}</td>
                 <td>${expenseTitleHtml}</td>
                 <td>${r.centerName || '-'}</td>
-                <td style="color:#ef4444; font-weight: 700;">${amountText}</td>
+                <td>${amountCellHtml}</td>
+                <td style="text-align: center;">${evidenceCellHtml}</td>
                 <td>${sourceBadge}</td>
                 <td>${recordedByText}</td>
                 <td style="text-align: center;">${actionsHtml}</td>
@@ -6079,6 +6259,414 @@ document.addEventListener('DOMContentLoaded', () => {
             tbody.appendChild(tr);
         });
     }
+
+    window.viewFinanceExpenseEvidence = function (index) {
+        const list = window._lastFinanceExpenseRows || [];
+        const r = list[index];
+        if (!r) return;
+
+        const items = [];
+        const seen = new Set();
+
+        if (Array.isArray(r.costItems)) {
+            r.costItems.forEach(ci => {
+                const url = ci && ci.evidenceUrl ? String(ci.evidenceUrl).trim() : '';
+                if (url && !seen.has(url)) {
+                    seen.add(url);
+                    items.push({
+                        url,
+                        caption: `${ci.label || 'รายการค่าใช้จ่าย'} (${formatNumber(ci.amount || 0)} ฿)`
+                    });
+                }
+            });
+        }
+
+        const extraSources = [
+            ...(Array.isArray(r.evidenceUrls) ? r.evidenceUrls : []),
+            ...(Array.isArray(r.evidenceImages) ? r.evidenceImages : []),
+            ...(r.receiptUrl ? [r.receiptUrl] : [])
+        ];
+        extraSources.forEach(rawUrl => {
+            const url = rawUrl ? String(rawUrl).trim() : '';
+            if (url && !seen.has(url)) {
+                seen.add(url);
+                items.push({
+                    url,
+                    caption: r.expenseTitle || 'หลักฐานค่าใช้จ่าย'
+                });
+            }
+        });
+
+        if (items.length === 0) return;
+
+        const cardsHtml = items.map((it, idx) => `
+            <div style="border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px; background: #f8fafc; margin-bottom: 10px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; gap: 8px;">
+                    <span style="font-size: 0.84rem; font-weight: 700; color: #1e293b;">#${idx + 1} ${escapeHtml(it.caption)}</span>
+                    <a href="${escapeHtml(it.url)}" target="_blank" rel="noopener noreferrer"
+                       style="font-size: 0.76rem; font-weight: 600; color: #0284c7; text-decoration: none; background: #e0f2fe; padding: 3px 8px; border-radius: 6px; white-space: nowrap;">
+                        🔍 เปิดภาพขนาดเต็ม
+                    </a>
+                </div>
+                <div style="text-align: center; background: #ffffff; border-radius: 8px; padding: 6px; border: 1px solid #f1f5f9;">
+                    <img src="${escapeHtml(it.url)}" alt="หลักฐาน"
+                         onclick="window.open('${escapeHtml(it.url)}', '_blank')"
+                         style="max-width: 100%; max-height: 360px; object-fit: contain; border-radius: 6px; cursor: pointer;">
+                </div>
+            </div>
+        `).join('');
+
+        Swal.fire({
+            title: `<div style="font-size: 1.1rem; font-weight: 800; color: #0f172a;">🖼️ หลักฐานค่าใช้จ่าย (${items.length} รูป)</div>`,
+            width: 580,
+            html: `
+                <div style="text-align: left; max-height: 70vh; overflow-y: auto; padding-right: 4px;">
+                    <div style="font-size: 0.82rem; color: #64748b; margin-bottom: 10px;">
+                        ${r.claimId && r.claimId !== '-' ? `เลขที่เคลม: <strong style="color:#0284c7;">${escapeHtml(r.claimId)}</strong> • ` : ''}
+                        ยอดตั้งต้น: <strong style="color:#ef4444;">${formatNumber(r.amount || 0)} ฿</strong>
+                    </div>
+                    ${cardsHtml}
+                </div>
+            `,
+            confirmButtonText: 'ปิด',
+            confirmButtonColor: '#0284c7'
+        });
+    };
+
+    window.openClaimExpensePaymentModal = async function (index) {
+        const list = window._lastFinanceExpenseRows || [];
+        const r = list[index];
+        if (!r || typeof Swal === 'undefined') return;
+
+        const totalAmt = Number(r.amount || 0);
+        const payments = Array.isArray(r.payments) ? r.payments : [];
+        const paidAmount = payments.reduce((sum, p) => sum + Number(p.amount || 0), 0);
+        const remainingAmount = Math.max(0, totalAmt - paidAmount);
+        const todayStr = new Date().toISOString().split('T')[0];
+
+        let historyRowsHtml = '';
+        if (payments.length === 0) {
+            historyRowsHtml = `
+                <tr>
+                    <td colspan="5" style="text-align: center; padding: 14px; color: #94a3b8; font-size: 0.85rem;">
+                        ยังไม่มีประวัติการจ่ายเงินสำหรับรายการนี้
+                    </td>
+                </tr>
+            `;
+        } else {
+            historyRowsHtml = payments.map((p, pIdx) => {
+                const pDateStr = p.paidDate ? new Date(p.paidDate).toLocaleDateString('th-TH') : '-';
+                const pId = p._id || '';
+                return `
+                    <tr style="border-bottom: 1px solid #f1f5f9;">
+                        <td style="padding: 8px 6px; text-align: center; font-weight: 600; color: #475569;">ครั้งที่ ${pIdx + 1}</td>
+                        <td style="padding: 8px 6px; text-align: center; color: #1e293b;">${pDateStr}</td>
+                        <td style="padding: 8px 6px; text-align: right; font-weight: 700; color: #059669;">${formatNumber(p.amount || 0)} ฿</td>
+                        <td style="padding: 8px 6px; color: #64748b; font-size: 0.8rem;">${escapeHtml(p.note || '-')}<div style="font-size: 0.7rem; color: #94a3b8;">โดย: ${escapeHtml(p.recordedBy || '-')}</div></td>
+                        <td style="padding: 8px 6px; text-align: center; white-space: nowrap;">
+                            <button type="button" onclick="window.editClaimExpensePaymentItem(${index}, ${pIdx}, '${pId}')"
+                                    style="background: #f0f9ff; border: 1px solid #bae6fd; color: #0284c7; border-radius: 5px; padding: 3px 7px; font-size: 0.75rem; cursor: pointer; margin-right: 3px;"
+                                    title="แก้ไขจำนวนเงิน/วันที่จ่าย">✏️</button>
+                            <button type="button" onclick="window.deleteClaimExpensePaymentItem(${index}, ${pIdx}, '${pId}')"
+                                    style="background: #fef2f2; border: 1px solid #fecaca; color: #ef4444; border-radius: 5px; padding: 3px 7px; font-size: 0.75rem; cursor: pointer;"
+                                    title="ลบรายการจ่ายนี้">🗑️</button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        const addPaymentSectionHtml = remainingAmount > 0 ? `
+            <div style="margin-top: 14px; background: #f8fafc; border: 1.5px solid #cbd5e1; border-radius: 10px; padding: 14px; text-align: left;">
+                <div style="font-weight: 700; color: #0f172a; font-size: 0.92rem; margin-bottom: 10px; display: flex; align-items: center; gap: 6px;">
+                    <span>➕</span> บันทึกการจ่ายเงิน (${payments.length > 0 ? `ครั้งที่ ${payments.length + 1}` : 'ครั้งที่ 1'})
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;">
+                    <div>
+                        <label style="display: block; font-size: 0.8rem; font-weight: 600; color: #334155; margin-bottom: 4px;">จำนวนเงินที่จ่าย (บาท) *</label>
+                        <input type="number" id="cepPayAmountInput" step="0.01" min="1" max="${remainingAmount}" value="${remainingAmount}"
+                               style="width: 100%; height: 38px; padding: 0 10px; border: 1.5px solid #94a3b8; border-radius: 8px; font-size: 0.95rem; font-weight: 700; color: #0f172a; box-sizing: border-box;">
+                    </div>
+                    <div>
+                        <label style="display: block; font-size: 0.8rem; font-weight: 600; color: #334155; margin-bottom: 4px;">วันที่จ่าย *</label>
+                        <input type="date" id="cepPaidDateInput" value="${todayStr}"
+                               style="width: 100%; height: 38px; padding: 0 10px; border: 1.5px solid #94a3b8; border-radius: 8px; font-size: 0.9rem; color: #0f172a; box-sizing: border-box;">
+                    </div>
+                </div>
+                <div>
+                    <label style="display: block; font-size: 0.8rem; font-weight: 600; color: #334155; margin-bottom: 4px;">หมายเหตุการจ่าย (ถ้ามี)</label>
+                    <input type="text" id="cepPayNoteInput" placeholder="เช่น โอนมัดจำงวดแรก, จ่ายส่วนที่เหลือ..."
+                           style="width: 100%; height: 36px; padding: 0 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.85rem; box-sizing: border-box;">
+                </div>
+            </div>
+        ` : `
+            <div style="margin-top: 14px; padding: 10px 14px; background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 8px; color: #065f46; font-weight: 600; font-size: 0.88rem; text-align: center;">
+                ✅ รายการนี้จ่ายเงินครบจำนวนแล้ว (${formatNumber(totalAmt)} บาท)
+            </div>
+        `;
+
+        const result = await Swal.fire({
+            title: '<div style="font-size: 1.15rem; font-weight: 700; color: #0f172a;">💳 บันทึกการจ่ายเงิน (รายจ่ายเคลม)</div>',
+            width: 620,
+            html: `
+                <div style="text-align: left; font-size: 0.88rem;">
+                    <div style="background: #f1f5f9; border-radius: 8px; padding: 10px 12px; margin-bottom: 12px;">
+                        <div style="display: flex; justify-content: space-between; flex-wrap: wrap; gap: 6px; margin-bottom: 4px;">
+                            <span><strong>เลขที่เคลม:</strong> <span style="color: #0284c7; font-weight: 700;">${escapeHtml(r.claimId || '-')}</span></span>
+                            <span><strong>สัญญา:</strong> ${escapeHtml(r.policyNumber || '-')}</span>
+                            <span><strong>ลูกค้า:</strong> ${escapeHtml(r.customerName || '-')}</span>
+                        </div>
+                        <div style="color: #334155;"><strong>รายการ:</strong> ${escapeHtml(r.expenseTitle || '-')}</div>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px; text-align: center;">
+                        <div style="background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px;">
+                            <div style="font-size: 0.75rem; color: #64748b;">ยอดรายจ่ายทั้งหมด</div>
+                            <div style="font-size: 1rem; font-weight: 700; color: #0f172a;">${formatNumber(totalAmt)} ฿</div>
+                        </div>
+                        <div style="background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 8px; padding: 8px;">
+                            <div style="font-size: 0.75rem; color: #047857;">จ่ายจริงแล้ว</div>
+                            <div style="font-size: 1rem; font-weight: 700; color: #059669;">${formatNumber(paidAmount)} ฿</div>
+                        </div>
+                        <div style="background: ${remainingAmount > 0 ? '#fef2f2' : '#f8fafc'}; border: 1px solid ${remainingAmount > 0 ? '#fecaca' : '#e2e8f0'}; border-radius: 8px; padding: 8px;">
+                            <div style="font-size: 0.75rem; color: ${remainingAmount > 0 ? '#b91c1c' : '#64748b'};">คงเหลือค้างจ่าย</div>
+                            <div style="font-size: 1rem; font-weight: 700; color: ${remainingAmount > 0 ? '#dc2626' : '#64748b'};">${formatNumber(remainingAmount)} ฿</div>
+                        </div>
+                    </div>
+
+                    <div style="font-weight: 700; color: #334155; margin-bottom: 6px; font-size: 0.85rem;">📋 ประวัติการจ่ายเงิน (${payments.length} ครั้ง)</div>
+                    <div style="max-height: 180px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 8px;">
+                        <table style="width: 100%; border-collapse: collapse; font-size: 0.82rem;">
+                            <thead>
+                                <tr style="background: #f8fafc; border-bottom: 1px solid #e2e8f0;">
+                                    <th style="padding: 7px 6px; text-align: center;">ครั้งที่</th>
+                                    <th style="padding: 7px 6px; text-align: center;">วันที่จ่าย</th>
+                                    <th style="padding: 7px 6px; text-align: right;">จำนวนเงิน</th>
+                                    <th style="padding: 7px 6px; text-align: left;">หมายเหตุ/ผู้บันทึก</th>
+                                    <th style="padding: 7px 6px; text-align: center;">จัดการ</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${historyRowsHtml}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    ${addPaymentSectionHtml}
+                </div>
+            `,
+            showCancelButton: true,
+            showConfirmButton: remainingAmount > 0,
+            confirmButtonText: '✓ บันทึกการจ่ายเงิน',
+            cancelButtonText: 'ปิดหน้าต่าง',
+            confirmButtonColor: '#2563eb',
+            cancelButtonColor: '#64748b',
+            preConfirm: () => {
+                const amtEl = document.getElementById('cepPayAmountInput');
+                const dateEl = document.getElementById('cepPaidDateInput');
+                const noteEl = document.getElementById('cepPayNoteInput');
+                if (!amtEl || !dateEl) return null;
+
+                const amt = Number(amtEl.value || 0);
+                const paidDate = dateEl.value;
+                const note = noteEl ? noteEl.value.trim() : '';
+
+                if (!Number.isFinite(amt) || amt <= 0) {
+                    Swal.showValidationMessage('กรุณาระบุจำนวนเงินที่จ่ายให้มากกว่า 0 บาท');
+                    return false;
+                }
+                if (amt > remainingAmount + 0.01) {
+                    Swal.showValidationMessage(`จำนวนเงินที่จ่ายต้องไม่เกินยอดคงเหลือ (${formatNumber(remainingAmount)} บาท)`);
+                    return false;
+                }
+                if (!paidDate) {
+                    Swal.showValidationMessage('กรุณาระบุวันที่จ่าย');
+                    return false;
+                }
+                return { amount: amt, paidDate, note };
+            }
+        });
+
+        if (result.isConfirmed && result.value) {
+            showLoader('กำลังบันทึกการจ่ายเงิน...');
+            try {
+                const staffName = (typeof currentUser !== 'undefined' && currentUser && currentUser.staffName) ? currentUser.staffName : 'Staff';
+                const res = await fetch('/api/finance/expenses/pay', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        source: r.source || 'claim',
+                        claimDocId: r.claimDocId,
+                        claimId: r.claimId,
+                        updateId: r.updateId,
+                        updateIndex: r.updateIndex,
+                        txId: r.txId,
+                        amount: result.value.amount,
+                        paidDate: result.value.paidDate,
+                        note: result.value.note,
+                        staffName
+                    })
+                });
+                const data = await res.json();
+                if (res.ok && data.success) {
+                    showAlert('success', 'บันทึกการจ่ายเงินเรียบร้อยแล้ว');
+                    await fetchFinanceExpenseData();
+                } else {
+                    showAlert('error', data.message || 'ไม่สามารถบันทึกการจ่ายเงินได้');
+                }
+            } catch (err) {
+                console.error('Submit claim expense payment error:', err);
+                showAlert('error', 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้');
+            } finally {
+                hideLoader();
+            }
+        }
+    };
+
+    window.editClaimExpensePaymentItem = async function (rowIndex, paymentIndex, paymentId) {
+        const list = window._lastFinanceExpenseRows || [];
+        const r = list[rowIndex];
+        if (!r || !Array.isArray(r.payments) || !r.payments[paymentIndex]) return;
+
+        const targetPay = r.payments[paymentIndex];
+        const totalAmt = Number(r.amount || 0);
+        const otherPaid = r.payments.reduce((s, p, idx) => idx === paymentIndex ? s : s + Number(p.amount || 0), 0);
+        const maxAllowed = Math.max(0, totalAmt - otherPaid);
+        const currentDateStr = targetPay.paidDate
+            ? new Date(targetPay.paidDate).toISOString().split('T')[0]
+            : new Date().toISOString().split('T')[0];
+
+        const editRes = await Swal.fire({
+            title: `✏️ แก้ไขการจ่ายเงิน (ครั้งที่ ${paymentIndex + 1})`,
+            html: `
+                <div style="text-align: left; font-size: 0.9rem;">
+                    <div style="margin-bottom: 10px;">
+                        <label style="display: block; font-weight: 600; margin-bottom: 4px; color: #334155;">จำนวนเงินที่จ่าย (บาท) * (ไม่เกิน ${formatNumber(maxAllowed)} ฿)</label>
+                        <input type="number" id="editCepPayAmount" step="0.01" min="1" max="${maxAllowed}" value="${Number(targetPay.amount || 0)}"
+                               style="width: 100%; height: 38px; padding: 0 10px; border: 1.5px solid #cbd5e1; border-radius: 8px; font-weight: 700; box-sizing: border-box;">
+                    </div>
+                    <div style="margin-bottom: 10px;">
+                        <label style="display: block; font-weight: 600; margin-bottom: 4px; color: #334155;">วันที่จ่าย *</label>
+                        <input type="date" id="editCepPaidDate" value="${currentDateStr}"
+                               style="width: 100%; height: 38px; padding: 0 10px; border: 1.5px solid #cbd5e1; border-radius: 8px; box-sizing: border-box;">
+                    </div>
+                    <div>
+                        <label style="display: block; font-weight: 600; margin-bottom: 4px; color: #334155;">หมายเหตุ</label>
+                        <input type="text" id="editCepPayNote" value="${escapeHtml(targetPay.note || '')}"
+                               style="width: 100%; height: 38px; padding: 0 10px; border: 1.5px solid #cbd5e1; border-radius: 8px; box-sizing: border-box;">
+                    </div>
+                </div>
+            `,
+            showCancelButton: true,
+            confirmButtonText: '💾 บันทึกการแก้ไข',
+            cancelButtonText: 'ยกเลิก',
+            confirmButtonColor: '#0284c7',
+            preConfirm: () => {
+                const amt = Number(document.getElementById('editCepPayAmount').value || 0);
+                const paidDate = document.getElementById('editCepPaidDate').value;
+                const note = document.getElementById('editCepPayNote').value.trim();
+                if (!Number.isFinite(amt) || amt <= 0) {
+                    Swal.showValidationMessage('กรุณาระบุจำนวนเงินที่จ่ายให้มากกว่า 0');
+                    return false;
+                }
+                if (amt > maxAllowed + 0.01) {
+                    Swal.showValidationMessage(`จำนวนเงินต้องไม่เกิน ${formatNumber(maxAllowed)} บาท`);
+                    return false;
+                }
+                if (!paidDate) {
+                    Swal.showValidationMessage('กรุณาระบุวันที่จ่าย');
+                    return false;
+                }
+                return { amount: amt, paidDate, note };
+            }
+        });
+
+        if (editRes.isConfirmed && editRes.value) {
+            showLoader('กำลังบันทึกการแก้ไข...');
+            try {
+                const staffName = (typeof currentUser !== 'undefined' && currentUser && currentUser.staffName) ? currentUser.staffName : 'Staff';
+                const res = await fetch('/api/finance/expenses/pay', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        source: r.source || 'claim',
+                        claimDocId: r.claimDocId,
+                        claimId: r.claimId,
+                        updateId: r.updateId,
+                        updateIndex: r.updateIndex,
+                        txId: r.txId,
+                        paymentId,
+                        paymentIndex,
+                        amount: editRes.value.amount,
+                        paidDate: editRes.value.paidDate,
+                        note: editRes.value.note,
+                        staffName
+                    })
+                });
+                const data = await res.json();
+                if (res.ok && data.success) {
+                    showAlert('success', 'แก้ไขข้อมูลการจ่ายเงินสำเร็จ');
+                    await fetchFinanceExpenseData();
+                    window.openClaimExpensePaymentModal(rowIndex);
+                } else {
+                    showAlert('error', data.message || 'ไม่สามารถแก้ไขข้อมูลได้');
+                }
+            } catch (err) {
+                console.error('Edit claim expense payment error:', err);
+                showAlert('error', 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้');
+            } finally {
+                hideLoader();
+            }
+        } else {
+            window.openClaimExpensePaymentModal(rowIndex);
+        }
+    };
+
+    window.deleteClaimExpensePaymentItem = async function (rowIndex, paymentIndex, paymentId) {
+        const list = window._lastFinanceExpenseRows || [];
+        const r = list[rowIndex];
+        if (!r || !Array.isArray(r.payments) || !r.payments[paymentIndex]) return;
+
+        const targetPay = r.payments[paymentIndex];
+        const confirmed = await window.showDeleteConfirm(`ต้องการลบประวัติการจ่ายเงิน ครั้งที่ ${paymentIndex + 1} (${formatNumber(targetPay.amount || 0)} บาท) หรือไม่?`);
+        if (!confirmed) {
+            window.openClaimExpensePaymentModal(rowIndex);
+            return;
+        }
+
+        showLoader('กำลังลบประวัติการจ่ายเงิน...');
+        try {
+            const staffName = (typeof currentUser !== 'undefined' && currentUser && currentUser.staffName) ? currentUser.staffName : 'Staff';
+            const res = await fetch('/api/finance/expenses/pay', {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    source: r.source || 'claim',
+                    claimDocId: r.claimDocId,
+                    claimId: r.claimId,
+                    updateId: r.updateId,
+                    updateIndex: r.updateIndex,
+                    txId: r.txId,
+                    paymentId,
+                    paymentIndex,
+                    staffName
+                })
+            });
+            const data = await res.json();
+            if (res.ok && data.success) {
+                showAlert('success', 'ลบประวัติการจ่ายเงินเรียบร้อยแล้ว');
+                await fetchFinanceExpenseData();
+                window.openClaimExpensePaymentModal(rowIndex);
+            } else {
+                showAlert('error', data.message || 'ไม่สามารถลบข้อมูลได้');
+            }
+        } catch (err) {
+            console.error('Delete claim expense payment error:', err);
+            showAlert('error', 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้');
+        } finally {
+            hideLoader();
+        }
+    };
 
     async function fetchApproverDashboard() {
         showLoader('กำลังโหลดข้อมูล...');
@@ -6256,7 +6844,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (search) params.set('search', search);
         if (startDate) params.set('startDate', startDate);
         if (endDate) params.set('endDate', endDate);
-        if (status && status !== 'all') params.set('status', status);
+        if (status && status !== 'all' && prefix !== 'claims') params.set('status', status);
         if (shopName && shopName !== 'all') params.set('shopName', shopName);
         if (prefix === 'approval') {
             const paymentMethod = document.getElementById('approvalPaymentMethodFilter')?.value || 'all';
@@ -6833,7 +7421,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (endDate) endDate.setHours(23, 59, 59, 999);
 
         return allFinanceIncomeTransactions.filter(tx => {
-            const p = (tx.financeProvider || 'Easy.Care').trim();
+            const isExcessTx = tx.actionType === 'ชำระค่าซ่อมส่วนต่าง' || (tx.actionType && tx.actionType.includes('ส่วนต่าง'));
+            const p = (isExcessTx ? 'Easy.Care' : (tx.financeProvider || 'Easy.Care')).trim();
             const normP = (p === 'Tunder' ? 'Thunder' : p).toLowerCase();
             if (normP !== normTarget) return false;
 
@@ -7203,9 +7792,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 let matchType = true;
                 if (paymentType !== 'all') {
-                    const pkgMethod = (tx.packagePaymentMethod || '').toLowerCase();
-                    const filterMethod = paymentType.toLowerCase();
-                    matchType = (pkgMethod === filterMethod);
+                    const isExcessTx = tx.actionType === 'ชำระค่าซ่อมส่วนต่าง' || (tx.actionType && tx.actionType.includes('ส่วนต่าง'));
+                    if (paymentType === 'ชำระค่าซ่อมส่วนต่าง') {
+                        matchType = isExcessTx;
+                    } else {
+                        const pkgMethod = (tx.packagePaymentMethod || '').toLowerCase();
+                        const filterMethod = paymentType.toLowerCase();
+                        matchType = !isExcessTx && (pkgMethod === filterMethod);
+                    }
                 }
 
                 let matchMethod = true;
@@ -7222,7 +7816,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 let matchProvider = true;
                 if (financeProvider !== 'all') {
-                    matchProvider = (tx.financeProvider === financeProvider);
+                    const isExcessTx = tx.actionType === 'ชำระค่าซ่อมส่วนต่าง' || (tx.actionType && tx.actionType.includes('ส่วนต่าง'));
+                    const effectiveProvider = isExcessTx ? 'Easy.Care' : (tx.financeProvider || 'Easy.Care');
+                    matchProvider = (effectiveProvider === financeProvider);
                 }
 
                 let matchShop = true;
@@ -7385,6 +7981,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }
 
+                const isExcessPayment = tx.actionType === 'ชำระค่าซ่อมส่วนต่าง' || (tx.actionType && tx.actionType.includes('ส่วนต่าง'));
+                const displayFinanceProvider = isExcessPayment ? 'Easy.Care' : (tx.financeProvider || 'Easy.Care');
+
                 return `
                     <tr>
                         <td>${index + 1}</td>
@@ -7392,7 +7991,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <td><span class="status-badge" style="background: #e0e7ff; color: #4338ca;">${tx.actionType}</span></td>
                         <td>${tx.policyNumber}</td>
                         <td>${tx.customerName || '-'}</td>
-                        <td>${tx.financeProvider || 'Easy.Care'}</td>
+                        <td>${displayFinanceProvider}</td>
                         <td>${tx.branch || '-'}</td>
                         <td>${tx.paymentMethod}</td>
                         <td>${formatNumber(tx.cashReceived)}</td>
@@ -9069,9 +9668,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const usedCoverage = Number.isFinite(Number(w?.usedCoverage))
                 ? Number(w.usedCoverage)
                 : Number(w?.totalClaimAmount ?? 0);
-            const remainingLimit = Number.isFinite(Number(w?.remainingLimit))
+            const remainingLimit = Math.max(0, Number.isFinite(Number(w?.remainingLimit))
                 ? Number(w.remainingLimit)
-                : (currentLimit - usedCoverage);
+                : (currentLimit - usedCoverage));
             return { devicePrice, maxLimit, installmentsPaid, currentLimit, usedCoverage, remainingLimit };
         };
 
@@ -9647,7 +10246,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 
                                 <div style="grid-column: 1 / -1; border-top: 1px dashed #cbd5e1; padding-top: 8px; margin-top: 4px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
                                     <div><strong>วงเงินคุ้มครองสูงสุด:</strong> <span style="color: #0ea5e9; font-weight: 600;">${(data.maxLimit || 0).toLocaleString()} บาท</span></div>
-                                    <div><strong>สิทธิ์คงเหลือปัจจุบัน:</strong> <span style="color: #10b981; font-weight: 600;">${(data.remainingLimit || 0).toLocaleString()} บาท</span></div>
+                                    <div><strong>สิทธิ์คงเหลือปัจจุบัน:</strong> <span style="color: #10b981; font-weight: 600;">${Math.max(0, Number(data.remainingLimit || 0)).toLocaleString()} บาท</span></div>
                                 </div>
                             </div>
                         </div>
@@ -10347,6 +10946,13 @@ document.addEventListener('DOMContentLoaded', () => {
             const currentVal = filterSelect.value || 'all';
 
             filterSelect.innerHTML = '<option value="all">ทั้งหมด</option>';
+            if (!list.some(c => c && c.name === 'Easy.Care')) {
+                const easyOpt = document.createElement('option');
+                easyOpt.value = 'Easy.Care';
+                easyOpt.textContent = 'Easy.Care';
+                if (currentVal === 'Easy.Care') easyOpt.selected = true;
+                filterSelect.appendChild(easyOpt);
+            }
             list.forEach(comp => {
                 const option = document.createElement('option');
                 option.value = comp.name;
@@ -13845,15 +14451,45 @@ document.addEventListener('DOMContentLoaded', () => {
     // ═══════════════════════════════════════════════════════════════════
 
     let currentClaimData = null; // Store current claim after save
+    let allClaimsPolicies = [];
+    let currentClaimsRecords = [];
+    let currentClaimsIndex = 0;
+    const claimsItemsPerPage = 15;
 
     // Fetch active policies for claim menu
     async function fetchActivePolicies() {
         showLoader('กำลังโหลดรายการกรมธรรม์...');
         try {
             const qs = buildFilterQueryString('claims');
-            const res = await fetch(`/api/warranties/active${qs}`);
+            const [res, pendingRes] = await Promise.all([
+                fetch(`/api/warranties/active${qs}`),
+                fetch('/api/claims/pending').catch(() => null)
+            ]);
             const data = await res.json();
-            renderClaimsTable(data);
+            let pendingClaims = [];
+            if (pendingRes && pendingRes.ok) {
+                pendingClaims = await pendingRes.json().catch(() => []);
+            }
+            if (Array.isArray(data) && Array.isArray(pendingClaims) && pendingClaims.length > 0) {
+                const pendingByWarrantyId = new Map();
+                const pendingByPolicyNo = new Map();
+                pendingClaims.forEach(c => {
+                    if (!c) return;
+                    if (c.warrantyId) pendingByWarrantyId.set(String(c.warrantyId), c);
+                    if (c.policyNumber) pendingByPolicyNo.set(String(c.policyNumber).trim(), c);
+                });
+                data.forEach(r => {
+                    if (!r) return;
+                    const matchedClaim = pendingByWarrantyId.get(String(r._id || '')) ||
+                        (r.policyNumber ? pendingByPolicyNo.get(String(r.policyNumber).trim()) : null);
+                    if (matchedClaim) {
+                        r.claimStatus = 'pending';
+                        if (matchedClaim.claimId) r.claimId = matchedClaim.claimId;
+                    }
+                });
+            }
+            allClaimsPolicies = Array.isArray(data) ? data : [];
+            renderClaimsTable(allClaimsPolicies);
         } catch (err) {
             console.error('Fetch active policies error:', err);
         } finally {
@@ -13861,26 +14497,18 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function renderClaimsTable(records) {
+    function appendClaimsChunk() {
         const body = document.getElementById('claimsBody');
-        const empty = document.getElementById('claimsEmptyState');
         if (!body) return;
+        const nextBatch = currentClaimsRecords.slice(currentClaimsIndex, currentClaimsIndex + claimsItemsPerPage);
+        if (nextBatch.length === 0) return;
 
-        records = Array.isArray(records) ? records : [];
-        records = records.filter(r => r && (r.approvalStatus === 'approved' || r.approvalStatus === 'Approved_Paid'));
-
-        if (records.length === 0) {
-            if (empty) empty.style.display = 'block';
-            body.innerHTML = '';
-            return;
-        }
-
-        if (empty) empty.style.display = 'none';
-        body.innerHTML = records.map(r => {
-            const now = new Date();
+        const now = new Date();
+        const chunkHtml = nextBatch.map(r => {
             const end = new Date(r.warrantyDates.end);
             const diffMs = end - now;
             const isExpired = diffMs <= 0;
+            const isCompletedClaim = r.claimStatus !== 'pending' && Boolean(r.claimId);
 
             let timeRemainingText = '';
             if (isExpired) {
@@ -13895,6 +14523,8 @@ document.addEventListener('DOMContentLoaded', () => {
             let statusBadge = '';
             if (r.claimStatus === 'pending') {
                 statusBadge = `<span class="status-badge" style="background: linear-gradient(135deg, #ef4444, #dc2626); color: white; box-shadow: 0 2px 8px rgba(239, 68, 68, 0.4); font-weight: 700;">รอเคลม</span>`;
+            } else if (isCompletedClaim) {
+                statusBadge = `<span class="status-badge" style="background: linear-gradient(135deg, #3b82f6, #2563eb); color: white; box-shadow: 0 2px 8px rgba(59, 130, 246, 0.35); font-weight: 700;">เคลมสำเร็จ</span>`;
             } else if (isExpired) {
                 statusBadge = `<span class="status-badge" style="background: #f3f4f6; color: #6b7280; border: 1px solid #d1d5db;">หมดอายุ</span>`;
             } else {
@@ -13927,6 +14557,28 @@ document.addEventListener('DOMContentLoaded', () => {
                     <td data-label="รุ่นอุปกรณ์">${r.device.model}</td>
                     <td data-label="แพ็กเกจ"><span style="color: var(--primary); font-weight: 500;">${r.package.plan}</span></td>
                     <td data-label="ประกันคงเหลือ">${timeRemainingText}</td>
+                    <td data-label="วงเงินคงเหลือ">
+                        ${(() => {
+                            const devicePrice = Number(r?.devicePrice ?? r?.device?.deviceValue ?? 0);
+                            const cap = PACKAGE_LIMITS[r?.package?.plan] || Infinity;
+                            const maxLimit = Number.isFinite(Number(r?.maxLimit)) ? Number(r.maxLimit) : Math.floor(Math.min(devicePrice, cap));
+                            const installmentsPaid = Number.isFinite(Number(r?.installmentsPaid)) ? Number(r.installmentsPaid) : 1;
+                            const currentLimit = Number.isFinite(Number(r?.currentLimit))
+                                ? Number(r.currentLimit)
+                                : (installmentsPaid >= 3 ? Math.floor(maxLimit * 1.0) : (installmentsPaid === 2 ? Math.floor(maxLimit * 0.30) : Math.floor(maxLimit * 0.10)));
+                            const usedCoverage = Number.isFinite(Number(r?.usedCoverage)) ? Number(r.usedCoverage) : Number(r?.totalClaimAmount ?? 0);
+                            const rawBalance = Number.isFinite(Number(r?.remainingLimit)) ? Number(r.remainingLimit) : (currentLimit - usedCoverage);
+                            const balance = Math.max(0, rawBalance);
+                            const color = balance <= 0 ? '#ef4444' : '#10b981';
+                            return `
+                                <div style="display: flex; flex-direction: column; align-items: flex-start;">
+                                    <span style="color: ${color}; font-weight: 600;">${balance.toLocaleString()} บาท</span>
+                                    <span style="font-size: 0.75rem; color: #64748b;">(วงเงินสูงสุด ${maxLimit.toLocaleString()})</span>
+                                </div>
+                            `;
+                        })()}
+                    </td>
+                    <td data-label="ร้านค้า">${r.shopName || '-'}</td>
                     <td data-label="สถานะ">
                         ${statusBadge}
                     </td>
@@ -13942,10 +14594,87 @@ document.addEventListener('DOMContentLoaded', () => {
             `;
         }).join('');
 
-        // Attach event listeners to claim buttons
-        document.querySelectorAll('.claim-action-btn').forEach(btn => {
-            btn.addEventListener('click', () => openClaimForm(btn.dataset.id));
-        });
+        body.insertAdjacentHTML('beforeend', chunkHtml);
+        currentClaimsIndex += nextBatch.length;
+    }
+
+    function renderClaimsTable(records) {
+        const body = document.getElementById('claimsBody');
+        const empty = document.getElementById('claimsEmptyState');
+        if (!body) return;
+
+        records = Array.isArray(records) ? records : [];
+        records = records.filter(r => r && (r.approvalStatus === 'approved' || r.approvalStatus === 'Approved_Paid'));
+        const claimsStatusVal = document.getElementById('claimsStatusFilter')?.value || 'all';
+        if (claimsStatusVal && claimsStatusVal !== 'all') {
+            const nowCheck = new Date();
+            records = records.filter(r => {
+                const isPend = r.claimStatus === 'pending';
+                const isComp = !isPend && Boolean(r.claimId);
+                const isExp = !isPend && !isComp && (new Date(r.warrantyDates?.end) <= nowCheck);
+                if (claimsStatusVal === 'pending') return isPend;
+                if (claimsStatusVal === 'completed') return isComp;
+                if (claimsStatusVal === 'expired') return isExp;
+                if (claimsStatusVal === 'active') return !isPend && !isComp && !isExp;
+                return true;
+            });
+        }
+
+        if (records.length === 0) {
+            if (empty) empty.style.display = 'block';
+            body.innerHTML = '';
+            currentClaimsRecords = [];
+            currentClaimsIndex = 0;
+            return;
+        }
+
+        if (empty) empty.style.display = 'none';
+        body.innerHTML = '';
+
+        // Bind event delegation once on claimsBody
+        if (!body.dataset.listenerBound) {
+            body.dataset.listenerBound = 'true';
+            body.addEventListener('click', (e) => {
+                const claimBtn = e.target.closest('.claim-action-btn');
+                if (claimBtn && claimBtn.dataset.id) {
+                    openClaimForm(claimBtn.dataset.id);
+                }
+            });
+        }
+
+        // Bind scroll listener once on claimsMain and window (like renderDashboard)
+        if (!window.claimsScrollEventBound) {
+            window.claimsScrollEventBound = true;
+            const claimsMain = document.getElementById('claimsMain');
+            const handleClaimsScroll = () => {
+                if (claimsMain && claimsMain.style.display === 'none') return;
+                const threshold = 150;
+                let isNearBottom = false;
+
+                if (claimsMain && claimsMain.scrollHeight > claimsMain.clientHeight + 10) {
+                    isNearBottom = (claimsMain.scrollTop + claimsMain.clientHeight >= claimsMain.scrollHeight - threshold);
+                } else {
+                    const docHeight = Math.max(
+                        document.body.scrollHeight,
+                        document.documentElement.scrollHeight,
+                        document.body.offsetHeight,
+                        document.documentElement.offsetHeight
+                    );
+                    const scrollY = window.scrollY || window.pageYOffset || document.documentElement.scrollTop;
+                    isNearBottom = (window.innerHeight + scrollY >= docHeight - threshold);
+                }
+
+                if (isNearBottom && currentClaimsIndex < currentClaimsRecords.length) {
+                    appendClaimsChunk();
+                }
+            };
+            if (claimsMain) claimsMain.addEventListener('scroll', handleClaimsScroll);
+            window.addEventListener('scroll', handleClaimsScroll);
+        }
+
+        currentClaimsRecords = records;
+        currentClaimsIndex = 0;
+        appendClaimsChunk();
     }
 
     // Function to print claim receipt from menu
@@ -14009,8 +14738,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const currentLimit = Number.isFinite(Number(data?.currentLimit))
                 ? Number(data.currentLimit)
                 : (installmentsPaid >= 3 ? Math.floor(maxLimit * 1.0) : (installmentsPaid === 2 ? Math.floor(maxLimit * 0.30) : Math.floor(maxLimit * 0.10)));
-            const usedCoverage = Number.isFinite(Number(data?.usedCoverage)) ? Number(data.usedCoverage) : Number(data?.totalClaimAmount ?? 0);
-            const remainingLimit = Number.isFinite(Number(data?.remainingLimit)) ? Number(data.remainingLimit) : (currentLimit - usedCoverage);
+            const usedCoverage = Math.min(currentLimit, Number.isFinite(Number(data?.usedCoverage)) ? Number(data.usedCoverage) : Number(data?.totalClaimAmount ?? 0));
+            const rawRemainingLimit = Number.isFinite(Number(data?.remainingLimit)) ? Number(data.remainingLimit) : (currentLimit - usedCoverage);
+            const remainingLimit = Math.max(0, rawRemainingLimit);
 
             const claimCoverageText = document.getElementById('claimCoverageText');
             const claimCoverageUsedText = document.getElementById('claimCoverageUsedText');
@@ -14279,6 +15009,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     // Open contract/signature modal
                     openClaimContract(result.claim);
+                    fetchActivePolicies();
                 } else {
                     showAlert('error', result.message || 'เกิดข้อผิดพลาดในการบันทึก');
                 }
@@ -15000,7 +15731,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div><strong>สี:</strong> ${claim.color}</div>
                     <div><strong>อาการ:</strong> ${claim.symptoms || '-'}</div>
                     <div><strong>วันที่แจ้งเคลม:</strong> ${new Date(claim.claimDate).toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' })}</div>
-                    <div><strong>วงเงินคงเหลือ:</strong> ${claim.remainingWarranty}</div>
+                    <div><strong>วงเงินคงเหลือ:</strong> ${(() => { const n = parseFloat(String(claim.remainingWarranty ?? '0').replace(/,/g, '')); return Number.isFinite(n) ? Math.max(0, n).toLocaleString() : (claim.remainingWarranty || '0'); })()}</div>
                 `;
             }
 
@@ -15160,7 +15891,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                     ✏️ แก้ไข
                                 </button>
                             </div>
-                            <p class="timeline-cost">ค่าใช้จ่ายรวม: <strong>${(u.cost || 0).toLocaleString()} บาท</strong></p>
+                            <p class="timeline-cost">${isCustomerDecisionStepTitle(u.title) ? `ยอดลูกค้าชำระส่วนต่าง: <strong>${(u.cost || 0).toLocaleString()} บาท</strong> <span style="font-size: 0.78rem; color: #64748b; font-weight: 500;">(รวมในค่าซ่อมแล้ว)</span>` : `ค่าใช้จ่ายรวม: <strong>${(u.cost || 0).toLocaleString()} บาท</strong>`}</p>
                             ${(Array.isArray(u.costItems) && u.costItems.length > 0) ? `
                                 <div style="margin: 6px 0 8px 0; padding: 8px 12px; background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; font-size: 0.84rem; color: #92400e;">
                                     <div style="font-weight: 700; margin-bottom: 4px;">รายการค่าใช้จ่ายย่อย (${u.costItems.length} รายการ):</div>
@@ -15209,19 +15940,32 @@ document.addEventListener('DOMContentLoaded', () => {
         timeline.innerHTML = html;
     }
 
+    function isCustomerDecisionStepTitle(title) {
+        const t = String(title || '').trim();
+        return t === 'ลูกค้าตกลงรับเครื่องคืนและชำระเงินส่วนต่าง' ||
+            t.startsWith('ลูกค้าตกลงรับเครื่องคืนและชำระเงินส่วนต่าง') ||
+            t === 'ลูกค้าสละสิทธิ์เครื่องและรับเงินชดเชย' ||
+            t.startsWith('ลูกค้าสละสิทธิ์เครื่องและรับเงินชดเชย');
+    }
+
+    function calculateClaimRepairTotal(claim) {
+        if (!claim) return 0;
+        const updates = Array.isArray(claim.updates) ? claim.updates : [];
+        if (updates.length > 0) {
+            return updates.reduce((sum, u) => {
+                if (!u || isCustomerDecisionStepTitle(u.title)) return sum;
+                const cost = Number(u.cost || 0);
+                return sum + (Number.isFinite(cost) && cost > 0 ? cost : 0);
+            }, 0);
+        }
+        return Math.max(0, Number(claim.totalCost || 0));
+    }
+
     function updateStatusTotalCost(claim) {
         const totalEl = document.getElementById('statusTotalCost');
         if (!totalEl) return;
 
-        const baseTotal = Number(claim && claim.totalCost ? claim.totalCost : 0);
-        const excessCost = Number(claim && claim.excessCost ? claim.excessCost : 0);
-        const refundAmount = Number(claim && claim.refundAmount ? claim.refundAmount : 0);
-
-        const waitingDecision = String(claim && claim.status ? claim.status : '') === 'รอการตัดสินใจจากลูกค้า';
-        const computed = waitingDecision
-            ? (Math.max(0, baseTotal) + Math.max(0, refundAmount) + Math.max(0, excessCost))
-            : Math.max(0, baseTotal);
-
+        const computed = calculateClaimRepairTotal(claim);
         totalEl.textContent = `${computed.toLocaleString()} บาท`;
     }
 
@@ -16083,7 +16827,7 @@ document.addEventListener('DOMContentLoaded', () => {
         emptyState.style.display = 'none';
 
         listContainer.innerHTML = claims.map(c => {
-            const totalCost = c.totalCost || 0;
+            const totalCost = calculateClaimRepairTotal(c);
             const statusColor = c.status === 'รอเคลม' ? '#ef4444' : '#10b981';
             const statusText = c.status === 'รอเคลม' ? 'รอเคลม / กำลังซ่อม' : 'รับเครื่องแล้ว (เสร็จสิ้น)';
             const claimMongoId = c && c._id ? String(c._id) : '';
@@ -17332,6 +18076,54 @@ document.addEventListener('DOMContentLoaded', () => {
     // ═══════════════════════════════════════════════════════════════════
 
     // --- Claims Filter ---
+    async function populateClaimsShopFilter() {
+        const shopFilter = document.getElementById('claimsShopFilter');
+        if (!shopFilter) return;
+
+        try {
+            const res = await fetch('/api/shops');
+            if (!res.ok) throw new Error('Unable to load claims shops');
+            const shops = await res.json();
+            if (!Array.isArray(shops)) throw new Error('Invalid claims shop list');
+
+            const selectedShop = shopFilter.value || 'all';
+            const shopNames = [...new Set(shops
+                .filter(shop => shop && typeof shop.shopName === 'string' && shop.shopName.trim())
+                .map(shop => shop.shopName))];
+            if (selectedShop !== 'all' && !shopNames.includes(selectedShop)) {
+                shopNames.push(selectedShop);
+            }
+
+            const allOption = document.createElement('option');
+            allOption.value = 'all';
+            allOption.textContent = 'ทุกร้านค้า';
+            const options = shopNames.map(shopName => {
+                const option = document.createElement('option');
+                option.value = shopName;
+                option.textContent = shopName;
+                return option;
+            });
+            shopFilter.replaceChildren(allOption, ...options);
+            shopFilter.value = selectedShop;
+        } catch (err) {
+            console.error('Populate claims shop filter error:', err);
+        }
+    }
+
+    const claimsShopFilter = document.getElementById('claimsShopFilter');
+    if (claimsShopFilter) {
+        claimsShopFilter.addEventListener('change', () => fetchActivePolicies());
+    }
+    const claimsStatusFilter = document.getElementById('claimsStatusFilter');
+    if (claimsStatusFilter) {
+        claimsStatusFilter.addEventListener('change', () => {
+            if (Array.isArray(allClaimsPolicies) && allClaimsPolicies.length > 0) {
+                renderClaimsTable(allClaimsPolicies);
+            } else {
+                fetchActivePolicies();
+            }
+        });
+    }
     const claimsFilterBtn = document.getElementById('claimsFilterBtn');
     const claimsResetBtn = document.getElementById('claimsResetBtn');
     if (claimsFilterBtn) {
@@ -17342,6 +18134,8 @@ document.addEventListener('DOMContentLoaded', () => {
             ['claimsSearchInput', 'claimsStartDate', 'claimsEndDate'].forEach(id => {
                 const el = document.getElementById(id); if (el) el.value = '';
             });
+            if (claimsShopFilter) claimsShopFilter.value = 'all';
+            if (claimsStatusFilter) claimsStatusFilter.value = 'all';
             fetchActivePolicies();
         });
     }

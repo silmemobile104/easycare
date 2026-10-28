@@ -283,7 +283,7 @@ WarrantySchema.virtual('currentLimit').get(function () {
 WarrantySchema.virtual('remainingLimit').get(function () {
     const used = Number(this.usedCoverage ?? 0);
     const current = Number(this.currentLimit ?? 0);
-    return current - used;
+    return Math.max(0, current - used);
 });
 
 WarrantySchema.set('toJSON', { virtuals: true });
@@ -297,9 +297,13 @@ async function expireWarrantyIfNoRemaining(warrantyId) {
     if (!w) return;
     const remaining = Number(w.remainingLimit ?? 0);
     if (Number.isFinite(remaining) && remaining <= 0) {
+        const hasOpenClaim = await mongoose.model('Claim').exists({
+            warrantyId: w._id,
+            status: { $in: ['รอเคลม', 'รอการตัดสินใจจากลูกค้า'] }
+        });
         await Warranty.findByIdAndUpdate(w._id, {
             'warrantyDates.end': new Date(),
-            claimStatus: 'completed'
+            claimStatus: hasOpenClaim ? 'pending' : 'completed'
         });
     }
 }
@@ -428,7 +432,14 @@ const ClaimSchema = new mongoose.Schema({
         technicianPhone: { type: String, default: '' },
         images: [String],
         evidenceImages: [String],
-        recordedBy: { type: String, default: '' }
+        recordedBy: { type: String, default: '' },
+        payments: [{
+            amount: { type: Number, default: 0 },
+            paidDate: { type: Date, default: Date.now },
+            note: { type: String, default: '' },
+            recordedBy: { type: String, default: '' },
+            createdAt: { type: Date, default: Date.now }
+        }]
     }],
     deviceCondition: {
         exterior: { status: { type: String, default: '' }, reason: { type: String, default: '' } },
@@ -474,7 +485,14 @@ const FinanceTransactionSchema = new mongoose.Schema({
     branch: String,
     evidenceUrl: String,
     evidenceUrls: [String],
-    recordedBy: String
+    recordedBy: String,
+    expensePayments: [{
+        amount: { type: Number, default: 0 },
+        paidDate: { type: Date, default: Date.now },
+        note: { type: String, default: '' },
+        recordedBy: { type: String, default: '' },
+        createdAt: { type: Date, default: Date.now }
+    }]
 }, { timestamps: true });
 
 const FinanceTransaction = mongoose.model('FinanceTransaction', FinanceTransactionSchema);
@@ -936,7 +954,8 @@ function buildWarrantyFilterMatch(query, baseMatch = {}) {
             { policyNumber: regex },
             { memberId: regex },
             { 'device.imei': regex },
-            { 'device.serial': regex }
+            { 'device.serial': regex },
+            { shopName: regex }
         ];
     }
     if (startDate) {
@@ -1086,7 +1105,7 @@ app.get('/api/finance/expenses', async (req, res) => {
             {
                 $facet: {
                     updateExpenses: [
-                        { $unwind: { path: '$updates', preserveNullAndEmptyArrays: false } },
+                        { $unwind: { path: '$updates', includeArrayIndex: '__updateIdx', preserveNullAndEmptyArrays: false } },
                         {
                             $addFields: {
                                 __expenseDate: '$updates.date',
@@ -1100,6 +1119,9 @@ app.get('/api/finance/expenses', async (req, res) => {
                         {
                             $project: {
                                 _id: 0,
+                                claimDocId: '$_id',
+                                updateId: '$updates._id',
+                                updateIndex: '$__updateIdx',
                                 expenseDate: '$__expenseDate',
                                 claimId: 1,
                                 policyNumber: 1,
@@ -1108,6 +1130,8 @@ app.get('/api/finance/expenses', async (req, res) => {
                                 claimShopName: 1,
                                 expenseTitle: { $ifNull: ['$updates.title', 'ค่าใช้จ่าย'] },
                                 costItems: { $ifNull: ['$updates.costItems', []] },
+                                evidenceImages: { $ifNull: ['$updates.evidenceImages', []] },
+                                payments: { $ifNull: ['$updates.payments', []] },
                                 amount: '$__expenseAmount',
                                 centerName: { $ifNull: ['$updates.centerName', ''] },
                                 recordedBy: {
@@ -1138,13 +1162,53 @@ app.get('/api/finance/expenses', async (req, res) => {
             { $sort: { expenseDate: -1 } }
         ];
 
+        const computeExpensePaymentMeta = (totalAmt, rawPayments) => {
+            const total = Number(totalAmt || 0);
+            const payments = Array.isArray(rawPayments) ? rawPayments : [];
+            const paidAmount = payments.reduce((sum, p) => sum + Number(p.amount || 0), 0);
+            const remainingAmount = Math.max(0, total - paidAmount);
+            let paymentStatus = 'unpaid';
+            if (paidAmount >= total && total > 0) paymentStatus = 'paid';
+            else if (paidAmount > 0) paymentStatus = 'partial';
+
+            let lastPaidDate = null;
+            payments.forEach(p => {
+                if (p && p.paidDate) {
+                    const dt = new Date(p.paidDate);
+                    if (!isNaN(dt.getTime()) && (!lastPaidDate || dt > lastPaidDate)) {
+                        lastPaidDate = dt;
+                    }
+                }
+            });
+            return { payments, paidAmount, remainingAmount, paymentStatus, lastPaidDate };
+        };
+
         let rows = await Claim.aggregate(pipeline);
         rows = (Array.isArray(rows) ? rows : []).map(r => {
             if (Array.isArray(r.costItems) && r.costItems.length > 0) {
                 const breakdown = r.costItems.map(ci => `${ci.label || 'ค่าใช้จ่าย'}: ${Number(ci.amount || 0).toLocaleString()}฿`).join(', ');
                 r.expenseTitle = `${r.expenseTitle || 'ค่าใช้จ่าย'} (${breakdown})`;
             }
-            return r;
+            const evSet = new Set();
+            if (Array.isArray(r.costItems)) {
+                r.costItems.forEach(ci => {
+                    if (ci && ci.evidenceUrl) evSet.add(String(ci.evidenceUrl).trim());
+                });
+            }
+            if (Array.isArray(r.evidenceImages)) {
+                r.evidenceImages.forEach(url => {
+                    if (url) evSet.add(String(url).trim());
+                });
+            }
+            const evidenceUrls = Array.from(evSet).filter(Boolean);
+            const payMeta = computeExpensePaymentMeta(r.amount, r.payments);
+            return {
+                ...r,
+                evidenceUrls,
+                receiptUrl: evidenceUrls[0] || '',
+                source: 'claim',
+                ...payMeta
+            };
         });
 
         // Fetch refund transactions and map them to match the expense schema
@@ -1166,18 +1230,33 @@ app.get('/api/finance/expenses', async (req, res) => {
         }
         // Simplified mapping for refund transactions
         const refundRows = await FinanceTransaction.find(refundTxQuery).lean();
-        const formattedRefunds = refundRows.map(tx => ({
-            expenseDate: tx.transactionDate,
-            claimId: '-',
-            policyNumber: tx.policyNumber || '-',
-            customerName: tx.customerName || '-',
-            deviceModel: '-',
-            claimShopName: '-',
-            expenseTitle: tx.actionType,
-            amount: Math.abs(tx.netTotal),
-            centerName: '-',
-            recordedBy: tx.recordedBy || '-'
-        }));
+        const formattedRefunds = refundRows.map(tx => {
+            const amt = Math.abs(tx.netTotal);
+            const payMeta = computeExpensePaymentMeta(amt, tx.expensePayments);
+            const evSet = new Set();
+            if (Array.isArray(tx.evidenceUrls)) {
+                tx.evidenceUrls.forEach(u => { if (u) evSet.add(String(u).trim()); });
+            }
+            if (tx.evidenceUrl) evSet.add(String(tx.evidenceUrl).trim());
+            const evidenceUrls = Array.from(evSet).filter(Boolean);
+            return {
+                txId: tx._id,
+                source: 'refund',
+                expenseDate: tx.transactionDate,
+                claimId: '-',
+                policyNumber: tx.policyNumber || '-',
+                customerName: tx.customerName || '-',
+                deviceModel: '-',
+                claimShopName: '-',
+                expenseTitle: tx.actionType,
+                amount: amt,
+                centerName: '-',
+                evidenceUrls,
+                receiptUrl: evidenceUrls[0] || '',
+                recordedBy: tx.recordedBy || '-',
+                ...payMeta
+            };
+        });
 
         rows = [...rows, ...formattedRefunds];
 
@@ -1215,6 +1294,7 @@ app.get('/api/finance/expenses', async (req, res) => {
             source: 'manual',
             note: m.note || '',
             receiptUrl: m.receiptUrl || '',
+            evidenceUrls: m.receiptUrl ? [String(m.receiptUrl).trim()] : [],
             recordedBy: m.recordedBy || '-'
         }));
 
@@ -1223,6 +1303,256 @@ app.get('/api/finance/expenses', async (req, res) => {
         res.json(rows);
     } catch (err) {
         res.status(500).json({ message: err.message });
+    }
+});
+
+// บันทึกการจ่ายเงินสำหรับรายจ่ายเคลม (รองรับการแบ่งจ่ายหลายครั้ง + ระบุวันที่จ่าย)
+app.post('/api/finance/expenses/pay', async (req, res) => {
+    try {
+        const { source, claimDocId, claimId, updateId, updateIndex, txId, amount, paidDate, note, staffName } = req.body || {};
+        const payAmt = Number(amount || 0);
+        if (!Number.isFinite(payAmt) || payAmt <= 0) {
+            return res.status(400).json({ success: false, message: 'กรุณาระบุจำนวนเงินที่จ่ายให้ถูกต้อง (มากกว่า 0)' });
+        }
+        const dateObj = paidDate ? new Date(paidDate) : new Date();
+        if (isNaN(dateObj.getTime())) {
+            return res.status(400).json({ success: false, message: 'รูปแบบวันที่จ่ายไม่ถูกต้อง' });
+        }
+
+        if (source === 'refund') {
+            if (!txId) return res.status(400).json({ success: false, message: 'ไม่พบรหัสรายการเงินชดเชย' });
+            const tx = await FinanceTransaction.findById(txId);
+            if (!tx) return res.status(404).json({ success: false, message: 'ไม่พบรายการเงินชดเชยในระบบ' });
+
+            const totalCost = Math.abs(Number(tx.netTotal || 0));
+            const existingPayments = Array.isArray(tx.expensePayments) ? tx.expensePayments : [];
+            const paidSoFar = existingPayments.reduce((s, p) => s + Number(p.amount || 0), 0);
+            const remaining = Math.max(0, totalCost - paidSoFar);
+
+            if (payAmt > remaining + 0.01) {
+                return res.status(400).json({ success: false, message: `จำนวนเงินที่จ่าย (${payAmt.toLocaleString()} ฿) เกินยอดคงเหลือค้างจ่าย (${remaining.toLocaleString()} ฿)` });
+            }
+
+            tx.expensePayments.push({
+                amount: payAmt,
+                paidDate: dateObj,
+                note: String(note || '').trim(),
+                recordedBy: String(staffName || 'System').trim(),
+                createdAt: new Date()
+            });
+            await tx.save();
+
+            await logAction(
+                'Pay Claim Expense (Refund)',
+                `บันทึกจ่ายเงินชดเชยสละสิทธิ์เครื่อง สัญญา ${tx.policyNumber || '-'} จำนวน ${payAmt.toLocaleString()} บาท (วันที่จ่าย: ${dateObj.toISOString().split('T')[0]})`,
+                staffName || 'System'
+            );
+            return res.json({ success: true, message: 'บันทึกการจ่ายเงินเรียบร้อยแล้ว' });
+        }
+
+        // Default: source === 'claim'
+        let claim = null;
+        if (claimDocId) {
+            claim = await Claim.findById(claimDocId);
+        }
+        if (!claim && claimId && claimId !== '-') {
+            claim = await Claim.findOne({ claimId: String(claimId) });
+        }
+        if (!claim) {
+            return res.status(404).json({ success: false, message: 'ไม่พบข้อมูลงานเคลมของรายการนี้' });
+        }
+
+        let targetUpdate = null;
+        if (updateId && Array.isArray(claim.updates)) {
+            targetUpdate = claim.updates.find(u => u && u._id && String(u._id) === String(updateId));
+        }
+        if (!targetUpdate && typeof updateIndex === 'number' && Array.isArray(claim.updates) && claim.updates[updateIndex]) {
+            targetUpdate = claim.updates[updateIndex];
+        }
+        if (!targetUpdate) {
+            return res.status(404).json({ success: false, message: 'ไม่พบรายการค่าใช้จ่ายในงานเคลมนี้' });
+        }
+
+        const totalCost = Number(targetUpdate.cost || 0);
+        if (!Array.isArray(targetUpdate.payments)) {
+            targetUpdate.payments = [];
+        }
+        const paidSoFar = targetUpdate.payments.reduce((s, p) => s + Number(p.amount || 0), 0);
+        const remaining = Math.max(0, totalCost - paidSoFar);
+
+        if (payAmt > remaining + 0.01) {
+            return res.status(400).json({ success: false, message: `จำนวนเงินที่จ่าย (${payAmt.toLocaleString()} ฿) เกินยอดคงเหลือค้างจ่าย (${remaining.toLocaleString()} ฿)` });
+        }
+
+        targetUpdate.payments.push({
+            amount: payAmt,
+            paidDate: dateObj,
+            note: String(note || '').trim(),
+            recordedBy: String(staffName || 'System').trim(),
+            createdAt: new Date()
+        });
+
+        claim.markModified('updates');
+        await claim.save();
+
+        await logAction(
+            'Pay Claim Expense',
+            `บันทึกจ่ายค่ารายจ่ายเคลม ${claim.claimId || '-'} (${targetUpdate.title || 'ค่าซ่อม'}) จำนวน ${payAmt.toLocaleString()} บาท (วันที่จ่าย: ${dateObj.toISOString().split('T')[0]})`,
+            staffName || 'System'
+        );
+
+        return res.json({ success: true, message: 'บันทึกการจ่ายเงินเรียบร้อยแล้ว' });
+    } catch (err) {
+        console.error('POST /api/finance/expenses/pay error:', err);
+        return res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// แก้ไขรายการจ่ายเงินของรายจ่ายเคลม
+app.put('/api/finance/expenses/pay', async (req, res) => {
+    try {
+        const { source, claimDocId, claimId, updateId, updateIndex, txId, paymentId, paymentIndex, amount, paidDate, note, staffName } = req.body || {};
+        const payAmt = Number(amount || 0);
+        if (!Number.isFinite(payAmt) || payAmt <= 0) {
+            return res.status(400).json({ success: false, message: 'กรุณาระบุจำนวนเงินที่จ่ายให้ถูกต้อง (มากกว่า 0)' });
+        }
+        const dateObj = paidDate ? new Date(paidDate) : new Date();
+        if (isNaN(dateObj.getTime())) {
+            return res.status(400).json({ success: false, message: 'รูปแบบวันที่จ่ายไม่ถูกต้อง' });
+        }
+
+        if (source === 'refund') {
+            const tx = await FinanceTransaction.findById(txId);
+            if (!tx || !Array.isArray(tx.expensePayments)) {
+                return res.status(404).json({ success: false, message: 'ไม่พบรายการที่ต้องการแก้ไข' });
+            }
+            let pIdx = tx.expensePayments.findIndex(p => p && p._id && String(p._id) === String(paymentId));
+            if (pIdx === -1 && typeof paymentIndex === 'number') pIdx = paymentIndex;
+            if (pIdx < 0 || !tx.expensePayments[pIdx]) {
+                return res.status(404).json({ success: false, message: 'ไม่พบประวัติการจ่ายเงินที่ต้องการแก้ไข' });
+            }
+
+            const totalCost = Math.abs(Number(tx.netTotal || 0));
+            const otherPaid = tx.expensePayments.reduce((s, p, idx) => idx === pIdx ? s : s + Number(p.amount || 0), 0);
+            const maxAllowed = Math.max(0, totalCost - otherPaid);
+            if (payAmt > maxAllowed + 0.01) {
+                return res.status(400).json({ success: false, message: `จำนวนเงินที่แก้ไข (${payAmt.toLocaleString()} ฿) เกินยอดคงเหลือ (${maxAllowed.toLocaleString()} ฿)` });
+            }
+
+            tx.expensePayments[pIdx].amount = payAmt;
+            tx.expensePayments[pIdx].paidDate = dateObj;
+            tx.expensePayments[pIdx].note = String(note || '').trim();
+            tx.markModified('expensePayments');
+            await tx.save();
+            return res.json({ success: true, message: 'แก้ไขข้อมูลการจ่ายเงินสำเร็จ' });
+        }
+
+        let claim = claimDocId ? await Claim.findById(claimDocId) : null;
+        if (!claim && claimId && claimId !== '-') {
+            claim = await Claim.findOne({ claimId: String(claimId) });
+        }
+        if (!claim) return res.status(404).json({ success: false, message: 'ไม่พบข้อมูลงานเคลม' });
+
+        let targetUpdate = updateId && Array.isArray(claim.updates)
+            ? claim.updates.find(u => u && u._id && String(u._id) === String(updateId))
+            : null;
+        if (!targetUpdate && typeof updateIndex === 'number' && Array.isArray(claim.updates)) {
+            targetUpdate = claim.updates[updateIndex];
+        }
+        if (!targetUpdate || !Array.isArray(targetUpdate.payments)) {
+            return res.status(404).json({ success: false, message: 'ไม่พบรายการค่าใช้จ่าย' });
+        }
+
+        let pIdx = targetUpdate.payments.findIndex(p => p && p._id && String(p._id) === String(paymentId));
+        if (pIdx === -1 && typeof paymentIndex === 'number') pIdx = paymentIndex;
+        if (pIdx < 0 || !targetUpdate.payments[pIdx]) {
+            return res.status(404).json({ success: false, message: 'ไม่พบประวัติการจ่ายเงินที่ต้องการแก้ไข' });
+        }
+
+        const totalCost = Number(targetUpdate.cost || 0);
+        const otherPaid = targetUpdate.payments.reduce((s, p, idx) => idx === pIdx ? s : s + Number(p.amount || 0), 0);
+        const maxAllowed = Math.max(0, totalCost - otherPaid);
+        if (payAmt > maxAllowed + 0.01) {
+            return res.status(400).json({ success: false, message: `จำนวนเงินที่แก้ไข (${payAmt.toLocaleString()} ฿) เกินยอดคงเหลือ (${maxAllowed.toLocaleString()} ฿)` });
+        }
+
+        targetUpdate.payments[pIdx].amount = payAmt;
+        targetUpdate.payments[pIdx].paidDate = dateObj;
+        targetUpdate.payments[pIdx].note = String(note || '').trim();
+        claim.markModified('updates');
+        await claim.save();
+
+        await logAction(
+            'Edit Claim Expense Payment',
+            `แก้ไขข้อมูลการจ่ายเงินเคลม ${claim.claimId || '-'} จำนวน ${payAmt.toLocaleString()} บาท (วันที่จ่าย: ${dateObj.toISOString().split('T')[0]})`,
+            staffName || 'System'
+        );
+
+        return res.json({ success: true, message: 'แก้ไขข้อมูลการจ่ายเงินสำเร็จ' });
+    } catch (err) {
+        console.error('PUT /api/finance/expenses/pay error:', err);
+        return res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// ลบรายการจ่ายเงินของรายจ่ายเคลม
+app.delete('/api/finance/expenses/pay', async (req, res) => {
+    try {
+        const { source, claimDocId, claimId, updateId, updateIndex, txId, paymentId, paymentIndex, staffName } = req.body || {};
+
+        if (source === 'refund') {
+            const tx = await FinanceTransaction.findById(txId);
+            if (!tx || !Array.isArray(tx.expensePayments)) {
+                return res.status(404).json({ success: false, message: 'ไม่พบรายการที่ต้องการลบ' });
+            }
+            let pIdx = tx.expensePayments.findIndex(p => p && p._id && String(p._id) === String(paymentId));
+            if (pIdx === -1 && typeof paymentIndex === 'number') pIdx = paymentIndex;
+            if (pIdx < 0 || !tx.expensePayments[pIdx]) {
+                return res.status(404).json({ success: false, message: 'ไม่พบประวัติการจ่ายเงินที่ต้องการลบ' });
+            }
+            tx.expensePayments.splice(pIdx, 1);
+            tx.markModified('expensePayments');
+            await tx.save();
+            return res.json({ success: true, message: 'ลบประวัติการจ่ายเงินเรียบร้อยแล้ว' });
+        }
+
+        let claim = claimDocId ? await Claim.findById(claimDocId) : null;
+        if (!claim && claimId && claimId !== '-') {
+            claim = await Claim.findOne({ claimId: String(claimId) });
+        }
+        if (!claim) return res.status(404).json({ success: false, message: 'ไม่พบข้อมูลงานเคลม' });
+
+        let targetUpdate = updateId && Array.isArray(claim.updates)
+            ? claim.updates.find(u => u && u._id && String(u._id) === String(updateId))
+            : null;
+        if (!targetUpdate && typeof updateIndex === 'number' && Array.isArray(claim.updates)) {
+            targetUpdate = claim.updates[updateIndex];
+        }
+        if (!targetUpdate || !Array.isArray(targetUpdate.payments)) {
+            return res.status(404).json({ success: false, message: 'ไม่พบรายการค่าใช้จ่าย' });
+        }
+
+        let pIdx = targetUpdate.payments.findIndex(p => p && p._id && String(p._id) === String(paymentId));
+        if (pIdx === -1 && typeof paymentIndex === 'number') pIdx = paymentIndex;
+        if (pIdx < 0 || !targetUpdate.payments[pIdx]) {
+            return res.status(404).json({ success: false, message: 'ไม่พบประวัติการจ่ายเงินที่ต้องการลบ' });
+        }
+
+        const removed = targetUpdate.payments[pIdx];
+        targetUpdate.payments.splice(pIdx, 1);
+        claim.markModified('updates');
+        await claim.save();
+
+        await logAction(
+            'Delete Claim Expense Payment',
+            `ลบประวัติการจ่ายเงินเคลม ${claim.claimId || '-'} จำนวน ${Number(removed.amount || 0).toLocaleString()} บาท`,
+            staffName || 'System'
+        );
+
+        return res.json({ success: true, message: 'ลบประวัติการจ่ายเงินเรียบร้อยแล้ว' });
+    } catch (err) {
+        console.error('DELETE /api/finance/expenses/pay error:', err);
+        return res.status(500).json({ success: false, message: err.message });
     }
 });
 
@@ -1251,32 +1581,62 @@ async function calculateTotalClaimExpense(query = {}) {
                     {
                         $addFields: {
                             __expenseDate: '$updates.date',
-                            __expenseAmount: { $ifNull: ['$updates.cost', 0] }
+                            __expenseAmount: { $ifNull: ['$updates.cost', 0] },
+                            __paidAmount: {
+                                $reduce: {
+                                    input: { $ifNull: ['$updates.payments', []] },
+                                    initialValue: 0,
+                                    in: { $add: ['$$value', { $ifNull: ['$$this.amount', 0] }] }
+                                }
+                            }
                         }
                     },
                     { $match: { __expenseAmount: { $gt: 0 } } },
                     { $match: { 'updates.title': { $ne: 'ลูกค้าตกลงรับเครื่องคืนและชำระเงินส่วนต่าง' } } },
                     { $match: { $or: [{ 'updates.title': { $not: /\(เกินวงเงิน\)/ } }, { status: { $ne: 'ลูกค้าสละสิทธิ์เครื่อง' } }] } },
                     ...(Object.keys(baseMatch).length > 0 ? [{ $match: baseMatch }] : []),
-                    { $group: { _id: null, totalExpense: { $sum: '$__expenseAmount' }, count: { $sum: 1 } } }
+                    {
+                        $group: {
+                            _id: null,
+                            totalRecorded: { $sum: '$__expenseAmount' },
+                            totalRecordedCount: { $sum: 1 },
+                            totalExpense: {
+                                $sum: { $cond: [{ $gt: ['$__paidAmount', 0] }, '$__paidAmount', 0] }
+                            },
+                            count: {
+                                $sum: { $cond: [{ $gt: ['$__paidAmount', 0] }, 1, 0] }
+                            },
+                            unpaidExpense: {
+                                $sum: { $max: [0, { $subtract: ['$__expenseAmount', '$__paidAmount'] }] }
+                            },
+                            unpaidCount: {
+                                $sum: { $cond: [{ $gt: [{ $subtract: ['$__expenseAmount', '$__paidAmount'] }, 0.009] }, 1, 0] }
+                            }
+                        }
+                    }
                 ]
             }
         },
         {
             $project: {
-                totalExpense: {
-                    $ifNull: [{ $arrayElemAt: ['$updateAgg.totalExpense', 0] }, 0]
-                },
-                count: {
-                    $ifNull: [{ $arrayElemAt: ['$updateAgg.count', 0] }, 0]
-                }
+                totalRecorded: { $ifNull: [{ $arrayElemAt: ['$updateAgg.totalRecorded', 0] }, 0] },
+                totalRecordedCount: { $ifNull: [{ $arrayElemAt: ['$updateAgg.totalRecordedCount', 0] }, 0] },
+                totalExpense: { $ifNull: [{ $arrayElemAt: ['$updateAgg.totalExpense', 0] }, 0] },
+                count: { $ifNull: [{ $arrayElemAt: ['$updateAgg.count', 0] }, 0] },
+                unpaidExpense: { $ifNull: [{ $arrayElemAt: ['$updateAgg.unpaidExpense', 0] }, 0] },
+                unpaidCount: { $ifNull: [{ $arrayElemAt: ['$updateAgg.unpaidCount', 0] }, 0] }
             }
         }
     ];
 
     const rows = await Claim.aggregate(pipeline);
-    let claimRepairCost = rows && rows[0] ? Number(rows[0].totalExpense || 0) : 0;
-    let claimRepairCount = rows && rows[0] ? Number(rows[0].count || 0) : 0;
+    const r0 = (rows && rows[0]) || {};
+    const claimRepairRecordedCost = Number(r0.totalRecorded || 0);
+    const claimRepairRecordedCount = Number(r0.totalRecordedCount || 0);
+    const claimRepairCost = Number(r0.totalExpense || 0);
+    const claimRepairCount = Number(r0.count || 0);
+    const claimRepairUnpaidCost = Number(r0.unpaidExpense || 0);
+    const claimRepairUnpaidCount = Number(r0.unpaidCount || 0);
 
     // Add refund transaction amounts
     const refundTxQuery = { actionType: 'คืนเงินชดเชยสละสิทธิ์เครื่อง' };
@@ -1284,7 +1644,7 @@ async function calculateTotalClaimExpense(query = {}) {
         refundTxQuery.transactionDate = { ...(refundTxQuery.transactionDate || {}), $gte: new Date(String(query.startDate)) };
     }
     if (query.endDate) {
-        refundTxQuery.transactionDate = { ...(refundTxQuery.transactionDate || {}), $lte: new Date(String(query.endDate) + 'T23:59:59.999Z') };
+        refundTxQuery.transactionDate = { ...(refundTxQuery.endDate || {}), $lte: new Date(String(query.endDate) + 'T23:59:59.999Z') };
     }
     if (query.search) {
         const regex = { $regex: String(query.search), $options: 'i' };
@@ -1296,14 +1656,37 @@ async function calculateTotalClaimExpense(query = {}) {
     }
     const refundRows = await FinanceTransaction.aggregate([
         { $match: refundTxQuery },
-        { $group: { _id: null, totalRefund: { $sum: '$netTotal' }, count: { $sum: 1 } } }
+        {
+            $addFields: {
+                __totalAmt: { $abs: { $ifNull: ['$netTotal', 0] } },
+                __paidAmount: {
+                    $reduce: {
+                        input: { $ifNull: ['$expensePayments', []] },
+                        initialValue: 0,
+                        in: { $add: ['$$value', { $ifNull: ['$$this.amount', 0] }] }
+                    }
+                }
+            }
+        },
+        {
+            $group: {
+                _id: null,
+                totalRecorded: { $sum: '$__totalAmt' },
+                totalRecordedCount: { $sum: 1 },
+                totalRefund: { $sum: { $cond: [{ $gt: ['$__paidAmount', 0] }, '$__paidAmount', 0] } },
+                count: { $sum: { $cond: [{ $gt: ['$__paidAmount', 0] }, 1, 0] } },
+                unpaidRefund: { $sum: { $max: [0, { $subtract: ['$__totalAmt', '$__paidAmount'] }] } },
+                unpaidCount: { $sum: { $cond: [{ $gt: [{ $subtract: ['$__totalAmt', '$__paidAmount'] }, 0.009] }, 1, 0] } }
+            }
+        }
     ]);
-    let claimRefundCost = 0;
-    let claimRefundCount = 0;
-    if (refundRows && refundRows.length > 0) {
-        claimRefundCost = Math.abs(refundRows[0].totalRefund);
-        claimRefundCount = Number(refundRows[0].count || 0);
-    }
+    const rf0 = (refundRows && refundRows[0]) || {};
+    const claimRefundRecordedCost = Number(rf0.totalRecorded || 0);
+    const claimRefundRecordedCount = Number(rf0.totalRecordedCount || 0);
+    const claimRefundCost = Math.abs(Number(rf0.totalRefund || 0));
+    const claimRefundCount = Number(rf0.count || 0);
+    const claimRefundUnpaidCost = Number(rf0.unpaidRefund || 0);
+    const claimRefundUnpaidCount = Number(rf0.unpaidCount || 0);
 
     // Add manual expense amounts
     const manualSumQuery = {};
@@ -1333,16 +1716,36 @@ async function calculateTotalClaimExpense(query = {}) {
         manualExpenseCount = Number(manualSumRows[0].count || 0);
     }
 
-    const totalClaimExpense = claimRepairCost + claimRefundCost + manualExpenseCost;
-    const totalClaimCount = claimRepairCount + claimRefundCount + manualExpenseCount;
+    const totalClaimPaidCost = claimRepairCost + claimRefundCost;
+    const totalClaimPaidCount = claimRepairCount + claimRefundCount;
+    const totalClaimRecordedCost = claimRepairRecordedCost + claimRefundRecordedCost;
+    const totalClaimRecordedCount = claimRepairRecordedCount + claimRefundRecordedCount;
+    const totalClaimUnpaidCost = claimRepairUnpaidCost + claimRefundUnpaidCost;
+    const totalClaimUnpaidCount = claimRepairUnpaidCount + claimRefundUnpaidCount;
+    const totalClaimExpense = totalClaimPaidCost + manualExpenseCost;
+    const totalClaimCount = totalClaimPaidCount + manualExpenseCount;
 
     return {
         claimRepairCost,
         claimRepairCount,
+        claimRepairRecordedCost,
+        claimRepairRecordedCount,
+        claimRepairUnpaidCost,
+        claimRepairUnpaidCount,
         claimRefundCost,
         claimRefundCount,
+        claimRefundRecordedCost,
+        claimRefundRecordedCount,
+        claimRefundUnpaidCost,
+        claimRefundUnpaidCount,
         manualExpenseCost,
         manualExpenseCount,
+        totalClaimPaidCost,
+        totalClaimPaidCount,
+        totalClaimRecordedCost,
+        totalClaimRecordedCount,
+        totalClaimUnpaidCost,
+        totalClaimUnpaidCount,
         totalClaimExpense,
         totalClaimCount
     };
@@ -1385,10 +1788,17 @@ app.get('/api/finance/expenses/export/excel', async (req, res) => {
                         {
                             $addFields: {
                                 __expenseDate: '$updates.date',
-                                __expenseAmount: { $ifNull: ['$updates.cost', 0] }
+                                __expenseAmount: { $ifNull: ['$updates.cost', 0] },
+                                __paidAmount: {
+                                    $reduce: {
+                                        input: { $ifNull: ['$updates.payments', []] },
+                                        initialValue: 0,
+                                        in: { $add: ['$$value', { $ifNull: ['$$this.amount', 0] }] }
+                                    }
+                                }
                             }
                         },
-                        { $match: { __expenseAmount: { $gt: 0 } } },
+                        { $match: { __expenseAmount: { $gt: 0 }, __paidAmount: { $gt: 0 } } },
                         { $match: { 'updates.title': { $ne: 'ลูกค้าตกลงรับเครื่องคืนและชำระเงินส่วนต่าง' } } },
                         { $match: { $or: [{ 'updates.title': { $not: /\(เกินวงเงิน\)/ } }, { status: { $ne: 'ลูกค้าสละสิทธิ์เครื่อง' } }] } },
                         ...(Object.keys(baseMatch).length > 0 ? [{ $match: baseMatch }] : []),
@@ -1403,7 +1813,7 @@ app.get('/api/finance/expenses/export/excel', async (req, res) => {
                                 claimShopName: 1,
                                 expenseTitle: { $ifNull: ['$updates.title', 'ค่าใช้จ่าย'] },
                                 costItems: { $ifNull: ['$updates.costItems', []] },
-                                amount: '$__expenseAmount',
+                                amount: '$__paidAmount',
                                 centerName: { $ifNull: ['$updates.centerName', ''] },
                                 recordedBy: {
                                     $cond: {
@@ -1460,19 +1870,23 @@ app.get('/api/finance/expenses/export/excel', async (req, res) => {
             ];
         }
         const refundRows = await FinanceTransaction.find(refundTxQuery).lean();
-        const formattedRefunds = refundRows.map(tx => ({
-            expenseDate: tx.transactionDate,
-            claimId: '-',
-            policyNumber: tx.policyNumber || '-',
-            customerName: tx.customerName || '-',
-            customerPhone: '-',
-            deviceModel: '-',
-            claimShopName: '-',
-            expenseTitle: tx.actionType,
-            amount: Math.abs(tx.netTotal),
-            centerName: '-',
-            recordedBy: tx.recordedBy || '-'
-        }));
+        const formattedRefunds = refundRows.map(tx => {
+            const paidAmt = (Array.isArray(tx.expensePayments) ? tx.expensePayments : []).reduce((s, p) => s + Number((p && p.amount) || 0), 0);
+            if (paidAmt <= 0) return null;
+            return {
+                expenseDate: tx.transactionDate,
+                claimId: '-',
+                policyNumber: tx.policyNumber || '-',
+                customerName: tx.customerName || '-',
+                customerPhone: '-',
+                deviceModel: '-',
+                claimShopName: '-',
+                expenseTitle: tx.actionType,
+                amount: paidAmt,
+                centerName: '-',
+                recordedBy: tx.recordedBy || '-'
+            };
+        }).filter(Boolean);
 
         rows = [...rows, ...formattedRefunds];
 
@@ -2912,9 +3326,21 @@ app.get('/api/dashboard/stats', checkAdminRole, async (req, res) => {
                 { $match: { 'updates.title': { $ne: 'ลูกค้าตกลงรับเครื่องคืนและชำระเงินส่วนต่าง' } } },
                 { $match: { $or: [{ 'updates.title': { $not: /\(เกินวงเงิน\)/ } }, { status: { $ne: 'ลูกค้าสละสิทธิ์เครื่อง' } }] } },
                 {
+                    $addFields: {
+                        __paidAmount: {
+                            $reduce: {
+                                input: { $ifNull: ['$updates.payments', []] },
+                                initialValue: 0,
+                                in: { $add: ['$$value', { $ifNull: ['$$this.amount', 0] }] }
+                            }
+                        }
+                    }
+                },
+                { $match: { __paidAmount: { $gt: 0 } } },
+                {
                     $group: {
                         _id: null,
-                        totalClaimCost: { $sum: '$updates.cost' }
+                        totalClaimCost: { $sum: '$__paidAmount' }
                     }
                 },
                 { $project: { _id: 0, totalClaimCost: 1 } }
@@ -2999,13 +3425,30 @@ app.get('/api/dashboard/stats', checkAdminRole, async (req, res) => {
             ]),
             Claim.aggregate([
                 { $match: claimMatch },
+                { $unwind: { path: '$updates', preserveNullAndEmptyArrays: false } },
+                { $match: { 'updates.cost': { $gt: 0 } } },
+                { $match: { 'updates.title': { $ne: 'ลูกค้าตกลงรับเครื่องคืนและชำระเงินส่วนต่าง' } } },
+                { $match: { $or: [{ 'updates.title': { $not: /\(เกินวงเงิน\)/ } }, { status: { $ne: 'ลูกค้าสละสิทธิ์เครื่อง' } }] } },
+                {
+                    $addFields: {
+                        __paidAmount: {
+                            $reduce: {
+                                input: { $ifNull: ['$updates.payments', []] },
+                                initialValue: 0,
+                                in: { $add: ['$$value', { $ifNull: ['$$this.amount', 0] }] }
+                            }
+                        },
+                        __trendDate: { $ifNull: ['$updates.date', '$claimDate'] }
+                    }
+                },
+                { $match: { __paidAmount: { $gt: 0 } } },
                 {
                     $group: {
                         _id: {
-                            year: { $year: '$claimDate' },
-                            month: { $month: '$claimDate' }
+                            year: { $year: '$__trendDate' },
+                            month: { $month: '$__trendDate' }
                         },
-                        claimCost: { $sum: { $ifNull: ['$totalCost', 0] } }
+                        claimCost: { $sum: '$__paidAmount' }
                     }
                 },
                 {
@@ -3106,7 +3549,19 @@ app.get('/api/dashboard/stats', checkAdminRole, async (req, res) => {
         }
         const refundTx = await FinanceTransaction.aggregate([
             { $match: refundMatch },
-            { $group: { _id: null, totalRefund: { $sum: '$netTotal' } } }
+            {
+                $addFields: {
+                    __paidAmount: {
+                        $reduce: {
+                            input: { $ifNull: ['$expensePayments', []] },
+                            initialValue: 0,
+                            in: { $add: ['$$value', { $ifNull: ['$$this.amount', 0] }] }
+                        }
+                    }
+                }
+            },
+            { $match: { __paidAmount: { $gt: 0 } } },
+            { $group: { _id: null, totalRefund: { $sum: '$__paidAmount' } } }
         ]);
         if (refundTx && refundTx.length > 0) {
             totalClaimCost += Math.abs(refundTx[0].totalRefund);
@@ -3215,9 +3670,21 @@ app.get('/api/dashboard/export/excel', checkAdminRole, async (req, res) => {
                 { $match: { 'updates.title': { $ne: 'ลูกค้าตกลงรับเครื่องคืนและชำระเงินส่วนต่าง' } } },
                 { $match: { $or: [{ 'updates.title': { $not: /\(เกินวงเงิน\)/ } }, { status: { $ne: 'ลูกค้าสละสิทธิ์เครื่อง' } }] } },
                 {
+                    $addFields: {
+                        __paidAmount: {
+                            $reduce: {
+                                input: { $ifNull: ['$updates.payments', []] },
+                                initialValue: 0,
+                                in: { $add: ['$$value', { $ifNull: ['$$this.amount', 0] }] }
+                            }
+                        }
+                    }
+                },
+                { $match: { __paidAmount: { $gt: 0 } } },
+                {
                     $group: {
                         _id: null,
-                        totalClaimCost: { $sum: '$updates.cost' }
+                        totalClaimCost: { $sum: '$__paidAmount' }
                     }
                 },
                 { $project: { _id: 0, totalClaimCost: 1 } }
@@ -3314,13 +3781,30 @@ app.get('/api/dashboard/export/excel', checkAdminRole, async (req, res) => {
             ]),
             Claim.aggregate([
                 { $match: claimMatch },
+                { $unwind: { path: '$updates', preserveNullAndEmptyArrays: false } },
+                { $match: { 'updates.cost': { $gt: 0 } } },
+                { $match: { 'updates.title': { $ne: 'ลูกค้าตกลงรับเครื่องคืนและชำระเงินส่วนต่าง' } } },
+                { $match: { $or: [{ 'updates.title': { $not: /\(เกินวงเงิน\)/ } }, { status: { $ne: 'ลูกค้าสละสิทธิ์เครื่อง' } }] } },
+                {
+                    $addFields: {
+                        __paidAmount: {
+                            $reduce: {
+                                input: { $ifNull: ['$updates.payments', []] },
+                                initialValue: 0,
+                                in: { $add: ['$$value', { $ifNull: ['$$this.amount', 0] }] }
+                            }
+                        },
+                        __trendDate: { $ifNull: ['$updates.date', '$claimDate'] }
+                    }
+                },
+                { $match: { __paidAmount: { $gt: 0 } } },
                 {
                     $group: {
                         _id: {
-                            year: { $year: '$claimDate' },
-                            month: { $month: '$claimDate' }
+                            year: { $year: '$__trendDate' },
+                            month: { $month: '$__trendDate' }
                         },
-                        claimCost: { $sum: { $ifNull: ['$totalCost', 0] } }
+                        claimCost: { $sum: '$__paidAmount' }
                     }
                 },
                 {
@@ -3410,7 +3894,19 @@ app.get('/api/dashboard/export/excel', checkAdminRole, async (req, res) => {
         }
         const refundTx = await FinanceTransaction.aggregate([
             { $match: refundMatch },
-            { $group: { _id: null, totalRefund: { $sum: '$netTotal' } } }
+            {
+                $addFields: {
+                    __paidAmount: {
+                        $reduce: {
+                            input: { $ifNull: ['$expensePayments', []] },
+                            initialValue: 0,
+                            in: { $add: ['$$value', { $ifNull: ['$$this.amount', 0] }] }
+                        }
+                    }
+                }
+            },
+            { $match: { __paidAmount: { $gt: 0 } } },
+            { $group: { _id: null, totalRefund: { $sum: '$__paidAmount' } } }
         ]);
         if (refundTx && refundTx.length > 0) {
             totalClaimCost += Math.abs(refundTx[0].totalRefund);
@@ -3776,13 +4272,25 @@ app.get('/api/dashboard/executive/report', checkAdminRole, async (req, res) => {
                 { $match: { 'updates.title': { $ne: 'ลูกค้าตกลงรับเครื่องคืนและชำระเงินส่วนต่าง' } } },
                 { $match: { $or: [{ 'updates.title': { $not: /\(เกินวงเงิน\)/ } }, { status: { $ne: 'ลูกค้าสละสิทธิ์เครื่อง' } }] } },
                 {
+                    $addFields: {
+                        __paidAmount: {
+                            $reduce: {
+                                input: { $ifNull: ['$updates.payments', []] },
+                                initialValue: 0,
+                                in: { $add: ['$$value', { $ifNull: ['$$this.amount', 0] }] }
+                            }
+                        }
+                    }
+                },
+                { $match: { __paidAmount: { $gt: 0 } } },
+                {
                     $group: {
                         _id: '$_id',
                         claimId: { $first: '$claimId' },
                         customerName: { $first: '$customerName' },
                         deviceModel: { $first: '$deviceModel' },
                         claimDate: { $first: '$claimDate' },
-                        totalCost: { $sum: '$updates.cost' }
+                        totalCost: { $sum: '$__paidAmount' }
                     }
                 }
             ]);
@@ -3795,14 +4303,18 @@ app.get('/api/dashboard/executive/report', checkAdminRole, async (req, res) => {
                 refundMatch.transactionDate = { ...(refundMatch.transactionDate || {}), $lte: new Date(endDate + 'T23:59:59.999Z') };
             }
             const refundTx = await FinanceTransaction.find(refundMatch).lean();
-            const formattedRefunds = refundTx.map(tx => ({
-                _id: tx._id,
-                claimId: '-',
-                customerName: tx.customerName || '-',
-                deviceModel: 'คืนเงินสละสิทธิ์เครื่อง',
-                claimDate: tx.transactionDate,
-                totalCost: Math.abs(tx.netTotal)
-            }));
+            const formattedRefunds = refundTx.map(tx => {
+                const paidAmt = (Array.isArray(tx.expensePayments) ? tx.expensePayments : []).reduce((s, p) => s + Number((p && p.amount) || 0), 0);
+                if (paidAmt <= 0) return null;
+                return {
+                    _id: tx._id,
+                    claimId: '-',
+                    customerName: tx.customerName || '-',
+                    deviceModel: 'คืนเงินสละสิทธิ์เครื่อง',
+                    claimDate: tx.transactionDate,
+                    totalCost: paidAmt
+                };
+            }).filter(Boolean);
 
             items = [...rawClaims, ...formattedRefunds].sort((a, b) => new Date(b.claimDate) - new Date(a.claimDate));
 
@@ -4105,7 +4617,7 @@ app.get('/api/warranties', async (req, res) => {
             },
             {
                 $addFields: {
-                    remainingLimit: { $subtract: ['$currentLimit', '$usedCoverage'] }
+                    remainingLimit: { $max: [0, { $subtract: ['$currentLimit', '$usedCoverage'] }] }
                 }
             },
             { $project: { memberInfo: 0, claims: 0 } }
@@ -4442,7 +4954,7 @@ app.get('/api/warranties/pending', async (req, res) => {
             },
             {
                 $addFields: {
-                    remainingLimit: { $subtract: ['$currentLimit', '$usedCoverage'] }
+                    remainingLimit: { $max: [0, { $subtract: ['$currentLimit', '$usedCoverage'] }] }
                 }
             },
             { $project: { memberInfo: 0, claims: 0 } }
@@ -4728,6 +5240,15 @@ app.get('/api/warranties/active', async (req, res) => {
 
         // Merge with search/date filters
         const matchQuery = buildWarrantyFilterMatch(req.query, baseMatch);
+        const statusFilter = String(req.query.status || 'all').trim();
+        let postStatusMatch = null;
+        if (statusFilter === 'active') {
+            postStatusMatch = { claimStatus: { $ne: 'pending' }, 'warrantyDates.end': { $gt: new Date() } };
+        } else if (statusFilter === 'pending') {
+            postStatusMatch = { claimStatus: 'pending' };
+        } else if (statusFilter === 'expired') {
+            postStatusMatch = { claimStatus: { $ne: 'pending' }, 'warrantyDates.end': { $lte: new Date() } };
+        }
 
         const warranties = await Warranty.aggregate([
             { $match: matchQuery },
@@ -4756,7 +5277,106 @@ app.get('/api/warranties/active', async (req, res) => {
                     'customer.idCardAddress': { $arrayElemAt: ['$memberInfo.idCardAddress', 0] },
                     'customer.shippingAddress': { $arrayElemAt: ['$memberInfo.shippingAddress', 0] },
                     'totalClaimAmount': { $sum: '$claims.totalCost' },
-                    claimId: { $arrayElemAt: ['$claims.claimId', -1] }
+                    claimId: { $arrayElemAt: ['$claims.claimId', -1] },
+                    claimStatus: {
+                        $cond: [
+                            {
+                                $or: [
+                                    { $eq: ['$claimStatus', 'pending'] },
+                                    {
+                                        $gt: [
+                                            {
+                                                $size: {
+                                                    $filter: {
+                                                        input: { $ifNull: ['$claims', []] },
+                                                        as: 'c',
+                                                        cond: { $in: ['$$c.status', ['รอเคลม', 'รอการตัดสินใจจากลูกค้า']] }
+                                                    }
+                                                }
+                                            },
+                                            0
+                                        ]
+                                    }
+                                ]
+                            },
+                            'pending',
+                            '$claimStatus'
+                        ]
+                    }
+                }
+            },
+            ...(postStatusMatch ? [{ $match: postStatusMatch }] : []),
+            {
+                $addFields: {
+                    devicePrice: { $ifNull: ['$devicePrice', '$device.deviceValue'] },
+                    installmentsPaid: {
+                        $let: {
+                            vars: {
+                                paidCount: {
+                                    $size: {
+                                        $filter: {
+                                            input: { $ifNull: ['$payment.schedule', []] },
+                                            as: 's',
+                                            cond: { $eq: ['$$s.status', 'Paid'] }
+                                        }
+                                    }
+                                }
+                            },
+                            in: {
+                                $cond: [
+                                    { $eq: ['$payment.method', 'Installment'] },
+                                    { $min: [3, '$$paidCount'] },
+                                    3
+                                ]
+                            }
+                        }
+                    },
+                    usedCoverage: { $ifNull: ['$usedCoverage', '$totalClaimAmount'] }
+                }
+            },
+            {
+                $addFields: {
+                    packageCap: {
+                        $switch: {
+                            branches: [
+                                { case: { $eq: ['$package.plan', 'Package 1'] }, then: 5000 },
+                                { case: { $eq: ['$package.plan', 'Package 2'] }, then: 10000 },
+                                { case: { $eq: ['$package.plan', 'Package 3'] }, then: 15000 },
+                                { case: { $eq: ['$package.plan', 'Package 4'] }, then: 20000 },
+                                { case: { $eq: ['$package.plan', 'Package 5'] }, then: 25000 },
+                                { case: { $eq: ['$package.plan', 'Package 6'] }, then: 30000 },
+                                { case: { $eq: ['$package.plan', 'Package 7'] }, then: 35000 },
+                                { case: { $eq: ['$package.plan', 'Package 8'] }, then: 40000 },
+                                { case: { $eq: ['$package.plan', 'Package 9'] }, then: 45000 },
+                                { case: { $eq: ['$package.plan', 'Package 10'] }, then: 50000 }
+                            ],
+                            default: 999999999
+                        }
+                    }
+                }
+            },
+            {
+                $addFields: {
+                    maxLimit: { $floor: { $min: [{ $ifNull: ['$device.deviceValue', '$devicePrice'] }, '$packageCap'] } }
+                }
+            },
+            {
+                $addFields: {
+                    currentLimit: {
+                        $switch: {
+                            branches: [
+                                { case: { $gte: ['$installmentsPaid', 3] }, then: { $floor: { $multiply: ['$maxLimit', 1.0] } } },
+                                { case: { $eq: ['$installmentsPaid', 2] }, then: { $floor: { $multiply: ['$maxLimit', 0.30] } } },
+                                { case: { $eq: ['$installmentsPaid', 1] }, then: { $floor: { $multiply: ['$maxLimit', 0.10] } } }
+                            ],
+                            default: { $floor: { $multiply: ['$maxLimit', 0.10] } }
+                        }
+                    }
+                }
+            },
+            {
+                $addFields: {
+                    remainingLimit: { $max: [0, { $subtract: ['$currentLimit', '$usedCoverage'] }] }
                 }
             },
             { $project: { memberInfo: 0, claims: 0 } }
@@ -4869,7 +5489,7 @@ app.get('/api/warranties/:id', async (req, res) => {
             },
             {
                 $addFields: {
-                    remainingLimit: { $subtract: ['$currentLimit', '$usedCoverage'] }
+                    remainingLimit: { $max: [0, { $subtract: ['$currentLimit', '$usedCoverage'] }] }
                 }
             },
             { $project: { memberInfo: 0, claims: 0 } }
@@ -5155,12 +5775,16 @@ app.put('/api/warranties/:id', async (req, res) => {
             if (isMethodChanged) {
                 await FinanceTransaction.deleteMany({
                     policyNumber: updated.policyNumber,
-                    financeReceived: { $ne: true }
+                    financeReceived: { $ne: true },
+                    actionType: { $nin: ['ชำระค่าซ่อมส่วนต่าง', 'คืนเงินชดเชยสละสิทธิ์เครื่อง'] }
                 });
             }
 
-            // Find all finance transactions for this policy
-            const existingTxs = await FinanceTransaction.find({ policyNumber: updated.policyNumber });
+            // Find all finance transactions for this policy (excluding claim excess / refund transactions)
+            const existingTxs = await FinanceTransaction.find({
+                policyNumber: updated.policyNumber,
+                actionType: { $nin: ['ชำระค่าซ่อมส่วนต่าง', 'คืนเงินชดเชยสละสิทธิ์เครื่อง'] }
+            });
 
             if (isNowFinance) {
                 if (existingTxs.length > 0) {
@@ -5789,48 +6413,8 @@ app.get('/api/finance/expenses', async (req, res) => {
 
 app.get('/api/finance/expenses/summary', async (req, res) => {
     try {
-        const matchQuery = buildExpenseFilterMatch(req.query);
-
-        // Convert __expenseDate to updates.date for matching
-        if (matchQuery.__expenseDate) {
-            matchQuery['updates.date'] = matchQuery.__expenseDate;
-            delete matchQuery.__expenseDate;
-        }
-
-        const summary = await Claim.aggregate([
-            { $unwind: '$updates' },
-            { $match: { 'updates.cost': { $gt: 0 } } },
-            { $match: { 'updates.title': { $ne: 'ลูกค้าตกลงรับเครื่องคืนและชำระเงินส่วนต่าง' } } },
-            { $match: { $or: [{ 'updates.title': { $not: /\(เกินวงเงิน\)/ } }, { status: { $ne: 'ลูกค้าสละสิทธิ์เครื่อง' } }] } },
-            { $match: matchQuery },
-            {
-                $group: {
-                    _id: null,
-                    totalExpense: { $sum: '$updates.cost' }
-                }
-            }
-        ]);
-
-        let totalExpense = (summary && summary.length > 0) ? summary[0].totalExpense : 0;
-
-        // Add refund transactions
-        const refundMatch = { actionType: 'คืนเงินชดเชยสละสิทธิ์เครื่อง' };
-        if (req.query.startDate) {
-            refundMatch.transactionDate = { ...(refundMatch.transactionDate || {}), $gte: new Date(req.query.startDate) };
-        }
-        if (req.query.endDate) {
-            refundMatch.transactionDate = { ...(refundMatch.transactionDate || {}), $lte: new Date(req.query.endDate + 'T23:59:59.999Z') };
-        }
-        const refundTx = await FinanceTransaction.aggregate([
-            { $match: refundMatch },
-            { $group: { _id: null, totalRefund: { $sum: '$netTotal' } } }
-        ]);
-
-        if (refundTx && refundTx.length > 0) {
-            totalExpense += Math.abs(refundTx[0].totalRefund);
-        }
-
-        res.json({ totalExpense });
+        const result = await calculateTotalClaimExpense(req.query);
+        res.json({ totalExpense: result.totalClaimExpense, breakdown: result });
     } catch (err) {
         console.error('Fetch finance expenses summary error:', err);
         res.status(500).json({ message: err.message });
@@ -5852,13 +6436,35 @@ app.get('/api/finance/transactions', async (req, res) => {
             },
             {
                 $addFields: {
-                    packagePaymentMethod: { $arrayElemAt: ['$warranty.payment.method', 0] },
+                    packagePaymentMethod: {
+                        $cond: {
+                            if: {
+                                $or: [
+                                    { $eq: ['$actionType', 'ชำระค่าซ่อมส่วนต่าง'] },
+                                    { $regexMatch: { input: { $ifNull: ['$actionType', ''] }, regex: /ส่วนต่าง/ } }
+                                ]
+                            },
+                            then: 'ชำระค่าซ่อมส่วนต่าง',
+                            else: { $arrayElemAt: ['$warranty.payment.method', 0] }
+                        }
+                    },
                     packagePlan: { $arrayElemAt: ['$warranty.package.plan', 0] },
                     financeProvider: {
-                        $ifNull: [
-                            '$financeProvider',
-                            { $arrayElemAt: ['$warranty.financeDetails.provider', 0] }
-                        ]
+                        $cond: {
+                            if: {
+                                $or: [
+                                    { $eq: ['$actionType', 'ชำระค่าซ่อมส่วนต่าง'] },
+                                    { $regexMatch: { input: { $ifNull: ['$actionType', ''] }, regex: /ส่วนต่าง/ } }
+                                ]
+                            },
+                            then: 'Easy.Care',
+                            else: {
+                                $ifNull: [
+                                    '$financeProvider',
+                                    { $arrayElemAt: ['$warranty.financeDetails.provider', 0] }
+                                ]
+                            }
+                        }
                     }
                 }
             },
@@ -6240,9 +6846,21 @@ async function buildProfitStatementData({ startDate, endDate, includeCompare = f
             FinanceTransaction.aggregate([
                 { $match: refundMatch },
                 {
+                    $addFields: {
+                        __paidAmount: {
+                            $reduce: {
+                                input: { $ifNull: ['$expensePayments', []] },
+                                initialValue: 0,
+                                in: { $add: ['$$value', { $ifNull: ['$$this.amount', 0] }] }
+                            }
+                        }
+                    }
+                },
+                { $match: { __paidAmount: { $gt: 0 } } },
+                {
                     $group: {
                         _id: null,
-                        totalRefund: { $sum: '$netTotal' }
+                        totalRefund: { $sum: '$__paidAmount' }
                     }
                 }
             ]),
@@ -6263,7 +6881,19 @@ async function buildProfitStatementData({ startDate, endDate, includeCompare = f
                             { $match: { 'updates.title': { $ne: 'ลูกค้าตกลงรับเครื่องคืนและชำระเงินส่วนต่าง' } } },
                             { $match: { $or: [{ 'updates.title': { $not: /\(เกินวงเงิน\)/ } }, { status: { $ne: 'ลูกค้าสละสิทธิ์เครื่อง' } }] } },
                             ...(Object.keys(rangeMatchClaimUpdate).length > 0 ? [{ $match: rangeMatchClaimUpdate }] : []),
-                            { $group: { _id: null, total: { $sum: '$updates.cost' } } }
+                            {
+                                $addFields: {
+                                    __paidAmount: {
+                                        $reduce: {
+                                            input: { $ifNull: ['$updates.payments', []] },
+                                            initialValue: 0,
+                                            in: { $add: ['$$value', { $ifNull: ['$$this.amount', 0] }] }
+                                        }
+                                    }
+                                }
+                            },
+                            { $match: { __paidAmount: { $gt: 0 } } },
+                            { $group: { _id: null, total: { $sum: '$__paidAmount' } } }
                         ]
                     }
                 },
@@ -6305,10 +6935,17 @@ async function buildProfitStatementData({ startDate, endDate, includeCompare = f
                 {
                     $addFields: {
                         __bucket: { $dateToString: { format: '%Y-%m', date: '$transactionDate' } },
-                        __refundAbs: { $abs: '$netTotal' }
+                        __paidAmount: {
+                            $reduce: {
+                                input: { $ifNull: ['$expensePayments', []] },
+                                initialValue: 0,
+                                in: { $add: ['$$value', { $ifNull: ['$$this.amount', 0] }] }
+                            }
+                        }
                     }
                 },
-                { $group: { _id: '$__bucket', refund: { $sum: '$__refundAbs' } } },
+                { $match: { __paidAmount: { $gt: 0 } } },
+                { $group: { _id: '$__bucket', refund: { $sum: '$__paidAmount' } } },
                 { $sort: { _id: 1 } }
             ]),
             Claim.aggregate([
@@ -6321,10 +6958,17 @@ async function buildProfitStatementData({ startDate, endDate, includeCompare = f
                 {
                     $addFields: {
                         __bucket: { $dateToString: { format: '%Y-%m', date: '$updates.date' } },
-                        __amount: { $ifNull: ['$updates.cost', 0] }
+                        __paidAmount: {
+                            $reduce: {
+                                input: { $ifNull: ['$updates.payments', []] },
+                                initialValue: 0,
+                                in: { $add: ['$$value', { $ifNull: ['$$this.amount', 0] }] }
+                            }
+                        }
                     }
                 },
-                { $group: { _id: '$__bucket', claim: { $sum: '$__amount' } } },
+                { $match: { __paidAmount: { $gt: 0 } } },
+                { $group: { _id: '$__bucket', claim: { $sum: '$__paidAmount' } } },
                 { $sort: { _id: 1 } }
             ]),
             AdminExpense.aggregate([
@@ -6600,9 +7244,6 @@ app.get('/api/finance/export/excel', async (req, res) => {
         if (paymentMethod && String(paymentMethod) !== 'all') {
             match.paymentMethod = String(paymentMethod);
         }
-        if (financeProvider && String(financeProvider) !== 'all') {
-            match.financeProvider = String(financeProvider);
-        }
         if (shopName && String(shopName) !== 'all') {
             match.branch = String(shopName);
         }
@@ -6667,12 +7308,48 @@ app.get('/api/finance/export/excel', async (req, res) => {
             },
             {
                 $addFields: {
-                    packagePaymentMethod: { $arrayElemAt: ['$warranty.payment.method', 0] },
-                    packagePlan: { $arrayElemAt: ['$warranty.package.plan', 0] }
+                    packagePaymentMethod: {
+                        $cond: {
+                            if: {
+                                $or: [
+                                    { $eq: ['$actionType', 'ชำระค่าซ่อมส่วนต่าง'] },
+                                    { $regexMatch: { input: { $ifNull: ['$actionType', ''] }, regex: /ส่วนต่าง/ } }
+                                ]
+                            },
+                            then: 'ชำระค่าซ่อมส่วนต่าง',
+                            else: { $arrayElemAt: ['$warranty.payment.method', 0] }
+                        }
+                    },
+                    packagePlan: { $arrayElemAt: ['$warranty.package.plan', 0] },
+                    financeProvider: {
+                        $cond: {
+                            if: {
+                                $or: [
+                                    { $eq: ['$actionType', 'ชำระค่าซ่อมส่วนต่าง'] },
+                                    { $regexMatch: { input: { $ifNull: ['$actionType', ''] }, regex: /ส่วนต่าง/ } }
+                                ]
+                            },
+                            then: 'Easy.Care',
+                            else: {
+                                $ifNull: [
+                                    '$financeProvider',
+                                    { $arrayElemAt: ['$warranty.financeDetails.provider', 0] },
+                                    'Easy.Care'
+                                ]
+                            }
+                        }
+                    }
                 }
             }
         ];
 
+        if (financeProvider && String(financeProvider) !== 'all') {
+            pipeline.push({
+                $match: {
+                    financeProvider: String(financeProvider)
+                }
+            });
+        }
         if (paymentType && String(paymentType) !== 'all') {
             pipeline.push({
                 $match: {
@@ -7956,6 +8633,27 @@ app.post('/api/claims', claimUpload.array('images', 10), async (req, res) => {
     }
 });
 
+function isCustomerDecisionUpdateTitle(title) {
+    const t = String(title || '').trim();
+    return t === 'ลูกค้าตกลงรับเครื่องคืนและชำระเงินส่วนต่าง' ||
+        t.startsWith('ลูกค้าตกลงรับเครื่องคืนและชำระเงินส่วนต่าง') ||
+        t === 'ลูกค้าสละสิทธิ์เครื่องและรับเงินชดเชย' ||
+        t.startsWith('ลูกค้าสละสิทธิ์เครื่องและรับเงินชดเชย');
+}
+
+function computeClaimRepairTotalFromUpdates(claim) {
+    if (!claim) return 0;
+    const updates = Array.isArray(claim.updates) ? claim.updates : [];
+    if (updates.length > 0) {
+        return updates.reduce((sum, u) => {
+            if (!u || isCustomerDecisionUpdateTitle(u.title)) return sum;
+            const c = Number(u.cost || 0);
+            return sum + (Number.isFinite(c) && c > 0 ? c : 0);
+        }, 0);
+    }
+    return Math.max(0, Number(claim.totalCost || 0));
+}
+
 // Get all claims
 app.get('/api/claims', async (req, res) => {
     try {
@@ -8308,17 +9006,22 @@ app.put('/api/claims/:id/updates/:updateId', claimUpload.fields([
 
         // Check warranty coverage if cost increased
         const costDiff = newCost - oldCost;
-        if (costDiff > 0 && claim.warrantyId) {
+        const isOverLimitStep = String(update.title || '').includes('(เกินวงเงิน)') && claim.status === 'รอการตัดสินใจจากลูกค้า';
+        if (costDiff > 0 && claim.warrantyId && !isCustomerDecisionUpdateTitle(update.title)) {
             const warranty = await Warranty.findById(claim.warrantyId);
             if (warranty) {
-                const remaining = Number(warranty.remainingLimit ?? (warranty.coverageLimit - warranty.usedCoverage));
-                if (Number.isFinite(remaining) && costDiff > remaining) {
+                const remaining = Math.max(0, Number(warranty.remainingLimit ?? (warranty.coverageLimit - warranty.usedCoverage)));
+                if (isOverLimitStep) {
+                    claim.excessCost = Math.max(0, Number(claim.excessCost || 0) + costDiff);
+                } else if (Number.isFinite(remaining) && costDiff > remaining) {
                     return res.status(400).json({
                         success: false,
                         message: `ค่าใช้จ่ายที่เพิ่มขึ้น (${costDiff.toLocaleString()} บาท) เกินวงเงินประกันคงเหลือ (${remaining.toLocaleString()} บาท)`
                     });
                 }
             }
+        } else if (costDiff < 0 && isOverLimitStep) {
+            claim.excessCost = Math.max(0, Number(claim.excessCost || 0) + costDiff);
         }
 
         // Update fields
@@ -8362,18 +9065,21 @@ app.put('/api/claims/:id/updates/:updateId', claimUpload.fields([
             update.recordedBy = claim.staffName || 'System';
         }
 
-        // Recalculate claim.totalCost
-        claim.totalCost = (claim.updates || []).reduce((sum, u) => sum + (Number(u.cost) || 0), 0);
+        // Recalculate claim.totalCost (excluding customer decision steps so excess payment is not double-counted)
+        claim.totalCost = computeClaimRepairTotalFromUpdates(claim);
         await claim.save();
 
-        // Sync warranty usedCoverage
+        // Sync warranty usedCoverage (capped at warranty.currentLimit)
         if (claim.warrantyId) {
             try {
                 const agg = await Claim.aggregate([
                     { $match: { warrantyId: claim.warrantyId } },
                     { $group: { _id: '$warrantyId', totalUsed: { $sum: { $ifNull: ['$totalCost', 0] } } } }
                 ]);
-                const totalUsed = agg && agg[0] ? Number(agg[0].totalUsed || 0) : 0;
+                const rawTotalUsed = agg && agg[0] ? Number(agg[0].totalUsed || 0) : 0;
+                const wDoc = await Warranty.findById(claim.warrantyId);
+                const maxCov = wDoc ? Number(wDoc.currentLimit ?? Infinity) : Infinity;
+                const totalUsed = Number.isFinite(maxCov) ? Math.min(rawTotalUsed, maxCov) : rawTotalUsed;
                 await Warranty.findByIdAndUpdate(claim.warrantyId, { usedCoverage: totalUsed });
                 await expireWarrantyIfNoRemaining(claim.warrantyId);
             } catch (e) {
@@ -8442,6 +9148,7 @@ app.post('/api/claims/:id/decision', async (req, res) => {
                 policyNumber: claim.policyNumber,
                 customerName: claim.customerName || warranty.customer?.firstName || '-',
                 actionType: 'ชำระค่าซ่อมส่วนต่าง',
+                financeProvider: 'Easy.Care',
                 paymentMethod: pMethod,
                 cashReceived: cashReceived,
                 transferAmount: transferAmount,
@@ -8645,7 +9352,7 @@ app.get('/api/public/track/:claimId', async (req, res) => {
             deviceModel: claim.deviceModel,
             symptoms: claim.symptoms,
             status: claim.status,
-            totalCost: claim.totalCost,
+            totalCost: computeClaimRepairTotalFromUpdates(claim),
             coverageLimit: coverageLimit,
             remainingBalance: remainingBalance,
             updates: claim.updates.sort((a, b) => new Date(b.date) - new Date(a.date)), // Sort newest first
@@ -8686,11 +9393,12 @@ app.get('/api/claims/:id', async (req, res) => {
         }
 
         const claimDoc = claims[0];
+        claimDoc.totalCost = computeClaimRepairTotalFromUpdates(claimDoc);
 
         if (claimDoc.warrantyId) {
             const w = await Warranty.findById(claimDoc.warrantyId);
             if (w) {
-                claimDoc.remainingWarranty = Number(w.remainingLimit ?? 0).toLocaleString();
+                claimDoc.remainingWarranty = Math.max(0, Number(w.remainingLimit ?? 0)).toLocaleString();
             }
         }
 
@@ -10585,6 +11293,7 @@ const startServer = () => {
                     await FinanceTransaction.updateMany(
                         {
                             policyNumber: fw.policyNumber,
+                            actionType: { $nin: ['ชำระค่าซ่อมส่วนต่าง', 'คืนเงินชดเชยสละสิทธิ์เครื่อง'] },
                             $or: [
                                 { financeProvider: { $exists: false } },
                                 { financeProvider: null },
