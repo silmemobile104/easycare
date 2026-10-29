@@ -5895,10 +5895,53 @@
             <!-- Timeline Section -->
             <div id="statusTimeline" class="status-timeline"></div>
 
-            <!-- Cost Summary -->
-            <div id="statusCostSummary" class="status-cost-summary">
-                <span>สรุปยอดการซ่อมครั้งนี้ทั้งหมด:</span>
-                <span id="statusTotalCost" style="font-size: 1.4rem; font-weight: 700;">0 บาท</span>
+            <!-- Cost Summary: 4-Column Financial Breakdown Card -->
+            <div id="statusCostSummary" style="margin-top: 1.25rem; background: #f8fafc; border: 1.5px solid #cbd5e1; border-radius: 14px; padding: 1rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; flex-wrap: wrap; gap: 6px;">
+                    <span style="font-weight: 800; font-size: 0.96rem; color: #0f172a; display: inline-flex; align-items: center; gap: 6px;">
+                        📊 สรุปวงเงินความคุ้มครองและการชำระเงิน (Financial Breakdown)
+                    </span>
+                    <span id="fbClaimStatusPill" style="font-size: 0.78rem; font-weight: 700; padding: 3px 10px; border-radius: 999px; background: #e2e8f0; color: #334155;">-</span>
+                </div>
+
+                <!-- Top Row: 4 Equal Cards in 1 Row -->
+                <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.65rem;">
+                    <!-- Box 1: วงเงินก่อนเคลมรอบนี้ -->
+                    <div style="background: #ffffff; border: 1px solid #e2e8f0; border-top: 3.5px solid #3b82f6; border-radius: 10px; padding: 0.75rem 0.85rem; display: flex; flex-direction: column; gap: 4px;">
+                        <div style="font-size: 0.78rem; font-weight: 700; color: #475569; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">1. วงเงินก่อนเคลมรอบนี้</div>
+                        <div id="fbCoverageBefore" style="font-size: 1.25rem; font-weight: 800; color: #1e40af; line-height: 1.2;">0 บาท</div>
+                        <div id="fbCoverageBeforeSub" style="font-size: 0.72rem; color: #64748b;">วงเงินสูงสุด: 0 บาท</div>
+                    </div>
+
+                    <!-- Box 2: ค่าซ่อมรวมทั้งหมด -->
+                    <div style="background: #ffffff; border: 1px solid #e2e8f0; border-top: 3.5px solid #6366f1; border-radius: 10px; padding: 0.75rem 0.85rem; display: flex; flex-direction: column; gap: 4px;">
+                        <div style="font-size: 0.78rem; font-weight: 700; color: #475569; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">2. ค่าซ่อมรวมทั้งหมด</div>
+                        <div id="statusTotalCost" style="font-size: 1.25rem; font-weight: 800; color: #312e81; line-height: 1.2;">0 บาท</div>
+                        <div style="font-size: 0.72rem; color: #64748b;">รวมค่าใช้จ่ายซ่อมทุกขั้นตอน</div>
+                    </div>
+
+                    <!-- Box 3: เคลมจากวงเงินประกัน -->
+                    <div style="background: #ffffff; border: 1px solid #e2e8f0; border-top: 3.5px solid #0284c7; border-radius: 10px; padding: 0.75rem 0.85rem; display: flex; flex-direction: column; gap: 4px;">
+                        <div style="font-size: 0.78rem; font-weight: 700; color: #475569; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">3. เคลมจากวงเงินประกัน</div>
+                        <div id="fbCoveredByWarranty" style="font-size: 1.25rem; font-weight: 800; color: #0284c7; line-height: 1.2;">0 บาท</div>
+                        <div id="fbCoveredByWarrantySub" style="font-size: 0.72rem; color: #64748b;">หักจากวงเงินคุ้มครองรอบนี้</div>
+                    </div>
+
+                    <!-- Box 4: วงเงินคงเหลือสุทธิ -->
+                    <div style="background: #ffffff; border: 1px solid #e2e8f0; border-top: 3.5px solid #10b981; border-radius: 10px; padding: 0.75rem 0.85rem; display: flex; flex-direction: column; gap: 4px;">
+                        <div style="font-size: 0.78rem; font-weight: 700; color: #475569; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">4. วงเงินคงเหลือสุทธิ</div>
+                        <div id="fbNetRemaining" style="font-size: 1.25rem; font-weight: 800; color: #059669; line-height: 1.2;">0 บาท</div>
+                        <div id="fbNetRemainingSub" style="font-size: 0.72rem; color: #64748b;">หลังหักเคลมรอบนี้</div>
+                    </div>
+                </div>
+
+                <!-- Bottom Row: Full-width Excess Payment & Receipt Bar -->
+                <div id="fbExcessSummaryBar" style="margin-top: 0.65rem; background: #ffffff; border: 1px solid #e2e8f0; border-left: 4px solid #f59e0b; border-radius: 10px; padding: 0.65rem 0.95rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                    <div id="fbCoverageVsExcess" style="display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-size: 0.88rem; color: #1e293b;">
+                        <span>💳 <strong>ยอดส่วนต่างที่ลูกค้าชำระเอง:</strong> <strong style="color: #d97706; font-size: 1rem;">0 บาท</strong></span>
+                    </div>
+                    <div id="fbExcessActionArea" style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px;"></div>
+                </div>
             </div>
 
             <div id="overLimitDecisionBlock"
@@ -5989,6 +6032,7 @@
                             </div>
                         </div>
                         <input type="hidden" id="updateCost" value="0">
+                        <div id="updateCostCoveragePreview" style="display: none; margin-top: 10px; padding: 9px 12px; border-radius: 8px; font-size: 0.86rem; font-weight: 700; line-height: 1.4;"></div>
                         <div style="margin-top: 6px; font-size: 0.82rem; color: #b45309;">* หากมีค่าใช้จ่าย ต้องแนบรูปหลักฐานอย่างน้อย 1 รูป</div>
                     </div>
                 </div>
@@ -6016,8 +6060,19 @@
             <!-- Complete Section -->
             <div id="completeSectionContainer"
                 style="background: linear-gradient(135deg, #f0fdf4, #dcfce7); border: 2px solid #86efac; border-radius: 12px; padding: 1.5rem; margin-top: 1.5rem;">
-                <h3 style="margin-bottom: 0.75rem; font-size: 1.1rem; color: #166534;">✅ ปิดงานเคลม
+                <h3 id="completeSectionTitle" style="margin-bottom: 0.75rem; font-size: 1.1rem; color: #166534;">✅ ปิดงานเคลม
                     (คืนเครื่องให้ลูกค้า)</h3>
+
+                <div id="completeLockedNotice"
+                    style="display: none; background: #fff7ed; border: 1.5px solid #fb923c; border-radius: 10px; padding: 0.9rem 1.1rem; margin-bottom: 1rem; color: #9a3412; font-size: 0.9rem; align-items: flex-start; gap: 10px;">
+                    <span style="font-size: 1.35rem; line-height: 1;">🔒</span>
+                    <div>
+                        <div style="font-weight: 800; color: #c2410c; font-size: 0.95rem;">ล็อกการปิดงานเคลมชั่วคราว (สถานะ: รอการตัดสินใจจากลูกค้า)</div>
+                        <div style="font-size: 0.84rem; font-weight: 500; color: #9a3412; margin-top: 3px;">ไม่สามารถปิดงานหรือส่งมอบเครื่องได้ในขณะนี้ กรุณาบันทึกการตัดสินใจของลูกค้าและรับชำระเงินส่วนต่าง (หรือคืนเงินชดเชย) ในกล่องด้านบนให้เรียบร้อยก่อน</div>
+                    </div>
+                </div>
+
+                <div id="completeFormBody">
 
                 <div class="form-group full-width" style="margin-bottom: 1rem;">
                     <label style="font-weight: 600; color: #15803d;">รูปแบบการคืนเครื่อง *</label>
@@ -6108,6 +6163,7 @@
                     style="margin-top: 0.5rem; background: linear-gradient(135deg, #22c55e, #16a34a); font-size: 1.1rem; padding: 1rem; display: none;">
                     🎉 ยืนยันปิดงานเคลม
                 </button>
+                </div>
             </div>
 
             <!-- Close Button -->
@@ -6179,6 +6235,7 @@
                             </div>
                         </div>
                         <input type="hidden" id="editUpdateCost" value="0">
+                        <div id="editCostCoveragePreview" style="display: none; margin-top: 8px; padding: 8px 12px; border-radius: 8px; font-size: 0.84rem; font-weight: 700; line-height: 1.4;"></div>
                     </div>
                 </div>
 
@@ -6538,7 +6595,7 @@
     </div>
 
     <script src="permissions.js"></script>
-    <script src="script.js?v=20261028_claims_infinite_scroll_v5"></script>
+    <script src="script.js?v=20261029_tracking_popup_v7"></script>
 
     <!-- =================== CLAIM RECEIPT LOGIC (inline, replaces claim_receipt.html script) =================== -->
     <script>

@@ -4457,7 +4457,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 </svg>
                             </div>
                             <div>
-                                <div style="font-size: 0.76rem; color: #64748b; font-weight: 500;">ยอดเงินสดที่มีทั้งหมด: <span style="font-weight: 700; color: ${easyCareTotalReceived < 0 ? '#ef4444' : '#1e293b'};">${formatNumber(easyCareTotalReceived)} ฿</span> (หักรายจ่ายเคลมแล้ว)</div>
+                                <div style="font-size: 0.76rem; color: #64748b; font-weight: 500;">ยอดเงินสดที่มีทั้งหมด: <span style="font-weight: 700; color: ${easyCareTotalReceived < 0 ? '#ef4444' : '#1e293b'};">${formatNumber(easyCareTotalReceived)} ฿</span> (หักรายจ่ายเคลมและบริหารแล้ว)</div>
                                 <div style="font-size: 0.82rem; font-weight: 700; color: ${easyCareAvailableFunds < 0 ? '#e11d48' : '#15803d'};">คงเหลือหลังหักเงินยืม</div>
                             </div>
                         </div>
@@ -5169,7 +5169,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         let sum = latestLoanSummary;
         // หากไม่มีข้อมูลสรุป หรือไม่มี breakdown หรือช่วงวันที่ไม่ตรงกับตัวกรองที่เลือก ให้ fetch ใหม่ตามช่วงวันที่
-        if (!sum || !sum.claimExpenseBreakdown || sum.startDate !== (sDate || null) || sum.endDate !== (eDate || null)) {
+        if (!sum || !sum.claimExpenseBreakdown || sum.totalAdminExpense === undefined || sum.startDate !== (sDate || null) || sum.endDate !== (eDate || null)) {
             try {
                 showLoader('กำลังโหลดรายละเอียดที่มายอดเงินสด...');
                 const params = new URLSearchParams();
@@ -5224,9 +5224,39 @@ document.addEventListener('DOMContentLoaded', () => {
         const totalClaimExpense = Number(sum.totalClaimExpense !== undefined ? sum.totalClaimExpense : (claimRepairCost + claimRefundCost + manualExpenseCost));
         const totalClaimCount = Number(breakdown.totalClaimCount !== undefined ? breakdown.totalClaimCount : (claimRepairCount + claimRefundCount + manualExpenseCount));
 
-        const totalReceived = Number(sum.totalReceived !== undefined ? sum.totalReceived : (totalCashInflow - totalClaimExpense));
+        const totalAdminExpense = Number(sum.totalAdminExpense || 0);
+        const totalAdminExpenseCount = Number(sum.totalAdminExpenseCount || 0);
+        const adminCategoryBreakdown = Array.isArray(sum.adminCategoryBreakdown) ? sum.adminCategoryBreakdown : [];
+
+        const totalReceived = Number(sum.totalReceived !== undefined ? sum.totalReceived : (totalCashInflow - totalClaimExpense - totalAdminExpense));
         const totalRemainingAmount = Number(sum.totalRemainingAmount || 0);
         const availableFunds = Number(sum.availableFunds !== undefined ? sum.availableFunds : (totalReceived - totalRemainingAmount));
+
+        let adminCatHtml = '';
+        if (adminCategoryBreakdown.length > 0) {
+            adminCatHtml = adminCategoryBreakdown.map(cat => `
+                <div style="display: flex; align-items: flex-start; justify-content: space-between; padding: 8px 10px; background: #ffffff; border-radius: 8px; margin-bottom: 6px; border: 1px solid #fed7aa;">
+                    <div>
+                        <div style="font-size: 0.82rem; font-weight: 700; color: #1e293b; display: flex; align-items: center; gap: 6px;">
+                            <span>🏢 ${String(cat._id || 'ทั่วไป').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</span>
+                            <span style="font-size: 0.68rem; color: #c2410c; background: #ffedd5; padding: 1px 6px; border-radius: 4px; font-weight: 500;">${cat.count || 0} รายการ</span>
+                        </div>
+                        <div style="font-size: 0.72rem; color: #64748b; margin-top: 2px;">
+                            หมวดหมู่รายจ่ายบริหารจัดการของสำนักงาน / ธุรกิจ
+                        </div>
+                    </div>
+                    <div style="text-align: right; white-space: nowrap; margin-left: 10px;">
+                        <div style="font-size: 0.92rem; font-weight: 700; color: #ea580c; font-family: monospace, var(--font-family);">${Number(cat.amount) > 0 ? '-' : ''}${formatNumber(cat.amount || 0)} ฿</div>
+                    </div>
+                </div>
+            `).join('');
+        } else {
+            adminCatHtml = `
+                <div style="padding: 10px; background: #ffffff; border-radius: 8px; margin-bottom: 8px; border: 1px solid #fed7aa; font-size: 0.78rem; color: #94a3b8; text-align: center;">
+                    ไม่มีรายการรายจ่ายบริหารในช่วงเวลานี้ (0 ฿)
+                </div>
+            `;
+        }
 
         await Swal.fire({
             width: 640,
@@ -5250,7 +5280,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                     ที่มาของยอดเงินสดที่มีทั้งหมด
                                 </div>
                                 <div style="font-size: 0.78rem; color: #64748b; margin-top: 2px;">
-                                    รายละเอียดแหล่งที่มารายรับเงินสด และยอดหักรายจ่ายเคลมสุทธิ
+                                    รายละเอียดแหล่งที่มารายรับเงินสด ยอดหักรายจ่ายเคลม และรายจ่ายบริหารสุทธิ
                                 </div>
                             </div>
                         </div>
@@ -5373,7 +5403,26 @@ document.addEventListener('DOMContentLoaded', () => {
                         </div>
                     </div>
 
-                    <!-- 3. สรุปยอดเงินสดสุทธิที่มีทั้งหมด (Net Balance Card) -->
+                    <!-- 3. หัก: รายจ่ายบริหารรวม (Admin Expenses Outflow) -->
+                    <div style="background: #fff7ed; border: 1.5px solid #fed7aa; border-radius: 12px; padding: 12px 14px; margin-bottom: 14px;">
+                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+                            <div style="display: flex; align-items: center; gap: 6px;">
+                                <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #ea580c;"></span>
+                                <span style="font-size: 0.85rem; font-weight: 700; color: #c2410c;">3. หัก: รายจ่ายบริหาร (Admin Expenses)</span>
+                            </div>
+                            <span style="font-size: 0.72rem; color: #c2410c; background: #ffedd5; padding: 2px 8px; border-radius: 10px; font-weight: 600;">ยอดหักลบ (-)</span>
+                        </div>
+
+                        ${adminCatHtml}
+
+                        <!-- Admin Expense Subtotal -->
+                        <div style="display: flex; align-items: center; justify-content: space-between; padding-top: 6px; border-top: 1px dashed #fdba74; font-size: 0.82rem;">
+                            <span style="font-weight: 700; color: #9a3412;">รวมหักรายจ่ายบริหารทั้งหมด (${totalAdminExpenseCount} รายการ)</span>
+                            <span style="font-weight: 800; color: #ea580c; font-size: 1rem; font-family: monospace, var(--font-family);">${totalAdminExpense > 0 ? '-' : ''}${formatNumber(totalAdminExpense)} ฿</span>
+                        </div>
+                    </div>
+
+                    <!-- 4. สรุปยอดเงินสดสุทธิที่มีทั้งหมด (Net Balance Card) -->
                     <div style="background: ${totalReceived < 0 ? 'linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)' : 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)'}; border: 2px solid ${totalReceived < 0 ? '#f87171' : '#86efac'}; border-radius: 12px; padding: 14px 16px; margin-bottom: 14px;">
                         <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
                             <div>
@@ -5381,7 +5430,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                     💰 ยอดเงินสดที่มีทั้งหมด (สุทธิ)
                                 </div>
                                 <div style="font-size: 0.72rem; color: #64748b; margin-top: 2px;">
-                                    สูตร: (รายรับ ${formatNumber(totalCashInflow)} ฿) - (รายจ่ายเคลม ${formatNumber(totalClaimExpense)} ฿) • [${dateFilterLabel}]
+                                    สูตร: (รายรับ ${formatNumber(totalCashInflow)} ฿) - (รายจ่ายเคลม ${formatNumber(totalClaimExpense)} ฿) - (รายจ่ายบริหาร ${formatNumber(totalAdminExpense)} ฿) • [${dateFilterLabel}]
                                 </div>
                             </div>
                             <div style="text-align: right;">
@@ -5392,13 +5441,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         </div>
                     </div>
 
-                    <!-- 4. สรุปสถานะการให้ยืมเงิน (Loan Context) -->
+                    <!-- 5. สรุปสถานะการให้ยืมเงิน (Loan Context) -->
                     <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 14px; margin-bottom: 16px;">
                         <div style="font-size: 0.78rem; font-weight: 700; color: #475569; margin-bottom: 6px;">
                             📌 สถานะเงินพร้อมให้ยืม (Lending Availability):
                         </div>
                         <div style="display: flex; align-items: center; justify-content: space-between; font-size: 0.78rem; color: #64748b; margin-bottom: 4px;">
-                            <span>ยอดเงินสดสุทธิที่มี</span>
+                            <span>ยอดเงินสดสุทธิที่มี (หักเคลม & บริหารแล้ว)</span>
                             <span style="font-family: monospace, var(--font-family); font-weight: 600;">${formatNumber(totalReceived)} ฿</span>
                         </div>
                         <div style="display: flex; align-items: center; justify-content: space-between; font-size: 0.78rem; color: #e11d48; margin-bottom: 6px;">
@@ -5421,6 +5470,9 @@ document.addEventListener('DOMContentLoaded', () => {
                             </button>
                             <button type="button" onclick="if (typeof setFinanceTab === 'function') setFinanceTab('expense'); else { const b = document.getElementById('financeTabExpense'); if (b) b.click(); } Swal.close();" style="height: 32px; padding: 0 10px; background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.74rem; font-weight: 600; color: #334155; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;">
                                 🔧 ดูรายจ่ายเคลม
+                            </button>
+                            <button type="button" onclick="if (typeof setFinanceTab === 'function') setFinanceTab('adminExpense'); else { const b = document.getElementById('financeTabAdminExpense'); if (b) b.click(); } Swal.close();" style="height: 32px; padding: 0 10px; background: #fff7ed; border: 1px solid #fed7aa; border-radius: 6px; font-size: 0.74rem; font-weight: 600; color: #c2410c; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;">
+                                🏢 ดูรายจ่ายบริหาร
                             </button>
                         </div>
                         <button type="button" onclick="Swal.close();" style="height: 32px; padding: 0 16px; background: #0f172a; color: #ffffff; border: none; border-radius: 6px; font-size: 0.76rem; font-weight: 600; cursor: pointer;">
@@ -15540,12 +15592,77 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    let currentStatusModalClaim = null;
+    let currentEditingStepOriginalCost = 0;
+
+    window.reprintClaimExcessReceipt = function (mode = 'excess') {
+        const claim = currentStatusModalClaim;
+        if (!claim) {
+            showAlert('warning', 'ไม่พบข้อมูลงานเคลม');
+            return;
+        }
+        const txs = Array.isArray(claim.excessTransactions) ? claim.excessTransactions : [];
+        const targetAction = mode === 'refund' ? 'คืนเงินชดเชยสละสิทธิ์เครื่อง' : 'ชำระค่าซ่อมส่วนต่าง';
+        const tx = txs.find(t => t && t.actionType === targetAction) || txs[0] || null;
+
+        const fb = claim.financialBreakdown || {};
+        const staffFallback = (currentUser && currentUser.staffName) ? currentUser.staffName : (claim.staffName || '-');
+        const paidDateStr = tx && tx.createdAt
+            ? new Date(tx.createdAt).toLocaleString('th-TH')
+            : new Date().toLocaleString('th-TH');
+        const receiptNo = (tx && tx.transactionId)
+            ? tx.transactionId
+            : (tx && tx._id ? 'RC-' + String(tx._id).slice(-6).toUpperCase() : 'RC-' + String(claim.claimId || Date.now()));
+
+        if (mode === 'refund') {
+            const refundAmt = tx ? Math.abs(Number(tx.netTotal || 0)) : Number(fb.refundAmount || claim.refundAmount || 0);
+            openReceipt({
+                paidDate: paidDateStr,
+                receiptNo: receiptNo,
+                policyNumber: claim.policyNumber || '-',
+                shopName: (tx && tx.branch) || ((currentUser && currentUser.shop) ? currentUser.shop.shopName : (claim.claimShopName || '-')),
+                customerName: claim.customerName || '-',
+                customerPhone: claim.customerPhone || '-',
+                memberId: claim.memberId || '-',
+                staffName: (tx && tx.recordedBy) || staffFallback,
+                description: `คืนเงินชดเชยสละสิทธิ์เครื่อง (เคลมเลขที่ ${claim.claimId})`,
+                amount: refundAmt,
+                cashReceived: 0,
+                transferAmount: refundAmt,
+                change: 0
+            });
+            return;
+        }
+
+        const paidAmt = tx ? Math.max(0, Number(tx.netTotal || 0)) : Number(fb.paidExcess || claim.excessCost || 0);
+        const cashRec = tx ? Math.max(0, Number(tx.cashReceived || 0)) : 0;
+        const transAmt = tx ? Math.max(0, Number(tx.transferAmount || 0)) : paidAmt;
+        const changeAmt = tx ? Math.max(0, Number(tx.changeAmount || 0)) : 0;
+
+        openReceipt({
+            paidDate: paidDateStr,
+            receiptNo: receiptNo,
+            policyNumber: claim.policyNumber || '-',
+            shopName: (tx && tx.branch) || ((currentUser && currentUser.shop) ? currentUser.shop.shopName : (claim.claimShopName || '-')),
+            customerName: claim.customerName || '-',
+            customerPhone: claim.customerPhone || '-',
+            memberId: claim.memberId || '-',
+            staffName: (tx && tx.recordedBy) || staffFallback,
+            description: `ชำระค่าซ่อมส่วนต่างเคลม (เคลมเลขที่ ${claim.claimId})`,
+            amount: paidAmt,
+            cashReceived: cashRec,
+            transferAmount: transAmt,
+            change: changeAmt
+        });
+    };
+
     async function openStatusUpdateModal(claimId) {
         showLoader('กำลังโหลดข้อมูล...');
         try {
             const res = await fetch(`/api/claims/${claimId}`);
             const claim = await res.json();
             if (!res.ok) throw new Error(claim.message);
+            currentStatusModalClaim = claim;
 
             const overLimitBlock = document.getElementById('overLimitDecisionBlock');
             const btnPayExcess = document.getElementById('btnPayExcess');
@@ -15829,6 +15946,45 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (el) el.innerHTML = '';
             });
 
+            // Lock or unlock Complete Section based on waiting decision status
+            const completeContainer = document.getElementById('completeSectionContainer');
+            const completeLockedNotice = document.getElementById('completeLockedNotice');
+            const completeFormBody = document.getElementById('completeFormBody');
+            const completeSectionTitle = document.getElementById('completeSectionTitle');
+            if (isWaitingDecision) {
+                if (completeLockedNotice) completeLockedNotice.style.display = 'flex';
+                if (completeFormBody) {
+                    completeFormBody.style.opacity = '0.45';
+                    completeFormBody.style.pointerEvents = 'none';
+                    completeFormBody.style.userSelect = 'none';
+                    completeFormBody.querySelectorAll('input, button, textarea, select').forEach(el => { el.disabled = true; });
+                }
+                if (completeContainer) {
+                    completeContainer.style.background = 'linear-gradient(135deg, #fff7ed, #ffedd5)';
+                    completeContainer.style.borderColor = '#fdba74';
+                }
+                if (completeSectionTitle) {
+                    completeSectionTitle.style.color = '#9a3412';
+                    completeSectionTitle.innerHTML = '🔒 ปิดงานเคลม (คืนเครื่องให้ลูกค้า) — <span style="font-size: 0.9rem; color: #c2410c;">ล็อกชั่วคราว</span>';
+                }
+            } else {
+                if (completeLockedNotice) completeLockedNotice.style.display = 'none';
+                if (completeFormBody) {
+                    completeFormBody.style.opacity = '1';
+                    completeFormBody.style.pointerEvents = 'auto';
+                    completeFormBody.style.userSelect = 'auto';
+                    completeFormBody.querySelectorAll('input, button, textarea, select').forEach(el => { el.disabled = false; });
+                }
+                if (completeContainer) {
+                    completeContainer.style.background = 'linear-gradient(135deg, #f0fdf4, #dcfce7)';
+                    completeContainer.style.borderColor = '#86efac';
+                }
+                if (completeSectionTitle) {
+                    completeSectionTitle.style.color = '#166534';
+                    completeSectionTitle.textContent = '✅ ปิดงานเคลม (คืนเครื่องให้ลูกค้า)';
+                }
+            }
+
             // Show modal
             document.getElementById('statusUpdateModal').style.display = 'flex';
         } catch (err) {
@@ -15963,10 +16119,134 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function updateStatusTotalCost(claim) {
         const totalEl = document.getElementById('statusTotalCost');
-        if (!totalEl) return;
-
         const computed = calculateClaimRepairTotal(claim);
-        totalEl.textContent = `${computed.toLocaleString()} บาท`;
+        if (totalEl) {
+            totalEl.textContent = `${computed.toLocaleString()} บาท`;
+        }
+
+        const fb = (claim && claim.financialBreakdown) ? claim.financialBreakdown : null;
+        const maxLimit = fb ? Number(fb.maxLimit || 0) : 0;
+        const coverageBefore = fb ? Number(fb.coverageBeforeClaim || 0) : Math.max(0, parseFloat(String(claim?.remainingWarranty || '0').replace(/,/g, '')) || 0);
+        const usedEarlier = fb ? Number(fb.usedByEarlierClaims || 0) : 0;
+        const coveredByWarranty = fb ? Number(fb.coveredByWarranty || 0) : Math.min(coverageBefore, computed);
+        const totalExcess = fb ? Number(fb.totalExcess || 0) : Math.max(0, computed - coverageBefore);
+        const paidExcess = fb ? Number(fb.paidExcess || 0) : 0;
+        const unpaidExcess = fb ? Number(fb.unpaidExcess || 0) : Math.max(0, totalExcess - paidExcess);
+        const netRemaining = fb ? Number(fb.netRemainingCoverage || 0) : Math.max(0, coverageBefore - coveredByWarranty);
+        const isForfeited = Boolean(fb && fb.isForfeited);
+
+        const fbCoverageBeforeEl = document.getElementById('fbCoverageBefore');
+        const fbCoverageBeforeSubEl = document.getElementById('fbCoverageBeforeSub');
+        if (fbCoverageBeforeEl) fbCoverageBeforeEl.textContent = `${coverageBefore.toLocaleString()} บาท`;
+        if (fbCoverageBeforeSubEl) {
+            fbCoverageBeforeSubEl.textContent = usedEarlier > 0
+                ? `วงเงินแพ็กเกจ ${maxLimit.toLocaleString()} บ. (ใช้ก่อนหน้า ${usedEarlier.toLocaleString()} บ.)`
+                : `วงเงินสูงสุดตามแพ็กเกจ: ${maxLimit.toLocaleString()} บาท`;
+        }
+
+        const fbCoveredEl = document.getElementById('fbCoveredByWarranty');
+        const fbCoveredSubEl = document.getElementById('fbCoveredByWarrantySub');
+        if (fbCoveredEl) fbCoveredEl.textContent = `${coveredByWarranty.toLocaleString()} บาท`;
+        if (fbCoveredSubEl) {
+            fbCoveredSubEl.textContent = totalExcess > 0
+                ? `เคลมเต็มวงเงินที่เหลือ (${coverageBefore.toLocaleString()} บาท)`
+                : 'หักจากวงเงินคุ้มครองรอบนี้';
+        }
+
+        const fbStatusPill = document.getElementById('fbClaimStatusPill');
+        if (fbStatusPill) {
+            const st = String(claim?.status || 'รอเคลม');
+            if (st === 'รอการตัดสินใจจากลูกค้า') {
+                fbStatusPill.textContent = '🟠 สถานะ: รอการตัดสินใจจากลูกค้า';
+                fbStatusPill.style.background = '#ffedd5';
+                fbStatusPill.style.color = '#c2410c';
+                fbStatusPill.style.border = '1px solid #fdba74';
+            } else if (st === 'รับเครื่องแล้ว') {
+                fbStatusPill.textContent = '🟢 สถานะ: ปิดงานเคลมแล้ว';
+                fbStatusPill.style.background = '#dcfce7';
+                fbStatusPill.style.color = '#15803d';
+                fbStatusPill.style.border = '1px solid #86efac';
+            } else if (isForfeited) {
+                fbStatusPill.textContent = '🔴 สถานะ: ลูกค้าสละสิทธิ์เครื่อง';
+                fbStatusPill.style.background = '#fee2e2';
+                fbStatusPill.style.color = '#b91c1c';
+                fbStatusPill.style.border = '1px solid #fca5a5';
+            } else {
+                fbStatusPill.textContent = `🔵 สถานะ: ${st}`;
+                fbStatusPill.style.background = '#dbeafe';
+                fbStatusPill.style.color = '#1e40af';
+                fbStatusPill.style.border = '1px solid #93c5fd';
+            }
+        }
+
+        const fbExcessBar = document.getElementById('fbExcessSummaryBar');
+        const fbVsEl = document.getElementById('fbCoverageVsExcess');
+        const fbActionArea = document.getElementById('fbExcessActionArea');
+
+        if (fbExcessBar) {
+            if (isForfeited) {
+                fbExcessBar.style.borderLeftColor = '#ef4444';
+                fbExcessBar.style.background = '#fef2f2';
+            } else if (totalExcess > 0 && unpaidExcess > 0) {
+                fbExcessBar.style.borderLeftColor = '#f59e0b';
+                fbExcessBar.style.background = '#fffbeb';
+            } else if (totalExcess > 0 && unpaidExcess <= 0) {
+                fbExcessBar.style.borderLeftColor = '#10b981';
+                fbExcessBar.style.background = '#f0fdf4';
+            } else {
+                fbExcessBar.style.borderLeftColor = '#10b981';
+                fbExcessBar.style.background = '#ffffff';
+            }
+        }
+
+        if (fbVsEl) {
+            let statusBadges = '';
+            if (isForfeited) {
+                const refAmt = Number(fb?.refundAmount || claim?.refundAmount || coverageBefore || 0);
+                statusBadges = `<span style="display:inline-flex; align-items:center; padding:3px 10px; border-radius:999px; font-size:0.78rem; font-weight:700; background:#fee2e2; color:#b91c1c; border:1px solid #fca5a5;">🔴 คืนเงินชดเชยสละสิทธิ์เครื่อง (${refAmt.toLocaleString()} บาท)</span>`;
+            } else if (totalExcess <= 0) {
+                statusBadges = `<span style="display:inline-flex; align-items:center; padding:3px 10px; border-radius:999px; font-size:0.78rem; font-weight:700; background:#dcfce7; color:#15803d; border:1px solid #86efac;">🟢 อยู่ในวงเงินประกัน (ไม่มีส่วนต่าง)</span>`;
+            } else if (paidExcess > 0 && unpaidExcess <= 0) {
+                statusBadges = `<span style="display:inline-flex; align-items:center; padding:3px 10px; border-radius:999px; font-size:0.78rem; font-weight:700; background:#dcfce7; color:#15803d; border:1px solid #86efac;">🟢 ชำระส่วนต่างครบแล้ว ${paidExcess.toLocaleString()} บาท</span>`;
+            } else if (paidExcess > 0 && unpaidExcess > 0) {
+                statusBadges = `
+                    <span style="display:inline-flex; align-items:center; padding:3px 10px; border-radius:999px; font-size:0.78rem; font-weight:700; background:#dcfce7; color:#15803d; border:1px solid #86efac;">🟢 ชำระแล้ว ${paidExcess.toLocaleString()} บาท</span>
+                    <span style="display:inline-flex; align-items:center; padding:3px 10px; border-radius:999px; font-size:0.78rem; font-weight:700; background:#ffedd5; color:#c2410c; border:1px solid #fdba74;">🟠 รอชำระเพิ่ม ${unpaidExcess.toLocaleString()} บาท</span>
+                `;
+            } else {
+                statusBadges = `<span style="display:inline-flex; align-items:center; padding:3px 10px; border-radius:999px; font-size:0.78rem; font-weight:700; background:#ffedd5; color:#c2410c; border:1px solid #fdba74;">🟠 รอชำระส่วนต่าง ${unpaidExcess.toLocaleString()} บาท</span>`;
+            }
+
+            fbVsEl.innerHTML = `
+                <div style="display:inline-flex; align-items:center; gap:6px;">
+                    <span style="color:#475569; font-weight:700;">💳 ยอดส่วนต่างที่ลูกค้าชำระเอง:</span>
+                    <strong style="font-size:1.05rem; color:${totalExcess > 0 ? '#d97706' : '#059669'};">${totalExcess.toLocaleString()} บาท</strong>
+                </div>
+                ${statusBadges}
+            `;
+        }
+
+        if (fbActionArea) {
+            if (isForfeited) {
+                fbActionArea.innerHTML = `<button type="button" onclick="reprintClaimExcessReceipt('refund')" style="padding:5px 12px; border-radius:8px; font-size:0.8rem; font-weight:700; background:#eff6ff; color:#1d4ed8; border:1px solid #93c5fd; cursor:pointer; display:inline-flex; align-items:center; gap:5px;">🖨️ พิมพ์ใบเสร็จคืนเงิน</button>`;
+            } else if (paidExcess > 0) {
+                fbActionArea.innerHTML = `<button type="button" onclick="reprintClaimExcessReceipt('excess')" style="padding:5px 12px; border-radius:8px; font-size:0.8rem; font-weight:700; background:#eff6ff; color:#1d4ed8; border:1px solid #93c5fd; cursor:pointer; display:inline-flex; align-items:center; gap:5px; box-shadow:0 1px 2px rgba(0,0,0,0.05);">🖨️ พิมพ์ใบเสร็จส่วนต่าง</button>`;
+            } else {
+                fbActionArea.innerHTML = '';
+            }
+        }
+
+        const fbNetEl = document.getElementById('fbNetRemaining');
+        const fbNetSubEl = document.getElementById('fbNetRemainingSub');
+        if (fbNetEl) {
+            fbNetEl.textContent = `${netRemaining.toLocaleString()} บาท`;
+            fbNetEl.style.color = netRemaining > 0 ? '#059669' : '#dc2626';
+        }
+        if (fbNetSubEl) {
+            fbNetSubEl.textContent = netRemaining > 0
+                ? 'สามารถใช้เคลมต่อเนื่องได้'
+                : 'ใช้วงเงินความคุ้มครองครบแล้ว (0 บาท)';
+        }
     }
 
     function isCostEnabled() {
@@ -15975,12 +16255,35 @@ document.addEventListener('DOMContentLoaded', () => {
         return costSection.style.display !== 'none';
     }
 
+    function updateLiveCoveragePreviewBanner(previewEl, stepCost, availableCoverage) {
+        if (!previewEl) return;
+        const costVal = Math.max(0, Number(stepCost || 0));
+        const availVal = Math.max(0, Number(availableCoverage || 0));
+
+        if (costVal <= availVal) {
+            const remainingAfter = Math.max(0, availVal - costVal);
+            previewEl.style.display = 'block';
+            previewEl.style.background = '#ecfdf5';
+            previewEl.style.border = '1.5px solid #6ee7b7';
+            previewEl.style.color = '#065f46';
+            previewEl.textContent = `🟢 อยู่ในวงเงินประกัน (วงเงินคงเหลือหลังหัก: ${remainingAfter.toLocaleString()} บาท)`;
+        } else {
+            const overAmt = costVal - availVal;
+            previewEl.style.display = 'block';
+            previewEl.style.background = '#fff7ed';
+            previewEl.style.border = '1.5px solid #fdba74';
+            previewEl.style.color = '#c2410c';
+            previewEl.textContent = `🟠 เกินวงเงินประกัน ${overAmt.toLocaleString()} บาท (ระบบจะเปลี่ยนเป็นสถานะ "รอการตัดสินใจจากลูกค้า")`;
+        }
+    }
+
     function recalcUpdateCostTotal() {
         const listEl = document.getElementById('updateCostItemsList');
         const costEl = document.getElementById('updateCost');
         const totalDisplayEl = document.getElementById('updateCostTotalDisplay');
         const costSection = document.getElementById('updateCostSection');
         const evidenceGroup = document.getElementById('updateEvidenceGroup');
+        const previewEl = document.getElementById('updateCostCoveragePreview');
         if (!listEl) return 0;
 
         const rows = Array.from(listEl.querySelectorAll('.update-cost-item-row'));
@@ -15998,8 +16301,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (rows.length === 0) {
             if (costSection) costSection.style.display = 'none';
+            if (previewEl) previewEl.style.display = 'none';
         } else {
             if (costSection) costSection.style.display = 'block';
+            const avail = Number(currentStatusModalClaim?.financialBreakdown?.netRemainingCoverage ?? parseFloat(String(currentStatusModalClaim?.remainingWarranty || '0').replace(/,/g, '')) ?? 0);
+            updateLiveCoveragePreviewBanner(previewEl, sum, avail);
         }
         if (evidenceGroup) evidenceGroup.style.display = 'none';
         return sum;
@@ -16171,6 +16477,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (evidenceGroup) evidenceGroup.style.display = 'none';
         if (evidenceInput) evidenceInput.value = '';
         if (evidencePreview) evidencePreview.innerHTML = '';
+        const previewEl = document.getElementById('updateCostCoveragePreview');
+        if (previewEl) { previewEl.style.display = 'none'; previewEl.textContent = ''; }
     }
 
     const toggleCostBtn = document.getElementById('toggleCostBtn');
@@ -16381,6 +16689,8 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('editUpdateCenterPhone').value = u.centerPhone || '';
             document.getElementById('editUpdateTechnicianName').value = u.technicianName || '';
             document.getElementById('editUpdateTechnicianPhone').value = u.technicianPhone || '';
+            currentStatusModalClaim = claim;
+            currentEditingStepOriginalCost = isCustomerDecisionStepTitle(u.title) ? 0 : Math.max(0, Number(u.cost || 0));
             const editCostListEl = document.getElementById('editCostItemsList');
             if (editCostListEl) editCostListEl.innerHTML = '';
             if (Array.isArray(u.costItems) && u.costItems.length > 0) {
@@ -16474,6 +16784,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (costEl) costEl.value = String(sum);
         if (totalDisplayEl) totalDisplayEl.textContent = sum.toLocaleString();
+        const editPreviewEl = document.getElementById('editCostCoveragePreview');
+        if (editPreviewEl) {
+            if (rows.length === 0) {
+                editPreviewEl.style.display = 'none';
+            } else {
+                const fb = currentStatusModalClaim?.financialBreakdown;
+                const covBefore = Number(fb?.coverageBeforeClaim ?? 0);
+                const paidEx = Number(fb?.paidExcess ?? 0);
+                const otherStepsCost = Math.max(0, Number(fb?.totalRepairCost ?? 0) - currentEditingStepOriginalCost);
+                const availForThisStep = Math.max(0, (covBefore + paidEx) - otherStepsCost);
+                updateLiveCoveragePreviewBanner(editPreviewEl, sum, availForThisStep);
+            }
+        }
         return sum;
     }
 
@@ -16685,6 +17008,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const completeClaimBtn = document.getElementById('completeClaimBtn');
     if (completeClaimBtn) {
         completeClaimBtn.addEventListener('click', async () => {
+            if (currentStatusModalClaim && String(currentStatusModalClaim.status || '') === 'รอการตัดสินใจจากลูกค้า') {
+                showAlert('warning', 'ไม่สามารถปิดงานเคลมได้เนื่องจากยังอยู่ในสถานะ "รอการตัดสินใจจากลูกค้า" กรุณาบันทึกการตัดสินใจของลูกค้าก่อน');
+                return;
+            }
             const claimId = document.getElementById('statusUpdateClaimId').value;
 
             const returnMethodEl = document.querySelector('input[name="completeReturnMethod"]:checked');

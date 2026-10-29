@@ -8075,9 +8075,43 @@ app.get('/api/finance/loans/summary', async (req, res) => {
         const claimExpenseBreakdown = await calculateTotalClaimExpense({ startDate, endDate });
         const totalClaimExpense = claimExpenseBreakdown.totalClaimExpense;
 
-        // ยอดเงินสดทั้งหมดของ EasyCare = (เงินโอนจาก สนง.ใหญ่ + เงินสดที่รับจากไฟแนนซ์) - รายจ่ายเคลมรวม
+        // ยอดเงินสดทั้งหมดของ EasyCare = (เงินโอนจาก สนง.ใหญ่ + เงินสดที่รับจากไฟแนนซ์) - รายจ่ายเคลมรวม - รายจ่ายบริหารรวม
         const totalCashInflow = totalHqReceived + totalCashFinance;
-        const totalReceived = totalCashInflow - totalClaimExpense;
+        // คำนวณรายจ่ายบริหารรวม (AdminExpense) ตามช่วงวันที่กรอง
+        const matchAdmin = {};
+        if (startDate) {
+            matchAdmin.expenseDate = { ...(matchAdmin.expenseDate || {}), $gte: new Date(String(startDate)) };
+        }
+        if (endDate) {
+            matchAdmin.expenseDate = { ...(matchAdmin.expenseDate || {}), $lte: new Date(String(endDate) + 'T23:59:59.999Z') };
+        }
+
+        const adminAgg = await AdminExpense.aggregate([
+            ...(Object.keys(matchAdmin).length > 0 ? [{ $match: matchAdmin }] : []),
+            {
+                $group: {
+                    _id: null,
+                    totalAdminExpense: { $sum: '$amount' },
+                    count: { $sum: 1 }
+                }
+            }
+        ]);
+        const totalAdminExpense = Number(adminAgg?.[0]?.totalAdminExpense || 0);
+        const totalAdminExpenseCount = Number(adminAgg?.[0]?.count || 0);
+
+        const adminCategoryBreakdown = await AdminExpense.aggregate([
+            ...(Object.keys(matchAdmin).length > 0 ? [{ $match: matchAdmin }] : []),
+            {
+                $group: {
+                    _id: { $ifNull: ['$category', 'ทั่วไป'] },
+                    amount: { $sum: '$amount' },
+                    count: { $sum: 1 }
+                }
+            },
+            { $sort: { amount: -1 } }
+        ]);
+
+        const totalReceived = totalCashInflow - totalClaimExpense - totalAdminExpense;
         // ยอดเงินคงเหลือพร้อมให้ยืม = ยอดที่ได้รับแล้ว ลบด้วย ยอดหนี้คงค้างรอคืน (ติดลบได้หากให้ยืมเกินยอดเงินสดที่มี)
         const availableFunds = totalReceived - (summary.totalRemainingAmount || 0);
 
@@ -8095,6 +8129,9 @@ app.get('/api/finance/loans/summary', async (req, res) => {
                 totalCashInflow,
                 claimExpenseBreakdown,
                 totalClaimExpense,
+                totalAdminExpense,
+                totalAdminExpenseCount,
+                adminCategoryBreakdown,
                 totalReceived,
                 availableFunds,
                 availableCash: totalReceived
@@ -8811,6 +8848,9 @@ app.post('/api/claims/:id/updates', claimUpload.fields([
     try {
         const claim = await Claim.findById(req.params.id);
         if (!claim) return res.status(404).json({ success: false, message: 'ไม่พบข้อมูลการเคลม' });
+        if (claim.status === 'รอการตัดสินใจจากลูกค้า') {
+            return res.status(400).json({ success: false, message: 'ไม่สามารถปิดงานเคลมได้เนื่องจากยังอยู่ในสถานะ รอการตัดสินใจจากลูกค้า กรุณาบันทึกการตัดสินใจของลูกค้าก่อน' });
+        }
 
         const images = (req.files && req.files.images) ? req.files.images.map(f => f.path) : [];
         const evidenceImages = (req.files && req.files.evidenceImages) ? req.files.evidenceImages.map(f => f.path) : [];
@@ -8954,6 +8994,9 @@ app.put('/api/claims/:id/updates/:updateId', claimUpload.fields([
     try {
         const claim = await Claim.findById(req.params.id);
         if (!claim) return res.status(404).json({ success: false, message: 'ไม่พบข้อมูลการเคลม' });
+        if (claim.status === 'รอการตัดสินใจจากลูกค้า') {
+            return res.status(400).json({ success: false, message: 'ไม่สามารถปิดงานเคลมได้เนื่องจากยังอยู่ในสถานะ รอการตัดสินใจจากลูกค้า กรุณาบันทึกการตัดสินใจของลูกค้าก่อน' });
+        }
 
         // Find the update subdocument
         let update = claim.updates ? claim.updates.id(req.params.updateId) : null;
@@ -9111,6 +9154,9 @@ app.post('/api/claims/:id/decision', async (req, res) => {
     try {
         const claim = await Claim.findById(req.params.id);
         if (!claim) return res.status(404).json({ success: false, message: 'ไม่พบข้อมูลการเคลม' });
+        if (claim.status === 'รอการตัดสินใจจากลูกค้า') {
+            return res.status(400).json({ success: false, message: 'ไม่สามารถปิดงานเคลมได้เนื่องจากยังอยู่ในสถานะ รอการตัดสินใจจากลูกค้า กรุณาบันทึกการตัดสินใจของลูกค้าก่อน' });
+        }
 
         const warranty = claim.warrantyId ? await Warranty.findById(claim.warrantyId) : null;
         if (!warranty) return res.status(400).json({ success: false, message: 'ไม่พบข้อมูลสัญญาประกัน' });
@@ -9241,6 +9287,9 @@ app.post('/api/claims/:id/complete', claimUpload.fields([
     try {
         const claim = await Claim.findById(req.params.id);
         if (!claim) return res.status(404).json({ success: false, message: 'ไม่พบข้อมูลการเคลม' });
+        if (claim.status === 'รอการตัดสินใจจากลูกค้า') {
+            return res.status(400).json({ success: false, message: 'ไม่สามารถปิดงานเคลมได้เนื่องจากยังอยู่ในสถานะ รอการตัดสินใจจากลูกค้า กรุณาบันทึกการตัดสินใจของลูกค้าก่อน' });
+        }
 
         const { returnMethod, pickupBranch, deliveryAddressType, deliveryAddressDetail } = req.body;
 
@@ -9393,14 +9442,84 @@ app.get('/api/claims/:id', async (req, res) => {
         }
 
         const claimDoc = claims[0];
-        claimDoc.totalCost = computeClaimRepairTotalFromUpdates(claimDoc);
+        const totalRepairCost = computeClaimRepairTotalFromUpdates(claimDoc);
+        claimDoc.totalCost = totalRepairCost;
+
+        let maxLimit = 0;
+        let currentLimit = 0;
+        let usedByEarlierClaims = 0;
 
         if (claimDoc.warrantyId) {
             const w = await Warranty.findById(claimDoc.warrantyId);
             if (w) {
-                claimDoc.remainingWarranty = Math.max(0, Number(w.remainingLimit ?? 0)).toLocaleString();
+                maxLimit = Math.max(0, Number(w.maxLimit ?? 0));
+                currentLimit = Math.max(0, Number(w.currentLimit ?? 0));
+
+                const earlierClaims = await Claim.find({
+                    warrantyId: claimDoc.warrantyId,
+                    _id: { $ne: claimDoc._id },
+                    createdAt: { $lt: claimDoc.createdAt || new Date() }
+                }).lean();
+
+                let rawEarlierUsed = 0;
+                for (const ec of earlierClaims) {
+                    if (ec.status === 'ลูกค้าสละสิทธิ์เครื่อง' || ec.customerDecision === 'รับเงินชดเชย') {
+                        rawEarlierUsed += currentLimit;
+                    } else {
+                        rawEarlierUsed += computeClaimRepairTotalFromUpdates(ec);
+                    }
+                }
+                usedByEarlierClaims = Math.min(currentLimit, Math.max(0, rawEarlierUsed));
             }
         }
+
+        const coverageBeforeClaim = Math.max(0, currentLimit - usedByEarlierClaims);
+        const isForfeited = claimDoc.status === 'ลูกค้าสละสิทธิ์เครื่อง' || claimDoc.customerDecision === 'รับเงินชดเชย';
+        const coveredByWarranty = isForfeited ? coverageBeforeClaim : Math.min(coverageBeforeClaim, totalRepairCost);
+        const totalExcess = isForfeited ? 0 : Math.max(0, totalRepairCost - coverageBeforeClaim);
+
+        const updatesArr = Array.isArray(claimDoc.updates) ? claimDoc.updates : [];
+        const paidExcessFromSteps = updatesArr.reduce((sum, u) => {
+            const t = String(u?.title || '').trim();
+            if (t.startsWith('ลูกค้าตกลงรับเครื่องคืนและชำระเงินส่วนต่าง')) {
+                const c = Number(u?.cost || 0);
+                return sum + (Number.isFinite(c) && c > 0 ? c : 0);
+            }
+            return sum;
+        }, 0);
+
+        let excessTransactions = [];
+        if (claimDoc.policyNumber) {
+            excessTransactions = await FinanceTransaction.find({
+                policyNumber: claimDoc.policyNumber,
+                actionType: { $in: ['ชำระค่าซ่อมส่วนต่าง', 'คืนเงินชดเชยสละสิทธิ์เครื่อง'] }
+            }).sort({ createdAt: -1 }).lean();
+        }
+
+        const paidExcessFromTx = excessTransactions
+            .filter(tx => tx.actionType === 'ชำระค่าซ่อมส่วนต่าง')
+            .reduce((sum, tx) => sum + Math.max(0, Number(tx.netTotal || 0)), 0);
+
+        const paidExcess = Math.max(paidExcessFromSteps, paidExcessFromTx);
+        const unpaidExcess = isForfeited ? 0 : Math.max(0, totalExcess - paidExcess);
+        const netRemainingCoverage = isForfeited ? 0 : Math.max(0, coverageBeforeClaim - coveredByWarranty);
+
+        claimDoc.remainingWarranty = netRemainingCoverage.toLocaleString();
+        claimDoc.excessTransactions = excessTransactions;
+        claimDoc.financialBreakdown = {
+            maxLimit,
+            currentLimit,
+            usedByEarlierClaims,
+            coverageBeforeClaim,
+            totalRepairCost,
+            coveredByWarranty,
+            totalExcess,
+            paidExcess,
+            unpaidExcess,
+            netRemainingCoverage,
+            isForfeited,
+            refundAmount: Number(claimDoc.refundAmount || 0)
+        };
 
         res.json(claimDoc);
     } catch (err) {
