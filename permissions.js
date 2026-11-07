@@ -17,11 +17,12 @@ const defaultMenuPermissionsList = [
     { id: 'nav-staff', name: 'จัดการพนักงาน', category: 'admin', roles: ['admin'], enabled: true, order: 10 },
     { id: 'nav-finance-companies', name: 'จัดการไฟแนนซ์', category: 'admin', roles: ['admin'], enabled: true, order: 11 },
     { id: 'nav-products', name: 'จัดการสินค้า', category: 'admin', roles: ['admin'], enabled: true, order: 12 },
-    { id: 'nav-finance', name: 'การเงิน (Finance)', category: 'finance', roles: ['admin', 'approver', 'finance'], enabled: true, order: 13 },
-    { id: 'nav-deposit', name: 'การมัดจำ', category: 'finance', roles: ['admin', 'sales', 'finance'], enabled: true, order: 14 },
-    { id: 'nav-calculator', name: 'คำนวณราคา', category: 'tools', roles: ['admin', 'sales', 'approver', 'finance'], enabled: true, order: 15 },
-    { id: 'nav-permissions', name: 'จัดการสิทธิ์เมนู', category: 'admin', roles: ['admin'], enabled: true, order: 16 },
-    { id: 'nav-audit-logs', name: 'ประวัติการใช้งาน (Audit Log)', category: 'admin', roles: ['admin'], enabled: true, order: 17 }
+    { id: 'nav-package-management', name: 'จัดการแพ็กเกจ', category: 'admin', roles: ['admin'], enabled: true, order: 13 },
+    { id: 'nav-finance', name: 'การเงิน (Finance)', category: 'finance', roles: ['admin', 'approver', 'finance'], enabled: true, order: 14 },
+    { id: 'nav-deposit', name: 'การมัดจำ', category: 'finance', roles: ['admin', 'sales', 'finance'], enabled: true, order: 15 },
+    { id: 'nav-calculator', name: 'คำนวณราคา', category: 'tools', roles: ['admin', 'sales', 'approver', 'finance'], enabled: true, order: 16 },
+    { id: 'nav-permissions', name: 'จัดการสิทธิ์เมนู', category: 'admin', roles: ['admin'], enabled: true, order: 17 },
+    { id: 'nav-audit-logs', name: 'ประวัติการใช้งาน (Audit Log)', category: 'admin', roles: ['admin'], enabled: true, order: 18 }
 ];
 
 // Helper to convert list to lookup map: { [id]: { roles: [...], enabled: true, order: n } }

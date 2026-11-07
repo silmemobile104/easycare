@@ -598,6 +598,15 @@
                             </svg>
                             จัดการสินค้า
                         </a>
+                        <a href="#" id="packageManagementNavLink" data-permission="nav-package-management">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+                                <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+                                <line x1="12" y1="22.08" x2="12" y2="12"></line>
+                            </svg>
+                            จัดการแพ็กเกจ
+                        </a>
 
                         <a href="#" id="financeNavLink" data-permission="nav-finance">
                             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -1222,7 +1231,10 @@
                                     <p>ยอดเงินทอน</p>
                                 </div>
                             </div>
-                            <div class="stat-card">
+                            <div class="stat-card" id="cardTotalRevenue" onclick="openTotalRevenueDetailModal()" style="cursor: pointer; transition: transform 0.2s ease, box-shadow 0.2s ease; position: relative;"
+                                onmouseover="this.style.transform='translateY(-3px)'; this.style.boxShadow='0 8px 18px rgba(249, 115, 22, 0.22)';"
+                                onmouseout="this.style.transform='none'; this.style.boxShadow='';"
+                                title="คลิกเพื่อดูรายละเอียดรายรับรวมทั้งหมด">
                                 <div class="stat-icon orange">
                                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                         stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -1234,10 +1246,13 @@
                                 </div>
                                 <div class="stat-content">
                                     <h3 id="totalRevenueDisplay">0</h3>
-                                    <p>รายรับรวมทั้งหมด</p>
+                                    <p style="display: flex; align-items: center; gap: 4px; flex-wrap: wrap;">รายรับรวมทั้งหมด</span></p>
                                 </div>
                             </div>
-                            <div class="stat-card">
+                            <div class="stat-card" id="cardFinanceReceived" onclick="openFinanceReceivedDetailModal()" style="cursor: pointer; transition: transform 0.2s ease, box-shadow 0.2s ease; position: relative;"
+                                onmouseover="this.style.transform='translateY(-3px)'; this.style.boxShadow='0 8px 18px rgba(16, 185, 129, 0.22)';"
+                                onmouseout="this.style.transform='none'; this.style.boxShadow='';"
+                                title="คลิกเพื่อดูรายละเอียดเงินที่ได้รับจากไฟแนนซ์แล้ว">
                                 <div class="stat-icon green">
                                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                         stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -1247,7 +1262,7 @@
                                 </div>
                                 <div class="stat-content">
                                     <h3 id="totalFinanceReceivedAmountDisplay">0</h3>
-                                    <p>ยอดเงินที่ได้รับจากไฟแนนซ์แล้ว</p>
+                                    <p style="display: flex; align-items: center; gap: 4px; flex-wrap: wrap;">ยอดเงินที่ได้รับจากไฟแนนซ์แล้ว</span></p>
                                 </div>
                             </div>
                             <!-- Dynamic Finance Unpaid Stats Cards -->
@@ -2629,7 +2644,7 @@
                                 </div>
                             </div>
                             <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
-                                <button type="button" id="cancelManualExpenseBtn" style="padding: 10px 24px; border-radius: 10px; border: 1px solid #e2e8f0; background: #f8fafc; color: #475569; cursor: pointer; font-weight: 500;">ยกเลิก</button>
+                                <button type="button" id="cancelManualExpenseBtn" class="cancel-btn">ยกเลิก</button>
                                 <button type="submit" id="meSubmitBtn" class="add-btn">บันทึกรายจ่าย</button>
                             </div>
                         </form>
@@ -2677,7 +2692,7 @@
                                 </div>
                             </div>
                             <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
-                                <button type="button" id="cancelAdminExpenseBtn" style="padding: 10px 24px; border-radius: 10px; border: 1px solid #e2e8f0; background: #f8fafc; color: #475569; cursor: pointer; font-weight: 500;">ยกเลิก</button>
+                                <button type="button" id="cancelAdminExpenseBtn" class="cancel-btn">ยกเลิก</button>
                                 <button type="submit" id="aeSubmitBtn" class="add-btn">บันทึกรายจ่ายบริหาร</button>
                             </div>
                         </form>
@@ -2791,7 +2806,7 @@
                                 </div>
                             </div>
                             <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
-                                <button type="button" id="cancelDepositBtn" style="padding: 10px 24px; border-radius: 10px; border: 1px solid #e2e8f0; background: #f8fafc; color: #475569; cursor: pointer; font-weight: 500;">ยกเลิก</button>
+                                <button type="button" id="cancelDepositBtn" class="cancel-btn">ยกเลิก</button>
                                 <button type="submit" class="add-btn">บันทึกรายการมัดจำ</button>
                             </div>
                         </form>
@@ -3299,10 +3314,10 @@
                                     <option value="">เลือกร้านค้า</option>
                                 </select>
                             </div>
-                            <div style="display: flex; gap: 0.75rem; justify-content: flex-end; margin-top: 1.5rem;">
-                                <button type="button" class="filter-reset-btn"
+                            <div class="modal-footer" style="display: flex; gap: 0.75rem; justify-content: flex-end; margin-top: 1.5rem;">
+                                <button type="button" class="cancel-btn"
                                     onclick="document.getElementById('staffModal').style.display='none'">ยกเลิก</button>
-                                <button type="submit" class="add-btn">บันทึก</button>
+                                <button type="submit" class="submit-btn" style="background-color: var(--primary);">บันทึก</button>
                             </div>
                         </form>
                     </div>
@@ -3505,6 +3520,308 @@
                         </form>
                     </div>
                 </div>
+
+                <!-- Package Management Main Content (จัดการแพ็กเกจ) -->
+                <main id="packageManagementMain" class="main-content" style="display: none;">
+                    <header class="dashboard-header" style="flex-wrap: wrap; gap: 14px; margin-bottom: 18px;">
+                        <div class="header-titles">
+                            <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                                <h1 style="margin: 0;">จัดการแพ็กเกจ (หมวดดูแลเครื่อง)</h1>
+                                <span style="display: inline-flex; align-items: center; gap: 5px; background: #f0fdfa; color: #0f766e; border: 1px solid #99f6e4; padding: 4px 10px; border-radius: 999px; font-size: 0.76rem; font-weight: 700;" title="การเปลี่ยนแปลงมีผลเฉพาะการคำนวณและสัญญาใหม่ กรมธรรม์เดิมที่สร้างไปแล้วจะคงข้อมูลเดิม 100%">
+                                    🛡️ ล็อกข้อมูลสัญญาเก่าอัตโนมัติ (Snapshot Protection)
+                                </span>
+                            </div>
+                            <p style="margin-top: 4px;">ปรับเปลี่ยนราคา วงเงินคุ้มครอง เงินดาวน์ ค่างวดไฟแนนซ์ และการแบ่งจ่าย 3 งวด (มีผลเฉพาะหน้าคำนวณราคาและการเปิดสัญญาใหม่เท่านั้น)</p>
+                        </div>
+                        <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                            <button type="button" class="pkg-mgmt-header-btn btn-refresh" id="btnRefreshPackagesConfig">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+                                รีเฟรช
+                            </button>
+                            <button type="button" class="pkg-mgmt-header-btn btn-bulk" id="btnOpenBulkEditPackages">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="3" y1="15" x2="21" y2="15"></line><line x1="9" y1="9" x2="9" y2="21"></line><line x1="15" y1="9" x2="15" y2="21"></line></svg>
+                                แก้ไขทุกแพ็กเกจพร้อมกัน
+                            </button>
+                            <button type="button" class="pkg-mgmt-header-btn btn-add" id="btnAddPackageConfig">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                                เพิ่มแพ็กเกจใหม่
+                            </button>
+                        </div>
+                    </header>
+
+                    <!-- Compact Clickable KPI Summary & Filter Bar -->
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-bottom: 16px;">
+                        <div class="pkg-kpi-filter-card is-selected" data-status-tab="all" onclick="window.setPkgMgmtStatusQuickTab('all')">
+                            <div>
+                                <div style="font-size: 0.8rem; color: #64748b; font-weight: 600;">แพ็กเกจทั้งหมด</div>
+                                <div id="pkgMgmtTotalCount" style="font-size: 1.5rem; font-weight: 800; color: #0f172a; margin-top: 2px; line-height: 1.2;">10</div>
+                            </div>
+                            <div style="width: 40px; height: 40px; border-radius: 10px; background: #f1f5f9; color: #475569; display: flex; align-items: center; justify-content: center;">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
+                            </div>
+                        </div>
+                        <div class="pkg-kpi-filter-card" data-status-tab="active" onclick="window.setPkgMgmtStatusQuickTab('active')">
+                            <div>
+                                <div style="font-size: 0.8rem; color: #64748b; font-weight: 600;">เปิดการขายอยู่ (Active)</div>
+                                <div id="pkgMgmtActiveCount" style="font-size: 1.5rem; font-weight: 800; color: #0d9488; margin-top: 2px; line-height: 1.2;">10</div>
+                            </div>
+                            <div style="width: 40px; height: 40px; border-radius: 10px; background: #f0fdfa; color: #0d9488; display: flex; align-items: center; justify-content: center;">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                            </div>
+                        </div>
+                        <div class="pkg-kpi-filter-card" data-status-tab="inactive" onclick="window.setPkgMgmtStatusQuickTab('inactive')">
+                            <div>
+                                <div style="font-size: 0.8rem; color: #64748b; font-weight: 600;">ปิดการขายชั่วคราว (Inactive)</div>
+                                <div id="pkgMgmtInactiveCount" style="font-size: 1.5rem; font-weight: 800; color: #64748b; margin-top: 2px; line-height: 1.2;">0</div>
+                            </div>
+                            <div style="width: 40px; height: 40px; border-radius: 10px; background: #f8fafc; color: #94a3b8; display: flex; align-items: center; justify-content: center;">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="10" y1="15" x2="10" y2="9"></line><line x1="14" y1="15" x2="14" y2="9"></line></svg>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Filter & Sort Bar -->
+                    <div class="advanced-filter-bar" style="margin-bottom: 18px; padding: 12px 16px;">
+                        <div class="filter-bar-row" style="display: flex; flex-wrap: wrap; gap: 12px; align-items: center;">
+                            <div class="search-container" style="flex: 1; min-width: 240px;">
+                                <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <circle cx="11" cy="11" r="8"></circle>
+                                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                                </svg>
+                                <input type="text" id="pkgMgmtSearchInput" placeholder="ค้นหาชื่อแพ็กเกจ (เช่น Package 10), ราคา, หรือวงเงิน...">
+                            </div>
+                            <div class="filter-group">
+                                <label>สถานะ:</label>
+                                <select id="pkgMgmtStatusFilter" class="filter-select">
+                                    <option value="all">ทั้งหมด</option>
+                                    <option value="active">เปิดการขาย (Active)</option>
+                                    <option value="inactive">ปิดการขาย (Inactive)</option>
+                                </select>
+                            </div>
+                            <div class="filter-group">
+                                <label>เรียงลำดับ:</label>
+                                <select id="pkgMgmtSortSelect" class="filter-select">
+                                    <option value="desc" selected>เรียงจากวงเงินมาก → น้อย (Package 10 → 1)</option>
+                                    <option value="asc">เรียงจากวงเงินน้อย → มาก (Package 1 → 10)</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Package Cards Grid -->
+                    <div id="pkgMgmtGrid">
+                        <!-- Cards populated by JS -->
+                    </div>
+
+                    <!-- Add / Edit Single Package Configuration Modal -->
+                    <div id="packageConfigModal" class="modal" style="display: none; z-index: 9999;">
+                        <div class="modal-content" style="max-width: 660px; width: 95%; border-radius: 18px; padding: 26px; max-height: 92vh; overflow-y: auto; background: #ffffff;">
+                            <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 1px solid #f1f5f9; padding-bottom: 14px; margin-bottom: 18px;">
+                                <div>
+                                    <h2 id="pkgConfigModalTitle" style="margin: 0; font-size: 1.25rem; color: #0f172a; font-weight: 800;">แก้ไขข้อมูลแพ็กเกจ</h2>
+                                    <p style="margin: 4px 0 0 0; font-size: 0.83rem; color: #64748b;">การเปลี่ยนแปลงจะมีผลเฉพาะการคำนวณราคาและการเปิดสัญญาใหม่เท่านั้น</p>
+                                </div>
+                                <button type="button" id="closePackageConfigModal" style="background: #f8fafc; border: 1px solid #e2e8f0; width: 34px; height: 34px; border-radius: 9px; font-size: 1.3rem; color: #64748b; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; line-height: 1;">&times;</button>
+                            </div>
+
+                            <form id="packageConfigForm">
+                                <input type="hidden" id="pkgEditId">
+
+                                <!-- Row 1: Package Name & Active Status -->
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 16px;">
+                                    <div class="form-group" style="margin-bottom: 0;">
+                                        <label style="font-size: 0.84rem; font-weight: 700; color: #334155;">ชื่อแพ็กเกจ <span style="color:#ef4444">*</span></label>
+                                        <input type="text" id="pkgEditTierName" required placeholder="เช่น Package 11" style="font-weight: 700; color: #0f172a;">
+                                    </div>
+                                    <div class="form-group" style="margin-bottom: 0;">
+                                        <label style="font-size: 0.84rem; font-weight: 700; color: #334155;">สถานะการขาย</label>
+                                        <select id="pkgEditIsActive" style="font-weight: 600;">
+                                            <option value="true">🟢 เปิดการขาย (Active)</option>
+                                            <option value="false">⏸️ ปิดการขายชั่วคราว (Inactive)</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <!-- Section 1: Price & Coverage Range -->
+                                <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; margin-bottom: 16px;">
+                                    <h3 style="margin: 0 0 12px 0; font-size: 0.94rem; color: #0f172a; font-weight: 700; display: flex; align-items: center; gap: 8px;">
+                                        <span style="width: 24px; height: 24px; border-radius: 6px; background: #ccfbf1; color: #0f766e; display: inline-flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 800;">1</span>
+                                        ราคาแพ็กเกจและช่วงวงเงินคุ้มครอง (70%)
+                                    </h3>
+                                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;">
+                                        <div class="form-group" style="margin-bottom: 0;">
+                                            <label style="font-size: 0.82rem; font-weight: 600; color: #475569;">ราคาแพ็กเกจ (บาท) <span style="color:#ef4444">*</span></label>
+                                            <input type="number" id="pkgEditPrice" min="1" required placeholder="เช่น 699" style="font-weight: 700; color: #0d9488; font-size: 1rem; background: #ffffff;">
+                                        </div>
+                                        <div class="form-group" style="margin-bottom: 0;">
+                                            <label style="font-size: 0.82rem; font-weight: 600; color: #475569;">ช่วง 70% ขั้นต่ำ (บาท) <span style="color:#ef4444">*</span></label>
+                                            <input type="number" id="pkgEditMinVal" min="0" required placeholder="เช่น 0" style="background: #ffffff;">
+                                        </div>
+                                        <div class="form-group" style="margin-bottom: 0;">
+                                            <label style="font-size: 0.82rem; font-weight: 600; color: #475569;">วงเงินที่จะได้รับ (บาท) <span style="color:#ef4444">*</span></label>
+                                            <input type="number" id="pkgEditMaxVal" min="1" required placeholder="เช่น 5000" style="font-weight: 700; color: #0f172a; background: #ffffff;">
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Section 2: 3-Installment Split (Auto + Editable) -->
+                                <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; margin-bottom: 16px;">
+                                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 8px;">
+                                        <h3 style="margin: 0; font-size: 0.94rem; color: #0f172a; font-weight: 700; display: flex; align-items: center; gap: 8px;">
+                                            <span style="width: 24px; height: 24px; border-radius: 6px; background: #dcfce7; color: #15803d; display: inline-flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 800;">2</span>
+                                            ชำระแบบแบ่งจ่าย 3 งวด (บาท/งวด)
+                                        </h3>
+                                        <button type="button" id="btnAutoCalcThreeInst" style="background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; border-radius: 7px; padding: 4px 10px; font-size: 0.78rem; font-weight: 700; cursor: pointer;">
+                                            คำนวณแบ่ง 3 งวดอัตโนมัติ
+                                        </button>
+                                    </div>
+                                    <p style="margin: 0 0 10px 0; font-size: 0.79rem; color: #64748b;">
+                                        คำนวณอัตโนมัติเมื่อเปลี่ยนราคาแพ็กเกจ และสามารถพิมพ์แก้ไขตัวเลขแต่ละงวดแยกอิสระได้
+                                    </p>
+                                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;">
+                                        <div class="form-group" style="margin-bottom: 0;">
+                                            <label style="font-size: 0.8rem; font-weight: 600; color: #475569;">งวดที่ 1 (คุ้มครอง 10%)</label>
+                                            <input type="number" id="pkgEditInst1" min="0" required style="font-weight: 700; color: #15803d; background: #fff;">
+                                        </div>
+                                        <div class="form-group" style="margin-bottom: 0;">
+                                            <label style="font-size: 0.8rem; font-weight: 600; color: #475569;">งวดที่ 2 (คุ้มครอง 30%)</label>
+                                            <input type="number" id="pkgEditInst2" min="0" required style="font-weight: 700; color: #15803d; background: #fff;">
+                                        </div>
+                                        <div class="form-group" style="margin-bottom: 0;">
+                                            <label style="font-size: 0.8rem; font-weight: 600; color: #475569;">งวดที่ 3 (คุ้มครอง 100%)</label>
+                                            <input type="number" id="pkgEditInst3" min="0" required style="font-weight: 700; color: #15803d; background: #fff;">
+                                        </div>
+                                    </div>
+                                    <div id="pkgEditInstSumText" style="margin-top: 10px; font-size: 0.82rem; font-weight: 600; color: #15803d;">
+                                        รวม 3 งวด: 0 บาท
+                                    </div>
+                                </div>
+
+                                <!-- Section 3: Finance Program -->
+                                <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; margin-bottom: 18px;">
+                                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 12px;">
+                                        <h3 style="margin: 0; font-size: 0.94rem; color: #0f172a; font-weight: 700; display: flex; align-items: center; gap: 8px;">
+                                            <span style="width: 24px; height: 24px; border-radius: 6px; background: #e0f2fe; color: #0369a1; display: inline-flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 800;">3</span>
+                                            โปรแกรมผ่อนชำระไฟแนนซ์ (บาท/งวด)
+                                        </h3>
+                                        <div style="display: flex; align-items: center; gap: 8px;">
+                                            <label for="pkgEditDownPayment" style="font-size: 0.82rem; font-weight: 700; color: #475569; margin: 0;">เงินดาวน์ (฿):</label>
+                                            <input type="number" id="pkgEditDownPayment" min="0" value="0" required style="width: 100px; padding: 5px 10px; font-weight: 700; color: #0f766e; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px;">
+                                        </div>
+                                    </div>
+                                    <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px;">
+                                        <div class="form-group" style="margin-bottom: 0;">
+                                            <label style="font-size: 0.78rem; font-weight: 600; color: #64748b;">6 งวด</label>
+                                            <input type="number" id="pkgEditFin6" min="0" required style="font-weight: 700; background: #ffffff;">
+                                        </div>
+                                        <div class="form-group" style="margin-bottom: 0;">
+                                            <label style="font-size: 0.78rem; font-weight: 600; color: #64748b;">10 งวด</label>
+                                            <input type="number" id="pkgEditFin10" min="0" required style="font-weight: 700; background: #ffffff;">
+                                        </div>
+                                        <div class="form-group" style="margin-bottom: 0;">
+                                            <label style="font-size: 0.78rem; font-weight: 600; color: #64748b;">12 งวด</label>
+                                            <input type="number" id="pkgEditFin12" min="0" required style="font-weight: 700; background: #ffffff;">
+                                        </div>
+                                        <div class="form-group" style="margin-bottom: 0;">
+                                            <label style="font-size: 0.78rem; font-weight: 600; color: #64748b;">15 งวด</label>
+                                            <input type="number" id="pkgEditFin15" min="0" required style="font-weight: 700; background: #ffffff;">
+                                        </div>
+                                        <div class="form-group" style="margin-bottom: 0;">
+                                            <label style="font-size: 0.78rem; font-weight: 600; color: #64748b;">18 งวด</label>
+                                            <input type="number" id="pkgEditFin18" min="0" required style="font-weight: 700; background: #ffffff;">
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div style="display: flex; justify-content: flex-end; gap: 10px; border-top: 1px solid #f1f5f9; padding-top: 16px;">
+                                    <button type="button" class="cancel-btn" id="cancelPackageConfigModal">ยกเลิก</button>
+                                    <button type="submit" id="pkgConfigSubmitBtn" class="submit-btn" style="background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%); font-weight: 700; padding: 10px 24px;">บันทึกการเปลี่ยนแปลง</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- Full-Screen Bulk Edit All Packages Modal (แก้ไขทุกแพ็กเกจพร้อมกันในครั้งเดียว - Clean Light Theme) -->
+                    <div id="bulkPackageConfigModal" class="modal" style="display: none; z-index: 10000; padding: 16px;">
+                        <div class="modal-content" style="max-width: 98vw; width: 1580px; border-radius: 18px; padding: 24px; max-height: 94vh; display: flex; flex-direction: column; overflow: hidden; background: #ffffff; box-shadow: 0 20px 50px rgba(15, 23, 42, 0.22);">
+                            <!-- Modal Header -->
+                            <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; border-bottom: 1px solid #f1f5f9; padding-bottom: 16px; margin-bottom: 14px; flex-shrink: 0;">
+                                <div>
+                                    <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                                        <span style="background: #f0fdfa; color: #0f766e; border: 1px solid #99f6e4; padding: 4px 10px; border-radius: 8px; font-weight: 700; font-size: 0.78rem;">ตารางแก้ไขทั้งหมด</span>
+                                        <h2 style="margin: 0; font-size: 1.28rem; color: #0f172a; font-weight: 800;">แก้ไขข้อมูลทุกแพ็กเกจในครั้งเดียว</h2>
+                                    </div>
+                                    <p style="margin: 5px 0 0 0; font-size: 0.84rem; color: #64748b;">
+                                        คลิกพิมพ์แก้ไขตัวเลขได้ทุกช่อง เมื่อเปลี่ยน <strong>ราคาแพ็กเกจ</strong> ระบบจะคำนวณแบ่ง 3 งวดให้อัตโนมัติทันที และสามารถพิมพ์แก้แยกอิสระได้
+                                    </p>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                                    <button type="button" id="btnBulkAutoCalcAll3Inst" style="background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; border-radius: 9px; padding: 7px 13px; font-size: 0.82rem; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">
+                                        คำนวณแบ่ง 3 งวดอัตโนมัติทุกแพ็กเกจ
+                                    </button>
+                                    <button type="button" id="btnBulkResetOriginal" style="background: #f8fafc; color: #475569; border: 1px solid #e2e8f0; border-radius: 9px; padding: 7px 13px; font-size: 0.82rem; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">
+                                        คืนค่าก่อนแก้
+                                    </button>
+                                    <button type="button" id="closeBulkPackageConfigModal" style="background: #f8fafc; border: 1px solid #e2e8f0; width: 34px; height: 34px; border-radius: 9px; font-size: 1.35rem; color: #64748b; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; line-height: 1;">&times;</button>
+                                </div>
+                            </div>
+
+                            <!-- Scrollable Matrix Table Container (Clean Light Header) -->
+                            <div style="flex: 1; overflow: auto; border: 1px solid #e2e8f0; border-radius: 12px; background: #ffffff;">
+                                <table class="bulk-pkg-table" style="width: 100%; border-collapse: separate; border-spacing: 0; min-width: 1380px; font-size: 0.85rem;">
+                                    <thead style="position: sticky; top: 0; z-index: 20;">
+                                        <tr>
+                                            <th rowspan="2" style="padding: 10px 8px; text-align: center; border-bottom: 2px solid #cbd5e1; border-right: 1px solid #e2e8f0; width: 96px; position: sticky; left: 0; background: #f8fafc; color: #334155; font-weight: 700; z-index: 25;">สถานะ</th>
+                                            <th rowspan="2" style="padding: 10px 12px; text-align: left; border-bottom: 2px solid #cbd5e1; border-right: 2px solid #cbd5e1; min-width: 125px; position: sticky; left: 96px; background: #f8fafc; color: #0f172a; font-weight: 800; z-index: 25;">ชื่อแพ็กเกจ</th>
+                                            <th colspan="3" style="padding: 8px 10px; text-align: center; background: #f0fdfa; color: #0f766e; font-weight: 700; border-bottom: 1px solid #ccfbf1; border-right: 2px solid #cbd5e1;">ราคาแพ็กเกจ &amp; ช่วงวงเงินคุ้มครอง (70%)</th>
+                                            <th colspan="4" style="padding: 8px 10px; text-align: center; background: #f0fdf4; color: #166534; font-weight: 700; border-bottom: 1px solid #dcfce7; border-right: 2px solid #cbd5e1;">ชำระแบบแบ่งจ่าย 3 งวด (บาท/งวด)</th>
+                                            <th colspan="6" style="padding: 8px 10px; text-align: center; background: #f0f9ff; color: #0369a1; font-weight: 700; border-bottom: 1px solid #e0f2fe;">โปรแกรมผ่อนชำระไฟแนนซ์ (เงินดาวน์ + บาท/งวด)</th>
+                                        </tr>
+                                        <tr style="font-size: 0.78rem;">
+                                            <!-- Price & Coverage -->
+                                            <th style="padding: 7px 6px; text-align: center; border-bottom: 2px solid #cbd5e1; border-right: 1px solid #e2e8f0; background: #f0fdfa; color: #0f766e; min-width: 105px;">ราคาแพ็กเกจ (฿)</th>
+                                            <th style="padding: 7px 6px; text-align: center; border-bottom: 2px solid #cbd5e1; border-right: 1px solid #e2e8f0; background: #f0fdfa; color: #475569; min-width: 105px;">ช่วง 70% ขั้นต่ำ</th>
+                                            <th style="padding: 7px 6px; text-align: center; border-bottom: 2px solid #cbd5e1; border-right: 2px solid #cbd5e1; background: #f0fdfa; color: #0f172a; min-width: 112px;">วงเงินสูงสุด (฿)</th>
+                                            <!-- 3 Installments -->
+                                            <th style="padding: 7px 6px; text-align: center; border-bottom: 2px solid #cbd5e1; border-right: 1px solid #e2e8f0; background: #f0fdf4; color: #166534; min-width: 90px;">งวดที่ 1</th>
+                                            <th style="padding: 7px 6px; text-align: center; border-bottom: 2px solid #cbd5e1; border-right: 1px solid #e2e8f0; background: #f0fdf4; color: #166534; min-width: 90px;">งวดที่ 2</th>
+                                            <th style="padding: 7px 6px; text-align: center; border-bottom: 2px solid #cbd5e1; border-right: 1px solid #e2e8f0; background: #f0fdf4; color: #166534; min-width: 90px;">งวดที่ 3</th>
+                                            <th style="padding: 7px 6px; text-align: center; border-bottom: 2px solid #cbd5e1; border-right: 2px solid #cbd5e1; background: #f0fdf4; color: #166534; min-width: 96px;">รวม 3 งวด</th>
+                                            <!-- Finance -->
+                                            <th style="padding: 7px 6px; text-align: center; border-bottom: 2px solid #cbd5e1; border-right: 1px solid #e2e8f0; background: #f0f9ff; color: #0f766e; min-width: 88px;">เงินดาวน์ (฿)</th>
+                                            <th style="padding: 7px 6px; text-align: center; border-bottom: 2px solid #cbd5e1; border-right: 1px solid #e2e8f0; background: #f0f9ff; color: #334155; min-width: 84px;">6 งวด</th>
+                                            <th style="padding: 7px 6px; text-align: center; border-bottom: 2px solid #cbd5e1; border-right: 1px solid #e2e8f0; background: #f0f9ff; color: #334155; min-width: 84px;">10 งวด</th>
+                                            <th style="padding: 7px 6px; text-align: center; border-bottom: 2px solid #cbd5e1; border-right: 1px solid #e2e8f0; background: #f0f9ff; color: #334155; min-width: 84px;">12 งวด</th>
+                                            <th style="padding: 7px 6px; text-align: center; border-bottom: 2px solid #cbd5e1; border-right: 1px solid #e2e8f0; background: #f0f9ff; color: #334155; min-width: 84px;">15 งวด</th>
+                                            <th style="padding: 7px 6px; text-align: center; border-bottom: 2px solid #cbd5e1; background: #f0f9ff; color: #334155; min-width: 84px;">18 งวด</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="bulkPkgTableBody">
+                                        <!-- Rows populated dynamically by JS -->
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <!-- Modal Footer -->
+                            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; border-top: 1px solid #f1f5f9; padding-top: 16px; margin-top: 14px; flex-shrink: 0;">
+                                <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+                                    <span id="bulkPkgModifiedCounter" style="font-size: 0.85rem; font-weight: 700; color: #64748b; background: #f8fafc; border: 1px solid #e2e8f0; padding: 6px 14px; border-radius: 999px;">
+                                        ยังไม่มีรายการที่ถูกแก้ไข
+                                    </span>
+                                    <span style="font-size: 0.8rem; color: #94a3b8;">
+                                        กดปุ่ม <strong>Tab</strong> บนคีย์บอร์ดเพื่อเลื่อนแก้ไขช่องถัดไปอย่างรวดเร็ว
+                                    </span>
+                                </div>
+                                <div style="display: flex; gap: 10px; align-items: center;">
+                                    <button type="button" class="cancel-btn" id="cancelBulkPackageConfigModal" style="padding: 10px 20px;">ยกเลิก</button>
+                                    <button type="button" id="btnSaveBulkPackagesConfig" class="submit-btn" style="background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%); color: #fff; font-weight: 700; padding: 10px 24px; border-radius: 10px; border: none; cursor: pointer; box-shadow: 0 4px 12px rgba(13, 148, 136, 0.24);">
+                                        บันทึกทุกแพ็กเกจพร้อมกัน
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </main>
 
                 <!-- Menu Permissions Main Content -->
                 <main id="permissionsMain" class="main-content" style="display: none;">
@@ -5381,6 +5698,318 @@
                     แสดง <span id="fpdShowingCount" style="font-weight: 700; color: #1e293b;">0</span> รายการ | ยอดรวม <span id="fpdShowingAmount" style="font-weight: 700; color: #0284c7;">0</span> ฿
                 </div>
                 <button type="button" id="closeFinanceProviderDetailModalBtn" class="submit-btn" style="background: #64748b; color: white; padding: 7px 20px; font-size: 0.88rem; border-radius: 8px; cursor: pointer; border: none;">
+                    ปิดหน้าต่าง
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 1. Finance Received Detail Modal (ยอดเงินที่ได้รับจากไฟแนนซ์แล้ว) -->
+    <div id="financeReceivedDetailModal" class="modal" style="display: none; z-index: 2200;">
+        <div class="modal-content" style="max-width: 1160px; width: 95%; max-height: 90vh; overflow-y: auto; border-radius: 16px; padding: 22px;">
+            <!-- Header -->
+            <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0; padding-bottom: 14px; margin-bottom: 16px;">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <div style="width: 44px; height: 44px; border-radius: 10px; background: #ecfdf5; color: #059669; display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0; box-shadow: 0 3px 8px rgba(16, 185, 129, 0.18);">
+                        <i class="fas fa-hand-holding-usd"></i>
+                    </div>
+                    <div>
+                        <h2 style="font-size: 1.35rem; font-weight: 700; color: #1e293b; margin: 0; display: flex; align-items: center; gap: 8px;">
+                            รายละเอียด ยอดเงินที่ได้รับจากไฟแนนซ์แล้ว
+                        </h2>
+                        <p style="margin: 3px 0 0 0; font-size: 0.82rem; color: #64748b;">
+                            รายการธุรกรรมที่ผ่านการรับชำระเงินจากบริษัทจัดไฟแนนซ์เรียบร้อยแล้ว (แยกเงินสด EasyCare และเงินโอน Silmin)
+                        </p>
+                    </div>
+                </div>
+                <button type="button" id="closeFinanceReceivedDetailModal" class="modal-close-btn" style="background: none; border: none; font-size: 1.8rem; cursor: pointer; color: #94a3b8; line-height: 1; padding: 0 5px;" title="ปิด">&times;</button>
+            </div>
+
+            <!-- Body -->
+            <div class="modal-body">
+                <!-- KPI Summary Cards Row -->
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-bottom: 16px;">
+                    <div class="stat-card" style="padding: 14px; border-radius: 10px; background: #f0fdf4; border: 1.5px solid #a7f3d0; display: flex; align-items: center; gap: 12px;">
+                        <div style="width: 42px; height: 42px; border-radius: 8px; background: #d1fae5; color: #059669; display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0;">
+                            <i class="fas fa-check-circle"></i>
+                        </div>
+                        <div>
+                            <div style="font-size: 0.78rem; color: #065f46; font-weight: 600;">ยอดเงินที่ได้รับแล้วรวมทั้งหมด</div>
+                            <div id="frdTotalReceivedAmount" style="font-size: 1.25rem; font-weight: 700; color: #059669; font-family: monospace, var(--font-family);">0 ฿</div>
+                            <div id="frdTotalReceivedCount" style="font-size: 0.72rem; color: #047857; font-weight: 600;">0 รายการ</div>
+                        </div>
+                    </div>
+                    <div class="stat-card" style="padding: 14px; border-radius: 10px; background: #ffffff; border: 1.5px solid #bbf7d0; display: flex; align-items: center; gap: 12px;">
+                        <div style="width: 42px; height: 42px; border-radius: 8px; background: #ecfdf5; color: #15803d; display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0;">
+                            <i class="fas fa-money-bill-wave"></i>
+                        </div>
+                        <div>
+                            <div style="font-size: 0.78rem; color: #166534; font-weight: 600;">รับเป็นเงินสด EasyCare (เงินสดยืม)</div>
+                            <div id="frdCashReceivedAmount" style="font-size: 1.25rem; font-weight: 700; color: #15803d; font-family: monospace, var(--font-family);">0 ฿</div>
+                            <div id="frdCashReceivedCount" style="font-size: 0.72rem; color: #166534;">0 รายการ</div>
+                        </div>
+                    </div>
+                    <div class="stat-card" style="padding: 14px; border-radius: 10px; background: #f0f9ff; border: 1.5px solid #bae6fd; display: flex; align-items: center; gap: 12px;">
+                        <div style="width: 42px; height: 42px; border-radius: 8px; background: #e0f2fe; color: #0284c7; display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0;">
+                            <i class="fas fa-university"></i>
+                        </div>
+                        <div>
+                            <div style="font-size: 0.78rem; color: #0369a1; font-weight: 600;">รับโอนชำระหนี้เข้า Silmin (เงินโอน)</div>
+                            <div id="frdSilminReceivedAmount" style="font-size: 1.25rem; font-weight: 700; color: #0284c7; font-family: monospace, var(--font-family);">0 ฿</div>
+                            <div id="frdSilminReceivedCount" style="font-size: 0.72rem; color: #0284c7;">0 รายการ</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tabs & Controls Row -->
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 10px; background: #f8fafc; padding: 10px 14px; border-radius: 10px; border: 1px solid #e2e8f0;">
+                    <!-- Channel Filter Tabs -->
+                    <div style="display: flex; gap: 6px; flex-wrap: wrap;" id="frdTabsContainer">
+                        <button type="button" class="frd-status-tab" data-channel="all" style="padding: 6px 14px; font-size: 0.82rem; font-weight: 700; border-radius: 6px; border: 1px solid #86efac; background: #d1fae5; color: #059669; cursor: pointer; transition: all 0.15s;">
+                            ทั้งหมด (<span id="frdTabAllBadge">0</span>)
+                        </button>
+                        <button type="button" class="frd-status-tab" data-channel="cash" style="padding: 6px 14px; font-size: 0.82rem; font-weight: 600; border-radius: 6px; border: 1px solid #cbd5e1; background: #ffffff; color: #475569; cursor: pointer; transition: all 0.15s;">
+                            💵 รับเงินสด EasyCare (<span id="frdTabCashBadge">0</span>)
+                        </button>
+                        <button type="button" class="frd-status-tab" data-channel="silmin" style="padding: 6px 14px; font-size: 0.82rem; font-weight: 600; border-radius: 6px; border: 1px solid #cbd5e1; background: #ffffff; color: #475569; cursor: pointer; transition: all 0.15s;">
+                            🏦 รับโอน Silmin (<span id="frdTabSilminBadge">0</span>)
+                        </button>
+                    </div>
+
+                    <!-- Search & Filter Controls -->
+                    <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                        <select id="frdProviderFilter" style="height: 34px; padding: 0 10px; font-size: 0.82rem; border: 1px solid #cbd5e1; border-radius: 6px; background: #ffffff; outline: none; color: #334155; font-weight: 500;">
+                            <option value="all">ทุกบริษัทไฟแนนซ์</option>
+                        </select>
+                        <div style="position: relative;">
+                            <input type="text" id="frdSearchInput" placeholder="ค้นหาชื่อลูกค้า, เลขสัญญา, สาขา..." style="height: 34px; padding: 0 10px 0 32px; font-size: 0.84rem; border: 1px solid #cbd5e1; border-radius: 6px; width: 220px; background: #ffffff; outline: none;">
+                            <i class="fas fa-search" style="position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 0.78rem;"></i>
+                        </div>
+                        <button type="button" id="btnExportFrdExcel" style="height: 34px; padding: 0 12px; font-size: 0.82rem; font-weight: 600; color: #047857; background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: all 0.15s;" title="ส่งออกรายการเงินที่ได้รับจากไฟแนนซ์เป็น Excel">
+                            <i class="fas fa-file-excel"></i> Export Excel
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Date Range Filter Bar -->
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 14px; background: #ffffff; padding: 8px 14px; border-radius: 10px; border: 1px solid #e2e8f0; font-size: 0.84rem;">
+                    <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                        <span style="font-weight: 600; color: #475569; display: inline-flex; align-items: center; gap: 6px;">
+                            <i class="far fa-calendar-alt" style="color: #059669;"></i> ช่วงวันที่ทำรายการ:
+                        </span>
+                        <div style="display: flex; align-items: center; gap: 6px;">
+                            <input type="date" id="frdStartDate" style="height: 32px; padding: 0 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.82rem; background: #f8fafc; color: #1e293b; outline: none;">
+                            <span style="color: #64748b;">ถึง</span>
+                            <input type="date" id="frdEndDate" style="height: 32px; padding: 0 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.82rem; background: #f8fafc; color: #1e293b; outline: none;">
+                        </div>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                        <span style="font-size: 0.78rem; color: #94a3b8; font-weight: 600;">ช่วงเวลาด่วน:</span>
+                        <button type="button" id="btnFrdDateToday" style="padding: 3px 9px; font-size: 0.78rem; font-weight: 600; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 5px; cursor: pointer; color: #334155; transition: all 0.15s;" onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='#f8fafc'">วันนี้</button>
+                        <button type="button" id="btnFrdDateThisMonth" style="padding: 3px 9px; font-size: 0.78rem; font-weight: 600; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 5px; cursor: pointer; color: #334155; transition: all 0.15s;" onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='#f8fafc'">เดือนนี้</button>
+                        <button type="button" id="btnFrdDateClear" style="padding: 3px 9px; font-size: 0.78rem; font-weight: 600; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 5px; cursor: pointer; color: #dc2626; transition: all 0.15s;" onmouseover="this.style.background='#fef2f2'" onmouseout="this.style.background='#ffffff'">ล้างวันที่</button>
+                    </div>
+                </div>
+
+                <!-- Table Container -->
+                <div class="table-responsive" style="max-height: 480px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 10px;">
+                    <table class="custom-table" style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.86rem;">
+                        <thead style="position: sticky; top: 0; background: #f8fafc; z-index: 2; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
+                            <tr>
+                                <th style="padding: 10px; width: 45px; text-align: center;">#</th>
+                                <th style="padding: 10px;">วันที่ทำรายการ</th>
+                                <th style="padding: 10px;">วันที่รับเงินจริง</th>
+                                <th style="padding: 10px;">เลขที่สัญญา</th>
+                                <th style="padding: 10px;">ชื่อลูกค้า</th>
+                                <th style="padding: 10px;">บริษัทไฟแนนซ์</th>
+                                <th style="padding: 10px;">ร้านค้า / สาขา</th>
+                                <th style="padding: 10px; text-align: center;">รูปแบบการรับเงิน</th>
+                                <th style="padding: 10px; text-align: right;">ยอดเงินไฟแนนซ์</th>
+                                <th style="padding: 10px;">ผู้บันทึก</th>
+                                <th style="padding: 10px; text-align: center;">จัดการ</th>
+                                <th style="padding: 10px; text-align: center;">หลักฐาน</th>
+                            </tr>
+                        </thead>
+                        <tbody id="frdTableBody">
+                            <!-- Injected by script.js -->
+                        </tbody>
+                    </table>
+                </div>
+                <div id="frdEmptyState" class="empty-state" style="display: none; padding: 35px 20px; text-align: center;">
+                    <i class="fas fa-search" style="font-size: 2.2rem; color: #cbd5e1; margin-bottom: 10px; display: block;"></i>
+                    <p style="color: #64748b; font-size: 0.95rem; margin: 0;">ไม่พบรายการเงินที่ได้รับจากไฟแนนซ์ตามเงื่อนไขที่เลือก</p>
+                </div>
+            </div>
+
+            <!-- Footer -->
+            <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center; margin-top: 16px; padding-top: 14px; border-top: 1px solid #e2e8f0;">
+                <div style="font-size: 0.85rem; color: #64748b;">
+                    แสดง <span id="frdShowingCount" style="font-weight: 700; color: #1e293b;">0</span> รายการ | ยอดรวม <span id="frdShowingAmount" style="font-weight: 700; color: #059669; font-family: monospace, var(--font-family);">0</span> ฿
+                </div>
+                <button type="button" id="closeFinanceReceivedDetailModalBtn" class="submit-btn" style="background: #64748b; color: white; padding: 7px 20px; font-size: 0.88rem; border-radius: 8px; cursor: pointer; border: none;">
+                    ปิดหน้าต่าง
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. Total Revenue Detail Modal (รายรับรวมทั้งหมด) -->
+    <div id="totalRevenueDetailModal" class="modal" style="display: none; z-index: 2200;">
+        <div class="modal-content" style="max-width: 1200px; width: 95%; max-height: 90vh; overflow-y: auto; border-radius: 16px; padding: 22px;">
+            <!-- Header -->
+            <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0; padding-bottom: 14px; margin-bottom: 16px;">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <div style="width: 44px; height: 44px; border-radius: 10px; background: #fff7ed; color: #ea580c; display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0; box-shadow: 0 3px 8px rgba(234, 88, 12, 0.18);">
+                        <i class="fas fa-coins"></i>
+                    </div>
+                    <div>
+                        <h2 style="font-size: 1.35rem; font-weight: 700; color: #1e293b; margin: 0; display: flex; align-items: center; gap: 8px;">
+                            รายละเอียด รายรับรวมทั้งหมด (Total Revenue)
+                        </h2>
+                        <p style="margin: 3px 0 0 0; font-size: 0.82rem; color: #64748b;">
+                            แจกแจงที่มาของรายรับทุกช่องทาง ทั้งเงินสด เงินโอน และยอดจัดไฟแนนซ์
+                        </p>
+                    </div>
+                </div>
+                <button type="button" id="closeTotalRevenueDetailModal" class="modal-close-btn" style="background: none; border: none; font-size: 1.8rem; cursor: pointer; color: #94a3b8; line-height: 1; padding: 0 5px;" title="ปิด">&times;</button>
+            </div>
+
+            <!-- Body -->
+            <div class="modal-body">
+                <!-- KPI Summary Cards Row -->
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; margin-bottom: 16px;">
+                    <div class="stat-card" style="padding: 14px; border-radius: 10px; background: #fff7ed; border: 1.5px solid #fed7aa; display: flex; align-items: center; gap: 12px;">
+                        <div style="width: 42px; height: 42px; border-radius: 8px; background: #ffedd5; color: #ea580c; display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0;">
+                            <i class="fas fa-receipt"></i>
+                        </div>
+                        <div>
+                            <div style="font-size: 0.78rem; color: #9a3412; font-weight: 600;">รายรับรวมทั้งหมด</div>
+                            <div id="trdTotalRevenueAmount" style="font-size: 1.25rem; font-weight: 700; color: #ea580c; font-family: monospace, var(--font-family);">0 ฿</div>
+                            <div id="trdTotalRevenueCount" style="font-size: 0.72rem; color: #c2410c; font-weight: 600;">0 รายการ</div>
+                        </div>
+                    </div>
+                    <div class="stat-card" style="padding: 14px; border-radius: 10px; background: #ecfdf5; border: 1.5px solid #a7f3d0; display: flex; align-items: center; gap: 12px;">
+                        <div style="width: 42px; height: 42px; border-radius: 8px; background: #d1fae5; color: #059669; display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0;">
+                            <i class="fas fa-money-bill-wave"></i>
+                        </div>
+                        <div>
+                            <div style="font-size: 0.78rem; color: #065f46; font-weight: 600;">ยอดเงินสดสุทธิ (Net Cash)</div>
+                            <div id="trdNetCashAmount" style="font-size: 1.25rem; font-weight: 700; color: #059669; font-family: monospace, var(--font-family);">0 ฿</div>
+                            <div id="trdCashBreakdownText" style="font-size: 0.72rem; color: #64748b;">สด 0 ฿ | ทอน 0 ฿</div>
+                        </div>
+                    </div>
+                    <div class="stat-card" style="padding: 14px; border-radius: 10px; background: #eef2ff; border: 1.5px solid #c7d2fe; display: flex; align-items: center; gap: 12px;">
+                        <div style="width: 42px; height: 42px; border-radius: 8px; background: #e0e7ff; color: #4f46e5; display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0;">
+                            <i class="fas fa-qrcode"></i>
+                        </div>
+                        <div>
+                            <div style="font-size: 0.78rem; color: #3730a3; font-weight: 600;">ยอดเงินโอน (Bank Transfer)</div>
+                            <div id="trdTransferAmount" style="font-size: 1.25rem; font-weight: 700; color: #4f46e5; font-family: monospace, var(--font-family);">0 ฿</div>
+                            <div id="trdTransferCount" style="font-size: 0.72rem; color: #4338ca;">0 รายการ</div>
+                        </div>
+                    </div>
+                    <div class="stat-card" style="padding: 14px; border-radius: 10px; background: #f0f9ff; border: 1.5px solid #bae6fd; display: flex; align-items: center; gap: 12px;">
+                        <div style="width: 42px; height: 42px; border-radius: 8px; background: #e0f2fe; color: #0284c7; display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0;">
+                            <i class="fas fa-building"></i>
+                        </div>
+                        <div>
+                            <div style="font-size: 0.78rem; color: #075985; font-weight: 600;">ยอดผ่านไฟแนนซ์ (Financed)</div>
+                            <div id="trdFinancedAmount" style="font-size: 1.25rem; font-weight: 700; color: #0284c7; font-family: monospace, var(--font-family);">0 ฿</div>
+                            <div id="trdFinancedCount" style="font-size: 0.72rem; color: #0284c7;">0 รายการ</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tabs & Controls Row -->
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 10px; background: #f8fafc; padding: 10px 14px; border-radius: 10px; border: 1px solid #e2e8f0;">
+                    <!-- Method Filter Tabs -->
+                    <div style="display: flex; gap: 6px; flex-wrap: wrap;" id="trdTabsContainer">
+                        <button type="button" class="trd-status-tab" data-method="all" style="padding: 6px 14px; font-size: 0.82rem; font-weight: 700; border-radius: 6px; border: 1px solid #fdba74; background: #ffedd5; color: #ea580c; cursor: pointer; transition: all 0.15s;">
+                            ทั้งหมด (<span id="trdTabAllBadge">0</span>)
+                        </button>
+                        <button type="button" class="trd-status-tab" data-method="cash" style="padding: 6px 14px; font-size: 0.82rem; font-weight: 600; border-radius: 6px; border: 1px solid #cbd5e1; background: #ffffff; color: #475569; cursor: pointer; transition: all 0.15s;">
+                            💵 เงินสด (<span id="trdTabCashBadge">0</span>)
+                        </button>
+                        <button type="button" class="trd-status-tab" data-method="transfer" style="padding: 6px 14px; font-size: 0.82rem; font-weight: 600; border-radius: 6px; border: 1px solid #cbd5e1; background: #ffffff; color: #475569; cursor: pointer; transition: all 0.15s;">
+                            📱 เงินโอน (<span id="trdTabTransferBadge">0</span>)
+                        </button>
+                        <button type="button" class="trd-status-tab" data-method="finance" style="padding: 6px 14px; font-size: 0.82rem; font-weight: 600; border-radius: 6px; border: 1px solid #cbd5e1; background: #ffffff; color: #475569; cursor: pointer; transition: all 0.15s;">
+                            🏢 ไฟแนนซ์ (<span id="trdTabFinanceBadge">0</span>)
+                        </button>
+                    </div>
+
+                    <!-- Search & Filter Controls -->
+                    <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                        <select id="trdShopFilter" style="height: 34px; padding: 0 10px; font-size: 0.82rem; border: 1px solid #cbd5e1; border-radius: 6px; background: #ffffff; outline: none; color: #334155; font-weight: 500;">
+                            <option value="all">ทุกสาขา / ร้านค้า</option>
+                        </select>
+                        <div style="position: relative;">
+                            <input type="text" id="trdSearchInput" placeholder="ค้นหาชื่อลูกค้า, เลขสัญญา, สาขา, พนักงาน..." style="height: 34px; padding: 0 10px 0 32px; font-size: 0.84rem; border: 1px solid #cbd5e1; border-radius: 6px; width: 220px; background: #ffffff; outline: none;">
+                            <i class="fas fa-search" style="position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 0.78rem;"></i>
+                        </div>
+                        <button type="button" id="btnExportTrdExcel" style="height: 34px; padding: 0 12px; font-size: 0.82rem; font-weight: 600; color: #ea580c; background: #fff7ed; border: 1px solid #fed7aa; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: all 0.15s;" title="ส่งออกรายการรายรับรวมเป็น Excel">
+                            <i class="fas fa-file-excel"></i> Export Excel
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Date Range Filter Bar -->
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 14px; background: #ffffff; padding: 8px 14px; border-radius: 10px; border: 1px solid #e2e8f0; font-size: 0.84rem;">
+                    <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                        <span style="font-weight: 600; color: #475569; display: inline-flex; align-items: center; gap: 6px;">
+                            <i class="far fa-calendar-alt" style="color: #ea580c;"></i> ช่วงวันที่ทำรายการ:
+                        </span>
+                        <div style="display: flex; align-items: center; gap: 6px;">
+                            <input type="date" id="trdStartDate" style="height: 32px; padding: 0 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.82rem; background: #f8fafc; color: #1e293b; outline: none;">
+                            <span style="color: #64748b;">ถึง</span>
+                            <input type="date" id="trdEndDate" style="height: 32px; padding: 0 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.82rem; background: #f8fafc; color: #1e293b; outline: none;">
+                        </div>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                        <span style="font-size: 0.78rem; color: #94a3b8; font-weight: 600;">ช่วงเวลาด่วน:</span>
+                        <button type="button" id="btnTrdDateToday" style="padding: 3px 9px; font-size: 0.78rem; font-weight: 600; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 5px; cursor: pointer; color: #334155; transition: all 0.15s;" onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='#f8fafc'">วันนี้</button>
+                        <button type="button" id="btnTrdDateThisMonth" style="padding: 3px 9px; font-size: 0.78rem; font-weight: 600; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 5px; cursor: pointer; color: #334155; transition: all 0.15s;" onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='#f8fafc'">เดือนนี้</button>
+                        <button type="button" id="btnTrdDateClear" style="padding: 3px 9px; font-size: 0.78rem; font-weight: 600; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 5px; cursor: pointer; color: #dc2626; transition: all 0.15s;" onmouseover="this.style.background='#fef2f2'" onmouseout="this.style.background='#ffffff'">ล้างวันที่</button>
+                    </div>
+                </div>
+
+                <!-- Table Container -->
+                <div class="table-responsive" style="max-height: 480px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 10px;">
+                    <table class="custom-table" style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.86rem;">
+                        <thead style="position: sticky; top: 0; background: #f8fafc; z-index: 2; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
+                            <tr>
+                                <th style="padding: 10px; width: 45px; text-align: center;">#</th>
+                                <th style="padding: 10px;">วันที่ทำรายการ</th>
+                                <th style="padding: 10px;">เลขที่สัญญา / กรมธรรม์</th>
+                                <th style="padding: 10px;">ชื่อลูกค้า</th>
+                                <th style="padding: 10px;">ร้านค้า / สาขา</th>
+                                <th style="padding: 10px;">ประเภท / แพ็กเกจ</th>
+                                <th style="padding: 10px; text-align: center;">วิธีชำระเงิน</th>
+                                <th style="padding: 10px; text-align: right;">เงินสดสุทธิ</th>
+                                <th style="padding: 10px; text-align: right;">เงินโอน</th>
+                                <th style="padding: 10px; text-align: right;">ยอดไฟแนนซ์</th>
+                                <th style="padding: 10px; text-align: right;">รายรับรวมทั้งหมด</th>
+                                <th style="padding: 10px;">ผู้ทำรายการ</th>
+                                <th style="padding: 10px; text-align: center;">หลักฐาน</th>
+                            </tr>
+                        </thead>
+                        <tbody id="trdTableBody">
+                            <!-- Injected by script.js -->
+                        </tbody>
+                    </table>
+                </div>
+                <div id="trdEmptyState" class="empty-state" style="display: none; padding: 35px 20px; text-align: center;">
+                    <i class="fas fa-search" style="font-size: 2.2rem; color: #cbd5e1; margin-bottom: 10px; display: block;"></i>
+                    <p style="color: #64748b; font-size: 0.95rem; margin: 0;">ไม่พบรายการรายรับตามเงื่อนไขที่เลือก</p>
+                </div>
+            </div>
+
+            <!-- Footer -->
+            <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center; margin-top: 16px; padding-top: 14px; border-top: 1px solid #e2e8f0;">
+                <div style="font-size: 0.85rem; color: #64748b;">
+                    แสดง <span id="trdShowingCount" style="font-weight: 700; color: #1e293b;">0</span> รายการ | ยอดรวม <span id="trdShowingAmount" style="font-weight: 700; color: #ea580c; font-family: monospace, var(--font-family);">0</span> ฿
+                </div>
+                <button type="button" id="closeTotalRevenueDetailModalBtn" class="submit-btn" style="background: #64748b; color: white; padding: 7px 20px; font-size: 0.88rem; border-radius: 8px; cursor: pointer; border: none;">
                     ปิดหน้าต่าง
                 </button>
             </div>

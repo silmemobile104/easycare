@@ -5045,5 +5045,267 @@ tr.new-row-highlight {
     color: white !important;
 }
 
+/* ═══════════════════════════════════════════════════════════════════
+   PACKAGE MANAGEMENT MENU (เมนูจัดการแพ็กเกจ - Clean & Eye-Friendly UI)
+   ═══════════════════════════════════════════════════════════════════ */
+.pkg-mgmt-header-btn {
+    height: 40px;
+    padding: 0 16px;
+    border-radius: 10px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+
+.pkg-mgmt-header-btn.btn-refresh {
+    background: #ffffff;
+    color: #475569;
+    border: 1px solid #cbd5e1;
+}
+.pkg-mgmt-header-btn.btn-refresh:hover {
+    background: #f8fafc;
+    color: #0f172a;
+    border-color: #94a3b8;
+}
+
+.pkg-mgmt-header-btn.btn-bulk {
+    background: #f0fdfa;
+    color: #0f766e;
+    border: 1.5px solid #5eead4;
+    font-weight: 700;
+}
+.pkg-mgmt-header-btn.btn-bulk:hover {
+    background: #ccfbf1;
+    border-color: #14b8a6;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(13, 148, 136, 0.14);
+}
+
+.pkg-mgmt-header-btn.btn-add {
+    background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%);
+    color: #ffffff;
+    border: none;
+    font-weight: 700;
+    box-shadow: 0 4px 12px rgba(13, 148, 136, 0.22);
+}
+.pkg-mgmt-header-btn.btn-add:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(13, 148, 136, 0.3);
+    filter: brightness(1.03);
+}
+
+/* KPI Quick-Filter Cards */
+.pkg-kpi-filter-card {
+    padding: 14px 18px;
+    border-radius: 14px;
+    border: 1.5px solid #e2e8f0;
+    background: #ffffff;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.025);
+}
+.pkg-kpi-filter-card:hover {
+    border-color: #99f6e4;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(15, 23, 42, 0.05);
+}
+.pkg-kpi-filter-card.is-selected {
+    border-color: #0d9488;
+    background: #f0fdfa;
+    box-shadow: 0 4px 14px rgba(13, 148, 136, 0.1);
+}
+
+/* Package Card Grid & Card Item */
+#pkgMgmtGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(295px, 1fr));
+    gap: 18px;
+}
+
+.pkg-mgmt-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 16px;
+    box-shadow: 0 4px 18px rgba(15, 23, 42, 0.03);
+    transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+    position: relative;
+}
+.pkg-mgmt-card:hover {
+    border-color: #99f6e4;
+    box-shadow: 0 10px 26px rgba(13, 148, 136, 0.09);
+    transform: translateY(-2px);
+}
+.pkg-mgmt-card.is-inactive {
+    background: #f8fafc;
+    border: 1.5px dashed #cbd5e1;
+    opacity: 0.85;
+}
+.pkg-mgmt-card.is-inactive:hover {
+    border-color: #94a3b8;
+    box-shadow: 0 6px 18px rgba(15, 23, 42, 0.05);
+}
+
+/* Card Footer Action Buttons */
+.pkg-card-action-btn {
+    height: 36px;
+    padding: 0 12px;
+    border-radius: 9px;
+    font-size: 0.82rem;
+    font-weight: 700;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    transition: all 0.18s ease;
+}
+
+.pkg-card-action-btn.btn-edit-pkg {
+    flex: 1.35;
+    background: #f0fdfa;
+    color: #0f766e;
+    border: 1px solid #99f6e4;
+}
+.pkg-card-action-btn.btn-edit-pkg:hover {
+    background: #0d9488;
+    color: #ffffff;
+    border-color: #0d9488;
+    box-shadow: 0 4px 10px rgba(13, 148, 136, 0.22);
+}
+
+.pkg-card-action-btn.btn-toggle-pkg {
+    flex: 1;
+    background: #f8fafc;
+    color: #64748b;
+    border: 1px solid #e2e8f0;
+    font-weight: 600;
+}
+.pkg-card-action-btn.btn-toggle-pkg.is-active-pkg:hover {
+    background: #fff1f2;
+    color: #e11d48;
+    border-color: #fecdd3;
+}
+.pkg-card-action-btn.btn-toggle-pkg.is-inactive-pkg {
+    background: #ecfdf5;
+    color: #059669;
+    border-color: #a7f3d0;
+}
+.pkg-card-action-btn.btn-toggle-pkg.is-inactive-pkg:hover {
+    background: #059669;
+    color: #ffffff;
+    border-color: #059669;
+}
+
+/* Bulk Edit Matrix Table Styles */
+.bulk-pkg-table tbody tr {
+    transition: background-color 0.12s ease;
+}
+.bulk-pkg-table tbody tr:hover td {
+    background-color: #f0fdfa !important;
+}
+.bulk-pkg-table .bulk-pkg-input:focus {
+    border-color: #0d9488 !important;
+    box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.16) !important;
+    background: #ffffff !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   SHARED MODAL HEADER, CLOSE & CANCEL BUTTONS (.cancel-btn, .modal-close-btn)
+═══════════════════════════════════════════════════════════════════ */
+.modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding-bottom: 14px;
+    margin-bottom: 18px;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.modal-header h2 {
+    margin: 0 !important;
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.modal-close-btn {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    width: 34px;
+    height: 34px;
+    border-radius: 9px;
+    font-size: 1.35rem;
+    color: #64748b;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    padding: 0;
+    transition: all 0.18s ease;
+    flex-shrink: 0;
+}
+
+.modal-close-btn:hover {
+    background: #fee2e2;
+    border-color: #fecaca;
+    color: #dc2626;
+    transform: scale(1.05);
+}
+
+.cancel-btn {
+    padding: 10px 22px;
+    border-radius: 10px;
+    border: 1.5px solid #cbd5e1;
+    background: #ffffff;
+    color: #475569;
+    font-family: var(--thai-font-title);
+    font-size: 0.88rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    transition: all 0.18s ease;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.cancel-btn:hover {
+    background: #f1f5f9;
+    border-color: #94a3b8;
+    color: #0f172a;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 10px rgba(15, 23, 42, 0.08);
+}
+
+.cancel-btn:active {
+    transform: translateY(0) scale(0.98);
+    background: #e2e8f0;
+}
+
+.modal-footer .submit-btn {
+    padding: 10px 22px;
+    border-radius: 10px;
+    font-size: 0.88rem;
+}
+
+
+
+
 
 

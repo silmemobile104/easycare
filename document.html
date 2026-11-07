@@ -763,7 +763,7 @@
                 document.getElementById('doc_endTime').textContent = endTime.getHours().toString().padStart(2, '0') + ':' + endTime.getMinutes().toString().padStart(2, '0');
 
                 // Section 4 & 6 Package details
-                const coverageValue = data.maxLimit || 0;
+                const coverageValue = data.maxLimit || data.package?.maxLimitSnapshot || data.package?.coverageCap || 0;
                 const packagePrice = data.package.price || 0;
                 document.getElementById('doc_packagePlan').textContent = data.package.plan;
                 document.getElementById('doc_packagePriceDisplay').textContent = `(${packagePrice.toLocaleString()}บาท)`;
@@ -823,21 +823,15 @@
                     const financeMonths = data.financeDetails ? data.financeDetails.financeMonths : '-';
                     const financeDueDay = data.financeDetails ? data.financeDetails.financeDueDay : '-';
                     const financeProvider = data.financeDetails ? data.financeDetails.provider : '-';
-                    let monthlyPrice = 0;
-                    if (financeMonths !== '-' && FINANCE_MONTHLY_RATES[data.package.plan]) {
+                    let monthlyPrice = Number(data.financeDetails?.monthlyAmount || 0);
+                    if (!monthlyPrice && financeMonths !== '-' && FINANCE_MONTHLY_RATES[data.package.plan]) {
                         monthlyPrice = FINANCE_MONTHLY_RATES[data.package.plan][financeMonths] || 0;
                     }
                     
                     // Set finance provider label based on provider
                     const financeProviderLabel = document.getElementById('doc_financeProviderLabel');
-                    if (financeProvider === 'SG') {
-                        financeProviderLabel.textContent = '5.3 กดขายไฟแนนซ์ SG';
-                    } else if (financeProvider === 'T-Plus') {
-                        financeProviderLabel.textContent = '5.3 กดขายไฟแนนซ์ T-Plus';
-                    } else if (financeProvider === 'Thunder') {
-                        financeProviderLabel.textContent = '5.3 กดขายไฟแนนซ์ Thunder';
-                    } else if (financeProvider === 'นครหลวง') {
-                        financeProviderLabel.textContent = '5.3 กดขายไฟแนนซ์ นครหลวง';
+                    if (financeProvider && financeProvider !== '-') {
+                        financeProviderLabel.textContent = `5.3 กดขายไฟแนนซ์ ${financeProvider}`;
                     } else {
                         financeProviderLabel.textContent = '5.3 กดขายไฟแนนซ์';
                     }

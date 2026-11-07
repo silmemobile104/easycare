@@ -200,7 +200,12 @@ const WarrantySchema = new mongoose.Schema({
     },
     package: {
         plan: String,
-        price: Number
+        price: Number,
+        basePrice: Number,
+        coverageCap: Number,
+        maxLimitSnapshot: Number,
+        minDeviceValue: Number,
+        maxDeviceValue: Number
     },
     warrantyDates: {
         start: Date,
@@ -233,7 +238,10 @@ const WarrantySchema = new mongoose.Schema({
         type: new mongoose.Schema({
             financeDueDay: Number,
             financeMonths: Number,
-            provider: { type: String }
+            provider: { type: String },
+            downPayment: Number,
+            monthlyAmount: Number,
+            financedAmount: Number
         }, { _id: false }),
         default: undefined
     },
@@ -263,7 +271,13 @@ const WarrantySchema = new mongoose.Schema({
 }, { timestamps: true });
 
 WarrantySchema.virtual('maxLimit').get(function () {
+    if (Number.isFinite(Number(this.package?.maxLimitSnapshot)) && Number(this.package.maxLimitSnapshot) > 0) {
+        return Math.floor(Number(this.package.maxLimitSnapshot));
+    }
     const basePrice = Number(this.device?.deviceValue ?? this.devicePrice ?? 0);
+    if (Number.isFinite(Number(this.package?.coverageCap)) && Number(this.package.coverageCap) > 0) {
+        return Math.floor(Math.min(basePrice, Number(this.package.coverageCap)));
+    }
     const caps = {
         'Package 1': 5000, 'Package 2': 10000, 'Package 3': 15000, 'Package 4': 20000, 'Package 5': 25000,
         'Package 6': 30000, 'Package 7': 35000, 'Package 8': 40000, 'Package 9': 45000, 'Package 10': 50000
@@ -716,12 +730,22 @@ const InstallmentPlanSchema = new mongoose.Schema({
     minDeviceValue: { type: Number, required: true },
     maxDeviceValue: { type: Number, required: true },
     packagePrice: { type: Number, required: true },
-    downPayment: { type: Number, required: true },
+    downPayment: { type: Number, required: true, default: 0 },
     financedAmount: { type: Number },
     installmentPlans: [{
         months: { type: Number },
         monthlyAmount: { type: Number }
-    }]
+    }],
+    threeInstallments: {
+        inst1: { type: Number },
+        inst2: { type: Number },
+        inst3: { type: Number },
+        isCustom: { type: Boolean, default: false }
+    },
+    isActive: { type: Boolean, default: true },
+    order: { type: Number, default: 0 },
+    updatedBy: { type: String },
+    updatedAt: { type: Date, default: Date.now }
 }, { collection: 'installmentPlans' });
 const InstallmentPlan = mongoose.model('InstallmentPlan', InstallmentPlanSchema);
 
@@ -820,11 +844,12 @@ const DEFAULT_SYSTEM_MENU_PERMISSIONS = [
     { id: 'nav-staff', name: 'จัดการพนักงาน', category: 'admin', roles: ['admin'], enabled: true, order: 10 },
     { id: 'nav-finance-companies', name: 'จัดการไฟแนนซ์', category: 'admin', roles: ['admin'], enabled: true, order: 11 },
     { id: 'nav-products', name: 'จัดการสินค้า', category: 'admin', roles: ['admin'], enabled: true, order: 12 },
-    { id: 'nav-finance', name: 'การเงิน (Finance)', category: 'finance', roles: ['admin', 'approver', 'finance'], enabled: true, order: 13 },
-    { id: 'nav-deposit', name: 'การมัดจำ', category: 'finance', roles: ['admin', 'sales', 'finance'], enabled: true, order: 14 },
-    { id: 'nav-calculator', name: 'คำนวณราคา', category: 'tools', roles: ['admin', 'sales', 'approver', 'finance'], enabled: true, order: 15 },
-    { id: 'nav-permissions', name: 'จัดการสิทธิ์เมนู', category: 'admin', roles: ['admin'], enabled: true, order: 16 },
-    { id: 'nav-audit-logs', name: 'ประวัติการใช้งาน (Audit Log)', category: 'admin', roles: ['admin'], enabled: true, order: 17 }
+    { id: 'nav-package-management', name: 'จัดการแพ็กเกจ', category: 'admin', roles: ['admin'], enabled: true, order: 13 },
+    { id: 'nav-finance', name: 'การเงิน (Finance)', category: 'finance', roles: ['admin', 'approver', 'finance'], enabled: true, order: 14 },
+    { id: 'nav-deposit', name: 'การมัดจำ', category: 'finance', roles: ['admin', 'sales', 'finance'], enabled: true, order: 15 },
+    { id: 'nav-calculator', name: 'คำนวณราคา', category: 'tools', roles: ['admin', 'sales', 'approver', 'finance'], enabled: true, order: 16 },
+    { id: 'nav-permissions', name: 'จัดการสิทธิ์เมนู', category: 'admin', roles: ['admin'], enabled: true, order: 17 },
+    { id: 'nav-audit-logs', name: 'ประวัติการใช้งาน (Audit Log)', category: 'admin', roles: ['admin'], enabled: true, order: 18 }
 ];
 
 // Helper function: ตรวจสอบข้อมูลอุปกรณ์ว่ามีอยู่ในระบบ "จัดการสินค้า" และเปิดใช้งานอยู่หรือไม่
@@ -2736,31 +2761,483 @@ app.get('/api/dashboard/approver/pending-warranties', async (req, res) => {
     }
 });
 
-// Finance Rates API
+// Helper to normalize InstallmentPlan (Package Config) document
+function normalizePackageConfigDoc(doc) {
+    if (!doc) return doc;
+    const pkgPrice = Number(doc.packagePrice || 0);
+    const base3 = Math.floor(pkgPrice / 3);
+    const rem3 = pkgPrice - (base3 * 3);
+    const hasCustom3 = doc.threeInstallments &&
+        Number.isFinite(Number(doc.threeInstallments.inst1)) &&
+        Number.isFinite(Number(doc.threeInstallments.inst2)) &&
+        Number.isFinite(Number(doc.threeInstallments.inst3));
+
+    const threeInstallments = hasCustom3
+        ? {
+            inst1: Number(doc.threeInstallments.inst1),
+            inst2: Number(doc.threeInstallments.inst2),
+            inst3: Number(doc.threeInstallments.inst3),
+            isCustom: Boolean(doc.threeInstallments.isCustom)
+        }
+        : {
+            inst1: base3 + rem3,
+            inst2: base3,
+            inst3: base3,
+            isCustom: false
+        };
+
+    return {
+        ...doc,
+        downPayment: Number(doc.downPayment ?? 0),
+        financedAmount: Number(doc.financedAmount ?? Math.max(0, pkgPrice - Number(doc.downPayment ?? 0))),
+        threeInstallments,
+        isActive: doc.isActive !== false
+    };
+}
+
+// Finance Rates & Package Management API
 app.get('/api/finance-rates', async (req, res) => {
     try {
+        const includeInactive = req.query.includeInactive === 'true';
         let rates = await InstallmentPlan.find().sort({ minDeviceValue: 1 }).lean();
 
-        // If empty, return default static rates from user provided example
+        // If empty, seed with default 10 packages (downPayment: 0 as per standard)
         if (rates.length === 0) {
             const defaultRates = [
-                { tierName: "Package 1", minDeviceValue: 0, maxDeviceValue: 5000, packagePrice: 699, downPayment: 60, financedAmount: 640, installmentPlans: [{ months: 6, monthlyAmount: 160 }, { months: 10, monthlyAmount: 100 }, { months: 12, monthlyAmount: 60 }, { months: 15, monthlyAmount: 60 }, { months: 18, monthlyAmount: 60 }] },
-                { tierName: "Package 2", minDeviceValue: 5001, maxDeviceValue: 10000, packagePrice: 899, downPayment: 80, financedAmount: 820, installmentPlans: [{ months: 6, monthlyAmount: 180 }, { months: 10, monthlyAmount: 120 }, { months: 12, monthlyAmount: 80 }, { months: 15, monthlyAmount: 80 }, { months: 18, monthlyAmount: 80 }] },
-                { tierName: "Package 3", minDeviceValue: 10001, maxDeviceValue: 15000, packagePrice: 1099, downPayment: 100, financedAmount: 1000, installmentPlans: [{ months: 6, monthlyAmount: 200 }, { months: 10, monthlyAmount: 140 }, { months: 12, monthlyAmount: 100 }, { months: 15, monthlyAmount: 100 }, { months: 18, monthlyAmount: 100 }] },
-                { tierName: "Package 4", minDeviceValue: 15001, maxDeviceValue: 20000, packagePrice: 1299, downPayment: 120, financedAmount: 1180, installmentPlans: [{ months: 6, monthlyAmount: 240 }, { months: 10, monthlyAmount: 160 }, { months: 12, monthlyAmount: 120 }, { months: 15, monthlyAmount: 120 }, { months: 18, monthlyAmount: 120 }] },
-                { tierName: "Package 5", minDeviceValue: 20001, maxDeviceValue: 25000, packagePrice: 1499, downPayment: 150, financedAmount: 1350, installmentPlans: [{ months: 6, monthlyAmount: 270 }, { months: 10, monthlyAmount: 180 }, { months: 12, monthlyAmount: 150 }, { months: 15, monthlyAmount: 150 }, { months: 18, monthlyAmount: 150 }] },
-                { tierName: "Package 6", minDeviceValue: 25001, maxDeviceValue: 30000, packagePrice: 1699, downPayment: 180, financedAmount: 1520, installmentPlans: [{ months: 6, monthlyAmount: 320 }, { months: 10, monthlyAmount: 190 }, { months: 12, monthlyAmount: 180 }, { months: 15, monthlyAmount: 180 }, { months: 18, monthlyAmount: 180 }] },
-                { tierName: "Package 7", minDeviceValue: 30001, maxDeviceValue: 35000, packagePrice: 1899, downPayment: 190, financedAmount: 1710, installmentPlans: [{ months: 6, monthlyAmount: 350 }, { months: 10, monthlyAmount: 210 }, { months: 12, monthlyAmount: 190 }, { months: 15, monthlyAmount: 190 }, { months: 18, monthlyAmount: 190 }] },
-                { tierName: "Package 8", minDeviceValue: 35001, maxDeviceValue: 40000, packagePrice: 2099, downPayment: 200, financedAmount: 1900, installmentPlans: [{ months: 6, monthlyAmount: 390 }, { months: 10, monthlyAmount: 230 }, { months: 12, monthlyAmount: 200 }, { months: 15, monthlyAmount: 200 }, { months: 18, monthlyAmount: 200 }] },
-                { tierName: "Package 9", minDeviceValue: 40001, maxDeviceValue: 45000, packagePrice: 2299, downPayment: 250, financedAmount: 2050, installmentPlans: [{ months: 6, monthlyAmount: 420 }, { months: 10, monthlyAmount: 270 }, { months: 12, monthlyAmount: 250 }, { months: 15, monthlyAmount: 250 }, { months: 18, monthlyAmount: 250 }] },
-                { tierName: "Package 10", minDeviceValue: 45001, maxDeviceValue: 50000, packagePrice: 2499, downPayment: 270, financedAmount: 2230, installmentPlans: [{ months: 6, monthlyAmount: 490 }, { months: 10, monthlyAmount: 300 }, { months: 12, monthlyAmount: 270 }, { months: 15, monthlyAmount: 270 }, { months: 18, monthlyAmount: 270 }] }
+                { tierName: "Package 1", minDeviceValue: 0, maxDeviceValue: 5000, packagePrice: 699, downPayment: 0, financedAmount: 699, isActive: true, threeInstallments: { inst1: 233, inst2: 233, inst3: 233, isCustom: false }, installmentPlans: [{ months: 6, monthlyAmount: 160 }, { months: 10, monthlyAmount: 100 }, { months: 12, monthlyAmount: 60 }, { months: 15, monthlyAmount: 60 }, { months: 18, monthlyAmount: 60 }] },
+                { tierName: "Package 2", minDeviceValue: 5001, maxDeviceValue: 10000, packagePrice: 899, downPayment: 0, financedAmount: 899, isActive: true, threeInstallments: { inst1: 301, inst2: 299, inst3: 299, isCustom: false }, installmentPlans: [{ months: 6, monthlyAmount: 180 }, { months: 10, monthlyAmount: 120 }, { months: 12, monthlyAmount: 80 }, { months: 15, monthlyAmount: 80 }, { months: 18, monthlyAmount: 80 }] },
+                { tierName: "Package 3", minDeviceValue: 10001, maxDeviceValue: 15000, packagePrice: 1099, downPayment: 0, financedAmount: 1099, isActive: true, threeInstallments: { inst1: 367, inst2: 366, inst3: 366, isCustom: false }, installmentPlans: [{ months: 6, monthlyAmount: 200 }, { months: 10, monthlyAmount: 140 }, { months: 12, monthlyAmount: 100 }, { months: 15, monthlyAmount: 100 }, { months: 18, monthlyAmount: 100 }] },
+                { tierName: "Package 4", minDeviceValue: 15001, maxDeviceValue: 20000, packagePrice: 1299, downPayment: 0, financedAmount: 1299, isActive: true, threeInstallments: { inst1: 433, inst2: 433, inst3: 433, isCustom: false }, installmentPlans: [{ months: 6, monthlyAmount: 240 }, { months: 10, monthlyAmount: 160 }, { months: 12, monthlyAmount: 120 }, { months: 15, monthlyAmount: 120 }, { months: 18, monthlyAmount: 120 }] },
+                { tierName: "Package 5", minDeviceValue: 20001, maxDeviceValue: 25000, packagePrice: 1499, downPayment: 0, financedAmount: 1499, isActive: true, threeInstallments: { inst1: 501, inst2: 499, inst3: 499, isCustom: false }, installmentPlans: [{ months: 6, monthlyAmount: 270 }, { months: 10, monthlyAmount: 180 }, { months: 12, monthlyAmount: 150 }, { months: 15, monthlyAmount: 150 }, { months: 18, monthlyAmount: 150 }] },
+                { tierName: "Package 6", minDeviceValue: 25001, maxDeviceValue: 30000, packagePrice: 1699, downPayment: 0, financedAmount: 1699, isActive: true, threeInstallments: { inst1: 567, inst2: 566, inst3: 566, isCustom: false }, installmentPlans: [{ months: 6, monthlyAmount: 320 }, { months: 10, monthlyAmount: 190 }, { months: 12, monthlyAmount: 180 }, { months: 15, monthlyAmount: 180 }, { months: 18, monthlyAmount: 180 }] },
+                { tierName: "Package 7", minDeviceValue: 30001, maxDeviceValue: 35000, packagePrice: 1899, downPayment: 0, financedAmount: 1899, isActive: true, threeInstallments: { inst1: 633, inst2: 633, inst3: 633, isCustom: false }, installmentPlans: [{ months: 6, monthlyAmount: 350 }, { months: 10, monthlyAmount: 210 }, { months: 12, monthlyAmount: 190 }, { months: 15, monthlyAmount: 190 }, { months: 18, monthlyAmount: 190 }] },
+                { tierName: "Package 8", minDeviceValue: 35001, maxDeviceValue: 40000, packagePrice: 2099, downPayment: 0, financedAmount: 2099, isActive: true, threeInstallments: { inst1: 701, inst2: 699, inst3: 699, isCustom: false }, installmentPlans: [{ months: 6, monthlyAmount: 390 }, { months: 10, monthlyAmount: 230 }, { months: 12, monthlyAmount: 200 }, { months: 15, monthlyAmount: 200 }, { months: 18, monthlyAmount: 200 }] },
+                { tierName: "Package 9", minDeviceValue: 40001, maxDeviceValue: 45000, packagePrice: 2299, downPayment: 0, financedAmount: 2299, isActive: true, threeInstallments: { inst1: 767, inst2: 766, inst3: 766, isCustom: false }, installmentPlans: [{ months: 6, monthlyAmount: 420 }, { months: 10, monthlyAmount: 270 }, { months: 12, monthlyAmount: 250 }, { months: 15, monthlyAmount: 250 }, { months: 18, monthlyAmount: 250 }] },
+                { tierName: "Package 10", minDeviceValue: 45001, maxDeviceValue: 50000, packagePrice: 2499, downPayment: 0, financedAmount: 2499, isActive: true, threeInstallments: { inst1: 833, inst2: 833, inst3: 833, isCustom: false }, installmentPlans: [{ months: 6, monthlyAmount: 490 }, { months: 10, monthlyAmount: 300 }, { months: 12, monthlyAmount: 270 }, { months: 15, monthlyAmount: 270 }, { months: 18, monthlyAmount: 270 }] }
             ];
-            await InstallmentPlan.insertMany(defaultRates);
-            return res.json({ success: true, rates: defaultRates });
+            const inserted = await InstallmentPlan.insertMany(defaultRates);
+            rates = inserted.map(d => d.toObject());
         }
 
-        res.json({ success: true, rates });
+        const normalized = rates.map(normalizePackageConfigDoc);
+        const filtered = includeInactive ? normalized : normalized.filter(r => r.isActive !== false);
+
+        res.json({ success: true, rates: filtered });
     } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// Create a New Package Configuration (Only affects future calculations & new registrations)
+app.post('/api/packages-config', async (req, res) => {
+    try {
+        const {
+            tierName,
+            minDeviceValue,
+            maxDeviceValue,
+            packagePrice,
+            downPayment,
+            installmentPlans,
+            threeInstallments,
+            isActive,
+            staffName
+        } = req.body;
+
+        const cleanName = String(tierName || '').trim();
+        if (!cleanName) {
+            return res.status(400).json({ success: false, message: 'กรุณาระบุชื่อแพ็กเกจ (เช่น Package 11)' });
+        }
+
+        const escapedName = cleanName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const duplicate = await InstallmentPlan.findOne({
+            tierName: { $regex: new RegExp(`^${escapedName}$`, 'i') }
+        }).lean();
+
+        if (duplicate) {
+            return res.status(400).json({ success: false, message: `มีแพ็กเกจชื่อ "${cleanName}" อยู่ในระบบแล้ว กรุณาใช้ชื่ออื่น` });
+        }
+
+        const cleanPrice = Number(packagePrice);
+        const cleanMin = Number(minDeviceValue);
+        const cleanMax = Number(maxDeviceValue);
+        const cleanDown = Math.max(0, Number(downPayment ?? 0));
+
+        if (!Number.isFinite(cleanPrice) || cleanPrice <= 0) {
+            return res.status(400).json({ success: false, message: 'กรุณาระบุราคาแพ็กเกจที่มากกว่า 0 บาท' });
+        }
+        if (!Number.isFinite(cleanMin) || cleanMin < 0 || !Number.isFinite(cleanMax) || cleanMax <= 0 || cleanMin > cleanMax) {
+            return res.status(400).json({ success: false, message: 'ช่วงราคาเครื่อง (70%) ไม่ถูกต้อง (ค่าเริ่มต้นต้องไม่เกินค่าสูงสุด)' });
+        }
+
+        const base3 = Math.floor(cleanPrice / 3);
+        const rem3 = cleanPrice - (base3 * 3);
+        let finalThree = {
+            inst1: base3 + rem3,
+            inst2: base3,
+            inst3: base3,
+            isCustom: false
+        };
+
+        if (threeInstallments &&
+            Number.isFinite(Number(threeInstallments.inst1)) &&
+            Number.isFinite(Number(threeInstallments.inst2)) &&
+            Number.isFinite(Number(threeInstallments.inst3))) {
+            const i1 = Math.max(0, Math.round(Number(threeInstallments.inst1)));
+            const i2 = Math.max(0, Math.round(Number(threeInstallments.inst2)));
+            const i3 = Math.max(0, Math.round(Number(threeInstallments.inst3)));
+            const isCustom = (i1 !== (base3 + rem3)) || (i2 !== base3) || (i3 !== base3);
+            finalThree = { inst1: i1, inst2: i2, inst3: i3, isCustom };
+        }
+
+        let finalPlans = [
+            { months: 6, monthlyAmount: 0 },
+            { months: 10, monthlyAmount: 0 },
+            { months: 12, monthlyAmount: 0 },
+            { months: 15, monthlyAmount: 0 },
+            { months: 18, monthlyAmount: 0 }
+        ];
+        if (Array.isArray(installmentPlans) && installmentPlans.length > 0) {
+            finalPlans = installmentPlans
+                .map(p => ({
+                    months: Number(p.months),
+                    monthlyAmount: Math.max(0, Number(p.monthlyAmount || 0))
+                }))
+                .filter(p => Number.isFinite(p.months) && p.months > 0)
+                .sort((a, b) => a.months - b.months);
+        }
+
+        const created = await InstallmentPlan.create({
+            tierName: cleanName,
+            minDeviceValue: cleanMin,
+            maxDeviceValue: cleanMax,
+            packagePrice: cleanPrice,
+            downPayment: cleanDown,
+            financedAmount: Math.max(0, cleanPrice - cleanDown),
+            installmentPlans: finalPlans,
+            threeInstallments: finalThree,
+            isActive: isActive !== undefined ? Boolean(isActive) : true,
+            updatedBy: staffName || 'Admin',
+            updatedAt: new Date()
+        });
+
+        const createdObj = created.toObject();
+
+        await recordAuditLog(req, {
+            module: 'PACKAGES',
+            actionType: 'CREATE',
+            action: 'เพิ่มแพ็กเกจใหม่',
+            detail: `เพิ่มแพ็กเกจใหม่ ${cleanName}: ราคา ${cleanPrice} บ., วงเงิน ${cleanMin.toLocaleString()}-${cleanMax.toLocaleString()} บ., ดาวน์ ${cleanDown} บ., ผ่อน 3 งวด (${finalThree.inst1}/${finalThree.inst2}/${finalThree.inst3})`,
+            targetId: cleanName,
+            targetType: 'InstallmentPlan'
+        });
+
+        if (io) {
+            io.emit('packages_config_updated', { package: normalizePackageConfigDoc(createdObj) });
+        }
+
+        res.status(201).json({
+            success: true,
+            message: `เพิ่มแพ็กเกจ "${cleanName}" เรียบร้อยแล้ว`,
+            package: normalizePackageConfigDoc(createdObj)
+        });
+    } catch (err) {
+        console.error('POST /api/packages-config error:', err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// Bulk Update All Package Configurations at Once (Only affects future calculations & new registrations)
+app.put('/api/packages-config-bulk', async (req, res) => {
+    try {
+        const { packages, staffName } = req.body;
+        if (!Array.isArray(packages) || packages.length === 0) {
+            return res.status(400).json({ success: false, message: 'ไม่พบรายการแพ็กเกจที่ต้องการบันทึก' });
+        }
+
+        const existingDocs = await InstallmentPlan.find().lean();
+        const existingMap = new Map(existingDocs.map(d => [String(d._id), d]));
+
+        const bulkOps = [];
+        const changeSummaries = [];
+
+        for (const item of packages) {
+            const pkgId = String(item._id || '').trim();
+            const existing = existingMap.get(pkgId);
+            if (!existing) continue;
+
+            const cleanPrice = Number(item.packagePrice);
+            const cleanMin = Number(item.minDeviceValue);
+            const cleanMax = Number(item.maxDeviceValue);
+            const cleanDown = Math.max(0, Number(item.downPayment ?? 0));
+            const labelName = existing.tierName || item.tierName || 'Package';
+
+            if (!Number.isFinite(cleanPrice) || cleanPrice <= 0) {
+                return res.status(400).json({
+                    success: false,
+                    message: `[${labelName}] กรุณาระบุราคาแพ็กเกจที่มากกว่า 0 บาท`
+                });
+            }
+            if (!Number.isFinite(cleanMin) || cleanMin < 0 || !Number.isFinite(cleanMax) || cleanMax <= 0 || cleanMin > cleanMax) {
+                return res.status(400).json({
+                    success: false,
+                    message: `[${labelName}] ช่วงราคาเครื่อง (70%) ไม่ถูกต้อง (ขั้นต่ำต้องไม่เกินสูงสุด)`
+                });
+            }
+
+            const base3 = Math.floor(cleanPrice / 3);
+            const rem3 = cleanPrice - (base3 * 3);
+            let finalThree = {
+                inst1: base3 + rem3,
+                inst2: base3,
+                inst3: base3,
+                isCustom: false
+            };
+
+            if (item.threeInstallments &&
+                Number.isFinite(Number(item.threeInstallments.inst1)) &&
+                Number.isFinite(Number(item.threeInstallments.inst2)) &&
+                Number.isFinite(Number(item.threeInstallments.inst3))) {
+                const i1 = Math.max(0, Math.round(Number(item.threeInstallments.inst1)));
+                const i2 = Math.max(0, Math.round(Number(item.threeInstallments.inst2)));
+                const i3 = Math.max(0, Math.round(Number(item.threeInstallments.inst3)));
+                const isCustom = (i1 !== (base3 + rem3)) || (i2 !== base3) || (i3 !== base3);
+                finalThree = { inst1: i1, inst2: i2, inst3: i3, isCustom };
+            }
+
+            let finalPlans = existing.installmentPlans || [];
+            if (Array.isArray(item.installmentPlans) && item.installmentPlans.length > 0) {
+                finalPlans = item.installmentPlans
+                    .map(p => ({
+                        months: Number(p.months),
+                        monthlyAmount: Math.max(0, Number(p.monthlyAmount || 0))
+                    }))
+                    .filter(p => Number.isFinite(p.months) && p.months > 0)
+                    .sort((a, b) => a.months - b.months);
+            }
+
+            const nextActive = item.isActive !== undefined ? Boolean(item.isActive) : (existing.isActive !== false);
+            const updatePayload = {
+                minDeviceValue: cleanMin,
+                maxDeviceValue: cleanMax,
+                packagePrice: cleanPrice,
+                downPayment: cleanDown,
+                financedAmount: Math.max(0, cleanPrice - cleanDown),
+                installmentPlans: finalPlans,
+                threeInstallments: finalThree,
+                isActive: nextActive,
+                updatedBy: staffName || 'Admin',
+                updatedAt: new Date()
+            };
+
+            // Check if anything actually changed for audit log summary
+            const oldNorm = normalizePackageConfigDoc(existing);
+            const oldPlansStr = JSON.stringify((oldNorm.installmentPlans || []).map(p => `${p.months}:${p.monthlyAmount}`));
+            const newPlansStr = JSON.stringify(finalPlans.map(p => `${p.months}:${p.monthlyAmount}`));
+            const hasDiff =
+                Number(oldNorm.packagePrice) !== cleanPrice ||
+                Number(oldNorm.minDeviceValue) !== cleanMin ||
+                Number(oldNorm.maxDeviceValue) !== cleanMax ||
+                Number(oldNorm.downPayment) !== cleanDown ||
+                Boolean(oldNorm.isActive) !== nextActive ||
+                Number(oldNorm.threeInstallments?.inst1) !== finalThree.inst1 ||
+                Number(oldNorm.threeInstallments?.inst2) !== finalThree.inst2 ||
+                Number(oldNorm.threeInstallments?.inst3) !== finalThree.inst3 ||
+                oldPlansStr !== newPlansStr;
+
+            if (hasDiff) {
+                changeSummaries.push(
+                    `${labelName} (ราคา ${cleanPrice}฿, วงเงิน ${cleanMin.toLocaleString()}-${cleanMax.toLocaleString()}฿, 3งวด ${finalThree.inst1}/${finalThree.inst2}/${finalThree.inst3})`
+                );
+            }
+
+            bulkOps.push({
+                updateOne: {
+                    filter: { _id: existing._id },
+                    update: { $set: updatePayload }
+                }
+            });
+        }
+
+        if (bulkOps.length > 0) {
+            await InstallmentPlan.bulkWrite(bulkOps);
+        }
+
+        await recordAuditLog(req, {
+            module: 'PACKAGES',
+            actionType: 'UPDATE',
+            action: 'แก้ไขข้อมูลทุกแพ็กเกจพร้อมกัน (Bulk Edit)',
+            detail: changeSummaries.length > 0
+                ? `อัปเดตแพ็กเกจพร้อมกัน ${changeSummaries.length} รายการ: ${changeSummaries.join(' | ')}`
+                : `บันทึกตรวจสอบตารางทุกแพ็กเกจ (${bulkOps.length} รายการ)`,
+            targetId: 'ALL_PACKAGES',
+            targetType: 'InstallmentPlan'
+        });
+
+        if (io) {
+            io.emit('packages_config_updated', { bulk: true });
+        }
+
+        res.json({
+            success: true,
+            message: `บันทึกข้อมูลทั้ง ${bulkOps.length} แพ็กเกจเรียบร้อยแล้ว (มีผลเฉพาะรายการใหม่เท่านั้น)`,
+            updatedCount: changeSummaries.length
+        });
+    } catch (err) {
+        console.error('PUT /api/packages-config-bulk error:', err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// Update a Package Configuration (Only affects future calculations & new registrations)
+app.put('/api/packages-config/:id', async (req, res) => {
+    try {
+        const pkgId = req.params.id;
+        const existing = await InstallmentPlan.findById(pkgId).lean();
+        if (!existing) {
+            return res.status(404).json({ success: false, message: 'ไม่พบข้อมูลแพ็กเกจที่ต้องการแก้ไข' });
+        }
+
+        const {
+            tierName,
+            minDeviceValue,
+            maxDeviceValue,
+            packagePrice,
+            downPayment,
+            installmentPlans,
+            threeInstallments,
+            isActive,
+            staffName
+        } = req.body;
+
+        const cleanPrice = Number(packagePrice);
+        const cleanMin = Number(minDeviceValue);
+        const cleanMax = Number(maxDeviceValue);
+        const cleanDown = Math.max(0, Number(downPayment ?? 0));
+
+        if (!Number.isFinite(cleanPrice) || cleanPrice <= 0) {
+            return res.status(400).json({ success: false, message: 'กรุณาระบุราคาแพ็กเกจที่มากกว่า 0 บาท' });
+        }
+        if (!Number.isFinite(cleanMin) || cleanMin < 0 || !Number.isFinite(cleanMax) || cleanMax <= 0 || cleanMin > cleanMax) {
+            return res.status(400).json({ success: false, message: 'ช่วงราคาเครื่อง (70%) ไม่ถูกต้อง (ค่าเริ่มต้นต้องไม่เกินค่าสูงสุด)' });
+        }
+
+        const base3 = Math.floor(cleanPrice / 3);
+        const rem3 = cleanPrice - (base3 * 3);
+        let finalThree = {
+            inst1: base3 + rem3,
+            inst2: base3,
+            inst3: base3,
+            isCustom: false
+        };
+
+        if (threeInstallments &&
+            Number.isFinite(Number(threeInstallments.inst1)) &&
+            Number.isFinite(Number(threeInstallments.inst2)) &&
+            Number.isFinite(Number(threeInstallments.inst3))) {
+            const i1 = Math.max(0, Math.round(Number(threeInstallments.inst1)));
+            const i2 = Math.max(0, Math.round(Number(threeInstallments.inst2)));
+            const i3 = Math.max(0, Math.round(Number(threeInstallments.inst3)));
+            const isCustom = (i1 !== (base3 + rem3)) || (i2 !== base3) || (i3 !== base3);
+            finalThree = { inst1: i1, inst2: i2, inst3: i3, isCustom };
+        }
+
+        let finalPlans = existing.installmentPlans || [];
+        if (Array.isArray(installmentPlans) && installmentPlans.length > 0) {
+            finalPlans = installmentPlans
+                .map(p => ({
+                    months: Number(p.months),
+                    monthlyAmount: Math.max(0, Number(p.monthlyAmount || 0))
+                }))
+                .filter(p => Number.isFinite(p.months) && p.months > 0)
+                .sort((a, b) => a.months - b.months);
+        }
+
+        const updatePayload = {
+            tierName: (tierName && String(tierName).trim()) ? String(tierName).trim() : existing.tierName,
+            minDeviceValue: cleanMin,
+            maxDeviceValue: cleanMax,
+            packagePrice: cleanPrice,
+            downPayment: cleanDown,
+            financedAmount: Math.max(0, cleanPrice - cleanDown),
+            installmentPlans: finalPlans,
+            threeInstallments: finalThree,
+            isActive: isActive !== undefined ? Boolean(isActive) : (existing.isActive !== false),
+            updatedBy: staffName || 'Admin',
+            updatedAt: new Date()
+        };
+
+        const updated = await InstallmentPlan.findByIdAndUpdate(
+            pkgId,
+            { $set: updatePayload },
+            { new: true }
+        ).lean();
+
+        await recordAuditLog(req, {
+            module: 'PACKAGES',
+            actionType: 'UPDATE',
+            action: 'แก้ไขการตั้งค่าแพ็กเกจ',
+            detail: `แก้ไขแพ็กเกจ ${updatePayload.tierName}: ราคา ${existing.packagePrice} -> ${cleanPrice} บ., วงเงิน ${existing.maxDeviceValue} -> ${cleanMax} บ., ดาวน์ ${existing.downPayment ?? 0} -> ${cleanDown} บ., ผ่อน 3 งวด (${finalThree.inst1}/${finalThree.inst2}/${finalThree.inst3})`,
+            targetId: updatePayload.tierName,
+            targetType: 'InstallmentPlan'
+        });
+
+        if (io) {
+            io.emit('packages_config_updated', { package: normalizePackageConfigDoc(updated) });
+        }
+
+        res.json({
+            success: true,
+            message: 'บันทึกข้อมูลแพ็กเกจเรียบร้อยแล้ว (มีผลเฉพาะรายการใหม่เท่านั้น)',
+            package: normalizePackageConfigDoc(updated)
+        });
+    } catch (err) {
+        console.error('PUT /api/packages-config/:id error:', err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// Quick Toggle Active/Inactive Status for a Package
+app.patch('/api/packages-config/:id/toggle', async (req, res) => {
+    try {
+        const pkgId = req.params.id;
+        const existing = await InstallmentPlan.findById(pkgId).lean();
+        if (!existing) {
+            return res.status(404).json({ success: false, message: 'ไม่พบข้อมูลแพ็กเกจ' });
+        }
+
+        const nextActive = req.body.isActive !== undefined ? Boolean(req.body.isActive) : !(existing.isActive !== false);
+        const updated = await InstallmentPlan.findByIdAndUpdate(
+            pkgId,
+            {
+                $set: {
+                    isActive: nextActive,
+                    updatedBy: req.body.staffName || 'Admin',
+                    updatedAt: new Date()
+                }
+            },
+            { new: true }
+        ).lean();
+
+        await recordAuditLog(req, {
+            module: 'PACKAGES',
+            actionType: 'STATUS_CHANGE',
+            action: nextActive ? 'เปิดการขายแพ็กเกจ' : 'ปิดการขายแพ็กเกจ',
+            detail: `${nextActive ? 'เปิดใช้งาน' : 'ปิดการขาย'} แพ็กเกจ ${existing.tierName}`,
+            targetId: existing.tierName,
+            targetType: 'InstallmentPlan'
+        });
+
+        if (io) {
+            io.emit('packages_config_updated', { package: normalizePackageConfigDoc(updated) });
+        }
+
+        res.json({
+            success: true,
+            message: `${nextActive ? 'เปิดการขาย' : 'ปิดการขาย'} ${existing.tierName} เรียบร้อยแล้ว`,
+            package: normalizePackageConfigDoc(updated)
+        });
+    } catch (err) {
+        console.error('PATCH /api/packages-config/:id/toggle error:', err);
         res.status(500).json({ success: false, message: err.message });
     }
 });
@@ -4578,27 +5055,37 @@ app.get('/api/warranties', async (req, res) => {
             {
                 $addFields: {
                     packageCap: {
-                        $switch: {
-                            branches: [
-                                { case: { $eq: ['$package.plan', 'Package 1'] }, then: 5000 },
-                                { case: { $eq: ['$package.plan', 'Package 2'] }, then: 10000 },
-                                { case: { $eq: ['$package.plan', 'Package 3'] }, then: 15000 },
-                                { case: { $eq: ['$package.plan', 'Package 4'] }, then: 20000 },
-                                { case: { $eq: ['$package.plan', 'Package 5'] }, then: 25000 },
-                                { case: { $eq: ['$package.plan', 'Package 6'] }, then: 30000 },
-                                { case: { $eq: ['$package.plan', 'Package 7'] }, then: 35000 },
-                                { case: { $eq: ['$package.plan', 'Package 8'] }, then: 40000 },
-                                { case: { $eq: ['$package.plan', 'Package 9'] }, then: 45000 },
-                                { case: { $eq: ['$package.plan', 'Package 10'] }, then: 50000 }
-                            ],
-                            default: 999999999
-                        }
+                        $ifNull: [
+                            '$package.coverageCap',
+                            {
+                                $switch: {
+                                    branches: [
+                                        { case: { $eq: ['$package.plan', 'Package 1'] }, then: 5000 },
+                                        { case: { $eq: ['$package.plan', 'Package 2'] }, then: 10000 },
+                                        { case: { $eq: ['$package.plan', 'Package 3'] }, then: 15000 },
+                                        { case: { $eq: ['$package.plan', 'Package 4'] }, then: 20000 },
+                                        { case: { $eq: ['$package.plan', 'Package 5'] }, then: 25000 },
+                                        { case: { $eq: ['$package.plan', 'Package 6'] }, then: 30000 },
+                                        { case: { $eq: ['$package.plan', 'Package 7'] }, then: 35000 },
+                                        { case: { $eq: ['$package.plan', 'Package 8'] }, then: 40000 },
+                                        { case: { $eq: ['$package.plan', 'Package 9'] }, then: 45000 },
+                                        { case: { $eq: ['$package.plan', 'Package 10'] }, then: 50000 }
+                                    ],
+                                    default: 999999999
+                                }
+                            }
+                        ]
                     }
                 }
             },
             {
                 $addFields: {
-                    maxLimit: { $floor: { $min: [{ $ifNull: ['$device.deviceValue', '$devicePrice'] }, '$packageCap'] } }
+                    maxLimit: {
+                        $ifNull: [
+                            '$package.maxLimitSnapshot',
+                            { $floor: { $min: [{ $ifNull: ['$device.deviceValue', '$devicePrice'] }, '$packageCap'] } }
+                        ]
+                    }
                 }
             },
             {
@@ -4738,6 +5225,45 @@ app.post('/api/warranties', async (req, res) => {
         if (newWarranty.payment && newWarranty.payment.method !== 'finance') {
             newWarranty.financeDetails = undefined;
             newWarranty.set('financeDetails', undefined);
+        }
+
+        // Snapshot package & finance details at the exact moment of creation
+        // so future changes in Package Management NEVER alter existing policies!
+        try {
+            const planName = newWarranty.package?.plan;
+            if (planName) {
+                const pkgDoc = await InstallmentPlan.findOne({ tierName: planName }).lean();
+                const LEGACY_CAPS = {
+                    'Package 1': 5000, 'Package 2': 10000, 'Package 3': 15000, 'Package 4': 20000, 'Package 5': 25000,
+                    'Package 6': 30000, 'Package 7': 35000, 'Package 8': 40000, 'Package 9': 45000, 'Package 10': 50000
+                };
+                const baseDevVal = Number(newWarranty.device?.deviceValue ?? Math.floor(Number(newWarranty.devicePrice || 0) * 0.70));
+                const cap = Number(newWarranty.package?.coverageCap) || Number(pkgDoc?.maxDeviceValue) || LEGACY_CAPS[planName] || baseDevVal;
+                newWarranty.package.coverageCap = cap;
+                newWarranty.package.maxLimitSnapshot = Math.floor(Math.min(baseDevVal, cap));
+                if (!newWarranty.package.basePrice) {
+                    newWarranty.package.basePrice = Number(pkgDoc?.packagePrice) || Number(newWarranty.package?.price) || 0;
+                }
+                if (pkgDoc) {
+                    if (newWarranty.package.minDeviceValue === undefined) newWarranty.package.minDeviceValue = pkgDoc.minDeviceValue;
+                    if (newWarranty.package.maxDeviceValue === undefined) newWarranty.package.maxDeviceValue = pkgDoc.maxDeviceValue;
+                }
+                if (newWarranty.payment?.method === 'finance' && newWarranty.financeDetails) {
+                    const months = Number(newWarranty.financeDetails.financeMonths || 0);
+                    if (newWarranty.financeDetails.downPayment === undefined) {
+                        newWarranty.financeDetails.downPayment = Number(pkgDoc?.downPayment ?? 0);
+                    }
+                    if (!newWarranty.financeDetails.monthlyAmount && pkgDoc && Array.isArray(pkgDoc.installmentPlans)) {
+                        const matchedPlan = pkgDoc.installmentPlans.find(p => Number(p.months) === months);
+                        if (matchedPlan) newWarranty.financeDetails.monthlyAmount = Number(matchedPlan.monthlyAmount || 0);
+                    }
+                    if (newWarranty.financeDetails.financedAmount === undefined) {
+                        newWarranty.financeDetails.financedAmount = Math.max(0, Number(newWarranty.package.basePrice || newWarranty.package.price || 0) - Number(newWarranty.financeDetails.downPayment || 0));
+                    }
+                }
+            }
+        } catch (snapErr) {
+            console.error('Failed to snapshot package config on warranty creation:', snapErr);
         }
 
         // Enforce installmentsPaid from payment data in DB (do not trust client input)
@@ -4915,27 +5441,37 @@ app.get('/api/warranties/pending', async (req, res) => {
             {
                 $addFields: {
                     packageCap: {
-                        $switch: {
-                            branches: [
-                                { case: { $eq: ['$package.plan', 'Package 1'] }, then: 5000 },
-                                { case: { $eq: ['$package.plan', 'Package 2'] }, then: 10000 },
-                                { case: { $eq: ['$package.plan', 'Package 3'] }, then: 15000 },
-                                { case: { $eq: ['$package.plan', 'Package 4'] }, then: 20000 },
-                                { case: { $eq: ['$package.plan', 'Package 5'] }, then: 25000 },
-                                { case: { $eq: ['$package.plan', 'Package 6'] }, then: 30000 },
-                                { case: { $eq: ['$package.plan', 'Package 7'] }, then: 35000 },
-                                { case: { $eq: ['$package.plan', 'Package 8'] }, then: 40000 },
-                                { case: { $eq: ['$package.plan', 'Package 9'] }, then: 45000 },
-                                { case: { $eq: ['$package.plan', 'Package 10'] }, then: 50000 }
-                            ],
-                            default: 999999999
-                        }
+                        $ifNull: [
+                            '$package.coverageCap',
+                            {
+                                $switch: {
+                                    branches: [
+                                        { case: { $eq: ['$package.plan', 'Package 1'] }, then: 5000 },
+                                        { case: { $eq: ['$package.plan', 'Package 2'] }, then: 10000 },
+                                        { case: { $eq: ['$package.plan', 'Package 3'] }, then: 15000 },
+                                        { case: { $eq: ['$package.plan', 'Package 4'] }, then: 20000 },
+                                        { case: { $eq: ['$package.plan', 'Package 5'] }, then: 25000 },
+                                        { case: { $eq: ['$package.plan', 'Package 6'] }, then: 30000 },
+                                        { case: { $eq: ['$package.plan', 'Package 7'] }, then: 35000 },
+                                        { case: { $eq: ['$package.plan', 'Package 8'] }, then: 40000 },
+                                        { case: { $eq: ['$package.plan', 'Package 9'] }, then: 45000 },
+                                        { case: { $eq: ['$package.plan', 'Package 10'] }, then: 50000 }
+                                    ],
+                                    default: 999999999
+                                }
+                            }
+                        ]
                     }
                 }
             },
             {
                 $addFields: {
-                    maxLimit: { $floor: { $min: [{ $ifNull: ['$device.deviceValue', '$devicePrice'] }, '$packageCap'] } }
+                    maxLimit: {
+                        $ifNull: [
+                            '$package.maxLimitSnapshot',
+                            { $floor: { $min: [{ $ifNull: ['$device.deviceValue', '$devicePrice'] }, '$packageCap'] } }
+                        ]
+                    }
                 }
             },
             {
@@ -5337,27 +5873,37 @@ app.get('/api/warranties/active', async (req, res) => {
             {
                 $addFields: {
                     packageCap: {
-                        $switch: {
-                            branches: [
-                                { case: { $eq: ['$package.plan', 'Package 1'] }, then: 5000 },
-                                { case: { $eq: ['$package.plan', 'Package 2'] }, then: 10000 },
-                                { case: { $eq: ['$package.plan', 'Package 3'] }, then: 15000 },
-                                { case: { $eq: ['$package.plan', 'Package 4'] }, then: 20000 },
-                                { case: { $eq: ['$package.plan', 'Package 5'] }, then: 25000 },
-                                { case: { $eq: ['$package.plan', 'Package 6'] }, then: 30000 },
-                                { case: { $eq: ['$package.plan', 'Package 7'] }, then: 35000 },
-                                { case: { $eq: ['$package.plan', 'Package 8'] }, then: 40000 },
-                                { case: { $eq: ['$package.plan', 'Package 9'] }, then: 45000 },
-                                { case: { $eq: ['$package.plan', 'Package 10'] }, then: 50000 }
-                            ],
-                            default: 999999999
-                        }
+                        $ifNull: [
+                            '$package.coverageCap',
+                            {
+                                $switch: {
+                                    branches: [
+                                        { case: { $eq: ['$package.plan', 'Package 1'] }, then: 5000 },
+                                        { case: { $eq: ['$package.plan', 'Package 2'] }, then: 10000 },
+                                        { case: { $eq: ['$package.plan', 'Package 3'] }, then: 15000 },
+                                        { case: { $eq: ['$package.plan', 'Package 4'] }, then: 20000 },
+                                        { case: { $eq: ['$package.plan', 'Package 5'] }, then: 25000 },
+                                        { case: { $eq: ['$package.plan', 'Package 6'] }, then: 30000 },
+                                        { case: { $eq: ['$package.plan', 'Package 7'] }, then: 35000 },
+                                        { case: { $eq: ['$package.plan', 'Package 8'] }, then: 40000 },
+                                        { case: { $eq: ['$package.plan', 'Package 9'] }, then: 45000 },
+                                        { case: { $eq: ['$package.plan', 'Package 10'] }, then: 50000 }
+                                    ],
+                                    default: 999999999
+                                }
+                            }
+                        ]
                     }
                 }
             },
             {
                 $addFields: {
-                    maxLimit: { $floor: { $min: [{ $ifNull: ['$device.deviceValue', '$devicePrice'] }, '$packageCap'] } }
+                    maxLimit: {
+                        $ifNull: [
+                            '$package.maxLimitSnapshot',
+                            { $floor: { $min: [{ $ifNull: ['$device.deviceValue', '$devicePrice'] }, '$packageCap'] } }
+                        ]
+                    }
                 }
             },
             {
@@ -5450,27 +5996,37 @@ app.get('/api/warranties/:id', async (req, res) => {
             {
                 $addFields: {
                     packageCap: {
-                        $switch: {
-                            branches: [
-                                { case: { $eq: ['$package.plan', 'Package 1'] }, then: 5000 },
-                                { case: { $eq: ['$package.plan', 'Package 2'] }, then: 10000 },
-                                { case: { $eq: ['$package.plan', 'Package 3'] }, then: 15000 },
-                                { case: { $eq: ['$package.plan', 'Package 4'] }, then: 20000 },
-                                { case: { $eq: ['$package.plan', 'Package 5'] }, then: 25000 },
-                                { case: { $eq: ['$package.plan', 'Package 6'] }, then: 30000 },
-                                { case: { $eq: ['$package.plan', 'Package 7'] }, then: 35000 },
-                                { case: { $eq: ['$package.plan', 'Package 8'] }, then: 40000 },
-                                { case: { $eq: ['$package.plan', 'Package 9'] }, then: 45000 },
-                                { case: { $eq: ['$package.plan', 'Package 10'] }, then: 50000 }
-                            ],
-                            default: 999999999
-                        }
+                        $ifNull: [
+                            '$package.coverageCap',
+                            {
+                                $switch: {
+                                    branches: [
+                                        { case: { $eq: ['$package.plan', 'Package 1'] }, then: 5000 },
+                                        { case: { $eq: ['$package.plan', 'Package 2'] }, then: 10000 },
+                                        { case: { $eq: ['$package.plan', 'Package 3'] }, then: 15000 },
+                                        { case: { $eq: ['$package.plan', 'Package 4'] }, then: 20000 },
+                                        { case: { $eq: ['$package.plan', 'Package 5'] }, then: 25000 },
+                                        { case: { $eq: ['$package.plan', 'Package 6'] }, then: 30000 },
+                                        { case: { $eq: ['$package.plan', 'Package 7'] }, then: 35000 },
+                                        { case: { $eq: ['$package.plan', 'Package 8'] }, then: 40000 },
+                                        { case: { $eq: ['$package.plan', 'Package 9'] }, then: 45000 },
+                                        { case: { $eq: ['$package.plan', 'Package 10'] }, then: 50000 }
+                                    ],
+                                    default: 999999999
+                                }
+                            }
+                        ]
                     }
                 }
             },
             {
                 $addFields: {
-                    maxLimit: { $floor: { $min: [{ $ifNull: ['$device.deviceValue', '$devicePrice'] }, '$packageCap'] } }
+                    maxLimit: {
+                        $ifNull: [
+                            '$package.maxLimitSnapshot',
+                            { $floor: { $min: [{ $ifNull: ['$device.deviceValue', '$devicePrice'] }, '$packageCap'] } }
+                        ]
+                    }
                 }
             },
             {
@@ -5716,9 +6272,45 @@ app.put('/api/warranties/:id', async (req, res) => {
         }
 
         let updateOps = { ...updateData };
+        // Preserve existing package snapshot if the package plan did not change
+        if (updateOps.package && currentWarranty.package) {
+            const oldPlan = currentWarranty.package.plan;
+            const newPlan = updateOps.package.plan;
+            const LEGACY_CAPS = {
+                'Package 1': 5000, 'Package 2': 10000, 'Package 3': 15000, 'Package 4': 20000, 'Package 5': 25000,
+                'Package 6': 30000, 'Package 7': 35000, 'Package 8': 40000, 'Package 9': 45000, 'Package 10': 50000
+            };
+            const baseDevVal = Number(updateOps.device?.deviceValue ?? currentWarranty.device?.deviceValue ?? Math.floor(Number(updateOps.devicePrice ?? currentWarranty.devicePrice ?? 0) * 0.70));
+            if (oldPlan === newPlan) {
+                const preservedCap = Number(currentWarranty.package.coverageCap) || LEGACY_CAPS[oldPlan] || baseDevVal;
+                updateOps.package.coverageCap = preservedCap;
+                updateOps.package.maxLimitSnapshot = Math.floor(Math.min(baseDevVal, preservedCap));
+                updateOps.package.basePrice = Number(currentWarranty.package.basePrice) || Number(currentWarranty.package.price) || Number(updateOps.package.price) || 0;
+                if (currentWarranty.package.minDeviceValue !== undefined) updateOps.package.minDeviceValue = currentWarranty.package.minDeviceValue;
+                if (currentWarranty.package.maxDeviceValue !== undefined) updateOps.package.maxDeviceValue = currentWarranty.package.maxDeviceValue;
+            } else if (newPlan) {
+                const pkgDoc = await InstallmentPlan.findOne({ tierName: newPlan }).lean();
+                const cap = Number(updateOps.package.coverageCap) || Number(pkgDoc?.maxDeviceValue) || LEGACY_CAPS[newPlan] || baseDevVal;
+                updateOps.package.coverageCap = cap;
+                updateOps.package.maxLimitSnapshot = Math.floor(Math.min(baseDevVal, cap));
+                updateOps.package.basePrice = Number(updateOps.package.basePrice) || Number(pkgDoc?.packagePrice) || Number(updateOps.package.price) || 0;
+                if (pkgDoc) {
+                    updateOps.package.minDeviceValue = pkgDoc.minDeviceValue;
+                    updateOps.package.maxDeviceValue = pkgDoc.maxDeviceValue;
+                }
+            }
+        }
         if (updateData.payment && updateData.payment.method !== 'finance') {
             delete updateOps.financeDetails;
             updateOps.$unset = { ...(updateOps.$unset || {}), financeDetails: 1 };
+        } else if (updateOps.financeDetails && currentWarranty.financeDetails) {
+            const samePlan = (!updateOps.package || updateOps.package.plan === currentWarranty.package?.plan);
+            const sameMonths = Number(updateOps.financeDetails.financeMonths) === Number(currentWarranty.financeDetails.financeMonths);
+            if (samePlan && sameMonths && currentWarranty.financeDetails.monthlyAmount) {
+                updateOps.financeDetails.monthlyAmount = currentWarranty.financeDetails.monthlyAmount;
+                updateOps.financeDetails.downPayment = currentWarranty.financeDetails.downPayment ?? 0;
+                updateOps.financeDetails.financedAmount = currentWarranty.financeDetails.financedAmount;
+            }
         }
 
         const updated = await Warranty.findByIdAndUpdate(
@@ -5765,7 +6357,7 @@ app.put('/api/warranties/:id', async (req, res) => {
                 'Package 6': 1699, 'Package 7': 1899, 'Package 8': 2099, 'Package 9': 2299, 'Package 10': 2499
             };
             const planName = updated.package && updated.package.plan ? updated.package.plan : null;
-            const planFullRevenue = (planName && FINANCE_TOTALS[planName]) ? FINANCE_TOTALS[planName] : (Number(updated.package?.price) || 0);
+            const planFullRevenue = Number(updated.package?.basePrice) || Number(updated.package?.price) || ((planName && FINANCE_TOTALS[planName]) ? FINANCE_TOTALS[planName] : 0);
 
             const oldMethod = currentWarranty.payment?.method;
             const newMethod = updated.payment?.method;
@@ -6010,9 +6602,10 @@ app.patch('/api/warranties/:id/payment', async (req, res) => {
                     'Package 1': 699, 'Package 2': 899, 'Package 3': 1099, 'Package 4': 1299, 'Package 5': 1499,
                     'Package 6': 1699, 'Package 7': 1899, 'Package 8': 2099, 'Package 9': 2299, 'Package 10': 2499
                 };
-                if (planName && FINANCE_TOTALS[planName]) {
-                    transactionFullRevenue = FINANCE_TOTALS[planName];
-                    txFinancedAmount = transactionFullRevenue - net; // Unpaid part
+                const savedPkgRevenue = Number(warranty.package?.basePrice) || Number(warranty.package?.price) || ((planName && FINANCE_TOTALS[planName]) ? FINANCE_TOTALS[planName] : 0);
+                if (savedPkgRevenue > 0) {
+                    transactionFullRevenue = savedPkgRevenue;
+                    txFinancedAmount = Math.max(0, transactionFullRevenue - net); // Unpaid part
                     financeDisplayStr = transactionFullRevenue.toString();
                 } else {
                     transactionFullRevenue = net;
@@ -6449,6 +7042,8 @@ app.get('/api/finance/transactions', async (req, res) => {
                         }
                     },
                     packagePlan: { $arrayElemAt: ['$warranty.package.plan', 0] },
+                    packagePrice: { $arrayElemAt: ['$warranty.package.price', 0] },
+                    packageBasePrice: { $arrayElemAt: ['$warranty.package.basePrice', 0] },
                     financeProvider: {
                         $cond: {
                             if: {
@@ -7232,7 +7827,7 @@ app.get('/api/profit-statement/export/excel', async (req, res) => {
 
 app.get('/api/finance/export/excel', async (req, res) => {
     try {
-        const { startDate, endDate, fields, includeSummary, paymentMethod, financeProvider, search, shopName, paymentType } = req.query || {};
+        const { startDate, endDate, fields, includeSummary, paymentMethod, financeProvider, search, shopName, paymentType, financeReceived, receivedAsCash } = req.query || {};
 
         const match = { actionType: { $ne: 'คืนเงินชดเชยสละสิทธิ์เครื่อง' }, policyNumber: { $not: /^LN-/ } };
         if (startDate) {
@@ -7246,6 +7841,16 @@ app.get('/api/finance/export/excel', async (req, res) => {
         }
         if (shopName && String(shopName) !== 'all') {
             match.branch = String(shopName);
+        }
+        if (financeReceived !== undefined && String(financeReceived) !== '' && String(financeReceived) !== 'all') {
+            if (String(financeReceived) === 'true') {
+                match.financeReceived = true;
+            } else if (String(financeReceived) === 'false') {
+                match.financeReceived = { $ne: true };
+            }
+        }
+        if (receivedAsCash !== undefined && String(receivedAsCash) !== '' && String(receivedAsCash) !== 'all') {
+            match.receivedAsCash = (String(receivedAsCash) === 'true');
         }
         if (search && String(search).trim() !== '') {
             const sRegex = new RegExp(String(search).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
@@ -7261,7 +7866,8 @@ app.get('/api/finance/export/excel', async (req, res) => {
             .filter(Boolean);
 
         const fieldMeta = {
-            transactionDate: { header: 'วันที่', width: 22 },
+            transactionDate: { header: 'วันที่ทำรายการ', width: 22 },
+            financeReceivedDate: { header: 'วันที่รับเงินจริง', width: 20 },
             actionType: { header: 'ประเภทรายการ', width: 18 },
             policyNumber: { header: 'เลขที่สัญญา', width: 16 },
             customerName: { header: 'ชื่อลูกค้า', width: 20 },
@@ -7272,6 +7878,8 @@ app.get('/api/finance/export/excel', async (req, res) => {
             transferAmount: { header: 'เงินโอน', width: 14 },
             changeAmount: { header: 'เงินทอน', width: 14 },
             netTotal: { header: 'ยอดสุทธิ', width: 14 },
+            financedAmount: { header: 'ยอดไฟแนนซ์', width: 16 },
+            receivedAsCash: { header: 'ช่องทางรับเงิน', width: 20 },
             evidenceUrl: { header: 'หลักฐาน', width: 28 },
             recordedBy: { header: 'ผู้ทำรายการ', width: 18 }
         };
@@ -7321,6 +7929,8 @@ app.get('/api/finance/export/excel', async (req, res) => {
                         }
                     },
                     packagePlan: { $arrayElemAt: ['$warranty.package.plan', 0] },
+                    packagePrice: { $arrayElemAt: ['$warranty.package.price', 0] },
+                    packageBasePrice: { $arrayElemAt: ['$warranty.package.basePrice', 0] },
                     financeProvider: {
                         $cond: {
                             if: {
@@ -7369,13 +7979,17 @@ app.get('/api/finance/export/excel', async (req, res) => {
         ws.columns = finalFields.map(f => ({ key: f, ...fieldMeta[f] }));
         ws.getRow(1).font = { bold: true };
 
-        const moneyFields = new Set(['cashReceived', 'transferAmount', 'changeAmount', 'netTotal']);
+        const moneyFields = new Set(['cashReceived', 'transferAmount', 'changeAmount', 'netTotal', 'financedAmount']);
 
         for (const tx of (Array.isArray(transactions) ? transactions : [])) {
             const rowData = {};
             for (const f of finalFields) {
                 if (f === 'transactionDate') {
                     rowData[f] = tx.transactionDate ? new Date(tx.transactionDate) : null;
+                } else if (f === 'financeReceivedDate') {
+                    rowData[f] = tx.financeReceivedDate ? new Date(tx.financeReceivedDate) : null;
+                } else if (f === 'receivedAsCash') {
+                    rowData[f] = tx.financeReceived ? (tx.receivedAsCash ? 'เงินสด (EasyCare)' : 'เงินโอน (Silmin)') : '-';
                 } else if (f === 'netTotal' && tx.financeDisplay) {
                     rowData[f] = tx.financeDisplay;
                 } else if (moneyFields.has(f)) {
@@ -7388,7 +8002,7 @@ app.get('/api/finance/export/excel', async (req, res) => {
         }
 
         ws.columns.forEach(col => {
-            if (col && col.key === 'transactionDate') {
+            if (col && (col.key === 'transactionDate' || col.key === 'financeReceivedDate')) {
                 col.numFmt = 'dd/mm/yyyy hh:mm';
             }
             if (col && moneyFields.has(col.key)) {
@@ -9378,17 +9992,8 @@ app.get('/api/public/track/:claimId', async (req, res) => {
                     ? Number(warranty.usedCoverage)
                     : totalUsed;
 
-                const basePrice = Number(warranty.device?.deviceValue ?? warranty.devicePrice ?? 0);
-                const caps = {
-                    'Package 1': 5000, 'Package 2': 10000, 'Package 3': 15000, 'Package 4': 20000, 'Package 5': 25000,
-                    'Package 6': 30000, 'Package 7': 35000, 'Package 8': 40000, 'Package 9': 45000, 'Package 10': 50000
-                };
-                const cap = caps[warranty.package?.plan] || Infinity;
-                const maxLimit = Math.floor(Math.min(basePrice, cap));
-                const paid = Number(warranty.installmentsPaid ?? 1);
-                const currentLimit = paid >= 3
-                    ? Math.floor(maxLimit * 1.0)
-                    : (paid === 2 ? Math.floor(maxLimit * 0.30) : Math.floor(maxLimit * 0.10));
+                const maxLimit = Number(warranty.maxLimit ?? 0);
+                const currentLimit = Number(warranty.currentLimit ?? 0);
 
                 coverageLimit = currentLimit;
                 remainingBalance = coverageLimit - usedCoverage;
