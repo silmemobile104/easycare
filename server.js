@@ -7421,7 +7421,7 @@ async function buildProfitStatementData({ startDate, endDate, includeCompare = f
     const refundMatch = { ...rangeMatchTx, actionType: 'คืนเงินชดเชยสละสิทธิ์เครื่อง' };
     const incomeMatch = { ...rangeMatchTx, actionType: { $ne: 'คืนเงินชดเชยสละสิทธิ์เครื่อง' }, policyNumber: { $not: /^LN-/ } };
 
-    const [incomeAgg, refundAgg, claimCostAgg, adminAgg, manualAgg, incomeTrend, refundTrend, claimTrend, adminTrend, manualTrend, marketingAnalytics, totalApprovedWarranties] = await Promise.all([
+    const [incomeAgg, incomeActionAgg, refundAgg, claimCostAgg, adminAgg, manualAgg, incomeTrend, refundTrend, claimTrend, adminTrend, manualTrend, marketingAnalytics, totalApprovedWarranties] = await Promise.all([
             FinanceTransaction.aggregate([
                 { $match: incomeMatch },
                 {
@@ -7433,10 +7433,54 @@ async function buildProfitStatementData({ startDate, endDate, includeCompare = f
                 {
                     $group: {
                         _id: '$__paymentMethod',
-                        amount: { $sum: '$__incomeAmount' }
+                        amount: { $sum: '$__incomeAmount' },
+                        count: { $sum: 1 }
                     }
                 },
                 { $sort: { amount: -1 } }
+            ]),
+            FinanceTransaction.aggregate([
+                { $match: incomeMatch },
+                {
+                    $addFields: {
+                        __incomeAmount: { $ifNull: ['$fullRevenue', '$netTotal'] },
+                        __actionGroup: {
+                            $switch: {
+                                branches: [
+                                    { case: { $eq: ['$actionType', 'ชำระเต็มจำนวน'] }, then: 'ชำระเต็มจำนวน' },
+                                    { case: { $eq: ['$actionType', 'ชำระงวดผ่อนด้วยไฟแนนซ์'] }, then: 'ชำระงวดผ่อนด้วยไฟแนนซ์' },
+                                    { case: { $or: [{ $regexMatch: { input: { $ifNull: ['$actionType', ''] }, regex: /ชำระค่างวดที่/ } }, { $eq: ['$actionType', 'ชำระปิดยอด/จ่ายเต็ม'] }] }, then: 'แบ่งชำระ 3 งวด / ปิดยอด' },
+                                    { case: { $or: [{ $eq: ['$actionType', 'ชำระค่าซ่อมส่วนต่าง'] }, { $regexMatch: { input: { $ifNull: ['$actionType', ''] }, regex: /ส่วนต่าง/ } }] }, then: 'ชำระค่าซ่อมส่วนต่าง' }
+                                ],
+                                default: { $ifNull: ['$actionType', 'อื่นๆ'] }
+                            }
+                        }
+                    }
+                },
+                {
+                    $facet: {
+                        byActionGroup: [
+                            {
+                                $group: {
+                                    _id: '$__actionGroup',
+                                    amount: { $sum: '$__incomeAmount' },
+                                    count: { $sum: 1 }
+                                }
+                            },
+                            { $sort: { amount: -1 } }
+                        ],
+                        financeStatus: [
+                            { $match: { actionType: 'ชำระงวดผ่อนด้วยไฟแนนซ์' } },
+                            {
+                                $group: {
+                                    _id: { $cond: [{ $eq: ['$financeReceived', true] }, 'received', 'pending'] },
+                                    amount: { $sum: '$__incomeAmount' },
+                                    count: { $sum: 1 }
+                                }
+                            }
+                        ]
+                    }
+                }
             ]),
             FinanceTransaction.aggregate([
                 { $match: refundMatch },
@@ -7455,7 +7499,8 @@ async function buildProfitStatementData({ startDate, endDate, includeCompare = f
                 {
                     $group: {
                         _id: null,
-                        totalRefund: { $sum: '$__paidAmount' }
+                        totalRefund: { $sum: '$__paidAmount' },
+                        count: { $sum: 1 }
                     }
                 }
             ]),
@@ -7488,7 +7533,7 @@ async function buildProfitStatementData({ startDate, endDate, includeCompare = f
                                 }
                             },
                             { $match: { __paidAmount: { $gt: 0 } } },
-                            { $group: { _id: null, total: { $sum: '$__paidAmount' } } }
+                            { $group: { _id: null, total: { $sum: '$__paidAmount' }, count: { $sum: 1 } } }
                         ]
                     }
                 },
@@ -7496,6 +7541,9 @@ async function buildProfitStatementData({ startDate, endDate, includeCompare = f
                     $project: {
                         total: {
                             $ifNull: [{ $arrayElemAt: ['$updateCosts.total', 0] }, 0]
+                        },
+                        count: {
+                            $ifNull: [{ $arrayElemAt: ['$updateCosts.count', 0] }, 0]
                         }
                     }
                 }
@@ -7505,14 +7553,15 @@ async function buildProfitStatementData({ startDate, endDate, includeCompare = f
                 {
                     $group: {
                         _id: { $ifNull: ['$category', 'ไม่ระบุ'] },
-                        amount: { $sum: '$amount' }
+                        amount: { $sum: '$amount' },
+                        count: { $sum: 1 }
                     }
                 },
                 { $sort: { amount: -1 } }
             ]),
             ManualExpense.aggregate([
                 ...(Object.keys(rangeMatchManual).length > 0 ? [{ $match: rangeMatchManual }] : []),
-                { $group: { _id: null, totalManual: { $sum: '$amount' } } }
+                { $group: { _id: null, totalManual: { $sum: '$amount' }, count: { $sum: 1 } } }
             ]),
             FinanceTransaction.aggregate([
                 { $match: incomeMatch },
@@ -7588,7 +7637,7 @@ async function buildProfitStatementData({ startDate, endDate, includeCompare = f
                 { $group: { _id: '$__bucket', manual: { $sum: '$__amount' } } },
                 { $sort: { _id: 1 } }
             ]),
-            // Marketing Analytics: Device condition, top models, package sales
+            // Marketing Analytics & Approved Contracts Breakdown: Device condition, top models, package sales, payment methods & approval status
             Warranty.aggregate([
                 ...(Object.keys(rangeMatchWarranty).length > 0 ? [{ $match: rangeMatchWarranty }] : []),
                 {
@@ -7621,6 +7670,41 @@ async function buildProfitStatementData({ startDate, endDate, includeCompare = f
                                 }
                             },
                             { $sort: { totalRevenue: -1 } }
+                        ],
+                        approvedByPaymentMethod: [
+                            { $match: { approvalStatus: { $in: ['approved', 'Approved_Unpaid', 'Approved_Paid'] } } },
+                            {
+                                $group: {
+                                    _id: { $ifNull: ['$payment.method', 'Full Payment'] },
+                                    count: { $sum: 1 },
+                                    totalRevenue: { $sum: { $ifNull: ['$package.price', 0] } }
+                                }
+                            },
+                            { $sort: { count: -1 } }
+                        ],
+                        approvedByPaymentStatus: [
+                            { $match: { approvalStatus: { $in: ['approved', 'Approved_Unpaid', 'Approved_Paid'] } } },
+                            {
+                                $group: {
+                                    _id: {
+                                        $cond: [
+                                            { $or: [{ $eq: ['$payment.status', 'Paid'] }, { $eq: ['$approvalStatus', 'Approved_Paid'] }] },
+                                            'paid',
+                                            'unpaid'
+                                        ]
+                                    },
+                                    count: { $sum: 1 },
+                                    totalRevenue: { $sum: { $ifNull: ['$package.price', 0] } }
+                                }
+                            }
+                        ],
+                        approvalStatusCounts: [
+                            {
+                                $group: {
+                                    _id: { $ifNull: ['$approvalStatus', 'approved'] },
+                                    count: { $sum: 1 }
+                                }
+                            }
                         ]
                     }
                 }
@@ -7632,13 +7716,29 @@ async function buildProfitStatementData({ startDate, endDate, includeCompare = f
         ]);
 
         const totalIncome = (Array.isArray(incomeAgg) ? incomeAgg : []).reduce((s, r) => s + Number(r.amount || 0), 0);
+        const totalIncomeCount = (Array.isArray(incomeAgg) ? incomeAgg : []).reduce((s, r) => s + Number(r.count || 0), 0);
         const totalRefund = (refundAgg && refundAgg[0]) ? Math.abs(Number(refundAgg[0].totalRefund || 0)) : 0;
+        const totalRefundCount = (refundAgg && refundAgg[0]) ? Number(refundAgg[0].count || 0) : 0;
         const totalClaimCost = (claimCostAgg && claimCostAgg[0]) ? Number(claimCostAgg[0].total || 0) : 0;
+        const totalClaimCostCount = (claimCostAgg && claimCostAgg[0]) ? Number(claimCostAgg[0].count || 0) : 0;
         const totalManualExpense = (manualAgg && manualAgg[0]) ? Number(manualAgg[0].totalManual || 0) : 0;
+        const totalManualExpenseCount = (manualAgg && manualAgg[0]) ? Number(manualAgg[0].count || 0) : 0;
         const totalAdminExpense = (Array.isArray(adminAgg) ? adminAgg : []).reduce((s, r) => s + Number(r.amount || 0), 0);
+        const totalAdminExpenseCount = (Array.isArray(adminAgg) ? adminAgg : []).reduce((s, r) => s + Number(r.count || 0), 0);
         const totalExpense = totalRefund + totalClaimCost + totalManualExpense + totalAdminExpense;
+        const totalExpenseCount = totalRefundCount + totalClaimCostCount + totalManualExpenseCount + totalAdminExpenseCount;
         const netProfit = totalIncome - totalExpense;
         const profitMarginPct = totalIncome > 0 ? (netProfit / totalIncome) * 100 : 0;
+
+        const incomeActionData = (incomeActionAgg && incomeActionAgg[0]) || {};
+        const incomeByActionGroup = (Array.isArray(incomeActionData.byActionGroup) ? incomeActionData.byActionGroup : []).map(r => ({
+            actionGroup: r._id || 'อื่นๆ',
+            amount: Number(r.amount || 0),
+            count: Number(r.count || 0)
+        }));
+        const financeStatusRows = Array.isArray(incomeActionData.financeStatus) ? incomeActionData.financeStatus : [];
+        const financeReceivedObj = financeStatusRows.find(r => r._id === 'received') || { amount: 0, count: 0 };
+        const financePendingObj = financeStatusRows.find(r => r._id === 'pending') || { amount: 0, count: 0 };
 
         // Process marketing analytics data
         const marketingData = (marketingAnalytics && marketingAnalytics[0]) || {};
@@ -7655,6 +7755,18 @@ async function buildProfitStatementData({ startDate, endDate, includeCompare = f
             count: Number(r.count || 0),
             revenue: Number(r.totalRevenue || 0)
         }));
+        const approvedByPaymentMethod = (Array.isArray(marketingData.approvedByPaymentMethod) ? marketingData.approvedByPaymentMethod : []).map(r => ({
+            method: r._id || 'Full Payment',
+            count: Number(r.count || 0),
+            revenue: Number(r.totalRevenue || 0)
+        }));
+        const approvedStatusRows = Array.isArray(marketingData.approvedByPaymentStatus) ? marketingData.approvedByPaymentStatus : [];
+        const approvedPaidRow = approvedStatusRows.find(r => r._id === 'paid') || { count: 0, totalRevenue: 0 };
+        const approvedUnpaidRow = approvedStatusRows.find(r => r._id === 'unpaid') || { count: 0, totalRevenue: 0 };
+        const approvalStatusCounts = (Array.isArray(marketingData.approvalStatusCounts) ? marketingData.approvalStatusCounts : []).reduce((acc, r) => {
+            acc[r._id || 'approved'] = Number(r.count || 0);
+            return acc;
+        }, {});
 
         const trendMap = new Map();
         function upsert(bucket, patch) {
@@ -7689,20 +7801,60 @@ async function buildProfitStatementData({ startDate, endDate, includeCompare = f
         period: { startDate: startDate || '', endDate: endDate || '' },
         kpis: {
             totalIncome,
+            totalIncomeCount,
             totalExpense,
+            totalExpenseCount,
             totalClaimCost: totalClaimCost + totalManualExpense + totalRefund,
             totalAdminExpense,
+            totalAdminExpenseCount,
             netProfit,
             profitMarginPct,
             totalApprovedWarranties
         },
-        incomeByMethod: (Array.isArray(incomeAgg) ? incomeAgg : []).map(r => ({ method: r._id || 'ไม่ระบุ', amount: Number(r.amount || 0) })),
-        adminExpenseByCategory: (Array.isArray(adminAgg) ? adminAgg : []).map(r => ({ category: r._id || 'ไม่ระบุ', amount: Number(r.amount || 0) })),
+        incomeByMethod: (Array.isArray(incomeAgg) ? incomeAgg : []).map(r => ({
+            method: r._id || 'ไม่ระบุ',
+            amount: Number(r.amount || 0),
+            count: Number(r.count || 0)
+        })),
+        incomeBreakdown: {
+            totalIncome,
+            totalIncomeCount,
+            byActionGroup: incomeByActionGroup,
+            financeStatus: {
+                receivedAmount: Number(financeReceivedObj.amount || 0),
+                receivedCount: Number(financeReceivedObj.count || 0),
+                pendingAmount: Number(financePendingObj.amount || 0),
+                pendingCount: Number(financePendingObj.count || 0)
+            }
+        },
+        contractsBreakdown: {
+            totalApproved: totalApprovedWarranties,
+            paidCount: Number(approvedPaidRow.count || 0),
+            paidRevenue: Number(approvedPaidRow.totalRevenue || 0),
+            unpaidCount: Number(approvedUnpaidRow.count || 0),
+            unpaidRevenue: Number(approvedUnpaidRow.totalRevenue || 0),
+            byPaymentMethod: approvedByPaymentMethod,
+            pendingApprovalCount: Number(approvalStatusCounts.pending || 0),
+            needsCorrectionCount: Number(approvalStatusCounts.needs_correction || 0),
+            rejectedCount: Number(approvalStatusCounts.rejected || 0)
+        },
+        adminExpenseByCategory: (Array.isArray(adminAgg) ? adminAgg : []).map(r => ({
+            category: r._id || 'ไม่ระบุ',
+            amount: Number(r.amount || 0),
+            count: Number(r.count || 0)
+        })),
         expenseSummary: {
             claimCost: totalClaimCost + totalManualExpense,
+            directClaimCost: totalClaimCost,
+            directClaimCostCount: totalClaimCostCount,
+            manualExpense: totalManualExpense,
+            manualExpenseCount: totalManualExpenseCount,
             refundCost: totalRefund,
+            refundCount: totalRefundCount,
             adminExpense: totalAdminExpense,
-            totalExpense
+            adminExpenseCount: totalAdminExpenseCount,
+            totalExpense,
+            totalExpenseCount
         },
         trend,
         marketingAnalytics: {
@@ -7714,6 +7866,7 @@ async function buildProfitStatementData({ startDate, endDate, includeCompare = f
             incomeLines: (Array.isArray(incomeAgg) ? incomeAgg : []).map(r => ({ label: r._id || 'ไม่ระบุ', amount: Number(r.amount || 0) })),
             expenseLines: [
                 { label: 'ต้นทุนเคลม (ซ่อม/ดำเนินการ)', amount: totalClaimCost },
+                ...(totalRefund > 0 ? [{ label: 'คืนเงินชดเชยสละสิทธิ์เครื่อง', amount: totalRefund }] : []),
                 { label: 'รายจ่ายเคลม (บันทึกเอง)', amount: totalManualExpense },
                 { label: 'รายจ่ายบริหาร', amount: totalAdminExpense }
             ],

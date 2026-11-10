@@ -2302,6 +2302,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let profitTrendChartInstance = null;
     let packageDistributionChartInstance = null;
     let deviceConditionChartInstance = null;
+    let latestProfitStatementData = null;
 
     function initProfitStatementDefaults() {
         const rangeEl = document.getElementById('profitStatementRange');
@@ -2309,12 +2310,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const endEl = document.getElementById('profitStatementEndDate');
         if (!rangeEl || !startEl || !endEl) return;
 
-        if (!startEl.value && !endEl.value) {
-            const now = new Date();
-            const start = new Date(now.getFullYear(), now.getMonth(), 1);
-            const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-            startEl.value = start.toISOString().split('T')[0];
-            endEl.value = end.toISOString().split('T')[0];
+        if (!rangeEl.dataset.initialized) {
+            rangeEl.value = 'all';
+            startEl.value = '';
+            endEl.value = '';
+            rangeEl.dataset.initialized = 'true';
         }
     }
 
@@ -2482,14 +2482,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    const profitStatementAnalyzeBtn = document.getElementById('profitStatementAnalyzeBtn');
-    if (profitStatementAnalyzeBtn) {
-        profitStatementAnalyzeBtn.addEventListener('click', (e) => {
-            e.preventDefault();
-            fetchAndRenderProfitStatement();
-        });
-    }
-
     const profitStatementExportExcelBtn = document.getElementById('profitStatementExportExcelBtn');
     if (profitStatementExportExcelBtn) {
         profitStatementExportExcelBtn.addEventListener('click', (e) => {
@@ -2502,15 +2494,34 @@ document.addEventListener('DOMContentLoaded', () => {
     if (profitStatementRangeEl) {
         profitStatementRangeEl.addEventListener('change', () => {
             const preset = profitStatementRangeEl.value;
-            if (preset !== 'custom') {
+            const startEl = document.getElementById('profitStatementStartDate');
+            const endEl = document.getElementById('profitStatementEndDate');
+            if (preset === 'all') {
+                if (startEl) startEl.value = '';
+                if (endEl) endEl.value = '';
+                fetchAndRenderProfitStatement();
+            } else if (preset !== 'custom') {
                 const r = computeRangeDates(preset);
-                const startEl = document.getElementById('profitStatementStartDate');
-                const endEl = document.getElementById('profitStatementEndDate');
                 if (startEl && r.startDate) startEl.value = r.startDate;
                 if (endEl && r.endDate) endEl.value = r.endDate;
+                fetchAndRenderProfitStatement();
             }
         });
     }
+
+    ['profitStatementStartDate', 'profitStatementEndDate'].forEach(id => {
+        const dateEl = document.getElementById(id);
+        if (dateEl) {
+            dateEl.addEventListener('change', () => {
+                const hasStart = Boolean(document.getElementById('profitStatementStartDate')?.value);
+                const hasEnd = Boolean(document.getElementById('profitStatementEndDate')?.value);
+                if (profitStatementRangeEl) {
+                    profitStatementRangeEl.value = (hasStart || hasEnd) ? 'custom' : 'all';
+                }
+                fetchAndRenderProfitStatement();
+            });
+        }
+    });
 
     const profitStatementCompareToggle = document.getElementById('profitStatementCompareToggle');
     if (profitStatementCompareToggle) {
@@ -2527,9 +2538,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
         let startDate = (startEl || {}).value || '';
         let endDate = (endEl || {}).value || '';
-        const preset = (rangeEl || {}).value || 'monthly';
+        const preset = (rangeEl || {}).value || 'all';
 
-        if (preset && preset !== 'custom' && (!startDate || !endDate)) {
+        if (preset === 'all') {
+            startDate = '';
+            endDate = '';
+            if (startEl) startEl.value = '';
+            if (endEl) endEl.value = '';
+        } else if (preset && preset !== 'custom' && (!startDate || !endDate)) {
             const r = computeRangeDates(preset);
             startDate = startDate || r.startDate;
             endDate = endDate || r.endDate;
@@ -2550,6 +2566,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 throw new Error(msg);
             }
 
+            latestProfitStatementData = data;
             const k = data.kpis || {};
             const elIncome = document.getElementById('kpiProfitTotalIncome');
             const elExpense = document.getElementById('kpiProfitTotalExpense');
@@ -2596,6 +2613,586 @@ document.addEventListener('DOMContentLoaded', () => {
             hideLoader();
         }
     }
+
+    window.showProfitKpiBreakdownModal = async function (cardType) {
+        let data = latestProfitStatementData;
+        if (!data) {
+            try {
+                await fetchAndRenderProfitStatement();
+                data = latestProfitStatementData;
+            } catch (err) {
+                console.error('Load profit statement for breakdown error:', err);
+            }
+        }
+        if (!data) {
+            showAlert('error', 'ไม่สามารถโหลดรายละเอียดที่มาของตัวเลขได้');
+            return;
+        }
+
+        const k = data.kpis || {};
+        const period = data.period || {};
+        const periodLabel = (period.startDate || period.endDate)
+            ? `ตั้งแต่วันที่ ${period.startDate || 'เริ่มต้น'} ถึง ${period.endDate || 'ปัจจุบัน'}`
+            : 'ทั้งหมด (สะสมทุกช่วงเวลา)';
+
+        const totalIncome = Number(k.totalIncome || 0);
+        const totalIncomeCount = Number(k.totalIncomeCount || (data.incomeBreakdown && data.incomeBreakdown.totalIncomeCount) || 0);
+        const totalExpense = Number(k.totalExpense || 0);
+        const totalExpenseCount = Number(k.totalExpenseCount || (data.expenseSummary && data.expenseSummary.totalExpenseCount) || 0);
+        const netProfit = Number(k.netProfit || 0);
+        const profitMarginPct = Number(k.profitMarginPct || 0);
+        const totalContracts = Number(k.totalApprovedWarranties || 0);
+
+        const expSum = data.expenseSummary || {};
+        const directClaimCost = Number(expSum.directClaimCost !== undefined ? expSum.directClaimCost : (expSum.claimCost || 0));
+        const directClaimCount = Number(expSum.directClaimCostCount || 0);
+        const manualExpense = Number(expSum.manualExpense || 0);
+        const manualCount = Number(expSum.manualExpenseCount || 0);
+        const refundCost = Number(expSum.refundCost || 0);
+        const refundCount = Number(expSum.refundCount || 0);
+        const adminExpense = Number(expSum.adminExpense !== undefined ? expSum.adminExpense : (k.totalAdminExpense || 0));
+        const adminCount = Number(expSum.adminExpenseCount !== undefined ? expSum.adminExpenseCount : (k.totalAdminExpenseCount || 0));
+        const adminCategories = Array.isArray(data.adminExpenseByCategory) ? data.adminExpenseByCategory : [];
+
+        const incomeByMethod = Array.isArray(data.incomeByMethod) ? data.incomeByMethod : [];
+        const incomeBreakdown = data.incomeBreakdown || {};
+        const byActionGroup = Array.isArray(incomeBreakdown.byActionGroup) ? incomeBreakdown.byActionGroup : [];
+        const finStatus = incomeBreakdown.financeStatus || { receivedAmount: 0, receivedCount: 0, pendingAmount: 0, pendingCount: 0 };
+
+        const contractsBd = data.contractsBreakdown || {};
+        const byPaymentMethod = Array.isArray(contractsBd.byPaymentMethod) ? contractsBd.byPaymentMethod : [];
+        const mktData = data.marketingAnalytics || {};
+        const pkgSales = Array.isArray(mktData.packageSales) ? mktData.packageSales : [];
+        const condStats = Array.isArray(mktData.deviceConditionStats) ? mktData.deviceConditionStats : [];
+
+        let modalHtml = '';
+
+        // ══════════════════════════════════════════════════════════════════
+        // 1. การ์ด "รายรับรวม" (Total Income)
+        // ══════════════════════════════════════════════════════════════════
+        if (cardType === 'income') {
+            const actionRowsHtml = byActionGroup.length > 0
+                ? byActionGroup.map(row => {
+                    const pct = totalIncome > 0 ? ((row.amount / totalIncome) * 100).toFixed(1) : '0.0';
+                    const isFinanceRow = row.actionGroup === 'ชำระงวดผ่อนด้วยไฟแนนซ์';
+                    const financeSubNote = isFinanceRow && (finStatus.receivedCount > 0 || finStatus.pendingCount > 0)
+                        ? `<div style="margin-top: 6px; padding: 6px 10px; background: #f8fafc; border-radius: 6px; border: 1px dashed #cbd5e1; font-size: 0.74rem; color: #475569; display: flex; flex-wrap: wrap; gap: 10px;">
+                               <span>✅ ไฟแนนซ์โอนแล้ว: <strong style="color:#059669;">${formatNumber(finStatus.receivedAmount)} ฿</strong> (${finStatus.receivedCount} รายการ)</span>
+                               <span>⏳ รอไฟแนนซ์โอน: <strong style="color:#d97706;">${formatNumber(finStatus.pendingAmount)} ฿</strong> (${finStatus.pendingCount} รายการ)</span>
+                           </div>`
+                        : '';
+                    return `
+                        <div style="padding: 9px 12px; background: #ffffff; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 6px;">
+                            <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+                                <div>
+                                    <div style="font-size: 0.84rem; font-weight: 700; color: #1e293b; display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                                        <span>${row.actionGroup}</span>
+                                        <span style="font-size: 0.68rem; color: #0f766e; background: #ccfbf1; padding: 1px 6px; border-radius: 4px; font-weight: 600;">${row.count.toLocaleString()} รายการ</span>
+                                        <span style="font-size: 0.68rem; color: #64748b; background: #f1f5f9; padding: 1px 6px; border-radius: 4px; font-weight: 600;">${pct}%</span>
+                                    </div>
+                                </div>
+                                <div style="font-size: 0.95rem; font-weight: 800; color: #0d9488; font-family: monospace, var(--font-family); white-space: nowrap;">
+                                    +${formatNumber(row.amount)} ฿
+                                </div>
+                            </div>
+                            ${financeSubNote}
+                        </div>
+                    `;
+                }).join('')
+                : `<div style="padding: 10px; text-align: center; color: #94a3b8; font-size: 0.82rem;">ไม่พบรายการรายรับในช่วงเวลานี้</div>`;
+
+            const methodRowsHtml = incomeByMethod.length > 0
+                ? incomeByMethod.map(row => {
+                    const pct = totalIncome > 0 ? ((row.amount / totalIncome) * 100).toFixed(1) : '0.0';
+                    const countBadge = row.count ? `<span style="font-size: 0.68rem; color: #475569; background: #f1f5f9; padding: 1px 6px; border-radius: 4px;">${row.count.toLocaleString()} รายการ</span>` : '';
+                    return `
+                        <div style="display: flex; align-items: center; justify-content: space-between; padding: 7px 10px; background: #ffffff; border-radius: 8px; border: 1px solid #f1f5f9; margin-bottom: 5px;">
+                            <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 0.82rem; font-weight: 600; color: #334155;">
+                                <span>💳 ${row.method}</span>
+                                ${countBadge}
+                                <span style="font-size: 0.68rem; color: #0284c7; background: #e0f2fe; padding: 1px 6px; border-radius: 4px; font-weight: 600;">${pct}%</span>
+                            </div>
+                            <div style="font-size: 0.9rem; font-weight: 700; color: #0f766e; font-family: monospace, var(--font-family);">
+                                ${formatNumber(row.amount)} ฿
+                            </div>
+                        </div>
+                    `;
+                }).join('')
+                : `<div style="padding: 10px; text-align: center; color: #94a3b8; font-size: 0.82rem;">ไม่พบข้อมูลช่องทางรับชำระ</div>`;
+
+            modalHtml = `
+                <div style="text-align: left; font-family: var(--font-family, sans-serif); color: #1e293b;">
+                    <!-- Header -->
+                    <div style="display: flex; align-items: center; gap: 12px; padding-bottom: 14px; border-bottom: 1px solid #f1f5f9; margin-bottom: 14px;">
+                        <div style="width: 44px; height: 44px; border-radius: 12px; background: linear-gradient(135deg, #0d9488 0%, #059669 100%); color: #ffffff; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(13, 148, 136, 0.28); flex-shrink: 0;">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <line x1="12" y1="1" x2="12" y2="23"></line>
+                                <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+                            </svg>
+                        </div>
+                        <div>
+                            <div style="font-size: 1.15rem; font-weight: 800; color: #0f172a; line-height: 1.3;">ที่มาของตัวเลข: รายรับรวม</div>
+                            <div style="font-size: 0.78rem; color: #64748b; margin-top: 2px;">ช่วงเวลา: <strong>${periodLabel}</strong></div>
+                        </div>
+                    </div>
+
+                    <!-- Summary Highlight Box -->
+                    <div style="background: linear-gradient(135deg, #f0fdfa 0%, #ccfbf1 100%); border: 2px solid #5eead4; border-radius: 12px; padding: 14px 16px; margin-bottom: 14px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
+                        <div>
+                            <div style="font-size: 0.85rem; font-weight: 800; color: #115e59;">💰 ยอดรายรับรวมทั้งหมด (Total Revenue)</div>
+                            <div style="font-size: 0.74rem; color: #0f766e; margin-top: 2px;">รวมจากธุรกรรมรับเงินทั้งหมด <strong>${totalIncomeCount.toLocaleString()} รายการ</strong></div>
+                        </div>
+                        <div style="font-size: 1.4rem; font-weight: 900; color: #0d9488; font-family: monospace, var(--font-family);">
+                            ${formatNumber(totalIncome)} ฿
+                        </div>
+                    </div>
+
+                    <!-- 1. แยกตามประเภทการรับเงิน -->
+                    <div style="background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 12px; padding: 12px 14px; margin-bottom: 14px;">
+                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+                            <span style="font-size: 0.85rem; font-weight: 700; color: #0f766e;">1. แยกตามประเภทรายการรับเงิน (Action Type)</span>
+                            <span style="font-size: 0.72rem; color: #0f766e; background: #ccfbf1; padding: 2px 8px; border-radius: 10px; font-weight: 600;">ที่มาหลัก</span>
+                        </div>
+                        ${actionRowsHtml}
+                    </div>
+
+                    <!-- 2. แยกตามช่องทางการชำระเงิน -->
+                    <div style="background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 12px; padding: 12px 14px; margin-bottom: 12px;">
+                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+                            <span style="font-size: 0.85rem; font-weight: 700; color: #334155;">2. แยกตามช่องทางการชำระเงิน (Payment Method)</span>
+                            <span style="font-size: 0.72rem; color: #475569; background: #e2e8f0; padding: 2px 8px; border-radius: 10px; font-weight: 600;">ช่องทางรับเงิน</span>
+                        </div>
+                        ${methodRowsHtml}
+                    </div>
+
+                    <!-- คำอธิบายเกณฑ์การคำนวณ -->
+                    <div style="background: #fffbeb; border: 1px solid #fde68a; border-radius: 10px; padding: 10px 12px; font-size: 0.75rem; color: #92400e; line-height: 1.5;">
+                        <strong>💡 หลักการคำนวณรายรับรวม:</strong><br>
+                        • นับจากรายการเดินบัญชี (<code>FinanceTransaction</code>) ตามวันที่ทำรายการ (ไม่รวมรายการเงินยืม <code>LN-</code> และรายการจ่ายเงินคืนสละสิทธิ์)<br>
+                        • กรณี <strong>ชำระเต็มจำนวน</strong> และ <strong>ผ่อนไฟแนนซ์</strong> จะรับรู้ยอดตามราคาแพ็กเกจเต็มของสัญญานั้นๆ<br>
+                        • กรณี <strong>แบ่งจ่าย 3 งวด</strong> และ <strong>ชำระค่าซ่อมส่วนต่าง</strong> จะนับตามยอดเงินที่รับชำระจริงในแต่ละงวด
+                    </div>
+                </div>
+            `;
+        }
+
+        // ══════════════════════════════════════════════════════════════════
+        // 2. การ์ด "สัญญา (อนุมัติแล้ว)" (Approved Contracts)
+        // ══════════════════════════════════════════════════════════════════
+        else if (cardType === 'contracts') {
+            const paidCount = Number(contractsBd.paidCount || 0);
+            const paidRevenue = Number(contractsBd.paidRevenue || 0);
+            const unpaidCount = Number(contractsBd.unpaidCount || 0);
+            const unpaidRevenue = Number(contractsBd.unpaidRevenue || 0);
+            const pendingCount = Number(contractsBd.pendingApprovalCount || 0);
+            const correctionCount = Number(contractsBd.needsCorrectionCount || 0);
+            const rejectedCount = Number(contractsBd.rejectedCount || 0);
+
+            const methodLabelMap = {
+                'Full Payment': '💵 ชำระเต็มจำนวน (Full Payment)',
+                'Installment': '🗓️ แบ่งชำระ 3 งวด (Installment)',
+                'finance': '🏦 ผ่อนชำระผ่านไฟแนนซ์ (Finance)'
+            };
+
+            const byMethodHtml = byPaymentMethod.length > 0
+                ? byPaymentMethod.map(m => {
+                    const pct = totalContracts > 0 ? ((m.count / totalContracts) * 100).toFixed(1) : '0.0';
+                    const label = methodLabelMap[m.method] || `📋 ${m.method}`;
+                    return `
+                        <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px 10px; background: #ffffff; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 6px;">
+                            <div>
+                                <div style="font-size: 0.83rem; font-weight: 700; color: #1e293b; display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                                    <span>${label}</span>
+                                    <span style="font-size: 0.68rem; color: #0369a1; background: #e0f2fe; padding: 1px 6px; border-radius: 4px; font-weight: 600;">${pct}%</span>
+                                </div>
+                                <div style="font-size: 0.72rem; color: #64748b; margin-top: 2px;">มูลค่าสัญญารวม: ${formatNumber(m.revenue)} ฿</div>
+                            </div>
+                            <div style="font-size: 0.95rem; font-weight: 800; color: #0284c7; white-space: nowrap;">
+                                ${m.count.toLocaleString()} สัญญา
+                            </div>
+                        </div>
+                    `;
+                }).join('')
+                : `<div style="padding: 10px; text-align: center; color: #94a3b8; font-size: 0.82rem;">ไม่พบข้อมูลสัญญาที่อนุมัติแล้ว</div>`;
+
+            const condHtml = condStats.length > 0
+                ? condStats.map(c => {
+                    const label = c.condition === 'New' ? '📱 เครื่องมือ 1 (New)' : c.condition === 'Second-hand' ? '🔄 เครื่องมือ 2 (Second-hand)' : c.condition;
+                    return `<span style="font-size: 0.76rem; background: #ffffff; border: 1px solid #cbd5e1; padding: 4px 10px; border-radius: 8px; font-weight: 600; color: #334155;">${label}: <strong>${c.count.toLocaleString()} เครื่อง</strong></span>`;
+                }).join('')
+                : '';
+
+            modalHtml = `
+                <div style="text-align: left; font-family: var(--font-family, sans-serif); color: #1e293b;">
+                    <!-- Header -->
+                    <div style="display: flex; align-items: center; gap: 12px; padding-bottom: 14px; border-bottom: 1px solid #f1f5f9; margin-bottom: 14px;">
+                        <div style="width: 44px; height: 44px; border-radius: 12px; background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%); color: #ffffff; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(14, 165, 233, 0.28); flex-shrink: 0;">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                <polyline points="14 2 14 8 20 8"></polyline>
+                                <polyline points="9 15 11 17 15 13"></polyline>
+                            </svg>
+                        </div>
+                        <div>
+                            <div style="font-size: 1.15rem; font-weight: 800; color: #0f172a; line-height: 1.3;">ที่มาของตัวเลข: สัญญา (อนุมัติแล้ว)</div>
+                            <div style="font-size: 0.78rem; color: #64748b; margin-top: 2px;">ช่วงเวลา: <strong>${periodLabel}</strong></div>
+                        </div>
+                    </div>
+
+                    <!-- Summary Highlight Box -->
+                    <div style="background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%); border: 2px solid #7dd3fc; border-radius: 12px; padding: 14px 16px; margin-bottom: 14px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
+                        <div>
+                            <div style="font-size: 0.85rem; font-weight: 800; color: #0c4a6e;">📄 จำนวนสัญญาที่ได้รับการอนุมัติแล้วทั้งหมด</div>
+                            <div style="font-size: 0.74rem; color: #0369a1; margin-top: 2px;">มูลค่าสัญญารวมทั้งสิ้น <strong>${formatNumber(paidRevenue + unpaidRevenue)} ฿</strong></div>
+                        </div>
+                        <div style="font-size: 1.4rem; font-weight: 900; color: #0284c7;">
+                            ${totalContracts.toLocaleString()} สัญญา
+                        </div>
+                    </div>
+
+                    <!-- 1. แยกตามสถานะการชำระเงินของสัญญาที่อนุมัติแล้ว -->
+                    <div style="background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 12px; padding: 12px 14px; margin-bottom: 14px;">
+                        <div style="font-size: 0.85rem; font-weight: 700; color: #0369a1; margin-bottom: 10px;">1. แยกตามสถานะการชำระเงินของสัญญาที่อนุมัติแล้ว</div>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px;">
+                            <div style="background: #ffffff; border: 1px solid #bbf7d0; border-left: 4px solid #10b981; border-radius: 8px; padding: 10px 12px;">
+                                <div style="font-size: 0.76rem; color: #047857; font-weight: 700;">✅ ชำระเงินครบแล้ว (Paid)</div>
+                                <div style="font-size: 1.15rem; font-weight: 900; color: #0f172a; margin-top: 2px;">${paidCount.toLocaleString()} สัญญา</div>
+                                <div style="font-size: 0.72rem; color: #64748b;">มูลค่ารวม: ${formatNumber(paidRevenue)} ฿</div>
+                            </div>
+                            <div style="background: #ffffff; border: 1px solid #fde68a; border-left: 4px solid #f59e0b; border-radius: 8px; padding: 10px 12px;">
+                                <div style="font-size: 0.76rem; color: #b45309; font-weight: 700;">⏳ อยู่ระหว่างแบ่งจ่าย / รอรับชำระ</div>
+                                <div style="font-size: 1.15rem; font-weight: 900; color: #0f172a; margin-top: 2px;">${unpaidCount.toLocaleString()} สัญญา</div>
+                                <div style="font-size: 0.72rem; color: #64748b;">มูลค่ารวม: ${formatNumber(unpaidRevenue)} ฿</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 2. แยกตามรูปแบบการชำระเงิน -->
+                    <div style="background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 12px; padding: 12px 14px; margin-bottom: 14px;">
+                        <div style="font-size: 0.85rem; font-weight: 700; color: #334155; margin-bottom: 10px;">2. แยกตามรูปแบบการชำระเงิน (Payment Plan)</div>
+                        ${byMethodHtml}
+                        ${condHtml ? `<div style="margin-top: 10px; display: flex; flex-wrap: wrap; gap: 8px;">${condHtml}</div>` : ''}
+                    </div>
+
+                    <!-- 3. สัญญาสถานะอื่นๆ ที่ยังไม่ถูกนับในการ์ดนี้ -->
+                    ${(pendingCount > 0 || correctionCount > 0 || rejectedCount > 0) ? `
+                    <div style="background: #fffbeb; border: 1px solid #fde68a; border-radius: 10px; padding: 10px 12px; margin-bottom: 10px; font-size: 0.76rem; color: #92400e;">
+                        <strong>📌 สัญญาที่ยังไม่อนุมัติ (ไม่ถูกนับรวมในการ์ดนี้):</strong>
+                        <div style="display: flex; flex-wrap: wrap; gap: 12px; margin-top: 4px;">
+                            <span>• รออนุมัติ: <strong>${pendingCount.toLocaleString()} สัญญา</strong></span>
+                            <span>• ส่งกลับแก้ไข: <strong>${correctionCount.toLocaleString()} สัญญา</strong></span>
+                            <span>• ไม่อนุมัติ: <strong>${rejectedCount.toLocaleString()} สัญญา</strong></span>
+                        </div>
+                    </div>` : ''}
+
+                    <div style="background: #f1f5f9; border-radius: 10px; padding: 9px 12px; font-size: 0.74rem; color: #475569;">
+                        <strong>💡 เกณฑ์การนับ:</strong> อ้างอิงจากวันเริ่มต้นคุ้มครองสัญญา (<code>warrantyDates.start</code>) ที่มีสถานะอนุมัติแล้ว (<code>approved</code>, <code>Approved_Paid</code>, <code>Approved_Unpaid</code>)
+                    </div>
+                </div>
+            `;
+        }
+
+        // ══════════════════════════════════════════════════════════════════
+        // 3. การ์ด "รายจ่ายรวม" (Total Expense)
+        // ══════════════════════════════════════════════════════════════════
+        else if (cardType === 'expense') {
+            const adminCatHtml = adminCategories.length > 0
+                ? adminCategories.map(cat => {
+                    const pct = totalExpense > 0 ? ((cat.amount / totalExpense) * 100).toFixed(1) : '0.0';
+                    return `
+                        <div style="display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; background: #f8fafc; border-radius: 6px; border: 1px solid #e2e8f0; margin-top: 5px; font-size: 0.79rem;">
+                            <div style="color: #334155; font-weight: 600; display: flex; align-items: center; gap: 6px;">
+                                <span>• หมวด ${cat.category}</span>
+                                <span style="font-size: 0.68rem; color: #64748b; background: #e2e8f0; padding: 1px 6px; border-radius: 4px;">${(cat.count || 0).toLocaleString()} รายการ (${pct}%)</span>
+                            </div>
+                            <div style="font-weight: 700; color: #dc2626; font-family: monospace, var(--font-family);">-${formatNumber(cat.amount)} ฿</div>
+                        </div>
+                    `;
+                }).join('')
+                : `<div style="font-size: 0.75rem; color: #94a3b8; margin-top: 4px;">ไม่มีรายการรายจ่ายบริหารในช่วงเวลานี้</div>`;
+
+            modalHtml = `
+                <div style="text-align: left; font-family: var(--font-family, sans-serif); color: #1e293b;">
+                    <!-- Header -->
+                    <div style="display: flex; align-items: center; gap: 12px; padding-bottom: 14px; border-bottom: 1px solid #f1f5f9; margin-bottom: 14px;">
+                        <div style="width: 44px; height: 44px; border-radius: 12px; background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); color: #ffffff; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(239, 68, 68, 0.28); flex-shrink: 0;">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                <polyline points="14 2 14 8 20 8"></polyline>
+                                <line x1="16" y1="13" x2="8" y2="13"></line>
+                                <line x1="16" y1="17" x2="8" y2="17"></line>
+                            </svg>
+                        </div>
+                        <div>
+                            <div style="font-size: 1.15rem; font-weight: 800; color: #0f172a; line-height: 1.3;">ที่มาของตัวเลข: รายจ่ายรวม</div>
+                            <div style="font-size: 0.78rem; color: #64748b; margin-top: 2px;">ช่วงเวลา: <strong>${periodLabel}</strong></div>
+                        </div>
+                    </div>
+
+                    <!-- Summary Highlight Box -->
+                    <div style="background: linear-gradient(135deg, #fff1f2 0%, #ffe4e6 100%); border: 2px solid #fda4af; border-radius: 12px; padding: 14px 16px; margin-bottom: 14px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
+                        <div>
+                            <div style="font-size: 0.85rem; font-weight: 800; color: #9f1239;">💸 ยอดรายจ่ายรวมทั้งหมด (Total Expenses)</div>
+                            <div style="font-size: 0.74rem; color: #be123c; margin-top: 2px;">รวมจากรายการเบิกจ่ายจริงทั้งสิ้น <strong>${totalExpenseCount.toLocaleString()} รายการ</strong></div>
+                        </div>
+                        <div style="font-size: 1.4rem; font-weight: 900; color: #e11d48; font-family: monospace, var(--font-family);">
+                            -${formatNumber(totalExpense)} ฿
+                        </div>
+                    </div>
+
+                    <!-- 4 องค์ประกอบของรายจ่ายรวม -->
+                    <div style="background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 12px; padding: 12px 14px; margin-bottom: 12px;">
+                        <div style="font-size: 0.85rem; font-weight: 700; color: #be123c; margin-bottom: 10px;">องค์ประกอบของรายจ่ายรวมทั้ง 4 ส่วน:</div>
+
+                        <!-- 1. ต้นทุนเคลมซ่อม -->
+                        <div style="padding: 9px 12px; background: #ffffff; border-radius: 8px; border: 1px solid #ffe4e6; margin-bottom: 8px;">
+                            <div style="display: flex; align-items: center; justify-content: space-between;">
+                                <div>
+                                    <div style="font-size: 0.84rem; font-weight: 700; color: #1e293b; display: flex; align-items: center; gap: 6px;">
+                                        <span>🛠️ 1. ต้นทุนเคลม (ซ่อม / ดำเนินการ)</span>
+                                        <span style="font-size: 0.68rem; color: #be123c; background: #ffe4e6; padding: 1px 6px; border-radius: 4px;">${directClaimCount.toLocaleString()} รายการ</span>
+                                    </div>
+                                    <div style="font-size: 0.72rem; color: #64748b; margin-top: 2px;">ค่าซ่อมเครื่องเคลมที่บันทึกจ่ายเงินจริงแล้วในระบบเคลม</div>
+                                </div>
+                                <div style="font-size: 0.95rem; font-weight: 800; color: #e11d48; font-family: monospace, var(--font-family);">-${formatNumber(directClaimCost)} ฿</div>
+                            </div>
+                        </div>
+
+                        <!-- 2. คืนเงินชดเชยสละสิทธิ์เครื่อง -->
+                        <div style="padding: 9px 12px; background: #ffffff; border-radius: 8px; border: 1px solid #ffe4e6; margin-bottom: 8px;">
+                            <div style="display: flex; align-items: center; justify-content: space-between;">
+                                <div>
+                                    <div style="font-size: 0.84rem; font-weight: 700; color: #1e293b; display: flex; align-items: center; gap: 6px;">
+                                        <span>🤝 2. คืนเงินชดเชยสละสิทธิ์เครื่อง</span>
+                                        <span style="font-size: 0.68rem; color: #be123c; background: #ffe4e6; padding: 1px 6px; border-radius: 4px;">${refundCount.toLocaleString()} รายการ</span>
+                                    </div>
+                                    <div style="font-size: 0.72rem; color: #64748b; margin-top: 2px;">ยอดโอนเงินชดเชยคืนลูกค้ากรณีลูกค้าสละสิทธิ์เครื่อง</div>
+                                </div>
+                                <div style="font-size: 0.95rem; font-weight: 800; color: #e11d48; font-family: monospace, var(--font-family);">-${formatNumber(refundCost)} ฿</div>
+                            </div>
+                        </div>
+
+                        <!-- 3. รายจ่ายเคลมบันทึกเอง -->
+                        <div style="padding: 9px 12px; background: #ffffff; border-radius: 8px; border: 1px solid #ffe4e6; margin-bottom: 8px;">
+                            <div style="display: flex; align-items: center; justify-content: space-between;">
+                                <div>
+                                    <div style="font-size: 0.84rem; font-weight: 700; color: #1e293b; display: flex; align-items: center; gap: 6px;">
+                                        <span>📝 3. รายจ่ายเคลม (บันทึกเองเพิ่มเติม)</span>
+                                        <span style="font-size: 0.68rem; color: #be123c; background: #ffe4e6; padding: 1px 6px; border-radius: 4px;">${manualCount.toLocaleString()} รายการ</span>
+                                    </div>
+                                    <div style="font-size: 0.72rem; color: #64748b; margin-top: 2px;">รายการรายจ่ายเคลมที่เพิ่มด้วยตนเองในแท็บรายจ่ายเคลม</div>
+                                </div>
+                                <div style="font-size: 0.95rem; font-weight: 800; color: #e11d48; font-family: monospace, var(--font-family);">-${formatNumber(manualExpense)} ฿</div>
+                            </div>
+                        </div>
+
+                        <!-- 4. รายจ่ายบริหาร -->
+                        <div style="padding: 9px 12px; background: #ffffff; border-radius: 8px; border: 1px solid #ffe4e6;">
+                            <div style="display: flex; align-items: center; justify-content: space-between;">
+                                <div>
+                                    <div style="font-size: 0.84rem; font-weight: 700; color: #1e293b; display: flex; align-items: center; gap: 6px;">
+                                        <span>🏢 4. รายจ่ายบริหาร (แยกตามหมวดหมู่)</span>
+                                        <span style="font-size: 0.68rem; color: #be123c; background: #ffe4e6; padding: 1px 6px; border-radius: 4px;">${adminCount.toLocaleString()} รายการ</span>
+                                    </div>
+                                    <div style="font-size: 0.72rem; color: #64748b; margin-top: 2px;">ค่าใช้จ่ายในการดำเนินงานและบริหารจัดการทั้งหมด</div>
+                                </div>
+                                <div style="font-size: 0.95rem; font-weight: 800; color: #e11d48; font-family: monospace, var(--font-family);">-${formatNumber(adminExpense)} ฿</div>
+                            </div>
+                            <div style="margin-top: 8px; padding-top: 6px; border-top: 1px dashed #fecdd3;">
+                                ${adminCatHtml}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="background: #f1f5f9; border-radius: 10px; padding: 9px 12px; font-size: 0.74rem; color: #475569;">
+                        <strong>💡 สูตรรายจ่ายรวม:</strong> <code>${formatNumber(directClaimCost)} + ${formatNumber(refundCost)} + ${formatNumber(manualExpense)} + ${formatNumber(adminExpense)} = ${formatNumber(totalExpense)} ฿</code>
+                    </div>
+                </div>
+            `;
+        }
+
+        // ══════════════════════════════════════════════════════════════════
+        // 4. การ์ด "กำไรสุทธิ" (Net Profit)
+        // ══════════════════════════════════════════════════════════════════
+        else if (cardType === 'netProfit') {
+            const isPositive = netProfit >= 0;
+            const avgProfitPerContract = totalContracts > 0 ? (netProfit / totalContracts) : 0;
+            const expenseRatioPct = totalIncome > 0 ? Math.min(100, Math.max(0, (totalExpense / totalIncome) * 100)) : 0;
+            const profitRatioPct = totalIncome > 0 ? Math.min(100, Math.max(0, (netProfit / totalIncome) * 100)) : 0;
+
+            modalHtml = `
+                <div style="text-align: left; font-family: var(--font-family, sans-serif); color: #1e293b;">
+                    <!-- Header -->
+                    <div style="display: flex; align-items: center; gap: 12px; padding-bottom: 14px; border-bottom: 1px solid #f1f5f9; margin-bottom: 14px;">
+                        <div style="width: 44px; height: 44px; border-radius: 12px; background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); color: #ffffff; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.28); flex-shrink: 0;">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M12 20V10"></path>
+                                <path d="M18 20V4"></path>
+                                <path d="M6 20v-4"></path>
+                            </svg>
+                        </div>
+                        <div>
+                            <div style="font-size: 1.15rem; font-weight: 800; color: #0f172a; line-height: 1.3;">ที่มาของตัวเลข: กำไรสุทธิ (Net Profit)</div>
+                            <div style="font-size: 0.78rem; color: #64748b; margin-top: 2px;">ช่วงเวลา: <strong>${periodLabel}</strong></div>
+                        </div>
+                    </div>
+
+                    <!-- Step 1: รายรับรวม (+) -->
+                    <div style="background: #f0fdfa; border: 1.5px solid #99f6e4; border-radius: 12px; padding: 12px 14px; margin-bottom: 10px;">
+                        <div style="display: flex; align-items: center; justify-content: space-between;">
+                            <div>
+                                <div style="font-size: 0.85rem; font-weight: 800; color: #0f766e;">1. รายรับรวมจากการบริการ (Total Income)</div>
+                                <div style="font-size: 0.73rem; color: #115e59; margin-top: 2px;">รวมรายรับจากสัญญาและการชำระเงินทั้งหมด (${totalIncomeCount.toLocaleString()} รายการ)</div>
+                            </div>
+                            <div style="font-size: 1.1rem; font-weight: 900; color: #0d9488; font-family: monospace, var(--font-family);">
+                                +${formatNumber(totalIncome)} ฿
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Step 2: หักรายจ่ายรวม (-) -->
+                    <div style="background: #fff1f2; border: 1.5px solid #fecdd3; border-radius: 12px; padding: 12px 14px; margin-bottom: 12px;">
+                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                            <div>
+                                <div style="font-size: 0.85rem; font-weight: 800; color: #be123c;">2. หัก: รายจ่ายรวมทั้งหมด (Total Expenses)</div>
+                                <div style="font-size: 0.73rem; color: #9f1239; margin-top: 2px;">รวมต้นทุนเคลมและรายจ่ายบริหารทั้งหมด (${totalExpenseCount.toLocaleString()} รายการ)</div>
+                            </div>
+                            <div style="font-size: 1.1rem; font-weight: 900; color: #e11d48; font-family: monospace, var(--font-family);">
+                                -${formatNumber(totalExpense)} ฿
+                            </div>
+                        </div>
+                        <div style="background: #ffffff; border-radius: 8px; padding: 8px 10px; border: 1px solid #ffe4e6; font-size: 0.76rem; color: #475569; display: grid; grid-template-columns: 1fr auto; row-gap: 4px;">
+                            <span>• ต้นทุนเคลม (ซ่อม/ดำเนินการ):</span>
+                            <strong style="color: #dc2626; text-align: right;">-${formatNumber(directClaimCost)} ฿</strong>
+                            <span>• คืนเงินชดเชยสละสิทธิ์เครื่อง:</span>
+                            <strong style="color: #dc2626; text-align: right;">-${formatNumber(refundCost)} ฿</strong>
+                            <span>• รายจ่ายเคลม (บันทึกเอง):</span>
+                            <strong style="color: #dc2626; text-align: right;">-${formatNumber(manualExpense)} ฿</strong>
+                            <span>• รายจ่ายบริหาร (${adminCategories.length} หมวดหมู่):</span>
+                            <strong style="color: #dc2626; text-align: right;">-${formatNumber(adminExpense)} ฿</strong>
+                        </div>
+                    </div>
+
+                    <!-- Step 3: ผลลัพธ์กำไรสุทธิ (=) -->
+                    <div style="background: ${isPositive ? 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)' : 'linear-gradient(135deg, #fff1f2 0%, #fecdd3 100%)'}; border: 2px solid ${isPositive ? '#60a5fa' : '#f87171'}; border-radius: 12px; padding: 14px 16px; margin-bottom: 12px;">
+                        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
+                            <div>
+                                <div style="font-size: 0.9rem; font-weight: 800; color: ${isPositive ? '#1e3a8a' : '#991b1b'};">
+                                    ${isPositive ? '💎 ผลลัพธ์: กำไรสุทธิ (Net Profit)' : '⚠️ ผลลัพธ์: ขาดทุนสุทธิ (Net Loss)'}
+                                </div>
+                                <div style="font-size: 0.74rem; color: #475569; margin-top: 3px;">
+                                    สูตร: <code>${formatNumber(totalIncome)} ฿ - ${formatNumber(totalExpense)} ฿</code>
+                                </div>
+                            </div>
+                            <div style="font-size: 1.45rem; font-weight: 900; color: ${isPositive ? '#0284c7' : '#dc2626'}; font-family: monospace, var(--font-family);">
+                                ${formatMoneyWithSign(netProfit)}
+                            </div>
+                        </div>
+
+                        <!-- แถบเปรียบเทียบสัดส่วนรายรับ -->
+                        ${totalIncome > 0 ? `
+                        <div style="margin-top: 12px; padding-top: 10px; border-top: 1px dashed rgba(100,116,139,0.3);">
+                            <div style="display: flex; justify-content: space-between; font-size: 0.73rem; font-weight: 700; margin-bottom: 4px;">
+                                <span style="color: #0284c7;">สัดส่วนกำไรสุทธิ: ${profitRatioPct.toFixed(2)}%</span>
+                                <span style="color: #dc2626;">สัดส่วนรายจ่าย: ${expenseRatioPct.toFixed(2)}%</span>
+                            </div>
+                            <div style="width: 100%; height: 10px; background: #fee2e2; border-radius: 999px; overflow: hidden; display: flex;">
+                                <div style="width: ${profitRatioPct}%; background: linear-gradient(90deg, #0ea5e9, #10b981); height: 100%;"></div>
+                            </div>
+                        </div>` : ''}
+                    </div>
+
+                    <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 9px 12px; font-size: 0.75rem; color: #475569; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+                        <span>📊 จำนวนสัญญาที่อนุมัติในช่วงนี้: <strong>${totalContracts.toLocaleString()} สัญญา</strong></span>
+                        <span>เฉลี่ยกำไรสุทธิต่อสัญญา: <strong style="color: #0f172a;">${formatMoneyWithSign(avgProfitPerContract)} / สัญญา</strong></span>
+                    </div>
+                </div>
+            `;
+        }
+
+        // ══════════════════════════════════════════════════════════════════
+        // 5. การ์ด "อัตรากำไร (%)" (Profit Margin %)
+        // ══════════════════════════════════════════════════════════════════
+        else if (cardType === 'margin') {
+            const totalClaimAndRefund = directClaimCost + manualExpense + refundCost;
+            const claimPct = totalIncome > 0 ? ((totalClaimAndRefund / totalIncome) * 100) : 0;
+            const adminPct = totalIncome > 0 ? ((adminExpense / totalIncome) * 100) : 0;
+            const marginVal = profitMarginPct;
+            const isPositive = marginVal >= 0;
+
+            modalHtml = `
+                <div style="text-align: left; font-family: var(--font-family, sans-serif); color: #1e293b;">
+                    <!-- Header -->
+                    <div style="display: flex; align-items: center; gap: 12px; padding-bottom: 14px; border-bottom: 1px solid #f1f5f9; margin-bottom: 14px;">
+                        <div style="width: 44px; height: 44px; border-radius: 12px; background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: #ffffff; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(245, 158, 11, 0.28); flex-shrink: 0;">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <line x1="19" y1="5" x2="5" y2="19"></line>
+                                <circle cx="6.5" cy="6.5" r="2.5"></circle>
+                                <circle cx="17.5" cy="17.5" r="2.5"></circle>
+                            </svg>
+                        </div>
+                        <div>
+                            <div style="font-size: 1.15rem; font-weight: 800; color: #0f172a; line-height: 1.3;">ที่มาของตัวเลข: อัตรากำไร (%)</div>
+                            <div style="font-size: 0.78rem; color: #64748b; margin-top: 2px;">ช่วงเวลา: <strong>${periodLabel}</strong></div>
+                        </div>
+                    </div>
+
+                    <!-- Summary Highlight Box -->
+                    <div style="background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%); border: 2px solid #fcd34d; border-radius: 12px; padding: 14px 16px; margin-bottom: 14px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
+                        <div>
+                            <div style="font-size: 0.85rem; font-weight: 800; color: #92400e;">📈 อัตรากำไรสุทธิต่อรายรับรวม (Net Profit Margin)</div>
+                            <div style="font-size: 0.74rem; color: #b45309; margin-top: 2px;">วัดประสิทธิภาพการทำกำไรเทียบกับรายรับรวม 100%</div>
+                        </div>
+                        <div style="font-size: 1.45rem; font-weight: 900; color: ${isPositive ? '#0284c7' : '#dc2626'}; font-family: monospace, var(--font-family);">
+                            ${marginVal.toFixed(2)}%
+                        </div>
+                    </div>
+
+                    <!-- 1. สูตรและการแทนค่าคำนวณจริง -->
+                    <div style="background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 12px; padding: 12px 14px; margin-bottom: 14px;">
+                        <div style="font-size: 0.85rem; font-weight: 700; color: #334155; margin-bottom: 8px;">1. สูตรการคำนวณและการแทนค่าตัวเลขจริง:</div>
+                        <div style="background: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 10px 12px; text-align: center; margin-bottom: 8px;">
+                            <div style="font-size: 0.8rem; color: #475569; font-weight: 600;">อัตรากำไร (%) = (กำไรสุทธิ ÷ รายรับรวม) × 100</div>
+                            <div style="font-size: 0.92rem; font-weight: 800; color: #0f172a; margin-top: 6px; font-family: monospace, var(--font-family);">
+                                (${formatMoneyWithSign(netProfit)} ÷ ${formatNumber(totalIncome)} ฿) × 100 = <span style="color: ${isPositive ? '#0284c7' : '#dc2626'};">${marginVal.toFixed(2)}%</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 2. อธิบายเข้าใจง่าย: ทุกๆ รายรับ 100 บาท ไปอยู่ที่ไหนบ้าง? -->
+                    <div style="background: #f0fdf4; border: 1.5px solid #bbf7d0; border-radius: 12px; padding: 12px 14px;">
+                        <div style="font-size: 0.85rem; font-weight: 800; color: #166534; margin-bottom: 8px;">
+                            💡 อธิบายเข้าใจง่าย: ในทุกๆ รายรับ <strong>100.00 บาท</strong> แบ่งออกเป็น
+                        </div>
+                        <div style="display: flex; flex-direction: column; gap: 6px; font-size: 0.82rem;">
+                            <div style="display: flex; justify-content: space-between; padding: 7px 10px; background: #ffffff; border-radius: 8px; border: 1px solid #dcfce7;">
+                                <span style="color: #334155; font-weight: 600;">🛠️ ต้นทุนเคลมซ่อมและคืนเงินสละสิทธิ์:</span>
+                                <strong style="color: #dc2626;">${claimPct.toFixed(2)} บาท (${claimPct.toFixed(2)}%)</strong>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; padding: 7px 10px; background: #ffffff; border-radius: 8px; border: 1px solid #dcfce7;">
+                                <span style="color: #334155; font-weight: 600;">🏢 ค่าใช้จ่ายในการบริหาร:</span>
+                                <strong style="color: #f59e0b;">${adminPct.toFixed(2)} บาท (${adminPct.toFixed(2)}%)</strong>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; padding: 8px 10px; background: #ecfdf5; border-radius: 8px; border: 1.5px solid #6ee7b7;">
+                                <span style="color: #065f46; font-weight: 800;">💰 คงเหลือเป็นกำไรสุทธิเข้าบริษัท:</span>
+                                <strong style="color: ${isPositive ? '#059669' : '#dc2626'}; font-size: 0.92rem;">${marginVal.toFixed(2)} บาท (${marginVal.toFixed(2)}%)</strong>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        if (!modalHtml) return;
+
+        await Swal.fire({
+            width: 650,
+            background: '#ffffff',
+            showCloseButton: true,
+            showConfirmButton: false,
+            html: modalHtml
+        });
+    };
 
     function renderProfitStatementCharts(data) {
         const incomeCanvas = document.getElementById('incomeChart');

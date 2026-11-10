@@ -1834,9 +1834,10 @@
                                 <div class="filter-group">
                                     <label>ช่วงเวลา:</label>
                                     <select id="profitStatementRange" class="filter-select">
+                                        <option value="all" selected>ทั้งหมด</option>
                                         <option value="daily">รายวัน</option>
                                         <option value="weekly">รายสัปดาห์</option>
-                                        <option value="monthly" selected>รายเดือน</option>
+                                        <option value="monthly">รายเดือน</option>
                                         <option value="yearly">รายปี</option>
                                         <option value="custom">กำหนดเอง</option>
                                     </select>
@@ -1850,9 +1851,6 @@
                                     <input type="date" id="profitStatementEndDate" class="filter-date-input">
                                 </div>
                                 <div class="filter-actions" style="margin-left: auto; display: flex; gap: 10px; align-items: center;">
-                                    <button type="button" class="add-btn" id="profitStatementAnalyzeBtn" style="white-space: nowrap;">
-                                        <i class="fas fa-search"></i> วิเคราะห์
-                                    </button>
                                     <button type="button" class="add-btn" id="profitStatementExportExcelBtn" style="white-space: nowrap;">
                                         Export Excel
                                     </button>
@@ -1861,7 +1859,7 @@
                         </div>
 
                         <div class="stats-overview" style="margin-top: 12px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));">
-                            <div class="stat-card" style="border-left: 4px solid #0d9488;">
+                            <div class="stat-card" onclick="showProfitKpiBreakdownModal('income')" style="border-left: 4px solid #0d9488; cursor: pointer; transition: transform 0.15s ease, box-shadow 0.15s ease;" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 8px 20px rgba(13, 148, 136, 0.18)';" onmouseout="this.style.transform='none'; this.style.boxShadow='';" title="คลิกเพื่อดูรายละเอียดที่มาของรายรับรวม">
                                 <div class="stat-icon green">
                                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                         <line x1="12" y1="1" x2="12" y2="23"></line>
@@ -1871,11 +1869,13 @@
                                 <div class="stat-content">
                                     <h3 id="kpiProfitTotalIncome">0</h3>
                                     <div id="kpiProfitTotalIncomeDelta" style="font-size: 0.9em; color: #64748b; margin-top: 4px;"></div>
-                                    <p>รายรับรวม</p>
+                                    <p style="display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                                        รายรับรวม
+                                    </p>
                                 </div>
                             </div>
 
-                            <div class="stat-card" style="border-left: 4px solid #5fdbdb;">
+                            <div class="stat-card" onclick="showProfitKpiBreakdownModal('contracts')" style="border-left: 4px solid #5fdbdb; cursor: pointer; transition: transform 0.15s ease, box-shadow 0.15s ease;" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 8px 20px rgba(14, 165, 233, 0.18)';" onmouseout="this.style.transform='none'; this.style.boxShadow='';" title="คลิกเพื่อดูรายละเอียดที่มาของสัญญา (อนุมัติแล้ว)">
                                 <div class="stat-icon blue">
                                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                         <line x1="12" y1="1" x2="12" y2="23"></line>
@@ -1885,11 +1885,13 @@
                                 <div class="stat-content">
                                     <h3 id="kpiProfitTotalContracts">0</h3>
                                     <div id="kpiProfitTotalContractsDelta" style="font-size: 0.9em; color: #64748b; margin-top: 4px;"></div>
-                                    <p>สัญญา (อนุมัติแล้ว)</p>
+                                    <p style="display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                                        สัญญา (อนุมัติแล้ว)
+                                    </p>
                                 </div>
                             </div>
 
-                            <div class="stat-card" style="border-left: 4px solid #ef4444;">
+                            <div class="stat-card" onclick="showProfitKpiBreakdownModal('expense')" style="border-left: 4px solid #ef4444; cursor: pointer; transition: transform 0.15s ease, box-shadow 0.15s ease;" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 8px 20px rgba(239, 68, 68, 0.18)';" onmouseout="this.style.transform='none'; this.style.boxShadow='';" title="คลิกเพื่อดูรายละเอียดที่มาของรายจ่ายรวม">
                                 <div class="stat-icon orange">
                                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
@@ -1901,11 +1903,13 @@
                                 <div class="stat-content">
                                     <h3 id="kpiProfitTotalExpense">0</h3>
                                     <div id="kpiProfitTotalExpenseDelta" style="font-size: 0.9em; color: #64748b; margin-top: 4px;"></div>
-                                    <p>รายจ่ายรวม</p>
+                                    <p style="display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                                        รายจ่ายรวม
+                                    </p>
                                 </div>
                             </div>
 
-                            <div class="stat-card" style="border-left: 4px solid #3b82f6;">
+                            <div class="stat-card" onclick="showProfitKpiBreakdownModal('netProfit')" style="border-left: 4px solid #3b82f6; cursor: pointer; transition: transform 0.15s ease, box-shadow 0.15s ease;" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 8px 20px rgba(59, 130, 246, 0.18)';" onmouseout="this.style.transform='none'; this.style.boxShadow='';" title="คลิกเพื่อดูรายละเอียดที่มาของกำไรสุทธิ">
                                 <div class="stat-icon purple">
                                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                         <path d="M12 20V10"></path>
@@ -1916,11 +1920,13 @@
                                 <div class="stat-content">
                                     <h3 id="kpiProfitNetProfit">0</h3>
                                     <div id="kpiProfitNetProfitDelta" style="font-size: 0.9em; color: #64748b; margin-top: 4px;"></div>
-                                    <p>กำไรสุทธิ</p>
+                                    <p style="display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                                        กำไรสุทธิ
+                                    </p>
                                 </div>
                             </div>
 
-                            <div class="stat-card" style="border-left: 4px solid #f59e0b;">
+                            <div class="stat-card" onclick="showProfitKpiBreakdownModal('margin')" style="border-left: 4px solid #f59e0b; cursor: pointer; transition: transform 0.15s ease, box-shadow 0.15s ease;" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 8px 20px rgba(245, 158, 11, 0.18)';" onmouseout="this.style.transform='none'; this.style.boxShadow='';" title="คลิกเพื่อดูรายละเอียดที่มาของอัตรากำไร (%)">
                                 <div class="stat-icon" style="color: #f59e0b; background-color: rgba(245,158,11,0.1);">
                                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                         <path d="M20 21V5a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v16"></path>
@@ -1933,7 +1939,9 @@
                                 <div class="stat-content">
                                     <h3 id="kpiProfitMargin">0</h3>
                                     <div id="kpiProfitMarginDelta" style="font-size: 0.9em; color: #64748b; margin-top: 4px;"></div>
-                                    <p>อัตรากำไร (%)</p>
+                                    <p style="display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                                        อัตรากำไร (%)
+                                    </p>
                                 </div>
                             </div>
                         </div>
